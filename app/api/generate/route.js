@@ -1,10 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 export async function POST(req) {
   try {
     const body = await req.json();
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: "v1beta" });
-
 
     const prompt = `Ты профессиональный AI-ассистент и режиссёр вирусных видео (Shorts/TikTok/Reels).
 ПАРАМЕТРЫ: Тема: ${body.topic}. Детали: ${body.context}. Жанр: ${body.genre}. Длительность: ${body.duration}. Платформа: ${body.platform}. Язык: ${body.language}.
@@ -21,8 +17,20 @@ export async function POST(req) {
 
 ДВИЖЕНИЕ: ${body.cameraMoves.join(", ")}. ФИЗИКА: ${body.physicsEffects.join(", ")}. АСМР: ${body.asmrSounds.join(", ")}`;
 
-    const result = await model.generateContent(prompt);
-    const text = await result.response.text();
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Ошибка API Google");
+    }
+
+    const text = data.candidates[0].content.parts[0].text;
+    
     return new Response(JSON.stringify({ text }), { headers: { "Content-Type": "application/json" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
