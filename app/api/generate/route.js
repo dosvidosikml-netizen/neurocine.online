@@ -2,7 +2,6 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    // Защита от пустых значений, если эффекты не выбраны
     const camera = body.cameraMoves ? body.cameraMoves.join(", ") : "на усмотрение режиссера";
     const physics = body.physicsEffects ? body.physicsEffects.join(", ") : "отсутствует";
     const asmr = body.asmrSounds ? body.asmrSounds.join(", ") : "стандартное звуковое оформление";
@@ -24,21 +23,25 @@ export async function POST(req) {
 ФИЗИКА И ЭФФЕКТЫ: ${physics}.
 АСМР-ЗВУКИ: ${asmr}.`;
 
-    // Прямой запрос к стабильной версии модели, которая пробивает лимиты
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama3-70b-8192",
+        messages: [{ role: "user", content: prompt }]
+      })
     });
 
     const data = await response.json();
     
-    // Перехват ошибок от самого Google
     if (!response.ok) {
-      throw new Error(data.error?.message || "Ошибка API Google");
+      throw new Error(data.error?.message || "Ошибка API Groq");
     }
 
-    const text = data.candidates[0].content.parts[0].text;
+    const text = data.choices[0].message.content;
     
     return new Response(JSON.stringify({ text }), { headers: { "Content-Type": "application/json" } });
   } catch (error) {
@@ -48,4 +51,3 @@ export async function POST(req) {
     });
   }
 }
-
