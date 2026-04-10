@@ -3,7 +3,8 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: "v1beta" });
+
 
     const prompt = `Ты профессиональный AI-ассистент и режиссёр вирусных видео (Shorts/TikTok/Reels).
 ПАРАМЕТРЫ: Тема: ${body.topic}. Детали: ${body.context}. Жанр: ${body.genre}. Длительность: ${body.duration}. Платформа: ${body.platform}. Язык: ${body.language}.
