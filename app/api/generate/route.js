@@ -1,5 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generativeai";
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 export async function POST(req) {
   try {
     const body = await req.json();
