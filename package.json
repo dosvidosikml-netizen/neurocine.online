@@ -10,6 +10,6 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "@google/generative-ai": "^0.2.0"
+    "@google/generative-ai": "latest"
   }
 }
