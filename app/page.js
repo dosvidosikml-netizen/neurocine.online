@@ -53,7 +53,6 @@ const PLATFORMS = [
 ];
 const PALETTE = ["#ff3355","#f97316","#eab308","#06b6d4","#a855f7","#22c55e"];
 
-// СИСТЕМНЫЙ ПРОМПТ ПЕРЕВЕДЕН В РАСШИРЕННЫЙ JSON
 const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE REQUIRED)
 Ты профессиональный режиссер вирусных видео. ТВОЯ ГЛАВНАЯ И ЕДИНСТВЕННАЯ ЗАДАЧА - ВЫДАТЬ ОТВЕТ В СТРОГОМ ФОРМАТЕ JSON.
 Никакого текста до или после JSON. Никаких маркдаун-блоков (без \`\`\`json). ТОЛЬКО ВАЛИДНЫЙ JSON!
@@ -61,13 +60,13 @@ const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE 
 СТРУКТУРА JSON ДОЛЖНА БЫТЬ ТАКОЙ:
 {
   "hooks": [
-    {"text": "Фраза диктора на 0-2 сек", "visual": "Детальное описание мощного визуального хука (шок, интрига)"}
+    {"text": "Фраза диктора на 0-2 сек", "visual": "Детальное описание визуального хука"}
   ],
   "frames": [
     {
       "timecode": "0-3 сек",
-      "camera": "описание движения камеры",
-      "visual": "что конкретно происходит в кадре",
+      "camera": "описание движения",
+      "visual": "что происходит в кадре",
       "voice": "слова диктора",
       "audio": "звуки и ASMR",
       "imgPrompt": "ENGLISH VEO/WHISK PROMPT STRICTLY IN ENGLISH",
@@ -75,18 +74,17 @@ const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE 
     }
   ],
   "thumbnail": {
-    "text": "2-4 слова (Психологический разрыв любопытства)",
-    "prompt": "ENGLISH VEO/WHISK PROMPT: 1 main object (40-60% of frame), dark background, bright object, high contrast, shock/fear emotion, cinematic lighting, 8K, highly detailed"
+    "text": "2-4 слова",
+    "prompt": "ENGLISH VEO/WHISK PROMPT: 1 main object, high contrast, cinematic lighting, 8K"
   }
 }
 
 ЖЕСТКИЕ ПРАВИЛА:
-1. Ключи imgPrompt, vidPrompt и thumbnail.prompt ДОЛЖНЫ БЫТЬ ТОЛЬКО НА АНГЛИЙСКОМ ЯЗЫКЕ! Даже если сценарий на русском.
+1. Ключи imgPrompt, vidPrompt и thumbnail.prompt ДОЛЖНЫ БЫТЬ ТОЛЬКО НА АНГЛИЙСКОМ!
 2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать Midjourney или Leonardo.
-3. Массив "frames" должен содержать ТОЧНОЕ количество кадров, которое запросит пользователь. Ни больше, ни меньше. Один кадр = один imgPrompt + один vidPrompt.
-4. Thumbnail (превью) обязательно! Главный объект 40-60% кадра, сильный контраст.`;
+3. Массив "frames" должен содержать ТОЧНОЕ количество кадров. Один кадр = один imgPrompt + один vidPrompt.
+4. Выдавай только JSON.`;
 
-// ─── API ─────────────────────────────────────────────────────────────────────
 async function callAPI(content, maxTokens = 6000) {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -153,18 +151,17 @@ function FrameCard({ f, i }) {
   );
 }
 
-const LOADING_STEPS = ["Анализирую тему…","Строю раскадровку…","Прописываю физику…","Генерирую ASMR-план…","Подбираю промпты…","Проверяю тайминг…","Финальный монтаж…"];
-
 function LoadingScreen() {
+  const STEPS = ["Анализирую тему…","Строю раскадровку…","Прописываю физику…","Подбираю промпты…","Проверяю тайминг…"];
   const [step, setStep] = useState(0);
-  useEffect(()=>{ const iv=setInterval(()=>setStep(s=>Math.min(s+1,LOADING_STEPS.length-1)),1800); return()=>clearInterval(iv); },[]);
+  useEffect(()=>{ const iv=setInterval(()=>setStep(s=>Math.min(s+1,STEPS.length-1)),1800); return()=>clearInterval(iv); },[]);
   return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"100px 40px",textAlign:"center"}}>
       <div style={{width:60,height:60,border:"3px solid rgba(255,51,85,.12)",borderTopColor:"#ff3355",borderRadius:"50%",animation:"spin .9s linear infinite",marginBottom:28}}/>
       <div style={{fontSize:19,fontWeight:800,background:"linear-gradient(135deg,#ff3355,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:12}}>Режиссёр думает…</div>
-      <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:24}}>{LOADING_STEPS[step]}</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:24}}>{STEPS[step]}</div>
       <div style={{display:"flex",gap:6}}>
-        {LOADING_STEPS.map((_,i)=><div key={i} style={{width:i===step?18:6,height:6,borderRadius:3,background:i<=step?"#ff3355":"rgba(255,255,255,.12)",transition:"all .4s"}}/>)}
+        {STEPS.map((_,i)=><div key={i} style={{width:i===step?18:6,height:6,borderRadius:3,background:i<=step?"#ff3355":"rgba(255,255,255,.12)",transition:"all .4s"}}/>)}
       </div>
     </div>
   );
@@ -196,6 +193,17 @@ export default function Page() {
   const [err,      setErr]      = useState("");
   const [toast,    setToast]    = useState("");
 
+  // СИСТЕМА ИСТОРИИ (LOCAL STORAGE)
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ds_history");
+      if (saved) setHistory(JSON.parse(saved));
+    } catch(e) {}
+  }, []);
+
   const scrollRef = useRef(null);
   const preset = GENRE_PRESETS[genre];
   const sty    = STORYBOARD_STYLES.find(s=>s.id===style) || STORYBOARD_STYLES[0];
@@ -203,8 +211,8 @@ export default function Page() {
 
   useEffect(()=>{ scrollRef.current?.scrollTo({top:0,behavior:"smooth"}); },[view]);
 
-  // ОБРАБОТЧИК JSON ОТВЕТА
-  function applyResult(rawText) {
+  // ОБРАБОТЧИК JSON ОТВЕТА С СОХРАНЕНИЕМ В ИСТОРИЮ
+  function applyResult(rawText, fromHistory = false) {
     try {
       let cleanText = rawText.replace(/```json|```/gi, "").trim();
       const startIdx = cleanText.indexOf('{');
@@ -236,11 +244,33 @@ export default function Page() {
       setTags({});
       setTab("storyboard");
       setView("result");
+
+      // Сохранение в LocalStorage
+      if (!fromHistory) {
+        const title = topic ? (topic.length > 30 ? topic.substring(0,30)+"..." : topic) : "Генерация по сценарию";
+        const newItem = {
+          id: Date.now(),
+          topic: title,
+          time: new Date().toLocaleString("ru-RU", {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}),
+          text: cleanText
+        };
+        setHistory(prev => {
+          const next = [newItem, ...prev].slice(0, 10); // Храним последние 10 штук
+          localStorage.setItem("ds_history", JSON.stringify(next));
+          return next;
+        });
+      }
     } catch(e) {
       console.error(e);
-      setErr("Ошибка: Нейросеть нарушила структуру JSON. Попробуйте еще раз.");
+      setErr("Ошибка: Нейросеть нарушила структуру. Попробуйте еще раз.");
       setView("form");
     }
+  }
+
+  function clearHistory() {
+    localStorage.removeItem("ds_history");
+    setHistory([]);
+    setShowHistory(false);
   }
 
   function buildUserPrompt(fromScript) {
@@ -250,7 +280,7 @@ export default function Page() {
 СТИЛЬ: ${sty.label} — ${sty.prompt}
 ДЛИТЕЛЬНОСТЬ: ${dur} → СТРОГО ${durCfg.frames} КАДРОВ. ТИП HOOK: ${hook}`;
 
-    const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ! Не забудь сгенерировать 3 расписанных варианта хуков и обложку.`;
+    const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ! Распиши 3 хука и обложку.`;
 
     if (fromScript) return `${ctx}\n\nГОТОВЫЙ СЦЕНАРИЙ:\n${script.trim()}\n\n${req}`;
     return `${ctx}\n\n${req}`;
@@ -261,7 +291,7 @@ export default function Page() {
     setErr(""); setBusy(true); setView("loading");
     try {
       const text = await callAPI(buildUserPrompt(false));
-      applyResult(text);
+      applyResult(text, false);
     } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
   }
 
@@ -270,7 +300,7 @@ export default function Page() {
     setErr(""); setBusy(true); setView("loading");
     try {
       const text = await callAPI(buildUserPrompt(true));
-      applyResult(text);
+      applyResult(text, false);
     } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
   }
 
@@ -278,7 +308,7 @@ export default function Page() {
     if (!result) return;
     setBusyTags(true);
     try {
-      const raw = await callAPI(`Сгенерируй JSON с хештегами для темы: "${topic}". МИНИМУМ по 5 штук для каждой платформы! Обязательно используй микс русских и английских хештегов (например, #мистика #mystery). Формат: {"YouTube":["#ru1", "#en2", "#ru3", "#en4", "#ru5"], "TikTok":["#ru1", "#en2", "#ru3", "#en4", "#ru5"], "Instagram":["#a","#b","#c","#d","#e"], "Facebook":["#a","#b","#c","#d","#e"], "Telegram":["#a","#b","#c","#d","#e"]}`, 800);
+      const raw = await callAPI(`Сгенерируй JSON с хештегами для темы: "${topic}". МИНИМУМ по 5 штук для каждой платформы! Микс русских и английских хештегов. Формат: {"YouTube":["#a","#b","#c","#d","#e"], "TikTok":["#a","#b","#c","#d","#e"], "Instagram":["#a","#b","#c","#d","#e"], "Facebook":["#a","#b","#c","#d","#e"], "Telegram":["#a","#b","#c","#d","#e"]}`, 800);
       let cleanText = raw.replace(/```json|```/gi, "").trim();
       const startIdx = cleanText.indexOf('{');
       const endIdx = cleanText.lastIndexOf('}');
@@ -308,19 +338,56 @@ export default function Page() {
         .gbtn:disabled{opacity:.4;cursor:not-allowed;animation:none;box-shadow:none}
         textarea:focus{outline:none;border-color:rgba(255,51,85,.6)!important}
       `}</style>
+      
       {toast && <Toast msg={toast} onDone={()=>setToast("")}/>}
+
+      {/* МОДАЛЬНОЕ ОКНО ИСТОРИИ */}
+      {showHistory && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.8)",zIndex:200,display:"flex",justifyContent:"center",alignItems:"center",backdropFilter:"blur(8px)"}}>
+          <div style={{background:"#111118",border:"1px solid rgba(255,51,85,.3)",borderRadius:20,width:"90%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+             <div style={{padding:20,borderBottom:"1px solid rgba(255,255,255,.05)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+               <span style={{fontWeight:700,color:"#fff"}}>🕒 История (последние 10)</span>
+               <button onClick={()=>setShowHistory(false)} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>✕</button>
+             </div>
+             <div style={{padding:20,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+               {history.length===0 ? <div style={{color:"rgba(255,255,255,.3)",textAlign:"center",padding:"20px 0"}}>История пуста</div> :
+                 history.map((h) => (
+                   <div key={h.id} style={{background:"rgba(255,255,255,.05)",borderRadius:12,padding:14,cursor:"pointer",border:"1px solid rgba(255,255,255,.1)"}} 
+                        onClick={() => { applyResult(h.text, true); setShowHistory(false); }}>
+                     <div style={{fontSize:10,color:"rgba(255,255,255,.3)",marginBottom:4}}>{h.time}</div>
+                     <div style={{fontSize:13,fontWeight:600,color:"#fff",lineHeight:1.4}}>{h.topic}</div>
+                   </div>
+                 ))
+               }
+             </div>
+             {history.length > 0 && (
+               <div style={{padding:20,borderTop:"1px solid rgba(255,255,255,.05)"}}>
+                 <button onClick={clearHistory} style={{width:"100%",background:"rgba(255,51,85,.1)",color:"#ff3355",border:"none",padding:"12px",borderRadius:12,fontWeight:700,cursor:"pointer"}}>Очистить историю</button>
+               </div>
+             )}
+          </div>
+        </div>
+      )}
+
       <nav style={S.nav}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {view==="result" && <button onClick={()=>setView("form")} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,width:34,height:34,color:"rgba(255,255,255,.6)",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",marginRight:4}}>‹</button>}
           <span style={{fontSize:17,fontWeight:800,color:"#fff",letterSpacing:"-.5px"}}>Docu<span style={{color:"#ff3355"}}>Shorts</span></span>
           <span style={{fontSize:9,fontWeight:700,letterSpacing:2,background:"linear-gradient(135deg,#ff3355,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",border:"1px solid rgba(255,51,85,.35)",padding:"2px 7px",borderRadius:6}}>PRO</span>
         </div>
-        {view==="result" && result && (
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setView("form")} style={{height:34,padding:"0 12px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>↺ Изменить</button>
-            <button onClick={handleGenTags} disabled={busyTags} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{busyTags?"...":"# Хештеги"}</button>
-          </div>
-        )}
+        
+        {/* КНОПКИ В ПАНЕЛИ НАВИГАЦИИ */}
+        <div style={{display:"flex",gap:6}}>
+          {view==="form" && (
+            <button onClick={()=>setShowHistory(true)} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🕒 История</button>
+          )}
+          {view==="result" && result && (
+            <>
+              <button onClick={()=>setView("form")} style={{height:34,padding:"0 12px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>↺ Изменить</button>
+              <button onClick={handleGenTags} disabled={busyTags} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{busyTags?"...":"# Хештеги"}</button>
+            </>
+          )}
+        </div>
       </nav>
 
       {view==="form" && (
@@ -463,4 +530,3 @@ export default function Page() {
     </div>
   );
 }
-
