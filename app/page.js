@@ -53,7 +53,6 @@ const PLATFORMS = [
 ];
 const PALETTE = ["#ff3355","#f97316","#eab308","#06b6d4","#a855f7","#22c55e"];
 
-// СИСТЕМНЫЙ ПРОМПТ ДЛЯ РАСКАДРОВКИ (JSON)
 const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE REQUIRED)
 Ты профессиональный режиссер вирусных видео. ТВОЯ ГЛАВНАЯ И ЕДИНСТВЕННАЯ ЗАДАЧА - ВЫДАТЬ ОТВЕТ В СТРОГОМ ФОРМАТЕ JSON.
 Никакого текста до или после JSON. Никаких маркдаун-блоков (без \`\`\`json). ТОЛЬКО ВАЛИДНЫЙ JSON!
@@ -75,7 +74,7 @@ const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE 
     }
   ],
   "thumbnail": {
-    "text": "2-4 слова",
+    "text": "СИЛЬНЫЙ ТЕКСТ ИЗ 2-4 СЛОВ ДЛЯ ОБЛОЖКИ",
     "prompt": "ENGLISH VEO/WHISK PROMPT: 1 main object, high contrast, cinematic lighting, 8K"
   }
 }
@@ -83,10 +82,9 @@ const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE 
 ЖЕСТКИЕ ПРАВИЛА:
 1. Ключи imgPrompt, vidPrompt и thumbnail.prompt ДОЛЖНЫ БЫТЬ ТОЛЬКО НА АНГЛИЙСКОМ!
 2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать Midjourney или Leonardo.
-3. Массив "frames" должен содержать ТОЧНОЕ количество кадров. Один кадр = один imgPrompt + один vidPrompt.
+3. Массив "frames" должен содержать ТОЧНОЕ количество кадров. Один кадр = один imgPrompt + один vidPrompt. Разкадровка каждые 2-3 секунды, каждое слово = значимый кадр.
 4. Выдавай только JSON.`;
 
-// УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК API
 async function callAPI(content, maxTokens = 6000, sysPrompt = VIRAL_SYSTEM) {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -193,7 +191,7 @@ export default function Page() {
   const [vidP,    setVidP]    = useState([]);
   
   const [tags,    setTags]    = useState({});
-  const [ttsSettings, setTtsSettings] = useState(""); // Настройки Google AI Studio
+  const [ttsSettings, setTtsSettings] = useState("");
   const [busy,     setBusy]     = useState(false);
   const [busyTags, setBusyTags] = useState(false);
   const [busyScriptProcess, setBusyScriptProcess] = useState(false);
@@ -280,15 +278,15 @@ export default function Page() {
 
   async function handleWriteScript() {
     if (!topic.trim()) { setErr("Сначала введите тему в поле выше!"); return; }
-    setErr(""); setBusyScriptProcess(true); setLoadingMsg("Пишу сценарий..."); setView("loading");
+    setErr(""); setBusyScriptProcess(true); setLoadingMsg("Пишу мощный сценарий..."); setView("loading");
     try {
-      const sysTxt = `Ты топовый сценарист вирусных коротких видео. Твоя задача — написать ТОЛЬКО мощный текст для диктора по теме.
-Никаких описаний кадров, никаких ремарок, никаких приветствий ИИ или JSON. ТОЛЬКО чистый текст диктора, который будет звучать в видео. 
-Учитывай темп, делай микро-паузы, используй короткие цепкие предложения, которые держат внимание.`;
-      const prompt = `Тема: ${topic}\nПлатформа: ${plat}\nЖанр: ${genre}\nЯзык: ${lang}\nОжидаемая длительность: ${dur}\nХук-эмоция: ${hook}\n\nНапиши чистый текст диктора.`;
+      const sysTxt = `Ты топовый сценарист вирусных коротких видео. Твоя задача — написать ТОЛЬКО текст для диктора.
+Никаких описаний кадров, никаких ремарок. ТОЛЬКО чистый текст. 
+Учитывай темп, делай паузы, используй короткие цепкие предложения, которые держат внимание.`;
+      const prompt = `Тема: ${topic}\nПлатформа: ${plat}\nЖанр: ${genre}\nЯзык: ${lang}\nДлительность: ${dur}\n\nНапиши чистый текст диктора.`;
       const text = await callAPI(prompt, 2000, sysTxt);
       setScript(text.trim());
-      setToast("Текст сгенерирован! Можете его отредактировать.");
+      setToast("Текст сгенерирован!");
     } catch(e) {
       setErr("Ошибка: " + e.message);
     } finally {
@@ -301,15 +299,14 @@ export default function Page() {
     if (!script.trim()) { setErr("Вставьте исходный текст для обработки!"); return; }
     setErr(""); setBusyScriptProcess(true); setLoadingMsg("Расставляю ударения..."); setView("loading");
     try {
-      const sysVoice = `Ты эксперт-редактор и диктор. Твоя задача — обработать текст для озвучки ИИ-диктором.
-1. Сделай текст уникальным, ритмичным и удерживающим внимание.
-2. РАССТАВЬ УДАРЕНИЯ во всех словах длиннее одного слога. Ударную гласную делай ЗАГЛАВНОЙ БУКВОЙ (например: 'загАдка', 'человЕк', 'посмотрИте').
-3. Добавь паузы (...) для создания интриги.
-Верни ТОЛЬКО готовый обработанный текст. БЕЗ приветствий, БЕЗ формата JSON.`;
+      const sysVoice = `Ты эксперт-редактор. Твоя задача — обработать текст для озвучки ИИ-диктором.
+1. РАССТАВЬ УДАРЕНИЯ во всех словах длиннее одного слога. Ударную гласную делай ЗАГЛАВНОЙ БУКВОЙ (например: 'загАдка', 'человЕк').
+2. Добавь паузы (...) для создания интриги.
+Верни ТОЛЬКО готовый обработанный текст.`;
       
       const text = await callAPI(`Перепиши и расставь ударения в этом тексте:\n\n${script}`, 2000, sysVoice);
       setScript(text.trim());
-      setToast("Текст уникализирован и подготовлен для TTS!");
+      setToast("Текст подготовлен для TTS!");
     } catch(e) {
       setErr("Ошибка обработки: " + e.message);
     } finally {
@@ -318,12 +315,314 @@ export default function Page() {
     }
   }
 
-  // --- НОВАЯ ФУНКЦИЯ ДЛЯ НАСТРОЕК GOOGLE AI STUDIO TTS ---
   async function handleGetTtsSettings() {
+    if (!script.trim()) { setErr("Сначала вставьте или сгенерируйте сценарий!"); return; }
     setErr(""); setBusyTts(true);
     try {
-      const sysTts = "Ты аудио-режиссер. Твоя задача выдать короткие настройки для Google AI Studio (Gemini 2.5 Pro Preview TTS). Без приветствий и воды.";
-      const prompt = `Жанр видео: ${genre}. Платформа: ${plat}.
+      const sysTts = "Ты аудио-режиссер. Твоя задача выдать настройки для Google AI Studio (Gemini 2.5 Pro Preview TTS). Выдавай только текст настроек.";
+      const prompt = `Жанр: ${genre}. Платформа: ${plat}. Текст диктора: "${script.substring(0,200)}..."
 Выдай настройки в таком формате:
-Голос: [Обязательно выбери 1 лучший из: Zephyr, Puck, Charon, Aoede, Fenrir]
-Темп: [Укажи темп. Если это TikTok/Reel
+🎙 ГОЛОС: [Выбери 1 из: Zephyr, Puck, Charon, Aoede, Fenrir]
+⚡ ТЕМП: [Подробно, например "Быстрый, динамичный для Reels"]
+🎭 ЭМОЦИЯ: [Как читать]
+🤖 ПРОМПТ ДЛЯ ИИ (Text): [Напиши на АНГЛИЙСКОМ короткую инструкцию для поля Text, например: "Read with extreme urgency and suspense."]`;
+      
+      const text = await callAPI(prompt, 500, sysTts);
+      setTtsSettings(text.trim());
+      setToast("Настройки TTS получены!");
+    } catch(e) {
+      setErr("Ошибка: " + e.message);
+    } finally {
+      setBusyTts(false);
+    }
+  }
+
+  function buildUserPrompt(fromScript) {
+    const ctx = `ТЕМА: ${topic || "из готового сценария"}
+ЖАНР: ${genre} | ПЛАТФОРМА: ${plat} | ЯЗЫК: ${lang}
+ФИЗИКА: ${preset.physics} | СВЕТ: ${preset.light} | ASMR: ${preset.asmr}
+СТИЛЬ: ${sty.label} — ${sty.prompt}
+ДЛИТЕЛЬНОСТЬ: ${dur} → СТРОГО ${durCfg.frames} КАДРОВ. ТИП HOOK: ${hook}`;
+
+    const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ! Распиши 3 хука и обложку.`;
+
+    if (fromScript) return `${ctx}\n\nГОТОВЫЙ СЦЕНАРИЙ ДЛЯ РАСКАДРОВКИ:\n${script.trim()}\n\n${req}`;
+    return `${ctx}\n\n${req}`;
+  }
+
+  async function handleGenerateFromScript() {
+    if (!script.trim()) { setErr("Сначала напишите или сгенерируйте сценарий!"); return; }
+    setErr(""); setBusy(true); setLoadingMsg(""); setView("loading");
+    try {
+      const text = await callAPI(buildUserPrompt(true));
+      applyResult(text, false);
+    } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
+  }
+
+  async function handleGenTags() {
+    if (!result) return;
+    setBusyTags(true);
+    try {
+      const sysTag = "Ты SMM-специалист. Выдаешь строго валидный JSON без лишнего текста.";
+      const raw = await callAPI(`Сгенерируй JSON с хештегами для темы: "${topic}". МИНИМУМ по 5 штук для каждой платформы! Микс русских и английских хештегов. Формат: {"YouTube":["#a","#b","#c","#d","#e"], "TikTok":["#a","#b","#c","#d","#e"], "Instagram":["#a","#b","#c","#d","#e"], "Facebook":["#a","#b","#c","#d","#e"], "Telegram":["#a","#b","#c","#d","#e"]}`, 800, sysTag);
+      let cleanText = raw.replace(/```json|```/gi, "").trim();
+      const startIdx = cleanText.indexOf('{');
+      const endIdx = cleanText.lastIndexOf('}');
+      if (startIdx !== -1 && endIdx !== -1) cleanText = cleanText.substring(startIdx, endIdx + 1);
+      setTags(JSON.parse(cleanText));
+      setTab("hashtags");
+    } catch { setToast("Не удалось получить хештеги."); } finally { setBusyTags(false); }
+  }
+
+  const S = {
+    root:    { minHeight:"100vh", background:"#08080f", color:"#d0d4e8", fontFamily:"-apple-system,'SF Pro Text',sans-serif", paddingBottom:110, overflowY:"auto" },
+    nav:     { position:"sticky", top:0, zIndex:50, background:"rgba(8,8,15,.92)", backdropFilter:"blur(24px)", borderBottom:"1px solid rgba(255,255,255,.06)", height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" },
+    label:   { fontSize:10, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,.3)", display:"block", marginBottom:10 },
+    section: { marginBottom:24 },
+    ta:      { width:"100%", background:"rgba(255,255,255,.05)", border:"1.5px solid rgba(255,255,255,.1)", borderRadius:14, padding:"14px 16px", fontSize:14, color:"#fff", fontFamily:"inherit", resize:"none", lineHeight:1.6 },
+  };
+
+  return (
+    <div ref={scrollRef} style={S.root}>
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+        @keyframes glow{0%,100%{box-shadow:0 0 30px rgba(255,51,85,.35)}50%{box-shadow:0 0 60px rgba(255,51,85,.6)}}
+        .gbtn{width:100%;height:60px;border:none;border-radius:18px;cursor:pointer;font-family:inherit;font-size:15px;font-weight:800;color:#fff;background:linear-gradient(135deg,#c8001e,#ff1a3d,#ff4d1a,#ff8800);background-size:300% 300%;animation:shimmer 4s linear infinite,glow 3s ease-in-out infinite;transition:transform .15s}
+        .gbtn:hover{transform:translateY(-2px)}
+        .gbtn:disabled{opacity:.4;cursor:not-allowed;animation:none;box-shadow:none}
+        textarea:focus{outline:none;border-color:rgba(255,51,85,.6)!important}
+      `}</style>
+      
+      {toast && <Toast msg={toast} onDone={()=>setToast("")}/>}
+
+      {showHistory && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.8)",zIndex:200,display:"flex",justifyContent:"center",alignItems:"center",backdropFilter:"blur(8px)"}}>
+          <div style={{background:"#111118",border:"1px solid rgba(255,51,85,.3)",borderRadius:20,width:"90%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+             <div style={{padding:20,borderBottom:"1px solid rgba(255,255,255,.05)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+               <span style={{fontWeight:700,color:"#fff"}}>🕒 История (последние 10)</span>
+               <button onClick={()=>setShowHistory(false)} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>✕</button>
+             </div>
+             <div style={{padding:20,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+               {history.length===0 ? <div style={{color:"rgba(255,255,255,.3)",textAlign:"center",padding:"20px 0"}}>История пуста</div> :
+                 history.map((h) => (
+                   <div key={h.id} style={{background:"rgba(255,255,255,.05)",borderRadius:12,padding:14,cursor:"pointer",border:"1px solid rgba(255,255,255,.1)"}} 
+                        onClick={() => { applyResult(h.text, true); setShowHistory(false); }}>
+                     <div style={{fontSize:10,color:"rgba(255,255,255,.3)",marginBottom:4}}>{h.time}</div>
+                     <div style={{fontSize:13,fontWeight:600,color:"#fff",lineHeight:1.4}}>{h.topic}</div>
+                   </div>
+                 ))
+               }
+             </div>
+             {history.length > 0 && (
+               <div style={{padding:20,borderTop:"1px solid rgba(255,255,255,.05)"}}>
+                 <button onClick={clearHistory} style={{width:"100%",background:"rgba(255,51,85,.1)",color:"#ff3355",border:"none",padding:"12px",borderRadius:12,fontWeight:700,cursor:"pointer"}}>Очистить историю</button>
+               </div>
+             )}
+          </div>
+        </div>
+      )}
+
+      <nav style={S.nav}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {view==="result" && <button onClick={()=>setView("form")} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,width:34,height:34,color:"rgba(255,255,255,.6)",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",marginRight:4}}>‹</button>}
+          <span style={{fontSize:17,fontWeight:800,color:"#fff",letterSpacing:"-.5px"}}>Docu<span style={{color:"#ff3355"}}>Shorts</span></span>
+          <span style={{fontSize:9,fontWeight:700,letterSpacing:2,background:"linear-gradient(135deg,#ff3355,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",border:"1px solid rgba(255,51,85,.35)",padding:"2px 7px",borderRadius:6}}>PRO</span>
+        </div>
+        
+        <div style={{display:"flex",gap:6}}>
+          {view==="form" && (
+            <button onClick={()=>setShowHistory(true)} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🕒 История</button>
+          )}
+          {view==="result" && result && (
+            <>
+              <button onClick={()=>setView("form")} style={{height:34,padding:"0 12px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>↺ Изменить</button>
+              <button onClick={handleGenTags} disabled={busyTags} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{busyTags?"...":"# Хештеги"}</button>
+            </>
+          )}
+        </div>
+      </nav>
+
+      {view==="form" && (
+        <div style={{maxWidth:480,margin:"0 auto",padding:"24px 18px"}}>
+          <div style={S.section}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <label style={{...S.label,marginBottom:0}}>ТЕМА *</label>
+            </div>
+            <textarea rows={2} value={topic} maxLength={200} onChange={e=>setTopic(e.target.value)} placeholder="Например: Перевал Дятлова..." style={S.ta}/>
+            <button onClick={handleWriteScript} disabled={busyScriptProcess || !topic.trim()}
+              style={{marginTop:8,width:"100%",height:40,border:"1px dashed rgba(255,255,255,.15)",borderRadius:14,background:"rgba(255,255,255,.03)",color:"#fff",cursor:topic.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:12,fontWeight:600,transition:"all .2s",opacity:topic.trim()?1:0.5}}>
+              ✍️ Написать текст диктора по теме
+            </button>
+          </div>
+          
+          <div style={S.section}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <label style={{...S.label,marginBottom:0}}>ТЕКСТ ДИКТОРА / СЦЕНАРИЙ</label>
+            </div>
+            <textarea rows={5} value={script} onChange={e=>setScript(e.target.value)} placeholder="Сгенерируйте текст кнопкой выше, или вставьте свой..." style={{...S.ta,fontSize:13}}/>
+            
+            {/* БЛОК КНОПОК ДЛЯ ТЕКСТА (ТЕПЕРЬ ВИДЕН ВСЕГДА) */}
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={handlePrepareVoice} disabled={!script.trim() || busyScriptProcess || busyTts || busy}
+                  style={{flex:1,height:46,border:"1px solid rgba(168,85,247,.4)",borderRadius:14,background:"rgba(168,85,247,.15)",color:"#c084fc",cursor:script.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .2s",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",opacity:script.trim()?1:0.5}}>
+                  <span>🎙 Уникализировать</span>
+                  <span style={{fontSize:9,fontWeight:400,opacity:.8}}>+ Ударения для TTS</span>
+                </button>
+                <button onClick={handleGetTtsSettings} disabled={!script.trim() || busyTts || busyScriptProcess || busy}
+                  style={{flex:1,height:46,border:"1px solid rgba(14,165,233,.4)",borderRadius:14,background:"rgba(14,165,233,.15)",color:"#38bdf8",cursor:script.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .2s",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",opacity:script.trim()?1:0.5}}>
+                  <span>{busyTts ? "Анализирую..." : "⚙️ Настройки TTS"}</span>
+                  <span style={{fontSize:9,fontWeight:400,opacity:.8}}>Google AI Studio</span>
+                </button>
+              </div>
+              <button onClick={handleGenerateFromScript} disabled={!script.trim() || busy || busyScriptProcess || busyTts}
+                style={{width:"100%",height:46,border:"none",borderRadius:14,background:"linear-gradient(135deg,#6366f1,#a855f7)",color:"#fff",cursor:script.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:12,fontWeight:700,transition:"all .2s",opacity:script.trim()?1:0.5}}>
+                🎬 Сделать раскадровку
+              </button>
+            </div>
+            
+            {/* ОТОБРАЖЕНИЕ НАСТРОЕК TTS */}
+            {ttsSettings && (
+              <div style={{marginTop:12, background:"rgba(14,165,233,.08)", border:"1px solid rgba(14,165,233,.3)", borderRadius:14, padding:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{fontSize:10,letterSpacing:1,color:"#38bdf8",fontWeight:800}}>НАСТРОЙКИ ДИКТОРА (GOOGLE AI STUDIO)</span>
+                  <CopyBtn text={ttsSettings} label="Copy" small/>
+                </div>
+                <pre style={{whiteSpace:"pre-wrap",fontFamily:"inherit",fontSize:12,color:"rgba(255,255,255,.8)",lineHeight:1.6}}>{ttsSettings}</pre>
+              </div>
+            )}
+          </div>
+
+          <div style={S.section}>
+            <label style={S.label}>ЖАНР</label>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {Object.entries(GENRE_PRESETS).map(([g,p])=>(
+                <button key={g} onClick={()=>setGenre(g)} style={{background:genre===g?`${p.col}1a`:"rgba(255,255,255,.04)",border:`1.5px solid ${genre===g?p.col+"80":"rgba(255,255,255,.08)"}`,borderRadius:14,padding:"10px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                  <span style={{fontSize:20}}>{p.icon}</span><span style={{fontSize:9,color:genre===g?p.col:"rgba(255,255,255,.3)",fontWeight:700}}>{g}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={S.section}>
+            <label style={S.label}>ТИП HOOK</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {HOOKS.map(h=><button key={h} onClick={()=>setHook(h)} style={{background:hook===h?"rgba(255,51,85,.18)":"rgba(255,255,255,.04)",border:`1.5px solid ${hook===h?"#ff335580":"rgba(255,255,255,.08)"}`,borderRadius:20,padding:"7px 14px",fontSize:12,color:hook===h?"#ff3355":"rgba(255,255,255,.4)",cursor:"pointer"}}>{h}</button>)}
+            </div>
+          </div>
+
+          <div style={S.section}>
+            <label style={S.label}>СТИЛЬ РАСКАДРОВКИ</label>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}}>
+              {STORYBOARD_STYLES.map(s=>(
+                <button key={s.id} onClick={()=>setStyle(s.id)} style={{background:style===s.id?`${s.col}1a`:"rgba(255,255,255,.03)",border:`1.5px solid ${style===s.id?s.col+"80":"rgba(255,255,255,.07)"}`,borderRadius:14,padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:9,textAlign:"left"}}>
+                  <span style={{fontSize:18}}>{s.icon}</span>
+                  <div><div style={{fontSize:11,fontWeight:700,color:style===s.id?s.col:"rgba(255,255,255,.6)"}}>{s.label}</div><div style={{fontSize:9,color:"rgba(255,255,255,.22)"}}>{s.desc}</div></div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={S.section}>
+            <label style={S.label}>ДЛИТЕЛЬНОСТЬ</label>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {DURATIONS.map(d=><button key={d} onClick={()=>setDur(d)} style={{background:dur===d?"rgba(249,115,22,.18)":"rgba(255,255,255,.04)",border:`1.5px solid ${dur===d?"#f9731680":"rgba(255,255,255,.08)"}`,borderRadius:20,padding:"7px 14px",fontSize:12,color:dur===d?"#f97316":"rgba(255,255,255,.4)",cursor:"pointer"}}>{d}</button>)}
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+            <div>
+              <label style={S.label}>ПЛАТФОРМА</label>
+              {PLATFORMS.map(p=><button key={p.id} onClick={()=>setPlat(p.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:plat===p.id?`${p.col}14`:"rgba(255,255,255,.03)",border:`1.5px solid ${plat===p.id?p.col+"55":"rgba(255,255,255,.07)"}`,borderRadius:12,padding:"9px 12px",cursor:"pointer",marginBottom:5}}><span style={{fontSize:14,color:plat===p.id?p.col:"rgba(255,255,255,.3)"}}>{p.icon}</span><span style={{fontSize:12,fontWeight:plat===p.id?700:400,color:plat===p.id?p.col:"rgba(255,255,255,.4)"}}>{p.id}</span></button>)}
+            </div>
+            <div>
+              <label style={S.label}>ЯЗЫК</label>
+              {["RU","EN"].map(l=><button key={l} onClick={()=>setLang(l)} style={{display:"block",width:"100%",background:lang===l?"rgba(255,51,85,.15)":"rgba(255,255,255,.03)",border:`1.5px solid ${lang===l?"#ff335555":"rgba(255,255,255,.07)"}`,borderRadius:12,padding:"11px",cursor:"pointer",marginBottom:5,fontSize:14,color:lang===l?"#ff3355":"rgba(255,255,255,.35)"}}>{l}</button>)}
+            </div>
+          </div>
+          {err&&<div style={{background:"rgba(255,51,85,.1)",border:"1px solid rgba(255,51,85,.3)",borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:"#fca5a5"}}>⚠ {err}</div>}
+        </div>
+      )}
+
+      {view==="loading"&&<LoadingScreen msg={loadingMsg}/>}
+
+      {view==="result"&&result&&(
+        <div style={{maxWidth:480,margin:"0 auto"}}>
+          <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,.06)",padding:"0 16px",position:"sticky",top:56,zIndex:40,background:"rgba(8,8,15,.95)",backdropFilter:"blur(20px)",overflowX:"auto"}}>
+            {[{id:"storyboard",label:"Раскадровка",badge:frames.length},{id:"raw",label:"Сценарий"},{id:"prompts",label:"Промпты",badge:(imgP.length+vidP.length)||null},{id:"hashtags",label:"Хештеги",badge:Object.keys(tags).length||null}].map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"none",background:"none",border:"none",borderBottom:`2px solid ${tab===t.id?"#ff3355":"transparent"}`,color:tab===t.id?"#ff3355":"rgba(255,255,255,.3)",fontSize:12,padding:"13px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                {t.label}{t.spin?<span style={{width:10,height:10,border:"1.5px solid rgba(255,51,85,.3)",borderTopColor:"#ff3355",borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>:t.badge>0&&<span style={{background:"#ff3355",color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:6}}>{t.badge}</span>}
+              </button>
+            ))}
+            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",paddingRight:4}}><CopyBtn text={result} label="⎘" small/></div>
+          </div>
+
+          <div style={{padding:"18px 16px"}}>
+            {tab==="storyboard"&&(
+              <div>
+                {hooksList.length > 0 && (
+                  <div style={{marginBottom: 20}}>
+                    <div style={{fontSize:11, letterSpacing:1, color:"#ff3355", fontWeight:800, marginBottom:10}}>🔥 ВАРИАНТЫ HOOK</div>
+                    {hooksList.map((h, i) => (
+                      <div key={i} style={{background:"rgba(255,51,85,.05)", border:"1px solid rgba(255,51,85,.2)", borderRadius:14, padding:14, marginBottom:8}}>
+                        <div style={{fontSize:13, fontWeight:700, color:"#fff", marginBottom:6, lineHeight:1.4}}>🗣 «{h.text}»</div>
+                        <div style={{fontSize:11, color:"rgba(255,255,255,.6)", lineHeight:1.5}}>🎬 {h.visual}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {frames.map((f,i)=><FrameCard key={i} f={f} i={i}/>)}
+                
+                {/* КРАСИВОЕ ПРЕВЬЮ ОБЛОЖКИ (THUMBNAIL) */}
+                {thumb && (
+                  <div style={{marginTop: 24, background:"rgba(255,255,255,.02)", border:"1px solid rgba(249,115,22,.3)", borderRadius:20, padding:20, position:"relative", overflow:"hidden"}}>
+                    <div style={{position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg, #f97316, transparent)"}}/>
+                    <div style={{fontSize:12, fontWeight:800, color:"#f97316", letterSpacing:1, marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                      <span>🖼 ДИЗАЙН ОБЛОЖКИ (THUMBNAIL)</span>
+                    </div>
+                    
+                    {/* Визуальная имитация экрана обложки */}
+                    <div style={{background:"linear-gradient(180deg, #111, #000)", border:"1px solid rgba(255,255,255,.1)", borderRadius:12, padding:"40px 20px", textAlign:"center", marginBottom:16, position:"relative", overflow:"hidden"}}>
+                       <div style={{position:"absolute", top:"50%", left:"50%", transform:"translate(-50%, -50%)", fontSize:60, opacity:0.05}}>🖼</div>
+                       <div style={{position:"relative", zIndex:1, fontSize:22, fontWeight:900, color:"#fff", textTransform:"uppercase", letterSpacing:1, textShadow:"0px 4px 20px rgba(0,0,0,0.8), 0px 0px 10px #f97316"}}>
+                         {thumb.text || "СКОРЕЕ СМОТРИ"}
+                       </div>
+                    </div>
+
+                    <div style={{background:"rgba(34,197,94,.05)", border:"1px solid rgba(34,197,94,.2)", borderRadius:12, padding:14}}>
+                       <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
+                         <span style={{fontSize:10, fontWeight:700, color:"#4ade80"}}>ПРОМПТ ДЛЯ VEO/WHISK</span>
+                         <CopyBtn text={thumb.prompt} label="Copy Prompt" small/>
+                       </div>
+                       <div style={{fontFamily:"monospace", fontSize:12, color:"rgba(255,255,255,.6)", lineHeight:1.6}}>
+                         {thumb.prompt}
+                       </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {tab==="raw"&&(<div style={{background:"rgba(255,255,255,.025)",borderRadius:18,padding:20}}><pre style={{whiteSpace:"pre-wrap",wordBreak:"break-word",fontFamily:"monospace",fontSize:11,lineHeight:2,color:"rgba(255,255,255,.55)",userSelect:"text"}}>{result}</pre></div>)}
+            {tab==="prompts"&&(
+              <div>
+                <div style={{marginBottom:20}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:9,fontWeight:700,color:"#4ade80"}}>🖼 IMAGE PROMPTS</span>{imgP.length>0&&<CopyBtn text={imgP.join("\n\n")} label="Все" small/>}</div>
+                  {imgP.length>0?imgP.map((p,i)=><div key={i} style={{background:"rgba(34,197,94,.04)",border:"1px solid rgba(34,197,94,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#4ade80",fontWeight:700}}>IMG {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.5)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты отсутствуют</div>}
+                </div>
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:9,fontWeight:700,color:"#818cf8"}}>🎥 VIDEO PROMPTS</span>{vidP.length>0&&<CopyBtn text={vidP.join("\n\n")} label="Все" small/>}</div>
+                  {vidP.length>0?vidP.map((p,i)=><div key={i} style={{background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#818cf8",fontWeight:700}}>VID {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.45)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты отсутствуют</div>}
+                </div>
+              </div>
+            )}
+            {tab==="hashtags"&&(<div>{Object.keys(tags).length>0?PLATFORMS.map(p=>tags[p.id]&&<div key={p.id} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${p.col}25`,borderRadius:16,padding:16,marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:13,fontWeight:700,color:p.col}}>{p.id}</span><CopyBtn text={tags[p.id].join(" ")} label="Копировать"/></div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{tags[p.id].map((t,i)=><span key={i} style={{background:`${p.col}18`,border:`1px solid ${p.col}35`,borderRadius:20,padding:"4px 12px",fontSize:12,color:p.col}}>{t}</span>)}</div></div>):<button onClick={handleGenTags} style={{color:"#ff3355"}}>Сгенерировать</button>}</div>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
