@@ -4,21 +4,19 @@
 
 import { useState, useEffect, useRef } from "react";
 
-// ПУНКТ 2 ОСТАВЛЕН БЕЗ ИЗМЕНЕНИЙ (По твоей просьбе)
 const GENRE_PRESETS = {
-  "КРИМИНАЛ":      { icon:"🔫", col:"#ff3355", physics:"кровь капает в слоу-мо, тени движутся",        light:"cold forensic overhead light, hard rim light from behind",        asmr:"металлический скрежет, сухой щелчок затвора" },
+  "КРИМИНАЛ":      { icon:"🔫", col:"#ff3355", physics:"тени движутся, камера из-за угла",        light:"cold forensic overhead light, hard rim light from behind",        asmr:"металлический скрежет, сухой щелчок затвора" },
   "ТАЙНА":         { icon:"🔍", col:"#a855f7", physics:"туман стелется, пылинки кружатся",             light:"flickering volumetric light, bioluminescent glow",          asmr:"тихий шорох бумаги, шёпот вплотную к микрофону" },
-  "ИСТОРИЯ":       { icon:"📜", col:"#f97316", physics:"пылинки кружатся, листья срываются",           light:"golden hour dust beams, single candle chiaroscuro",              asmr:"шуршание ткани, стук каблуков по камню" },
+  "ИСТОРИЯ":       { icon:"📜", col:"#f97316", physics:"пылинки кружатся, листья срываются",           light:"golden hour dust beams, single candle chiaroscuro",              asmr:"шуршание ткани, тяжелые шаги по камню" },
   "НАУКА":         { icon:"⚗",  col:"#06b6d4", physics:"пылинки кружатся, вода растекается",           light:"neon reflections on wet surface, bioluminescent glow",            asmr:"электрический гул, капля воды в тишине" },
-  "ВОЙНА":         { icon:"⚔",  col:"#ef4444", physics:"осколки разлетаются, дым клубится",            light:"strobing red emergency light, hard rim light from behind",        asmr:"металлический скрежет, треск огня" },
+  "ВОЙНА":         { icon:"⚔",  col:"#ef4444", physics:"дым клубится, пепел летит в камеру",            light:"strobing red emergency light, hard rim light from behind",        asmr:"далекий гул, треск огня" },
   "ПРИРОДА":       { icon:"🌿", col:"#22c55e", physics:"волосы развеваются на ветру, туман стелется",  light:"golden hour dust beams, dynamic reflections in the eyes",     asmr:"шорох листьев, капля воды в тишине" },
   "ПСИХОЛОГИЯ":    { icon:"🧠", col:"#ec4899", physics:"пылинки кружатся, лёд трескается",             light:"flickering volumetric light, dynamic reflections in the eyes",    asmr:"шёпот вплотную к микрофону, электрический гул" },
-  "КОНСПИРОЛОГИЯ": { icon:"👁", col:"#fbbf24", physics:"дым клубится, тени движутся",                  light:"single candle chiaroscuro shadows, flickering volumetric light",  asmr:"электрический гул, тихий шорох бумаги" },
+  "КОНСПИРОЛОГИЯ": { icon:"👁", col:"#fbbf24", physics:"дым клубится, тени на стене",                  light:"single candle chiaroscuro shadows, flickering volumetric light",  asmr:"электрический гул, тихий шорох бумаги" },
 };
 
-// ОБНОВЛЕННЫЙ ПУНКТ 3: НОВЫЕ ТРЕНДОВЫЕ СТИЛИ РАСКАДРОВКИ
 const STORYBOARD_STYLES = [
-  { id:"DARK_FANTASY", icon:"🌘", col:"#9333ea", label:"Тёмное фэнтези", desc:"Мрак, туман, мистика 80-х", prompt:"1980s dark fantasy movie style, misty eerie atmosphere, practical effects, dark synthwave cinematic lighting" },
+  { id:"DARK_FANTASY", icon:"🌘", col:"#9333ea", label:"Тёмное фэнтези", desc:"Мрак, туман, мистика", prompt:"dark fantasy movie style, misty eerie atmosphere, dark synthwave cinematic lighting, psychological horror" },
   { id:"VAPORWAVE",    icon:"🌴", col:"#f472b6", label:"Vaporwave",      desc:"Неон, статуи, VHS-эффект",  prompt:"vaporwave aesthetic, 1990s VHS camcorder footage, cyan and magenta neon lighting, nostalgic liminal space" },
   { id:"CINEMATIC",    icon:"🎬", col:"#ef4444", label:"Голливуд",       desc:"Глубокий фокус, блокбастер",prompt:"cinematic Hollywood blockbuster style, anamorphic lens, shallow depth of field, dramatic lighting, film grain" },
   { id:"TRUE_CRIME",   icon:"🔦", col:"#f59e0b", label:"True Crime",     desc:"Фонарики, плёнка, полиция", prompt:"true crime documentary style, police flashlight illumination, gritty raw footage, polaroid aesthetic, high contrast" },
@@ -47,13 +45,14 @@ const PLATFORMS = [
 ];
 const PALETTE = ["#ef4444","#f97316","#eab308","#06b6d4","#8b5cf6","#10b981"];
 
+// СИСТЕМНЫЙ ПРОМПТ С АЛГОРИТМОМ ОБХОДА ЦЕНЗУРЫ И СПАСЕНИЕМ ОТ ТАЙМАУТА VERCEL
 const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE REQUIRED)
-Ты режиссер вирусных видео. ТВОЯ ГЛАВНАЯ И ЕДИНСТВЕННАЯ ЗАДАЧА - ВЫДАТЬ ОТВЕТ В СТРОГОМ ФОРМАТЕ JSON. Никакого текста до или после JSON!
+Ты профессиональный режиссер вирусных видео (Shorts/Reels/TikTok). ТВОЯ ЗАДАЧА - ВЫДАТЬ ОТВЕТ В СТРОГОМ ФОРМАТЕ JSON. Никакого текста до или после JSON.
 
 СТРУКТУРА JSON ДОЛЖНА БЫТЬ ТАКОЙ:
 {
   "hooks": [
-    {"text": "Фраза диктора", "visual": "Что в кадре"}
+    {"text": "Фраза диктора на 0-2 сек", "visual": "Детальное описание визуального хука"}
   ],
   "frames": [
     {
@@ -72,10 +71,13 @@ const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE 
   }
 }
 
-ЖЕСТКИЕ ПРАВИЛА:
-1. imgPrompt, vidPrompt и thumbnail.prompt ДОЛЖНЫ БЫТЬ ТОЛЬКО НА АНГЛИЙСКОМ!
-2. ЗАПРЕЩЕНО упоминать Midjourney или Leonardo.`;
+🚨 ЖЕСТКИЕ ПРАВИЛА И ОБХОД ЦЕНЗУРЫ (CRITICAL!):
+1. АНТИ-БАН: Если тема касается тёмной истории, казней, убийств или катастроф, СТРОГО ИЗБЕГАЙ слов "расчлененка", "кровь", "кишки", "отрубание головы". Вместо этого используй саспенс, тени, силуэты и зловещие метафоры ("мрачный финал", "орудие правосудия", "жуткий исход"). Пугай зрителя психологически, чтобы обойти Safety Filters!
+2. imgPrompt, vidPrompt и thumbnail.prompt ДОЛЖНЫ БЫТЬ ТОЛЬКО НА АНГЛИЙСКОМ! Запрещено просить кровь или gore в промптах (пиши "red dramatic lighting", "dark shadows").
+3. Пиши МАКСИМАЛЬНО КОРОТКО (3-6 слов на поля visual/prompts), иначе сервер прервет генерацию по таймауту.
+4. Выдавай ТОЛЬКО валидный JSON.`;
 
+// УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК API (С ПОНИЖЕННЫМ ЛИМИТОМ ТОКЕНОВ)
 async function callAPI(content, maxTokens = 3900, sysPrompt = VIRAL_SYSTEM) {
   try {
     const res = await fetch("/api/chat", {
@@ -87,14 +89,19 @@ async function callAPI(content, maxTokens = 3900, sysPrompt = VIRAL_SYSTEM) {
       }),
     });
     
+    const textResponse = await res.text();
+
     if (!res.ok) {
-      if (res.status === 504) throw new Error("Таймаут (Vercel 10 сек). Сервер не успел. Нажмите кнопку еще раз!");
-      throw new Error(`Ошибка сервера: ${res.status}`);
+      if (res.status === 504) throw new Error("Таймаут (Vercel 10 сек). Сервер не успел. Уменьшите длительность видео.");
+      try {
+        const errData = JSON.parse(textResponse);
+        if (errData.error) throw new Error(`Ответ API: ${errData.error}`);
+      } catch(e) { if (e.message.includes("Ответ API")) throw e; }
+      throw new Error(`Ошибка сервера: ${res.status}. (Возможно фильтр безопасности или лимит)`);
     }
 
-    const textResponse = await res.text();
     if (textResponse.includes("<html") || textResponse.includes("504 Gateway")) {
-      throw new Error("Vercel оборвал генерацию. Нажмите кнопку снова!");
+      throw new Error("Vercel оборвал генерацию по таймауту. Нажмите кнопку снова!");
     }
 
     try {
@@ -104,7 +111,7 @@ async function callAPI(content, maxTokens = 3900, sysPrompt = VIRAL_SYSTEM) {
       if (!text) throw new Error("Пустой ответ API");
       return text;
     } catch (parseError) {
-      throw new Error("Сбой формата данных. Жмите кнопку еще раз.");
+      throw new Error("Сбой формата данных от нейросети. Жмите кнопку еще раз.");
     }
   } catch (e) {
     throw e;
@@ -129,18 +136,16 @@ function Toast({ msg, onDone }) {
          background:isErr?"rgba(20,0,0,.95)":"rgba(0,20,10,.92)", backdropFilter:"blur(16px)",
          border:`1px solid ${isErr?"#ef4444":"#10b981"}`, borderRadius:isErr?24:16, padding:isErr?"30px 24px":"14px 20px",
          fontSize:isErr?16:12, fontWeight:800, color:isErr?"#fca5a5":"#6ee7b7", zIndex:9999, textAlign:"center",
-         boxShadow:isErr?"0 0 60px rgba(239,68,68,.3)":"0 0 30px rgba(16,185,129,.2)", width:isErr?"90%":"auto", lineHeight:1.5, letterSpacing:1}}>
+         boxShadow:isErr?"0 0 60px rgba(239,68,68,.6)":"0 0 30px rgba(16,185,129,.2)", width:isErr?"90%":"auto", lineHeight:1.5, letterSpacing:1}}>
       {msg}
     </div>
   );
 }
 
-// ПУНКТ 5: КАРТОЧКИ В СТИЛЕ МОНИТОРА КАМЕРЫ (ВИДОИСКАТЕЛЬ)
 function FrameCard({ f, i }) {
   const c = PALETTE[i % PALETTE.length];
   return (
     <div style={{background:"rgba(10,10,15,.6)",backdropFilter:"blur(12px)",border:"1px solid rgba(255,255,255,.05)",borderRadius:16,padding:20,position:"relative",overflow:"hidden",marginBottom:16,boxShadow:"inset 0 0 40px rgba(0,0,0,.5)"}}>
-      {/* Элементы видоискателя */}
       <div style={{position:"absolute",top:15,left:15,width:15,height:15,borderTop:`2px solid ${c}`,borderLeft:`2px solid ${c}`}}/>
       <div style={{position:"absolute",top:15,right:15,width:15,height:15,borderTop:`2px solid ${c}`,borderRight:`2px solid ${c}`}}/>
       <div style={{position:"absolute",bottom:15,left:15,width:15,height:15,borderBottom:`2px solid ${c}`,borderLeft:`2px solid ${c}`}}/>
@@ -258,7 +263,7 @@ export default function Page() {
 
   useEffect(()=>{ scrollRef.current?.scrollTo({top:0,behavior:"smooth"}); },[view]);
 
-  // АЛГОРИТМ-СПАСАТЕЛЬ
+  // АЛГОРИТМ-СПАСАТЕЛЬ РАСКАДРОВКИ
   function applyResult(rawText, fromHistory = false) {
     let cleanText = rawText.replace(/```json|```/gi, "").trim();
     const startIdx = cleanText.indexOf('{');
@@ -271,6 +276,7 @@ export default function Page() {
       data = JSON.parse(cleanText);
       successParse = true;
     } catch (e) {
+      // Спасение оборванного JSON
       const framesMatch = cleanText.match(/\{\s*"timecode"[^{]*?"vidPrompt"[^{]*?\}/g);
       if (framesMatch) {
         data.frames = framesMatch.map(f => {
@@ -278,7 +284,7 @@ export default function Page() {
         }).filter(Boolean);
       }
       if (data.frames.length === 0) {
-        throw new Error("Таймаут сервера оборвал генерацию. Уменьшите длительность.");
+        throw new Error("Таймаут сервера оборвал генерацию. Уменьшите длительность видео.");
       }
     }
 
@@ -322,17 +328,18 @@ export default function Page() {
     setShowHistory(false);
   }
 
+  // АНТИЦЕНЗУРА: ПРИ НАПИСАНИИ СЦЕНАРИЯ
   async function handleWriteScript() {
     if (!topic.trim()) { setErr("Сначала введите тему в поле выше!"); return; }
     setErr(""); setBusyScriptProcess(true); setLoadingMsg("Пишу мощный сценарий..."); setView("loading");
     try {
-      const sysTxt = `Ты топовый сценарист вирусных коротких видео. Твоя задача — написать ТОЛЬКО текст для диктора. Никаких описаний кадров, никаких ремарок. ТОЛЬКО чистый текст. Учитывай темп, делай паузы, используй короткие цепкие предложения.`;
-      const prompt = `Тема: ${topic}\nПлатформа: ${plat}\nЖанр: ${genre}\nЯзык: ${lang}\nДлительность: ${dur}\n\nНапиши чистый текст диктора.`;
+      const sysTxt = `Ты топовый сценарист вирусных коротких видео. АНТИ-БАН: Если тема "темная история" или криминал, не пиши запрещенные слова (кровь, расчлененка). Используй пугающие метафоры и психологический саспенс. Твоя задача — написать ТОЛЬКО текст для диктора. Никаких ремарок. Учитывай темп, делай паузы, используй короткие цепкие предложения.`;
+      const prompt = `Тема: ${topic}\nПлатформа: ${plat}\nЖанр: ${genre}\nЯзык: ${lang}\nДлительность: ${dur}\n\nНапиши чистый текст диктора (используй обход цензуры, если тема жестокая).`;
       const text = await callAPI(prompt, 2000, sysTxt);
       setScript(text.trim());
       setToast("Текст сгенерирован!");
     } catch(e) {
-      setErr("Ошибка: " + e.message);
+      setErr(e.message);
       setToast("❌ " + e.message);
     } finally {
       setBusyScriptProcess(false);
@@ -340,19 +347,20 @@ export default function Page() {
     }
   }
 
+  // АНТИЦЕНЗУРА: ПРИ УНИКАЛИЗАЦИИ
   async function handlePrepareVoice() {
     if (!script.trim()) { setErr("Вставьте исходный текст для обработки!"); return; }
     setErr(""); setBusyScriptProcess(true); setLoadingMsg("Расставляю ударения..."); setView("loading");
     try {
-      const sysVoice = `Ты эксперт-редактор. Твоя задача — обработать текст для озвучки ИИ-диктором.
-1. РАССТАВЬ УДАРЕНИЯ во всех словах длиннее одного слога. Ударную гласную делай ЗАГЛАВНОЙ БУКВОЙ (например: 'загАдка', 'человЕк').
+      const sysVoice = `Ты эксперт-редактор. АНТИ-БАН: Если в тексте есть жестокость, замени слова "кровь/расчлененка/кишки/убийство" на пугающие метафоры ("жестокий исход", "суровое наказание"), чтобы обойти фильтры цензуры! 
+1. РАССТАВЬ УДАРЕНИЯ во всех словах длиннее одного слога (ударную гласную делай ЗАГЛАВНОЙ).
 2. Добавь паузы (...) для создания интриги.
-Верни ТОЛЬКО готовый обработанный текст.`;
-      const text = await callAPI(`Перепиши и расставь ударения в этом тексте:\n\n${script}`, 2000, sysVoice);
+Верни ТОЛЬКО готовый текст.`;
+      const text = await callAPI(`Перепиши, обойди цензуру и расставь ударения в тексте:\n\n${script}`, 2000, sysVoice);
       setScript(text.trim());
-      setToast("Текст подготовлен для TTS!");
+      setToast("Текст подготовлен для TTS (с обходом фильтров)!");
     } catch(e) {
-      setErr("Ошибка обработки: " + e.message);
+      setErr(e.message);
       setToast("❌ " + e.message);
     } finally {
       setBusyScriptProcess(false);
@@ -374,13 +382,14 @@ STYLE PROMPT: [English instruction on how to read the text, e.g. "Read with deep
       setTtsSettings(text.trim());
       setToast("Настройки TTS получены!");
     } catch(e) {
-      setErr("Ошибка: " + e.message);
+      setErr(e.message);
       setToast("❌ " + e.message);
     } finally {
       setBusyTts(false);
     }
   }
 
+  // ПОЛНАЯ ГЕНЕРАЦИЯ С АНТИЦЕНЗУРОЙ
   async function handleGenerateFullPlan() {
     if (!topic.trim() && !script.trim()) { setErr("Введите тему или готовый сценарий!"); return; }
     setErr(""); setBusy(true); setView("loading");
@@ -389,14 +398,14 @@ STYLE PROMPT: [English instruction on how to read the text, e.g. "Read with deep
       let currentScript = script.trim();
       if (!currentScript) {
         setLoadingMsg("Генерирую текст диктора...");
-        const sysTxt = `Ты топовый сценарист вирусных коротких видео. Напиши ТОЛЬКО текст для диктора. Никаких ремарок. ТОЛЬКО текст.`;
+        const sysTxt = `Ты топовый сценарист вирусных коротких видео. АНТИ-БАН: Если тема жестокая, обходи цензуру (пиши метафорами саспенса). Напиши ТОЛЬКО текст для диктора.`;
         const prompt = `Тема: ${topic}\nПлатформа: ${plat}\nЖанр: ${genre}\nЯзык: ${lang}\nДлительность: ${dur}\n\nНапиши чистый текст диктора.`;
         currentScript = await callAPI(prompt, 2000, sysTxt);
         setScript(currentScript.trim());
       }
 
       setLoadingMsg("Активация режиссерского модуля...");
-      const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ! Пиши КОРОТКО! Ключи visual, imgPrompt, vidPrompt — строго по 5-8 слов.`;
+      const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ! Пиши КОРОТКО (чтобы избежать таймаута)! Ключи visual, imgPrompt, vidPrompt — строго по 5-8 слов.`;
       const ctx = `ТЕМА: ${topic || "из сценария"}\nЖАНР: ${genre} | ПЛАТФОРМА: ${plat} | ЯЗЫК: ${lang}\nФИЗИКА: ${preset.physics} | СВЕТ: ${preset.light} | ASMR: ${preset.asmr}\nСТИЛЬ: ${sty.label} — ${sty.prompt}\nДЛИТЕЛЬНОСТЬ: ${dur} → СТРОГО ${durCfg.frames} КАДРОВ. ТИП HOOK: ${hook}`;
       const fullPrompt = `${ctx}\n\nГОТОВЫЙ СЦЕНАРИЙ ДЛЯ РАСКАДРОВКИ:\n${currentScript}\n\n${req}`;
 
@@ -428,11 +437,9 @@ STYLE PROMPT: [English instruction on how to read the text, e.g. "Read with deep
   }
 
   const S = {
-    // ПУНКТ 1: АБСОЛЮТНО НОВЫЙ ФОН И СТИЛЬ (SCI-FI GLASSMORPHISM)
     root:    { minHeight:"100vh", backgroundColor:"#05050a", backgroundImage:`radial-gradient(circle at 50% 0%, #1c0e3a 0%, #090912 60%, #05050a 100%)`, color:"#e2e8f0", fontFamily:"'SF Pro Display', -apple-system, sans-serif", paddingBottom:110, overflowY:"auto", position:"relative", zIndex:1 },
     gridBg:  { position:"fixed", top:0, left:0, right:0, bottom:0, zIndex:-1, opacity:0.15, backgroundImage:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%236366f1' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")" },
     nav:     { position:"sticky", top:0, zIndex:50, background:"rgba(5,5,10,.7)", backdropFilter:"blur(24px)", borderBottom:"1px solid rgba(255,255,255,.05)", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" },
-    // ПУНКТ 4: НОВЫЕ ТЕКСТЫ ЗАГОЛОВКОВ (СЛОВАРЬ РЕЖИССЕРА)
     label:   { fontSize:11, fontWeight:800, letterSpacing:2, color:"#94a3b8", display:"block", marginBottom:12, textTransform:"uppercase" },
     section: { marginBottom:28, background:"rgba(255,255,255,.02)", border:"1px solid rgba(255,255,255,.05)", borderRadius:24, padding:20, backdropFilter:"blur(12px)", boxShadow:"0 4px 30px rgba(0,0,0,.1)" },
     ta:      { width:"100%", background:"rgba(0,0,0,.3)", border:"1px solid rgba(255,255,255,.1)", borderRadius:16, padding:"16px 20px", fontSize:15, color:"#fff", fontFamily:"inherit", resize:"none", lineHeight:1.6, transition:"all .3s" },
@@ -526,7 +533,7 @@ STYLE PROMPT: [English instruction on how to read the text, e.g. "Read with deep
                 <button onClick={handlePrepareVoice} disabled={!script.trim() || busyScriptProcess || busyTts || busy}
                   style={{flex:1,height:50,border:"1px solid rgba(16,185,129,.3)",borderRadius:16,background:"rgba(16,185,129,.1)",color:"#6ee7b7",cursor:script.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:12,fontWeight:800,transition:"all .2s",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",opacity:script.trim()?1:0.5}}>
                   <span style={{textTransform:"uppercase",letterSpacing:1}}>🎙 Уникализировать</span>
-                  <span style={{fontSize:9,fontWeight:500,opacity:.7}}>+ Паузы и ударения TTS</span>
+                  <span style={{fontSize:9,fontWeight:500,opacity:.7}}>+ Обход цензуры и ударения</span>
                 </button>
                 <button onClick={handleGetTtsSettings} disabled={!script.trim() || busyTts || busyScriptProcess || busy}
                   style={{flex:1,height:50,border:"1px solid rgba(14,165,233,.3)",borderRadius:16,background:"rgba(14,165,233,.1)",color:"#7dd3fc",cursor:script.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:12,fontWeight:800,transition:"all .2s",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",opacity:script.trim()?1:0.5}}>
