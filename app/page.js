@@ -61,26 +61,35 @@ const REF_CATEGORIES = [
   { key:"mood",  icon:"🎭", col:"#06b6d4", label:"Атмосфера"        },
 ];
 
-const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT ADHERENCE REQUIRED)
+// СИСТЕМНЫЙ ПРОМПТ ПЕРЕВЕДЕН В ЖЕСТКИЙ JSON
+const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE REQUIRED)
+Ты профессиональный режиссер вирусных видео. ТВОЯ ГЛАВНАЯ И ЕДИНСТВЕННАЯ ЗАДАЧА - ВЫДАТЬ ОТВЕТ В СТРОГОМ ФОРМАТЕ JSON.
+Никакого текста до или после JSON. Никаких маркдаун-блоков. ТОЛЬКО ВАЛИДНЫЙ JSON!
 
-1. ВИЗУАЛЬНЫЙ РИТМ: Смена визуала СТРОГО каждые 2-3 секунды. Каждое слово диктора = значимый кадр.
-2. СТРУКТУРА ВЫДАЧИ:
-- БЛОК 1: 3 мощных HOOK (шок, тайна, опасность, парадокс).
-- БЛОК 2: ПОЛНЫЙ СЦЕНАРИЙ (Таймкоды, Диктор, Описание кадра, Режиссерские пометки).
-- БЛОК 3: IMAGE PROMPTS (Veo/Whisk).
-- БЛОК 4: VIDEO PROMPTS (Grok Super).
-3. ЖЕСТКИЕ ПРАВИЛА ПРОМПТОВ (CRITICAL):
-- ВСЕ ПРОМПТЫ (Image и Video) ПИСАТЬ СТРОГО НА АНГЛИЙСКОМ ЯЗЫКЕ! (Даже если сценарий на русском).
-- Один кадр = один Image prompt + один Video prompt. Количество должно строго совпадать!
-- Промпты выдаются чистым списком.
-- Разделяй каждый промпт ПУСТОЙ СТРОКОЙ.
-- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать Midjourney и Leonardo.
-4. МАРКЕРЫ ДЛЯ СИСТЕМЫ (ОБЯЗАТЕЛЬНО):
-Перед списком картинок напиши: IMAGE PROMPTS
-Перед списком видео напиши: VIDEO PROMPTS`;
+СТРУКТУРА JSON ДОЛЖНА БЫТЬ ТАКОЙ:
+{
+  "hooks": ["HOOK 1", "HOOK 2", "HOOK 3"],
+  "frames": [
+    {
+      "timecode": "0-3 сек",
+      "camera": "описание движения камеры",
+      "visual": "что конкретно происходит в кадре",
+      "voice": "слова диктора",
+      "audio": "звуки и ASMR",
+      "imgPrompt": "ENGLISH VEO/WHISK PROMPT STRICTLY IN ENGLISH",
+      "vidPrompt": "ENGLISH GROK SUPER PROMPT STRICTLY IN ENGLISH"
+    }
+  ]
+}
+
+ЖЕСТКИЕ ПРАВИЛА:
+1. Ключи imgPrompt и vidPrompt ДОЛЖНЫ БЫТЬ ТОЛЬКО НА АНГЛИЙСКОМ ЯЗЫКЕ! Даже если сценарий на русском.
+2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать Midjourney или Leonardo.
+3. Массив "frames" должен содержать ТОЧНОЕ количество кадров, которое запросит пользователь. Ни больше, ни меньше.
+4. Один кадр = один imgPrompt + один vidPrompt.`;
 
 // ─── API ─────────────────────────────────────────────────────────────────────
-async function callAPI(content, maxTokens = 4000) {
+async function callAPI(content, maxTokens = 6000) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,59 +103,6 @@ async function callAPI(content, maxTokens = 4000) {
   const text = data.text || data.choices?.[0]?.message?.content || "";
   if (!text) throw new Error("Пустой ответ API");
   return text;
-}
-
-// ─── PARSERS ─────────────────────────────────────────────────────────────────
-function parseFrames(text) {
-  const lines = text.split("\n");
-  const frames = [];
-  let cur = null;
-  for (const line of lines) {
-    const tc = line.match(/КАДР\s*\d+|(\d+[-–]\d+\s*сек)/i);
-    if (tc && line.length < 120) {
-      if (cur) frames.push(cur);
-      cur = { timecode:tc[0], camera:"", visual:"", voice:"", audio:"", imgPrompt:"", vidPrompt:"" };
-    } else if (cur) {
-      const l = line.replace(/^[▸•\-*📷🎬🎙🎧🖼🎥]\s*/,"").trim();
-      if (!l) continue;
-      if      (/камера:|📷/i.test(line) && !cur.camera)        cur.camera    = l.replace(/^камера:\s*/i,"");
-      else if (/визуал:|🎬/i.test(line) && !cur.visual)        cur.visual    = l.replace(/^визуал:\s*/i,"");
-      else if (/(диктор:|🎙|«)/i.test(line) && !cur.voice)     cur.voice     = l.replace(/^диктор:\s*/i,"").replace(/[«»]/g,"");
-      else if (/звук:|🎧/i.test(line) && !cur.audio)           cur.audio     = l.replace(/^звук:\s*/i,"");
-      else if (/image\s*prompt:|🖼/i.test(line))                cur.imgPrompt = (cur.imgPrompt+" "+l.replace(/^image\s*prompt:\s*/i,"")).trim();
-      else if (/video\s*prompt:|🎥/i.test(line))                cur.vidPrompt = (cur.vidPrompt+" "+l.replace(/^video\s*prompt:\s*/i,"")).trim();
-      else if (/промпт:|🎨|vertical/i.test(line) && !cur.vidPrompt) cur.vidPrompt = l.replace(/^промпт:\s*/i,"");
-    }
-  }
-  if (cur) frames.push(cur);
-  if (frames.length < 2) {
-    return text.split(/\n{2,}/).filter(b=>b.trim().length>20).slice(0,20).map((b,i)=>({
-      timecode:`${i*3}–${(i+1)*3} сек`, visual:b.trim().slice(0,200),
-      camera:"Static shot", audio:"", voice:"",
-      imgPrompt:`Vertical 9:16, 8K ultra-detailed photorealistic still, ${b.trim().slice(0,100)}, sharp focus`,
-      vidPrompt:`Vertical video. ${b.trim().slice(0,100)}, slow cinematic movement`,
-    }));
-  }
-  return frames;
-}
-
-function extractPrompts(text) {
-  const imgSec = text.match(/IMAGE PROMPTS?([\s\S]*?)(?:VIDEO PROMPTS?|$)/i);
-  const vidSec = text.match(/VIDEO PROMPTS?([\s\S]*?)$/i);
-  
-  const parse = raw => raw
-    ? raw.split(/\n{2,}/).map(p=>p.replace(/^\[\d+\]\s*|\d+\.\s*/,"").trim()).filter(p=>p.length>20)
-    : [];
-    
-  let img = parse(imgSec?.[1]);
-  let vid = parse(vidSec?.[1]);
-  
-  if (!img.length && !vid.length) {
-    const fr = parseFrames(text);
-    img = fr.map(f=>f.imgPrompt).filter(Boolean);
-    vid = fr.map(f=>f.vidPrompt).filter(Boolean);
-  }
-  return { img, vid };
 }
 
 function CopyBtn({ text, label="Копировать", small=false }) {
@@ -171,7 +127,7 @@ function FrameCard({ f, i }) {
       <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${c},transparent)`}}/>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:2,background:`${c}22`,color:c,padding:"3px 10px",borderRadius:8}}>#{String(i+1).padStart(2,"0")}</span>
-        <span style={{fontSize:10,color:"rgba(255,255,255,.2)"}}>{f.timecode}</span>
+        <span style={{fontSize:10,color:"rgba(255,255,255,.2)"}}>{f.timecode || `${i*3}-${(i+1)*3} сек`}</span>
       </div>
       {f.camera && <div style={{fontSize:11,color:"#fbbf24",marginBottom:6}}>📷 {f.camera}</div>}
       {f.visual && <div style={{fontSize:13,color:"rgba(255,255,255,.75)",lineHeight:1.7,marginBottom:8}}>{f.visual}</div>}
@@ -247,33 +203,35 @@ export default function Page() {
 
   useEffect(()=>{ scrollRef.current?.scrollTo({top:0,behavior:"smooth"}); },[view]);
 
-  async function runGenRefs(storyText) {
-    setBusyRefs(true); setRefs([]);
+  // ОБРАБОТЧИК JSON ОТВЕТА
+  function applyResult(rawText) {
     try {
-      const raw = await callAPI(`Analyse this storyboard and create EXACTLY 5 reference prompts (50+ words each, in English) for visual consistency across all frames. Reply ONLY with a valid JSON array, no markdown:
-[
-  {"key":"hero",  "prompt":"...detailed main character..."},
-  {"key":"env",   "prompt":"...detailed location..."},
-  {"key":"style", "prompt":"...shooting style..."},
-  {"key":"light", "prompt":"...lighting..."},
-  {"key":"mood",  "prompt":"...atmosphere..."}
-]
-STORYBOARD:
-${storyText.slice(0, 3000)}`, 800);
-      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
-      const merged = REF_CATEGORIES.map(cat => {
-        const found = parsed.find(p => p.key === cat.key);
-        return found?.prompt ? { ...cat, prompt: found.prompt } : null;
-      }).filter(Boolean);
-      setRefs(merged);
-    } catch { setRefs([]); } finally { setBusyRefs(false); }
-  }
+      let cleanText = rawText.replace(/```json|```/gi, "").trim();
+      const startIdx = cleanText.indexOf('{');
+      const endIdx = cleanText.lastIndexOf('}');
+      if (startIdx !== -1 && endIdx !== -1) {
+        cleanText = cleanText.substring(startIdx, endIdx + 1);
+      }
 
-  function applyResult(text) {
-    const { img, vid } = extractPrompts(text);
-    setResult(text); setFrames(parseFrames(text));
-    setImgP(img); setVidP(vid); setTags({});
-    setTab("storyboard"); setView("result");
+      const data = JSON.parse(cleanText);
+      const frms = data.frames || [];
+      const imgs = frms.map(f => f.imgPrompt).filter(Boolean);
+      const vids = frms.map(f => f.vidPrompt).filter(Boolean);
+
+      const scriptText = "🔥 ВАРИАНТЫ HOOK:\n" + (data.hooks || []).map(h=>"— "+h).join("\n") + "\n\n🎬 СЦЕНАРИЙ:\n" + frms.map((f, i) => `КАДР ${i+1} [${f.timecode}]\n📷 Камера: ${f.camera}\n👁 Визуал: ${f.visual}\n🎙 Диктор: «${f.voice}»\n🎧 Звук: ${f.audio}`).join("\n\n");
+
+      setFrames(frms);
+      setImgP(imgs);
+      setVidP(vids);
+      setResult(scriptText);
+      setTags({});
+      setTab("storyboard");
+      setView("result");
+    } catch(e) {
+      console.error(e);
+      setErr("Ошибка: Нейросеть нарушила структуру JSON. Попробуйте еще раз.");
+      setView("form");
+    }
   }
 
   function buildUserPrompt(fromScript) {
@@ -281,13 +239,9 @@ ${storyText.slice(0, 3000)}`, 800);
 ЖАНР: ${genre} | ПЛАТФОРМА: ${plat} | ЯЗЫК: ${lang}
 ФИЗИКА: ${preset.physics} | СВЕТ: ${preset.light} | ASMR: ${preset.asmr}
 СТИЛЬ: ${sty.label} — ${sty.prompt}
-ДЛИТЕЛЬНОСТЬ: ${dur} → СТРОГО ${durCfg.frames} кадров по 2-3 сек. HOOK: ${hook}`;
+ДЛИТЕЛЬНОСТЬ: ${dur} → СТРОГО ${durCfg.frames} КАДРОВ. ТИП HOOK: ${hook}`;
 
-    const req = `ВЫДАЙ ОТВЕТ СТРОГО ПО БЛОКАМ:
-1. 3 HOOK
-2. СЦЕНАРИЙ (строго на ${durCfg.frames} кадров)
-3. IMAGE PROMPTS: Строго ${durCfg.frames} штук, ТОЛЬКО НА АНГЛИЙСКОМ, через пустую строку. Перед списком напиши IMAGE PROMPTS.
-4. VIDEO PROMPTS: Строго ${durCfg.frames} штук, ТОЛЬКО НА АНГЛИЙСКОМ, через пустую строку. Перед списком напиши VIDEO PROMPTS.`;
+    const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ!`;
 
     if (fromScript) return `${ctx}\n\nГОТОВЫЙ СЦЕНАРИЙ:\n${script.trim()}\n\n${req}`;
     return `${ctx}\n\n${req}`;
@@ -298,8 +252,8 @@ ${storyText.slice(0, 3000)}`, 800);
     setErr(""); setBusy(true); setView("loading");
     try {
       const text = await callAPI(buildUserPrompt(false));
-      applyResult(text); runGenRefs(text);
-    } catch(e) { setErr("Ошибка: " + e.message); setView("form"); } finally { setBusy(false); }
+      applyResult(text);
+    } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
   }
 
   async function handleGenerateFromScript() {
@@ -307,16 +261,20 @@ ${storyText.slice(0, 3000)}`, 800);
     setErr(""); setBusy(true); setView("loading");
     try {
       const text = await callAPI(buildUserPrompt(true));
-      applyResult(text); runGenRefs(text);
-    } catch(e) { setErr("Ошибка: " + e.message); setView("form"); } finally { setBusy(false); }
+      applyResult(text);
+    } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
   }
 
   async function handleGenTags() {
     if (!result) return;
     setBusyTags(true);
     try {
-      const raw = await callAPI(`Создай хештеги для видео: "${topic}" (жанр: ${genre}, язык: ${lang}). Ответь ТОЛЬКО валидным JSON без markdown: {"YouTube":["#1"],"TikTok":["#1"],"Instagram":["#1"],"Facebook":["#1"],"Telegram":["#1"]}`, 800);
-      setTags(JSON.parse(raw.replace(/```json|```/g,"").trim()));
+      const raw = await callAPI(`Сгенерируй JSON с хештегами для темы: "${topic}". Формат: {"YouTube":["#a"],"TikTok":["#b"],"Instagram":["#c"],"Facebook":["#d"],"Telegram":["#e"]}`, 800);
+      let cleanText = raw.replace(/```json|```/gi, "").trim();
+      const startIdx = cleanText.indexOf('{');
+      const endIdx = cleanText.lastIndexOf('}');
+      if (startIdx !== -1 && endIdx !== -1) cleanText = cleanText.substring(startIdx, endIdx + 1);
+      setTags(JSON.parse(cleanText));
       setTab("hashtags");
     } catch { setToast("Не удалось получить хештеги."); } finally { setBusyTags(false); }
   }
@@ -428,7 +386,7 @@ ${storyText.slice(0, 3000)}`, 800);
       {view==="result"&&result&&(
         <div style={{maxWidth:480,margin:"0 auto"}}>
           <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,.06)",padding:"0 16px",position:"sticky",top:56,zIndex:40,background:"rgba(8,8,15,.95)",backdropFilter:"blur(20px)",overflowX:"auto"}}>
-            {[{id:"storyboard",label:"Раскадровка",badge:frames.length},{id:"raw",label:"Сценарий"},{id:"prompts",label:"Промпты",badge:(imgP.length+vidP.length)||null},{id:"refs",label:"Референсы",badge:refs.length||null,spin:busyRefs&&!refs.length},{id:"hashtags",label:"Хештеги",badge:Object.keys(tags).length||null}].map(t=>(
+            {[{id:"storyboard",label:"Раскадровка",badge:frames.length},{id:"raw",label:"Сценарий"},{id:"prompts",label:"Промпты",badge:(imgP.length+vidP.length)||null},{id:"hashtags",label:"Хештеги",badge:Object.keys(tags).length||null}].map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"none",background:"none",border:"none",borderBottom:`2px solid ${tab===t.id?"#ff3355":"transparent"}`,color:tab===t.id?"#ff3355":"rgba(255,255,255,.3)",fontSize:12,padding:"13px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
                 {t.label}{t.spin?<span style={{width:10,height:10,border:"1.5px solid rgba(255,51,85,.3)",borderTopColor:"#ff3355",borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>:t.badge>0&&<span style={{background:"#ff3355",color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:6}}>{t.badge}</span>}
               </button>
@@ -443,15 +401,14 @@ ${storyText.slice(0, 3000)}`, 800);
               <div>
                 <div style={{marginBottom:20}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:9,fontWeight:700,color:"#4ade80"}}>🖼 IMAGE PROMPTS</span>{imgP.length>0&&<CopyBtn text={imgP.join("\n\n")} label="Все" small/>}</div>
-                  {imgP.length>0?imgP.map((p,i)=><div key={i} style={{background:"rgba(34,197,94,.04)",border:"1px solid rgba(34,197,94,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#4ade80",fontWeight:700}}>IMG {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.5)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты в кадрах</div>}
+                  {imgP.length>0?imgP.map((p,i)=><div key={i} style={{background:"rgba(34,197,94,.04)",border:"1px solid rgba(34,197,94,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#4ade80",fontWeight:700}}>IMG {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.5)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты отсутствуют</div>}
                 </div>
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:9,fontWeight:700,color:"#818cf8"}}>🎥 VIDEO PROMPTS</span>{vidP.length>0&&<CopyBtn text={vidP.join("\n\n")} label="Все" small/>}</div>
-                  {vidP.length>0?vidP.map((p,i)=><div key={i} style={{background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#818cf8",fontWeight:700}}>VID {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.45)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты в кадрах</div>}
+                  {vidP.length>0?vidP.map((p,i)=><div key={i} style={{background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#818cf8",fontWeight:700}}>VID {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.45)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты отсутствуют</div>}
                 </div>
               </div>
             )}
-            {tab==="refs"&&(<div>{refs.length>0?refs.map(r=><div key={r.key} style={{background:`${r.col}08`,border:`1px solid ${r.col}30`,borderRadius:16,padding:16,marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:11,fontWeight:700,color:r.col}}>{r.label.toUpperCase()}</span><CopyBtn text={r.prompt} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.55)",userSelect:"text"}}>{r.prompt}</div></div>):<div style={{color:"rgba(255,255,255,.2)",textAlign:"center"}}>Нет референсов</div>}</div>)}
             {tab==="hashtags"&&(<div>{Object.keys(tags).length>0?PLATFORMS.map(p=>tags[p.id]&&<div key={p.id} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${p.col}25`,borderRadius:16,padding:16,marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:13,fontWeight:700,color:p.col}}>{p.id}</span><CopyBtn text={tags[p.id].join(" ")} label="Копировать"/></div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{tags[p.id].map((t,i)=><span key={i} style={{background:`${p.col}18`,border:`1px solid ${p.col}35`,borderRadius:20,padding:"4px 12px",fontSize:12,color:p.col}}>{t}</span>)}</div></div>):<button onClick={handleGenTags} style={{color:"#ff3355"}}>Сгенерировать</button>}</div>)}
           </div>
         </div>
