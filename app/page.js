@@ -319,13 +319,13 @@ export default function Page() {
     if (!script.trim()) { setErr("Сначала вставьте или сгенерируйте сценарий!"); return; }
     setErr(""); setBusyTts(true);
     try {
-      const sysTts = "Ты аудио-режиссер. Твоя задача выдать настройки для Google AI Studio (Gemini 2.5 Pro Preview TTS). Выдавай только текст настроек.";
-      const prompt = `Жанр: ${genre}. Платформа: ${plat}. Текст диктора: "${script.substring(0,200)}..."
-Выдай настройки в таком формате:
-🎙 ГОЛОС: [Выбери 1 из: Zephyr, Puck, Charon, Aoede, Fenrir]
-⚡ ТЕМП: [Подробно, например "Быстрый, динамичный для Reels"]
-🎭 ЭМОЦИЯ: [Как читать]
-🤖 ПРОМПТ ДЛЯ ИИ (Text): [Напиши на АНГЛИЙСКОМ короткую инструкцию для поля Text, например: "Read with extreme urgency and suspense."]`;
+      // ИЗМЕНЕННАЯ ИНСТРУКЦИЯ ДЛЯ СТРОГО АНГЛИЙСКОГО ОТВЕТА
+      const sysTts = "You are an expert audio director. Output the TTS settings STRICTLY IN ENGLISH. No Russian text.";
+      const prompt = `Genre: ${genre}. Platform: ${plat}. Script sample: "${script.substring(0,100)}..."
+Provide the Google AI Studio TTS settings in EXACTLY this format (3 lines only):
+VOICE: [Choose 1: Zephyr, Puck, Charon, Aoede, Fenrir]
+SPEED: [Fast / Medium / Slow]
+STYLE PROMPT: [English instruction on how to read the text, e.g. "Read with deep suspense and urgency."]`;
       
       const text = await callAPI(prompt, 500, sysTts);
       setTtsSettings(text.trim());
@@ -355,6 +355,15 @@ export default function Page() {
     setErr(""); setBusy(true); setLoadingMsg(""); setView("loading");
     try {
       const text = await callAPI(buildUserPrompt(true));
+      applyResult(text, false);
+    } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
+  }
+
+  async function handleGenerate() {
+    if (!topic.trim()) { setErr("Введите тему!"); return; }
+    setErr(""); setBusy(true); setLoadingMsg(""); setView("loading");
+    try {
+      const text = await callAPI(buildUserPrompt(false));
       applyResult(text, false);
     } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
   }
@@ -451,6 +460,7 @@ export default function Page() {
               <label style={{...S.label,marginBottom:0}}>ТЕМА *</label>
             </div>
             <textarea rows={2} value={topic} maxLength={200} onChange={e=>setTopic(e.target.value)} placeholder="Например: Перевал Дятлова..." style={S.ta}/>
+            
             <button onClick={handleWriteScript} disabled={busyScriptProcess || !topic.trim()}
               style={{marginTop:8,width:"100%",height:40,border:"1px dashed rgba(255,255,255,.15)",borderRadius:14,background:"rgba(255,255,255,.03)",color:"#fff",cursor:topic.trim()?"pointer":"not-allowed",fontFamily:"inherit",fontSize:12,fontWeight:600,transition:"all .2s",opacity:topic.trim()?1:0.5}}>
               ✍️ Написать текст диктора по теме
@@ -463,7 +473,6 @@ export default function Page() {
             </div>
             <textarea rows={5} value={script} onChange={e=>setScript(e.target.value)} placeholder="Сгенерируйте текст кнопкой выше, или вставьте свой..." style={{...S.ta,fontSize:13}}/>
             
-            {/* БЛОК КНОПОК ДЛЯ ТЕКСТА (ТЕПЕРЬ ВИДЕН ВСЕГДА) */}
             <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={handlePrepareVoice} disabled={!script.trim() || busyScriptProcess || busyTts || busy}
@@ -483,14 +492,13 @@ export default function Page() {
               </button>
             </div>
             
-            {/* ОТОБРАЖЕНИЕ НАСТРОЕК TTS */}
             {ttsSettings && (
               <div style={{marginTop:12, background:"rgba(14,165,233,.08)", border:"1px solid rgba(14,165,233,.3)", borderRadius:14, padding:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <span style={{fontSize:10,letterSpacing:1,color:"#38bdf8",fontWeight:800}}>НАСТРОЙКИ ДИКТОРА (GOOGLE AI STUDIO)</span>
                   <CopyBtn text={ttsSettings} label="Copy" small/>
                 </div>
-                <pre style={{whiteSpace:"pre-wrap",fontFamily:"inherit",fontSize:12,color:"rgba(255,255,255,.8)",lineHeight:1.6}}>{ttsSettings}</pre>
+                <pre style={{whiteSpace:"pre-wrap",fontFamily:"monospace",fontSize:12,color:"rgba(255,255,255,.8)",lineHeight:1.6}}>{ttsSettings}</pre>
               </div>
             )}
           </div>
@@ -576,7 +584,6 @@ export default function Page() {
                 
                 {frames.map((f,i)=><FrameCard key={i} f={f} i={i}/>)}
                 
-                {/* КРАСИВОЕ ПРЕВЬЮ ОБЛОЖКИ (THUMBNAIL) */}
                 {thumb && (
                   <div style={{marginTop: 24, background:"rgba(255,255,255,.02)", border:"1px solid rgba(249,115,22,.3)", borderRadius:20, padding:20, position:"relative", overflow:"hidden"}}>
                     <div style={{position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg, #f97316, transparent)"}}/>
@@ -584,7 +591,6 @@ export default function Page() {
                       <span>🖼 ДИЗАЙН ОБЛОЖКИ (THUMBNAIL)</span>
                     </div>
                     
-                    {/* Визуальная имитация экрана обложки */}
                     <div style={{background:"linear-gradient(180deg, #111, #000)", border:"1px solid rgba(255,255,255,.1)", borderRadius:12, padding:"40px 20px", textAlign:"center", marginBottom:16, position:"relative", overflow:"hidden"}}>
                        <div style={{position:"absolute", top:"50%", left:"50%", transform:"translate(-50%, -50%)", fontSize:60, opacity:0.05}}>🖼</div>
                        <div style={{position:"relative", zIndex:1, fontSize:22, fontWeight:900, color:"#fff", textTransform:"uppercase", letterSpacing:1, textShadow:"0px 4px 20px rgba(0,0,0,0.8), 0px 0px 10px #f97316"}}>
@@ -621,6 +627,11 @@ export default function Page() {
             )}
             {tab==="hashtags"&&(<div>{Object.keys(tags).length>0?PLATFORMS.map(p=>tags[p.id]&&<div key={p.id} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${p.col}25`,borderRadius:16,padding:16,marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:13,fontWeight:700,color:p.col}}>{p.id}</span><CopyBtn text={tags[p.id].join(" ")} label="Копировать"/></div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{tags[p.id].map((t,i)=><span key={i} style={{background:`${p.col}18`,border:`1px solid ${p.col}35`,borderRadius:20,padding:"4px 12px",fontSize:12,color:p.col}}>{t}</span>)}</div></div>):<button onClick={handleGenTags} style={{color:"#ff3355"}}>Сгенерировать</button>}</div>)}
           </div>
+        </div>
+      )}
+      {view==="form"&&(
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,padding:"16px 18px 32px",background:"linear-gradient(to top,#08080f 60%,transparent)",zIndex:100}}>
+          <button className="gbtn" onClick={handleGenerate} disabled={busy}>{busy?"Генерирую…":"▶  Создать план по теме"}</button>
         </div>
       )}
     </div>
