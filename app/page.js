@@ -53,6 +53,7 @@ const PLATFORMS = [
 ];
 const PALETTE = ["#ff3355","#f97316","#eab308","#06b6d4","#a855f7","#22c55e"];
 
+// СИСТЕМНЫЙ ПРОМПТ ДЛЯ РАСКАДРОВКИ (JSON)
 const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE REQUIRED)
 Ты профессиональный режиссер вирусных видео. ТВОЯ ГЛАВНАЯ И ЕДИНСТВЕННАЯ ЗАДАЧА - ВЫДАТЬ ОТВЕТ В СТРОГОМ ФОРМАТЕ JSON.
 Никакого текста до или после JSON. Никаких маркдаун-блоков (без \`\`\`json). ТОЛЬКО ВАЛИДНЫЙ JSON!
@@ -85,12 +86,13 @@ const VIRAL_SYSTEM = `### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT JSON ADHERENCE 
 3. Массив "frames" должен содержать ТОЧНОЕ количество кадров. Один кадр = один imgPrompt + один vidPrompt.
 4. Выдавай только JSON.`;
 
-async function callAPI(content, maxTokens = 6000) {
+// УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК API
+async function callAPI(content, maxTokens = 6000, sysPrompt = VIRAL_SYSTEM) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      messages: [{ role: "system", content: VIRAL_SYSTEM }, { role: "user", content }],
+      messages: [{ role: "system", content: sysPrompt }, { role: "user", content }],
       max_tokens: maxTokens,
     }),
   });
@@ -151,18 +153,20 @@ function FrameCard({ f, i }) {
   );
 }
 
-function LoadingScreen() {
+function LoadingScreen({ msg }) {
   const STEPS = ["Анализирую тему…","Строю раскадровку…","Прописываю физику…","Подбираю промпты…","Проверяю тайминг…"];
   const [step, setStep] = useState(0);
   useEffect(()=>{ const iv=setInterval(()=>setStep(s=>Math.min(s+1,STEPS.length-1)),1800); return()=>clearInterval(iv); },[]);
   return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"100px 40px",textAlign:"center"}}>
       <div style={{width:60,height:60,border:"3px solid rgba(255,51,85,.12)",borderTopColor:"#ff3355",borderRadius:"50%",animation:"spin .9s linear infinite",marginBottom:28}}/>
-      <div style={{fontSize:19,fontWeight:800,background:"linear-gradient(135deg,#ff3355,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:12}}>Режиссёр думает…</div>
-      <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:24}}>{STEPS[step]}</div>
-      <div style={{display:"flex",gap:6}}>
-        {STEPS.map((_,i)=><div key={i} style={{width:i===step?18:6,height:6,borderRadius:3,background:i<=step?"#ff3355":"rgba(255,255,255,.12)",transition:"all .4s"}}/>)}
-      </div>
+      <div style={{fontSize:19,fontWeight:800,background:"linear-gradient(135deg,#ff3355,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:12}}>{msg || "Режиссёр думает…"}</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:24}}>{!msg ? STEPS[step] : "Обработка..."}</div>
+      {!msg && (
+        <div style={{display:"flex",gap:6}}>
+          {STEPS.map((_,i)=><div key={i} style={{width:i===step?18:6,height:6,borderRadius:3,background:i<=step?"#ff3355":"rgba(255,255,255,.12)",transition:"all .4s"}}/>)}
+        </div>
+      )}
     </div>
   );
 }
@@ -178,6 +182,7 @@ export default function Page() {
   const [style,  setStyle]  = useState("CINEMATIC");
 
   const [view, setView] = useState("form");
+  const [loadingMsg, setLoadingMsg] = useState("");
   const [tab,  setTab]  = useState("storyboard");
   const [result,  setResult]  = useState("");
   
@@ -188,12 +193,14 @@ export default function Page() {
   const [vidP,    setVidP]    = useState([]);
   
   const [tags,    setTags]    = useState({});
+  const [ttsSettings, setTtsSettings] = useState(""); // Настройки Google AI Studio
   const [busy,     setBusy]     = useState(false);
   const [busyTags, setBusyTags] = useState(false);
+  const [busyScriptProcess, setBusyScriptProcess] = useState(false);
+  const [busyTts, setBusyTts] = useState(false);
   const [err,      setErr]      = useState("");
   const [toast,    setToast]    = useState("");
 
-  // СИСТЕМА ИСТОРИИ (LOCAL STORAGE)
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -211,7 +218,6 @@ export default function Page() {
 
   useEffect(()=>{ scrollRef.current?.scrollTo({top:0,behavior:"smooth"}); },[view]);
 
-  // ОБРАБОТЧИК JSON ОТВЕТА С СОХРАНЕНИЕМ В ИСТОРИЮ
   function applyResult(rawText, fromHistory = false) {
     try {
       let cleanText = rawText.replace(/```json|```/gi, "").trim();
@@ -245,7 +251,6 @@ export default function Page() {
       setTab("storyboard");
       setView("result");
 
-      // Сохранение в LocalStorage
       if (!fromHistory) {
         const title = topic ? (topic.length > 30 ? topic.substring(0,30)+"..." : topic) : "Генерация по сценарию";
         const newItem = {
@@ -255,7 +260,7 @@ export default function Page() {
           text: cleanText
         };
         setHistory(prev => {
-          const next = [newItem, ...prev].slice(0, 10); // Храним последние 10 штук
+          const next = [newItem, ...prev].slice(0, 10);
           localStorage.setItem("ds_history", JSON.stringify(next));
           return next;
         });
@@ -273,260 +278,52 @@ export default function Page() {
     setShowHistory(false);
   }
 
-  function buildUserPrompt(fromScript) {
-    const ctx = `ТЕМА: ${topic || "из готового сценария"}
-ЖАНР: ${genre} | ПЛАТФОРМА: ${plat} | ЯЗЫК: ${lang}
-ФИЗИКА: ${preset.physics} | СВЕТ: ${preset.light} | ASMR: ${preset.asmr}
-СТИЛЬ: ${sty.label} — ${sty.prompt}
-ДЛИТЕЛЬНОСТЬ: ${dur} → СТРОГО ${durCfg.frames} КАДРОВ. ТИП HOOK: ${hook}`;
-
-    const req = `ВЫДАЙ ОТВЕТ СТРОГО В ФОРМАТЕ JSON. МАССИВ "frames" ДОЛЖЕН СОДЕРЖАТЬ РОВНО ${durCfg.frames} ЭЛЕМЕНТОВ! Распиши 3 хука и обложку.`;
-
-    if (fromScript) return `${ctx}\n\nГОТОВЫЙ СЦЕНАРИЙ:\n${script.trim()}\n\n${req}`;
-    return `${ctx}\n\n${req}`;
-  }
-
-  async function handleGenerate() {
-    if (!topic.trim()) { setErr("Введите тему!"); return; }
-    setErr(""); setBusy(true); setView("loading");
+  async function handleWriteScript() {
+    if (!topic.trim()) { setErr("Сначала введите тему в поле выше!"); return; }
+    setErr(""); setBusyScriptProcess(true); setLoadingMsg("Пишу сценарий..."); setView("loading");
     try {
-      const text = await callAPI(buildUserPrompt(false));
-      applyResult(text, false);
-    } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
+      const sysTxt = `Ты топовый сценарист вирусных коротких видео. Твоя задача — написать ТОЛЬКО мощный текст для диктора по теме.
+Никаких описаний кадров, никаких ремарок, никаких приветствий ИИ или JSON. ТОЛЬКО чистый текст диктора, который будет звучать в видео. 
+Учитывай темп, делай микро-паузы, используй короткие цепкие предложения, которые держат внимание.`;
+      const prompt = `Тема: ${topic}\nПлатформа: ${plat}\nЖанр: ${genre}\nЯзык: ${lang}\nОжидаемая длительность: ${dur}\nХук-эмоция: ${hook}\n\nНапиши чистый текст диктора.`;
+      const text = await callAPI(prompt, 2000, sysTxt);
+      setScript(text.trim());
+      setToast("Текст сгенерирован! Можете его отредактировать.");
+    } catch(e) {
+      setErr("Ошибка: " + e.message);
+    } finally {
+      setBusyScriptProcess(false);
+      setView("form");
+    }
   }
 
-  async function handleGenerateFromScript() {
-    if (!script.trim()) { setErr("Вставьте готовый сценарий!"); return; }
-    setErr(""); setBusy(true); setView("loading");
+  async function handlePrepareVoice() {
+    if (!script.trim()) { setErr("Вставьте исходный текст для обработки!"); return; }
+    setErr(""); setBusyScriptProcess(true); setLoadingMsg("Расставляю ударения..."); setView("loading");
     try {
-      const text = await callAPI(buildUserPrompt(true));
-      applyResult(text, false);
-    } catch(e) { setErr(e.message); setView("form"); } finally { setBusy(false); }
-  }
-
-  async function handleGenTags() {
-    if (!result) return;
-    setBusyTags(true);
-    try {
-      const raw = await callAPI(`Сгенерируй JSON с хештегами для темы: "${topic}". МИНИМУМ по 5 штук для каждой платформы! Микс русских и английских хештегов. Формат: {"YouTube":["#a","#b","#c","#d","#e"], "TikTok":["#a","#b","#c","#d","#e"], "Instagram":["#a","#b","#c","#d","#e"], "Facebook":["#a","#b","#c","#d","#e"], "Telegram":["#a","#b","#c","#d","#e"]}`, 800);
-      let cleanText = raw.replace(/```json|```/gi, "").trim();
-      const startIdx = cleanText.indexOf('{');
-      const endIdx = cleanText.lastIndexOf('}');
-      if (startIdx !== -1 && endIdx !== -1) cleanText = cleanText.substring(startIdx, endIdx + 1);
-      setTags(JSON.parse(cleanText));
-      setTab("hashtags");
-    } catch { setToast("Не удалось получить хештеги."); } finally { setBusyTags(false); }
-  }
-
-  const S = {
-    root:    { minHeight:"100vh", background:"#08080f", color:"#d0d4e8", fontFamily:"-apple-system,'SF Pro Text',sans-serif", paddingBottom:110, overflowY:"auto" },
-    nav:     { position:"sticky", top:0, zIndex:50, background:"rgba(8,8,15,.92)", backdropFilter:"blur(24px)", borderBottom:"1px solid rgba(255,255,255,.06)", height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" },
-    label:   { fontSize:10, fontWeight:700, letterSpacing:3, color:"rgba(255,255,255,.3)", display:"block", marginBottom:10 },
-    section: { marginBottom:24 },
-    ta:      { width:"100%", background:"rgba(255,255,255,.05)", border:"1.5px solid rgba(255,255,255,.1)", borderRadius:14, padding:"14px 16px", fontSize:14, color:"#fff", fontFamily:"inherit", resize:"none", lineHeight:1.6 },
-  };
-
-  return (
-    <div ref={scrollRef} style={S.root}>
-      <style>{`
-        *{box-sizing:border-box;margin:0;padding:0}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
-        @keyframes glow{0%,100%{box-shadow:0 0 30px rgba(255,51,85,.35)}50%{box-shadow:0 0 60px rgba(255,51,85,.6)}}
-        .gbtn{width:100%;height:60px;border:none;border-radius:18px;cursor:pointer;font-family:inherit;font-size:15px;font-weight:800;color:#fff;background:linear-gradient(135deg,#c8001e,#ff1a3d,#ff4d1a,#ff8800);background-size:300% 300%;animation:shimmer 4s linear infinite,glow 3s ease-in-out infinite;transition:transform .15s}
-        .gbtn:hover{transform:translateY(-2px)}
-        .gbtn:disabled{opacity:.4;cursor:not-allowed;animation:none;box-shadow:none}
-        textarea:focus{outline:none;border-color:rgba(255,51,85,.6)!important}
-      `}</style>
+      const sysVoice = `Ты эксперт-редактор и диктор. Твоя задача — обработать текст для озвучки ИИ-диктором.
+1. Сделай текст уникальным, ритмичным и удерживающим внимание.
+2. РАССТАВЬ УДАРЕНИЯ во всех словах длиннее одного слога. Ударную гласную делай ЗАГЛАВНОЙ БУКВОЙ (например: 'загАдка', 'человЕк', 'посмотрИте').
+3. Добавь паузы (...) для создания интриги.
+Верни ТОЛЬКО готовый обработанный текст. БЕЗ приветствий, БЕЗ формата JSON.`;
       
-      {toast && <Toast msg={toast} onDone={()=>setToast("")}/>}
+      const text = await callAPI(`Перепиши и расставь ударения в этом тексте:\n\n${script}`, 2000, sysVoice);
+      setScript(text.trim());
+      setToast("Текст уникализирован и подготовлен для TTS!");
+    } catch(e) {
+      setErr("Ошибка обработки: " + e.message);
+    } finally {
+      setBusyScriptProcess(false);
+      setView("form");
+    }
+  }
 
-      {/* МОДАЛЬНОЕ ОКНО ИСТОРИИ */}
-      {showHistory && (
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.8)",zIndex:200,display:"flex",justifyContent:"center",alignItems:"center",backdropFilter:"blur(8px)"}}>
-          <div style={{background:"#111118",border:"1px solid rgba(255,51,85,.3)",borderRadius:20,width:"90%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-             <div style={{padding:20,borderBottom:"1px solid rgba(255,255,255,.05)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-               <span style={{fontWeight:700,color:"#fff"}}>🕒 История (последние 10)</span>
-               <button onClick={()=>setShowHistory(false)} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>✕</button>
-             </div>
-             <div style={{padding:20,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
-               {history.length===0 ? <div style={{color:"rgba(255,255,255,.3)",textAlign:"center",padding:"20px 0"}}>История пуста</div> :
-                 history.map((h) => (
-                   <div key={h.id} style={{background:"rgba(255,255,255,.05)",borderRadius:12,padding:14,cursor:"pointer",border:"1px solid rgba(255,255,255,.1)"}} 
-                        onClick={() => { applyResult(h.text, true); setShowHistory(false); }}>
-                     <div style={{fontSize:10,color:"rgba(255,255,255,.3)",marginBottom:4}}>{h.time}</div>
-                     <div style={{fontSize:13,fontWeight:600,color:"#fff",lineHeight:1.4}}>{h.topic}</div>
-                   </div>
-                 ))
-               }
-             </div>
-             {history.length > 0 && (
-               <div style={{padding:20,borderTop:"1px solid rgba(255,255,255,.05)"}}>
-                 <button onClick={clearHistory} style={{width:"100%",background:"rgba(255,51,85,.1)",color:"#ff3355",border:"none",padding:"12px",borderRadius:12,fontWeight:700,cursor:"pointer"}}>Очистить историю</button>
-               </div>
-             )}
-          </div>
-        </div>
-      )}
-
-      <nav style={S.nav}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {view==="result" && <button onClick={()=>setView("form")} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,width:34,height:34,color:"rgba(255,255,255,.6)",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",marginRight:4}}>‹</button>}
-          <span style={{fontSize:17,fontWeight:800,color:"#fff",letterSpacing:"-.5px"}}>Docu<span style={{color:"#ff3355"}}>Shorts</span></span>
-          <span style={{fontSize:9,fontWeight:700,letterSpacing:2,background:"linear-gradient(135deg,#ff3355,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",border:"1px solid rgba(255,51,85,.35)",padding:"2px 7px",borderRadius:6}}>PRO</span>
-        </div>
-        
-        {/* КНОПКИ В ПАНЕЛИ НАВИГАЦИИ */}
-        <div style={{display:"flex",gap:6}}>
-          {view==="form" && (
-            <button onClick={()=>setShowHistory(true)} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🕒 История</button>
-          )}
-          {view==="result" && result && (
-            <>
-              <button onClick={()=>setView("form")} style={{height:34,padding:"0 12px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>↺ Изменить</button>
-              <button onClick={handleGenTags} disabled={busyTags} style={{height:34,padding:"0 14px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,color:"rgba(255,255,255,.75)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{busyTags?"...":"# Хештеги"}</button>
-            </>
-          )}
-        </div>
-      </nav>
-
-      {view==="form" && (
-        <div style={{maxWidth:480,margin:"0 auto",padding:"24px 18px"}}>
-          <div style={S.section}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <label style={{...S.label,marginBottom:0}}>ТЕМА *</label>
-            </div>
-            <textarea rows={2} value={topic} maxLength={200} onChange={e=>setTopic(e.target.value)} placeholder="Например: Перевал Дятлова..." style={S.ta}/>
-          </div>
-          <div style={S.section}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <label style={{...S.label,marginBottom:0}}>ГОТОВЫЙ СЦЕНАРИЙ</label>
-            </div>
-            <textarea rows={4} value={script} onChange={e=>setScript(e.target.value)} placeholder="Вставьте текст..." style={{...S.ta,fontSize:13}}/>
-            {script.trim()&&<button onClick={handleGenerateFromScript} disabled={busy} style={{marginTop:8,width:"100%",height:46,border:"none",borderRadius:14,cursor:"pointer",fontSize:13,fontWeight:700,color:"#fff",background:"linear-gradient(135deg,#6366f1,#a855f7)"}}>🎬 Из сценария</button>}
-          </div>
-
-          <div style={S.section}>
-            <label style={S.label}>ЖАНР</label>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-              {Object.entries(GENRE_PRESETS).map(([g,p])=>(
-                <button key={g} onClick={()=>setGenre(g)} style={{background:genre===g?`${p.col}1a`:"rgba(255,255,255,.04)",border:`1.5px solid ${genre===g?p.col+"80":"rgba(255,255,255,.08)"}`,borderRadius:14,padding:"10px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-                  <span style={{fontSize:20}}>{p.icon}</span><span style={{fontSize:9,color:genre===g?p.col:"rgba(255,255,255,.3)",fontWeight:700}}>{g}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={S.section}>
-            <label style={S.label}>ТИП HOOK</label>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {HOOKS.map(h=><button key={h} onClick={()=>setHook(h)} style={{background:hook===h?"rgba(255,51,85,.18)":"rgba(255,255,255,.04)",border:`1.5px solid ${hook===h?"#ff335580":"rgba(255,255,255,.08)"}`,borderRadius:20,padding:"7px 14px",fontSize:12,color:hook===h?"#ff3355":"rgba(255,255,255,.4)",cursor:"pointer"}}>{h}</button>)}
-            </div>
-          </div>
-
-          <div style={S.section}>
-            <label style={S.label}>СТИЛЬ РАСКАДРОВКИ</label>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}}>
-              {STORYBOARD_STYLES.map(s=>(
-                <button key={s.id} onClick={()=>setStyle(s.id)} style={{background:style===s.id?`${s.col}1a`:"rgba(255,255,255,.03)",border:`1.5px solid ${style===s.id?s.col+"80":"rgba(255,255,255,.07)"}`,borderRadius:14,padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:9,textAlign:"left"}}>
-                  <span style={{fontSize:18}}>{s.icon}</span>
-                  <div><div style={{fontSize:11,fontWeight:700,color:style===s.id?s.col:"rgba(255,255,255,.6)"}}>{s.label}</div><div style={{fontSize:9,color:"rgba(255,255,255,.22)"}}>{s.desc}</div></div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={S.section}>
-            <label style={S.label}>ДЛИТЕЛЬНОСТЬ</label>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {DURATIONS.map(d=><button key={d} onClick={()=>setDur(d)} style={{background:dur===d?"rgba(249,115,22,.18)":"rgba(255,255,255,.04)",border:`1.5px solid ${dur===d?"#f9731680":"rgba(255,255,255,.08)"}`,borderRadius:20,padding:"7px 14px",fontSize:12,color:dur===d?"#f97316":"rgba(255,255,255,.4)",cursor:"pointer"}}>{d}</button>)}
-            </div>
-          </div>
-
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-            <div>
-              <label style={S.label}>ПЛАТФОРМА</label>
-              {PLATFORMS.map(p=><button key={p.id} onClick={()=>setPlat(p.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:plat===p.id?`${p.col}14`:"rgba(255,255,255,.03)",border:`1.5px solid ${plat===p.id?p.col+"55":"rgba(255,255,255,.07)"}`,borderRadius:12,padding:"9px 12px",cursor:"pointer",marginBottom:5}}><span style={{fontSize:14,color:plat===p.id?p.col:"rgba(255,255,255,.3)"}}>{p.icon}</span><span style={{fontSize:12,fontWeight:plat===p.id?700:400,color:plat===p.id?p.col:"rgba(255,255,255,.4)"}}>{p.id}</span></button>)}
-            </div>
-            <div>
-              <label style={S.label}>ЯЗЫК</label>
-              {["RU","EN"].map(l=><button key={l} onClick={()=>setLang(l)} style={{display:"block",width:"100%",background:lang===l?"rgba(255,51,85,.15)":"rgba(255,255,255,.03)",border:`1.5px solid ${lang===l?"#ff335555":"rgba(255,255,255,.07)"}`,borderRadius:12,padding:"11px",cursor:"pointer",marginBottom:5,fontSize:14,color:lang===l?"#ff3355":"rgba(255,255,255,.35)"}}>{l}</button>)}
-            </div>
-          </div>
-          {err&&<div style={{background:"rgba(255,51,85,.1)",border:"1px solid rgba(255,51,85,.3)",borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:"#fca5a5"}}>⚠ {err}</div>}
-        </div>
-      )}
-
-      {view==="loading"&&<LoadingScreen/>}
-
-      {view==="result"&&result&&(
-        <div style={{maxWidth:480,margin:"0 auto"}}>
-          <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,.06)",padding:"0 16px",position:"sticky",top:56,zIndex:40,background:"rgba(8,8,15,.95)",backdropFilter:"blur(20px)",overflowX:"auto"}}>
-            {[{id:"storyboard",label:"Раскадровка",badge:frames.length},{id:"raw",label:"Сценарий"},{id:"prompts",label:"Промпты",badge:(imgP.length+vidP.length)||null},{id:"hashtags",label:"Хештеги",badge:Object.keys(tags).length||null}].map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"none",background:"none",border:"none",borderBottom:`2px solid ${tab===t.id?"#ff3355":"transparent"}`,color:tab===t.id?"#ff3355":"rgba(255,255,255,.3)",fontSize:12,padding:"13px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                {t.label}{t.spin?<span style={{width:10,height:10,border:"1.5px solid rgba(255,51,85,.3)",borderTopColor:"#ff3355",borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>:t.badge>0&&<span style={{background:"#ff3355",color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:6}}>{t.badge}</span>}
-              </button>
-            ))}
-            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",paddingRight:4}}><CopyBtn text={result} label="⎘" small/></div>
-          </div>
-
-          <div style={{padding:"18px 16px"}}>
-            {tab==="storyboard"&&(
-              <div>
-                {/* БЛОК ХУКОВ */}
-                {hooksList.length > 0 && (
-                  <div style={{marginBottom: 20}}>
-                    <div style={{fontSize:11, letterSpacing:1, color:"#ff3355", fontWeight:800, marginBottom:10}}>🔥 ВАРИАНТЫ HOOK</div>
-                    {hooksList.map((h, i) => (
-                      <div key={i} style={{background:"rgba(255,51,85,.05)", border:"1px solid rgba(255,51,85,.2)", borderRadius:14, padding:14, marginBottom:8}}>
-                        <div style={{fontSize:13, fontWeight:700, color:"#fff", marginBottom:6, lineHeight:1.4}}>🗣 «{h.text}»</div>
-                        <div style={{fontSize:11, color:"rgba(255,255,255,.6)", lineHeight:1.5}}>🎬 {h.visual}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* КАДРЫ РАСКАДРОВКИ */}
-                {frames.map((f,i)=><FrameCard key={i} f={f} i={i}/>)}
-                
-                {/* БЛОК ПРЕВЬЮ (THUMBNAIL) */}
-                {thumb && (
-                  <div style={{marginTop: 20, background:"rgba(249,115,22,.05)", border:"1px solid rgba(249,115,22,.2)", borderRadius:16, padding:16}}>
-                    <div style={{fontSize:11, letterSpacing:1, color:"#f97316", fontWeight:800, marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                      <span>🖼 ПРЕВЬЮ ОБЛОЖКИ</span>
-                      <CopyBtn text={thumb.prompt} label="Copy Prompt" small />
-                    </div>
-                    <div style={{fontSize:16, fontWeight:800, color:"#fff", textAlign:"center", marginBottom:12, textTransform:"uppercase", letterSpacing:1, background:"#000", padding:"10px", borderRadius:8, border:"1px solid rgba(255,255,255,.1)"}}>
-                      [ {thumb.text} ]
-                    </div>
-                    <div style={{fontFamily:"monospace", fontSize:11, lineHeight:1.7, color:"rgba(255,255,255,.55)", userSelect:"text"}}>{thumb.prompt}</div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {tab==="raw"&&(<div style={{background:"rgba(255,255,255,.025)",borderRadius:18,padding:20}}><pre style={{whiteSpace:"pre-wrap",wordBreak:"break-word",fontFamily:"monospace",fontSize:11,lineHeight:2,color:"rgba(255,255,255,.55)",userSelect:"text"}}>{result}</pre></div>)}
-            {tab==="prompts"&&(
-              <div>
-                <div style={{marginBottom:20}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:9,fontWeight:700,color:"#4ade80"}}>🖼 IMAGE PROMPTS</span>{imgP.length>0&&<CopyBtn text={imgP.join("\n\n")} label="Все" small/>}</div>
-                  {imgP.length>0?imgP.map((p,i)=><div key={i} style={{background:"rgba(34,197,94,.04)",border:"1px solid rgba(34,197,94,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#4ade80",fontWeight:700}}>IMG {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.5)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты отсутствуют</div>}
-                </div>
-                <div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:9,fontWeight:700,color:"#818cf8"}}>🎥 VIDEO PROMPTS</span>{vidP.length>0&&<CopyBtn text={vidP.join("\n\n")} label="Все" small/>}</div>
-                  {vidP.length>0?vidP.map((p,i)=><div key={i} style={{background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.15)",borderRadius:14,padding:14,marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:9,color:"#818cf8",fontWeight:700}}>VID {i+1}</span><CopyBtn text={p} label="Copy" small/></div><div style={{fontSize:11,color:"rgba(255,255,255,.45)",userSelect:"text"}}>{p}</div></div>):<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>Промпты отсутствуют</div>}
-                </div>
-              </div>
-            )}
-            {tab==="hashtags"&&(<div>{Object.keys(tags).length>0?PLATFORMS.map(p=>tags[p.id]&&<div key={p.id} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${p.col}25`,borderRadius:16,padding:16,marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:13,fontWeight:700,color:p.col}}>{p.id}</span><CopyBtn text={tags[p.id].join(" ")} label="Копировать"/></div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{tags[p.id].map((t,i)=><span key={i} style={{background:`${p.col}18`,border:`1px solid ${p.col}35`,borderRadius:20,padding:"4px 12px",fontSize:12,color:p.col}}>{t}</span>)}</div></div>):<button onClick={handleGenTags} style={{color:"#ff3355"}}>Сгенерировать</button>}</div>)}
-          </div>
-        </div>
-      )}
-      {view==="form"&&(
-        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,padding:"16px 18px 32px",background:"linear-gradient(to top,#08080f 60%,transparent)",zIndex:100}}>
-          <button className="gbtn" onClick={handleGenerate} disabled={busy}>{busy?"Генерирую…":"▶  Создать план"}</button>
-        </div>
-      )}
-    </div>
-  );
-}
+  // --- НОВАЯ ФУНКЦИЯ ДЛЯ НАСТРОЕК GOOGLE AI STUDIO TTS ---
+  async function handleGetTtsSettings() {
+    setErr(""); setBusyTts(true);
+    try {
+      const sysTts = "Ты аудио-режиссер. Твоя задача выдать короткие настройки для Google AI Studio (Gemini 2.5 Pro Preview TTS). Без приветствий и воды.";
+      const prompt = `Жанр видео: ${genre}. Платформа: ${plat}.
+Выдай настройки в таком формате:
+Голос: [Обязательно выбери 1 лучший из: Zephyr, Puck, Charon, Aoede, Fenrir]
+Темп: [Укажи темп. Если это TikTok/Reel
