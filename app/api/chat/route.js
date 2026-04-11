@@ -1,3 +1,6 @@
+// @ts-nocheck
+/* eslint-disable */
+
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -11,26 +14,30 @@ export async function POST(req) {
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: body.messages,
-        max_tokens: body.max_tokens || 4000
+        max_tokens: body.max_tokens || 3900
       })
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
-      throw new Error(data.error?.message || "Ошибка API Groq");
+      // Теперь Vercel не будет прятать ошибку, а выдаст точный ответ от Groq
+      return new Response(JSON.stringify({ error: data.error?.message || "Ошибка лимитов или ключа Groq" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
     const text = data.choices[0].message.content;
-    
-    return new Response(JSON.stringify({ text }), { 
+
+    return new Response(JSON.stringify({ text }), {
       status: 200,
-      headers: { "Content-Type": "application/json" } 
+      headers: { "Content-Type": "application/json" }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500, 
-      headers: { "Content-Type": "application/json" } 
+    return new Response(JSON.stringify({ error: "Сбой сервера: " + error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
     });
   }
 }
