@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from "react";
 
-// --- БАЗОВЫЕ НАСТРОЙКИ (ВЕРНУЛ ВСЕ КНОПКИ) ---
+// --- БАЗОВЫЕ НАСТРОЙКИ ---
 const GENRE_PRESETS = {
   "КРИМИНАЛ":      { icon:"🔫", col:"#ff3355", physics:"тени движутся, камера из-за угла",        light:"cold forensic overhead light, hard rim light from behind",        asmr:"металлический скрежет, сухой щелчок затвора" },
   "ТАЙНА":         { icon:"🔍", col:"#a855f7", physics:"туман стелется, пылинки кружатся",             light:"flickering volumetric light, bioluminescent glow",          asmr:"тихий шорох бумаги, шёпот вплотную к микрофону" },
@@ -41,45 +41,49 @@ const HOOKS = ["⚡ ШОК","🔮 ТАЙНА","☠ ОПАСНОСТЬ","🌀 П�
 const PLATFORMS = [{ id:"YouTube", icon:"▶", col:"#ef4444" }, { id:"TikTok", icon:"♪", col:"#06b6d4" }, { id:"Instagram", icon:"◈", col:"#ec4899" }];
 const PALETTE = ["#ef4444","#f97316","#eab308","#06b6d4","#8b5cf6","#10b981"];
 
-// --- ШАБЛОНЫ ТОП-КРЕАТОРОВ ДЛЯ АВТО-РЕНДЕРА ОБЛОЖЕК ---
+// --- ПРОФЕССИОНАЛЬНЫЕ ШАБЛОНЫ ОБЛОЖЕК (БЕЗ ПЯТЕН, С РАЗНЫМ ПОЗИЦИОНИРОВАНИЕМ) ---
 const THUMBNAIL_TEMPLATES = [
   {
-    id: "mrbeast", name: "MrBeast", desc: "Шок + Неон + Жирный текст",
+    id: "youtube_viral", name: "YouTube Viral", desc: "Текст по центру, черная обводка",
     render: () => ({
+      layout: "center", align: "center", // ТЕКСТ ПО ЦЕНТРУ
       bgFallback: "linear-gradient(135deg, #1a0533 0%, #3d0066 50%, #000 100%)",
-      titleStyle: { fontSize: 24, fontWeight: 900, color: "#fff", fontFamily: "Impact, Arial Black, sans-serif", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #ff00ff, 2px 2px 0 #000", letterSpacing: -0.5 },
-      hookStyle: { fontSize: 13, fontWeight: 800, color: "#ffdd00", fontFamily: "Impact, sans-serif", textTransform: "uppercase", textShadow: "1px 1px 0 #000" },
-      tagStyle: { background: "#ff0050", color: "#fff", fontWeight: 900, fontSize: 10 },
+      titleStyle: { fontSize: 36, fontWeight: 900, color: "#fff", fontFamily: "Impact, Arial Black, sans-serif", textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "1.5px #000", textShadow: "5px 5px 0 #000, 0 0 30px #ff00ff", letterSpacing: 1, transform: "rotate(-2deg)", marginBottom: 12 },
+      hookStyle: { fontSize: 16, fontWeight: 900, color: "#ffdd00", fontFamily: "Impact, sans-serif", textTransform: "uppercase", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", marginBottom: 8, transform: "rotate(-2deg)" },
+      ctaStyle: { fontSize: 13, fontWeight: 900, color: "#ff00ff", textTransform: "uppercase", letterSpacing: 1, background: "#000", padding: "6px 14px", borderRadius: 8, border: "2px solid #ff00ff", transform: "rotate(-2deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" },
       accent: "#ff00ff"
     }),
   },
   {
-    id: "netflix", name: "Netflix", desc: "Мрачное кино, саспенс",
+    id: "cinematic", name: "Cinematic", desc: "Стиль кино по центру",
     render: () => ({
+      layout: "center", align: "center", // ТЕКСТ ПО ЦЕНТРУ
       bgFallback: "linear-gradient(160deg, #1a0000 0%, #2d0000 40%, #000 100%)",
-      titleStyle: { fontSize: 22, fontWeight: 900, color: "#fff", fontFamily: "'Georgia', serif", lineHeight: 1.1, textShadow: "0 4px 15px rgba(0,0,0,1)", letterSpacing: -0.5 },
-      hookStyle: { fontSize: 10, fontWeight: 600, color: "#aaa", fontFamily: "Arial, sans-serif", textTransform: "uppercase", letterSpacing: 2 },
-      tagStyle: { background: "#e50914", color: "#fff", fontWeight: 900, fontSize: 9 },
+      titleStyle: { fontSize: 32, fontWeight: 900, color: "#fff", fontFamily: "'Georgia', serif", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,1)", letterSpacing: 1, marginBottom: 12 },
+      hookStyle: { fontSize: 12, fontWeight: 600, color: "#e50914", fontFamily: "Arial, sans-serif", textTransform: "uppercase", letterSpacing: 4, marginBottom: 10 },
+      ctaStyle: { fontSize: 11, fontWeight: 700, color: "#aaa", textTransform: "uppercase", letterSpacing: 2, borderBottom: "1px solid #e50914", paddingBottom: 4 },
       accent: "#e50914"
     }),
   },
   {
-    id: "tiktok", name: "TikTok Viral", desc: "Gen-Z энергия, неон",
+    id: "tiktok", name: "TikTok Viral", desc: "Текст сверху, неоновый свет",
     render: () => ({
+      layout: "top", align: "center", // ТЕКСТ СВЕРХУ
       bgFallback: "linear-gradient(145deg, #010101 0%, #1a1a2e 100%)",
-      titleStyle: { fontSize: 24, fontWeight: 900, color: "#fff", fontFamily: "'Arial Black', sans-serif", lineHeight: 1.1, textShadow: "0 0 15px #00f2ea" },
-      hookStyle: { fontSize: 11, fontWeight: 700, color: "#00f2ea", fontFamily: "Arial, sans-serif" },
-      tagStyle: { background: "#ff0050", color: "#fff", fontWeight: 900, fontSize: 9 },
+      titleStyle: { fontSize: 28, fontWeight: 900, color: "#fff", fontFamily: "'Arial Black', sans-serif", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", marginBottom: 10 },
+      hookStyle: { fontSize: 13, fontWeight: 800, color: "#00f2ea", fontFamily: "Arial, sans-serif", textTransform: "uppercase", marginBottom: 8, background: "#000", padding: "4px 8px", borderRadius: 6 },
+      ctaStyle: { fontSize: 11, fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: 1, background: "#ff0050", padding: "6px 12px", borderRadius: 20 },
       accent: "#00f2ea"
     }),
   },
   {
-    id: "documentary", name: "Documentary", desc: "Серьезная журналистика",
+    id: "documentary", name: "Documentary", desc: "Текст снизу, элегантно",
     render: () => ({
+      layout: "bottom", align: "left", // ТЕКСТ СНИЗУ
       bgFallback: "linear-gradient(160deg, #1a1a0d 0%, #2d2d1a 50%, #0d0d00 100%)",
-      titleStyle: { fontSize: 20, fontWeight: 900, color: "#e8dcc8", fontFamily: "'Georgia', serif", lineHeight: 1.2, textShadow: "0 2px 10px #000", fontStyle: "italic" },
-      hookStyle: { fontSize: 9, fontWeight: 600, color: "#a08060", fontFamily: "Arial, sans-serif", textTransform: "uppercase", letterSpacing: 2 },
-      tagStyle: { background: "#8b7355", color: "#fff", fontWeight: 700, fontSize: 9 },
+      titleStyle: { fontSize: 26, fontWeight: 900, color: "#e8dcc8", fontFamily: "'Georgia', serif", lineHeight: 1.1, textShadow: "0 4px 15px rgba(0,0,0,1)", marginBottom: 12 },
+      hookStyle: { fontSize: 11, fontWeight: 700, color: "#d4a853", fontFamily: "Arial, sans-serif", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8 },
+      ctaStyle: { fontSize: 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 2, opacity: 0.8 },
       accent: "#d4a853"
     }),
   },
@@ -123,7 +127,6 @@ JSON SCHEMA:
   }
 }`;
 
-// ВАЖНОЕ ИСПРАВЛЕНИЕ: ПОЧИНИЛ ОШИБКУ "reading '0'"
 async function callAPI(content, maxTokens = 7000, sysPrompt = VIRAL_SYSTEM) {
   try {
     const res = await fetch("/api/chat", {
@@ -135,8 +138,6 @@ async function callAPI(content, maxTokens = 7000, sysPrompt = VIRAL_SYSTEM) {
     if (!res.ok) throw new Error(`Ошибка сервера. Код: ${res.status}`);
     const data = JSON.parse(textResponse);
     if (data.error) throw new Error(data.error.message || data.error);
-    
-    // Исправлено: Наш Vercel возвращает { text: "..." }, а прямой Groq возвращает { choices: [...] }
     return data.text || (data.choices && data.choices[0]?.message?.content) || "";
   } catch (e) { throw e; }
 }
@@ -189,7 +190,7 @@ export default function Page() {
   const [ttsSettings, setTtsSettings] = useState("");
 
   const [bgImage, setBgImage] = useState(null);
-  const [selTplId, setSelTplId] = useState("mrbeast");
+  const [selTplId, setSelTplId] = useState("youtube_viral");
   const [downloading, setDownloading] = useState(false);
 
   const [history, setHistory] = useState([]);
@@ -330,6 +331,14 @@ export default function Page() {
 
   const currFormat = FORMATS.find(f=>f.id === vidFormat) || FORMATS[0];
 
+  // Динамические стили для контейнера обложки
+  const tpl = THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render();
+  const getGradientForLayout = (layout) => {
+    if (layout === "center") return "radial-gradient(circle at center, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.85) 100%)";
+    if (layout === "top") return "linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 40%, transparent 100%)";
+    return "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)"; // bottom
+  };
+
   return (
     <div ref={scrollRef} style={S.root}>
       <div style={S.gridBg} />
@@ -385,7 +394,6 @@ export default function Page() {
       {view==="form" && (
         <div style={{maxWidth:500,margin:"0 auto",padding:"30px 20px"}}>
           
-          {/* ВОЗВРАТ ВСЕХ ЭЛЕМЕНТОВ УПРАВЛЕНИЯ */}
           <div style={S.section}>
             <label style={S.label}>📐 ФОРМАТ КАДРА И ОБЛОЖКИ</label>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -496,22 +504,29 @@ export default function Page() {
               <div style={{display:"flex", justifyContent:"center", marginBottom:20}}>
                 <div id="thumbnail-export" style={{
                   width: 320, aspectRatio: currFormat.ratio, overflow: "hidden", position: "relative",
-                  background: bgImage ? `url(${bgImage}) center/cover no-repeat` : THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render().bgFallback,
-                  display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: 16
+                  background: bgImage ? `url(${bgImage}) center/cover no-repeat` : tpl.bgFallback,
+                  display: "flex", flexDirection: "column", padding: 24,
+                  // ДИНАМИЧЕСКИЙ LAYOUT ИЗ ШАБЛОНА
+                  justifyContent: tpl.layout === "center" ? "center" : (tpl.layout === "top" ? "flex-start" : "flex-end"),
+                  alignItems: tpl.align === "center" ? "center" : "flex-start",
+                  textAlign: tpl.align
                 }}>
-                  <div style={{position:"absolute", bottom:0, left:0, right:0, height:"80%", background:"linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)", zIndex:1}} />
-                  <div style={{position:"relative", zIndex:2, width:"100%"}}>
-                    <div style={{position:"absolute", top:- (currFormat.id === "9:16" ? 420 : (currFormat.id === "1:1" ? 200 : 80)), width:"100%", display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-                       <div style={{fontSize:32, filter:"drop-shadow(0 4px 10px rgba(0,0,0,0.8))"}}>{thumb.emoji || "🔥"}</div>
-                       <div style={{...THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render().tagStyle, padding:"4px 8px", borderRadius:4}}>
-                         {THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).name.toUpperCase()}
-                       </div>
-                    </div>
-                    <div style={{...THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render().hookStyle, marginBottom:4}}>{thumb.hook || "СМОТРИ СЕЙЧАС"}</div>
-                    <div style={{...THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render().titleStyle, marginBottom:8, wordWrap:"break-word"}}>{thumb.title || thumb.text || "НЕИЗВЕСТНАЯ ИСТОРИЯ"}</div>
-                    <div style={{fontSize:10, color:THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render().accent, fontWeight:800, textTransform:"uppercase", letterSpacing:1}}>→ {thumb.cta || "УЗНАЙ ПРАВДУ"}</div>
+                  {/* Динамический градиент */}
+                  <div style={{position:"absolute", inset:0, background:getGradientForLayout(tpl.layout), zIndex:1}} />
+                  
+                  {/* Текстовые элементы */}
+                  <div style={{position:"relative", zIndex:2, width:"100%", display: "flex", flexDirection: "column", alignItems: tpl.align === "center" ? "center" : "flex-start"}}>
+                    
+                    {/* Эмодзи можно показывать только в определенных стилях или оставить общим */}
+                    {tpl.layout !== "center" && (
+                      <div style={{fontSize:32, filter:"drop-shadow(0 4px 10px rgba(0,0,0,0.8))", marginBottom: 10}}>{thumb.emoji || "🔥"}</div>
+                    )}
+
+                    <div style={tpl.hookStyle}>{thumb.hook || "СМОТРИ СЕЙЧАС"}</div>
+                    <div style={tpl.titleStyle}>{thumb.title || thumb.text || "НЕИЗВЕСТНАЯ ИСТОРИЯ"}</div>
+                    <div style={tpl.ctaStyle}>{thumb.cta || "УЗНАЙ ПРАВДУ"}</div>
+
                   </div>
-                  <div style={{position:"absolute", bottom:0, left:0, right:0, height:4, background:THUMBNAIL_TEMPLATES.find(t=>t.id===selTplId).render().accent, zIndex:3}} />
                 </div>
               </div>
 
@@ -535,7 +550,7 @@ export default function Page() {
 
               <div style={{marginTop:16, background:"rgba(16,185,129,.05)", border:"1px solid rgba(16,185,129,.2)", borderRadius:16, padding:16}}>
                 <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
-                  <span style={{fontSize:10, fontWeight:800, color:"#34d399"}}>ENGLISH PROMPT (ДЛЯ ФОНА)</span>
+                  <span style={{fontSize:10, fontWeight:800, color:"#34d399"}}>ENGLISH PROMPT (ДЛЯ ФОНА В VEO)</span>
                   <CopyBtn text={thumb.prompt_EN || ""} label="Copy" small/>
                 </div>
                 <div style={{fontFamily:"monospace", fontSize:12, color:"rgba(255,255,255,.6)", lineHeight:1.5}}>{thumb.prompt_EN || "Промпт не сгенерирован"}</div>
