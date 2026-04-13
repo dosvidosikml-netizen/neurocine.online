@@ -70,7 +70,7 @@ const NeuralBackground = () => {
   return <canvas ref={canvasRef} style={{position:"fixed", top:0, left:0, zIndex:-2, width:"100vw", height:"100vh"}} />;
 };
 
-// --- КОНСТАНТЫ И НАСТРОЙКИ ---
+// --- КОНСТАНТЫ И ПРЕСЕТЫ ---
 const GENRE_PRESETS = {
   "КРИМИНАЛ":      { icon:"🔫", col:"#ff3355" }, 
   "ТАЙНА":         { icon:"🔍", col:"#a855f7" },
@@ -103,7 +103,7 @@ const DURATIONS = Object.keys(DURATION_CONFIG);
 
 const COVER_PRESETS = [
   { id: "netflix", label: "Netflix", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, fontFamily: "'Georgia', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,0.9)", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", marginTop: 10 } } },
-  { id: "mrbeast", label: "MrBeast", style: { container: { alignItems: "center" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", WebkitTextStroke: "1px #000", transform: "rotate(-2deg)" }, title: { fontSize: 38, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#fff", WebkitTextStroke: "2px #000", transform: "rotate(-3deg)", textAlign: "center" }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "4px 10px", marginTop: 10 } } },
+  { id: "mrbeast", label: "MrBeast", style: { container: { alignItems: "center" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", WebkitTextStroke: "1px #000", transform: "rotate(-2deg)", marginBottom: 4 }, title: { fontSize: 40, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px #ff00ff", transform: "rotate(-3deg)", textAlign: "center" }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, transform: "rotate(-1deg)", marginTop: 10 } } },
   { id: "tiktok", label: "TikTok", style: { container: { alignItems: "center" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12 }, title: { fontSize: 28, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center" }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, marginTop: 10 } } },
   { id: "truecrime", label: "True Crime", style: { container: { alignItems: "flex-start" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 34, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px", borderLeft: "4px solid #ffdd00", textAlign: "left" }, cta: { color: "#888", fontSize: 11, marginTop: 10 } } },
   { id: "horror", label: "Ужасы", style: { container: { alignItems: "center" }, hook: { fontSize: 14, fontWeight: 900, fontFamily: "'Cinzel', serif", color: "#dc2626", textTransform: "uppercase", letterSpacing: 6, marginBottom: 8, textShadow: "0 0 10px #dc2626" }, title: { fontSize: 36, fontWeight: 900, fontFamily: "'Cinzel', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 5px 20px #000, 0 0 15px #dc2626", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", opacity: 0.5, marginTop: 10 } } }
@@ -114,7 +114,7 @@ You are 'Director-X'. OUTPUT STRICTLY IN JSON.
 
 CRITICAL LANGUAGE RULE: YOU MUST USE TWO LANGUAGES!
 1. PROMPTS = ENGLISH ONLY ("global_anchor_EN", "imgPrompt_EN", "vidPrompt_EN", "music_EN", "b_rolls").
-2. SCRIPT = TARGET LANGUAGE ("voice", "visual", "camera", "seo", "thumbnail"). If Target Language is Russian, these MUST be in Russian!
+2. SCRIPT = TARGET LANGUAGE ("voice", "visual", "camera", "seo", "thumbnail"). If user requests Russian, these MUST be in Russian!
 
 🚨 RULES:
 1. PACING: Strictly 3 seconds per scene! Every 3 seconds a new frame.
@@ -122,15 +122,15 @@ CRITICAL LANGUAGE RULE: YOU MUST USE TWO LANGUAGES!
 3. 8K QUALITY: ALWAYS append ", shot on Arri Alexa 65, 8k resolution, photorealistic, cinematic lighting" to every image, video and b_roll prompt.
 4. B-ROLLS: "b_rolls" MUST be a list of 2-3 full English visual prompts for Grok Super.
 
-JSON SCHEMA:
+JSON SCHEMA EXAMPLE:
 {
-  "global_anchor_EN": "(ENGLISH ONLY) ...",
-  "retention": { "score": 95, "feedback": "(TARGET LANG) ..." },
-  "frames": [ { "timecode": "0-3 сек", "camera": "(TARGET LANG)", "visual": "(TARGET LANG)", "voice": "(TARGET LANG)", "imgPrompt_EN": "(ENGLISH)", "vidPrompt_EN": "(ENGLISH) [SFX: ...]" } ],
-  "b_rolls": [ "(ENGLISH) full prompt 1...", "(ENGLISH) full prompt 2..." ],
-  "thumbnail": { "title": "(TARGET LANG)", "hook": "(TARGET LANG)", "cta": "(TARGET LANG)", "prompt_EN": "(ENGLISH)" },
-  "music_EN": "(ENGLISH)",
-  "seo": { "titles": ["(TARGET LANG)"], "desc": "(TARGET LANG)", "tags": ["#tag1"] }
+  "global_anchor_EN": "English description...",
+  "retention": { "score": 95, "feedback": "Russian text..." },
+  "frames": [ { "timecode": "0-3 сек", "camera": "Russian text", "visual": "Russian text", "voice": "Russian text", "imgPrompt_EN": "English prompt...", "vidPrompt_EN": "English prompt..." } ],
+  "b_rolls": [ "Full English visual prompt 1...", "Full English visual prompt 2..." ],
+  "thumbnail": { "title": "Russian", "hook": "Russian", "cta": "Russian", "prompt_EN": "English" },
+  "music_EN": "English",
+  "seo": { "titles": ["Russian"], "desc": "Russian", "tags": ["#tag1"] }
 }`;
 
 async function callAPI(content, maxTokens = 8000, sysPrompt = VIRAL_SYSTEM) {
@@ -166,6 +166,7 @@ function CopyBtn({ text, label="Копировать", small=false }) {
 export default function Page() {
   const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
+
   const [topic, setTopic] = useState("");
   const [script, setScript] = useState("");
   const [genre, setGenre] = useState("ТАЙНА");
@@ -175,9 +176,11 @@ export default function Page() {
   const [lang, setLang] = useState("RU"); 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ttsData, setTtsData] = useState("");
+
   const [view, setView] = useState("form");
   const [loadingMsg, setLoadingMsg] = useState("");
   const [tab, setTab] = useState("storyboard");
+  
   const [frames, setFrames] = useState([]);
   const [bRolls, setBRolls] = useState([]);
   const [retention, setRetention] = useState(null);
@@ -186,6 +189,7 @@ export default function Page() {
   const [seo, setSeo] = useState(null);
   const [rawPrompts, setRawPrompts] = useState("");
   const [busy, setBusy] = useState(false);
+
   const [bgImage, setBgImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [covTitle, setCovTitle] = useState("");
@@ -195,10 +199,12 @@ export default function Page() {
   const [covX, setCovX] = useState(50);
   const [covY, setCovY] = useState(50);
   const [activePreset, setActivePreset] = useState("netflix");
+
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
-  const scrollRef = useRef(null);
 
+  const scrollRef = useRef(null);
+  
   useEffect(() => { 
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("ds_history"); 
@@ -221,7 +227,7 @@ export default function Page() {
   };
 
   const clearHistory = () => {
-    if(confirm("Очистить весь архив?")) {
+    if(confirm("Вы уверены, что хотите удалить весь архив проектов?")) {
       setHistory([]);
       localStorage.removeItem("ds_history");
     }
@@ -263,7 +269,7 @@ export default function Page() {
         localStorage.setItem("ds_history", JSON.stringify(newHistory));
       }
     } catch (e) {
-      alert("Ошибка JSON. Попробуйте еще раз.");
+      alert("Ошибка JSON. ИИ выдал неверный формат. Попробуйте еще раз.");
       setView("form");
     }
   }
@@ -308,8 +314,11 @@ export default function Page() {
         setScript(currentScript.trim());
       }
       const durCfg = DURATION_CONFIG[dur] || DURATION_CONFIG["До 60 сек"];
-      const req = `ВЫДАЙ СТРОГО В JSON! РОВНО ${durCfg.frames} КАДРОВ. СТРОГО 3 СЕКУНДЫ НА СЦЕНУ. ЦЕЛЕВОЙ ЯЗЫК: ${lang==="RU" ? "Русский" : "English"}`;
-      const text = await callAPI(`ТЕМА: ${topic}\nФОРМАТ: ${vidFormat}\nЖАНР: ${genre}\nСТИЛЬ: ${VISUAL_ENGINES[engine].prompt}\nСЦЕНАРИЙ:\n${currentScript}\n\n${req}`, 8000);
+      const currFormat = FORMATS.find(f=>f.id === vidFormat) || FORMATS[0];
+      const engineStyle = VISUAL_ENGINES[engine].prompt;
+      
+      const req = `ВЫДАЙ СТРОГО В JSON! РОВНО ${durCfg.frames} КАДРОВ. СТРОГО 3 СЕКУНДЫ НА СЦЕНУ. ЦЕЛЕВОЙ ЯЗЫК ДЛЯ СЦЕНАРИЯ: ${lang==="RU" ? "Русский" : "English"}`;
+      const text = await callAPI(`ТЕМА: ${topic}\nФОРМАТ: ${currFormat.ratio}\nЖАНР: ${genre}\nСТИЛЬ: ${engineStyle}\nСЦЕНАРИЙ:\n${currentScript}\n\n${req}`, 8000);
       setTokens(t => t - 1);
       applyResult(text, false);
     } catch(e) { alert(e.message); setView("form"); } finally { setBusy(false); setLoadingMsg(""); }
@@ -354,6 +363,9 @@ export default function Page() {
         .gbtn{width:100%;height:56px;border:none;border-radius:16px;cursor:pointer;font-weight:900;color:#fff;background:linear-gradient(135deg,#4f46e5,#9333ea,#ec4899);transition:all .2s;box-shadow: 0 4px 20px rgba(168,85,247,0.4);}
         .gbtn:hover{transform:translateY(-2px);filter:brightness(1.1);}
         textarea:focus, input:focus {outline:none;border-color:rgba(168,85,247,.6)!important;background:rgba(0,0,0,.6)!important;}
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #a855f7; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px #a855f7; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
       `}</style>
 
       {showPaywall && (
@@ -403,13 +415,14 @@ export default function Page() {
         <div style={{maxWidth:600,margin:"0 auto",padding:"30px 20px"}}>
           <div style={S.section}>
             <label style={S.label}>ЦЕЛЬ ВАШЕГО ХИТА</label>
-            <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Тема..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:16,padding:18,fontSize:16,color:"#fff",marginBottom:16}}/>
+            <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Например: Загадка Мертвой Руки..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:16,padding:18,fontSize:16,color:"#fff",marginBottom:16}}/>
             <textarea rows={4} value={script} onChange={e=>setScript(e.target.value)} placeholder="Готовый текст..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:16,padding:16,fontSize:14,color:"#cbd5e1",marginBottom:16}}/>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
                <button onClick={handleDraftText} disabled={busy || !topic.trim()} style={{background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff", padding:12, borderRadius:12, fontSize:12, fontWeight:700}}>✍️ Написать</button>
                <button onClick={handleIntonations} disabled={busy || !script.trim()} style={{background:"rgba(168,85,247,0.1)", border:"1px solid rgba(168,85,247,0.3)", color:"#d8b4fe", padding:12, borderRadius:12, fontSize:12, fontWeight:700}}>🎭 Интонации</button>
                <button onClick={handleTTS} disabled={busy || !script.trim()} style={{gridColumn:"1/-1", background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.3)", color:"#7dd3fc", padding:12, borderRadius:12, fontSize:12, fontWeight:700}}>⚙️ Настройки голоса</button>
             </div>
+            {ttsData && <pre style={{marginTop:12, padding:12, background:"rgba(0,0,0,0.5)", borderRadius:10, fontSize:11, color:"#bae6fd", fontFamily:"monospace", whiteSpace:"pre-wrap"}}>{ttsData}</pre>}
           </div>
 
           <div style={S.section}>
@@ -468,8 +481,11 @@ export default function Page() {
                <input type="text" value={covCta} onChange={e=>setCovCta(e.target.value)} placeholder="Нижний текст (CTA)" style={{width:"100%", background:"rgba(0,0,0,0.5)", border:"1px solid rgba(255,255,255,0.1)", padding:"12px", borderRadius:12, color:"#fff", fontSize:13}} />
             </div>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
-               <div><label style={{fontSize:10, color:"#888"}}>X</label><input type="range" min="10" max="90" value={covX} onChange={e=>setCovX(e.target.value)} style={{width:"100%"}}/></div>
-               <div><label style={{fontSize:10, color:"#888"}}>Y</label><input type="range" min="10" max="90" value={covY} onChange={e=>setCovY(e.target.value)} style={{width:"100%"}}/></div>
+               <div><label style={{fontSize:10, color:"#888"}}>Позиция X</label><input type="range" min="10" max="90" value={covX} onChange={e=>setCovX(e.target.value)} style={{width:"100%"}}/></div>
+               <div><label style={{fontSize:10, color:"#888"}}>Позиция Y</label><input type="range" min="10" max="90" value={covY} onChange={e=>setCovY(e.target.value)} style={{width:"100%"}}/></div>
+            </div>
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16}}>
+               <div><label style={{fontSize:10, color:"#888"}}>Затемнение</label><input type="range" min="0" max="100" value={covDark} onChange={e=>setCovDark(e.target.value)} style={{width:"100%"}}/></div>
             </div>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
               <label style={{flex:1, height:48, display:"flex", alignItems:"center", justifyContent:"center", background:"#222", borderRadius:12, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700}}>🖼 ФОН<input type="file" hidden onChange={handleImageUpload}/></label>
@@ -503,3 +519,4 @@ export default function Page() {
     </div>
   );
 }
+
