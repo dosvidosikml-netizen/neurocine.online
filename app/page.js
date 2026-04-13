@@ -91,7 +91,9 @@ You are 'Director-X'. OUTPUT STRICTLY IN JSON.
 🚨 RULES:
 1. PACING: Strictly 3 seconds per scene! Every 3 seconds a new frame.
 2. GLOBAL ANCHOR: Create a detailed physical description of the main character/location in "global_anchor_EN". This maintains visual consistency.
-3. PROMPTS IN ENGLISH ONLY: "imgPrompt_EN", "vidPrompt_EN", and "global_anchor_EN" MUST be strictly in English. Translate any Russian actions/weather into English automatically.
+3. LANGUAGE SPLIT (CRITICAL): 
+   - Fields "voice" (текст диктора), "visual" (описание сцены), "camera", "thumbnail" (title, hook, cta), "b_rolls" and "seo" MUST be in the TARGET LANGUAGE requested by user (e.g. Русский).
+   - Fields "global_anchor_EN", "imgPrompt_EN", "vidPrompt_EN", and "music_EN" MUST be STRICTLY IN ENGLISH. Translate any actions into English automatically.
 4. 8K QUALITY: ALWAYS append ", shot on Arri Alexa 65, 8k resolution, photorealistic, cinematic lighting" to the end of every "imgPrompt_EN" and "vidPrompt_EN".
 5. NO Midjourney/Leonardo. STRICT BAN. Use Veo or Whisk for Image, Grok Super for Video.
 6. AUDIO: "music_EN" must be instrumental, no vocals.
@@ -578,4 +580,3 @@ export default function Page() {
     </div>
   );
 }
-
