@@ -18,9 +18,12 @@ export async function POST(req) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini", // 🔥 Ставим сверхбыструю модель-спринтера
+        model: "meta-llama/llama-3.3-70b-instruct", // Умная и качественная модель
+        provider: {
+          require: ["groq"] // 🔥 ЧИТ-КОД: Принудительно используем сверхбыстрые чипы Groq
+        },
         messages: body.messages,
-        max_tokens: 3000, // Чуть урезали лимит, чтобы ускорить ответ
+        max_tokens: 3000,
         temperature: 0.7
       })
     });
