@@ -109,7 +109,7 @@ JSON FORMAT:
 {
   "frames_prompts": [ { "imgPrompt_EN": "A close up of...", "vidPrompt_EN": "A close up of..." } ],
   "b_rolls": [ "Extreme close up of...", "Detailed English prompt 2..." ],
-  "thumbnail_prompt_EN": "Highly detailed English prompt for cover..."
+  "thumbnail_prompt_EN": "Highly detailed English prompt for the thumbnail background. Rule: Main subject (face or artifact) MUST take 40-60% of the frame. Emotion: shock/mystery. MUST include: 'dark empty background space for text layout', 8k, photorealistic."
 }`;
 
 // --- ФУНКЦИИ ---
@@ -147,8 +147,9 @@ function CopyBtn({ text, label="Копировать", small=false }) {
 }
 
 export default function Page() {
-  const [tokens, setTokens] = useState(5);
+  const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
+  
   const [topic, setTopic] = useState("");
   const [finalTwist, setFinalTwist] = useState(""); 
   const [genre, setGenre] = useState("ТАЙНА");
@@ -200,11 +201,14 @@ export default function Page() {
 
   const scrollRef = useRef(null);
 
+  // --- ИНИЦИАЛИЗАЦИЯ И БИЛЛИНГ ---
   useEffect(() => { 
     if (typeof window !== "undefined") { 
+      // Загрузка Истории
       const savedHist = localStorage.getItem("ds_history"); 
       if (savedHist) setHistory(JSON.parse(savedHist)); 
 
+      // Загрузка Черновика
       const savedDraft = localStorage.getItem("ds_draft");
       if (savedDraft) {
          try {
@@ -216,6 +220,24 @@ export default function Page() {
          } catch(e){}
       }
       setDraftLoaded(true);
+
+      // Загрузка Биллинга (Кристаллы)
+      const today = new Date().toLocaleDateString();
+      const savedBilling = localStorage.getItem("ds_billing");
+      if (savedBilling) {
+        try {
+          const b = JSON.parse(savedBilling);
+          if (b.date !== today) {
+            setTokens(3);
+            localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today }));
+          } else {
+            setTokens(b.tokens);
+          }
+        } catch(e) { setTokens(3); }
+      } else {
+        localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today }));
+        setTokens(3);
+      }
     } 
   }, []);
 
@@ -225,7 +247,23 @@ export default function Page() {
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({top:0,behavior:"smooth"}); }, [view]);
 
-  const checkTokens = () => { if (tokens <= 0) { setShowPaywall(true); return false; } return true; };
+  // Списание кристалла
+  const deductToken = () => {
+    setTokens(prev => {
+      const next = prev - 1;
+      localStorage.setItem("ds_billing", JSON.stringify({ tokens: next, date: new Date().toLocaleDateString() }));
+      return next;
+    });
+  };
+
+  const checkTokens = () => { 
+    if (tokens <= 0) { 
+      setShowPaywall(true); 
+      return false; 
+    } 
+    return true; 
+  };
+
   const deleteFromHistory = (id) => { setHistory(prev => { const next = prev.filter(item => item.id !== id); localStorage.setItem("ds_history", JSON.stringify(next)); return next; }); };
   const clearHistory = () => { if(confirm("Очистить архив проектов?")) { setHistory([]); localStorage.removeItem("ds_history"); } };
 
@@ -302,7 +340,8 @@ export default function Page() {
       if (data.thumbnail) { setCovTitle(data.thumbnail.title || ""); setCovHook(data.thumbnail.hook || ""); setCovCta(data.thumbnail.cta || "СМОТРЕТЬ"); }
       
       rebuildRawText(data.frames || [], false);
-      setTokens(t => t - 1); setBgImage(null); setTab("storyboard"); setView("result");
+      deductToken(); 
+      setBgImage(null); setTab("storyboard"); setView("result");
       
       const stateData = { frames: data.frames, charRef: data.character_ref_EN, locRef: data.location_ref_EN, styleRef: data.style_ref_EN, retention: data.retention, thumb: data.thumbnail, seo: data.seo, music: data.music_EN, step2Done: false };
       const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
@@ -346,7 +385,8 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       setStep2Done(true);
       
       rebuildRawText(updatedFrames, true);
-      setTokens(t => t - 1); setView("result");
+      deductToken();
+      setView("result");
 
       setHistory(prev => {
          const next = [...prev];
@@ -398,6 +438,19 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
         .hide-scroll::-webkit-scrollbar { display: none; }
       `}</style>
+
+      {/* Экран Жадности (Paywall) */}
+      {showPaywall && (
+        <div style={{position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+          <div style={{background:"#111827", border:"1px solid #a855f7", borderRadius:24, padding:30, maxWidth:400, textAlign:"center", position:"relative", boxShadow:"0 10px 50px rgba(168,85,247,0.3)"}}>
+            <button onClick={()=>setShowPaywall(false)} style={{position:"absolute", top:15, right:15, background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button>
+            <div style={{fontSize:50, marginBottom:10}}>💎</div>
+            <h2 style={{fontSize:22, fontWeight:900, color:"#fff", marginBottom:10}}>Магия на сегодня закончилась!</h2>
+            <p style={{fontSize:14, color:"#cbd5e1", marginBottom:24, lineHeight:1.5}}>Вы исчерпали свой бесплатный лимит (3 кристалла). Возвращайтесь завтра или оформите PRO-подписку для безлимитной генерации контента.</p>
+            <button onClick={()=>setShowPaywall(false)} style={{width:"100%", background:"linear-gradient(135deg, #a855f7, #ec4899)", border:"none", padding:"16px", borderRadius:16, color:"#fff", fontWeight:900, fontSize:14, cursor:"pointer"}}>ПОНЯТНО</button>
+          </div>
+        </div>
+      )}
 
       {showHistory && (
         <div style={{position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
@@ -485,7 +538,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                <label style={{...S.label, marginBottom:0}}>📝 СЦЕНАРИЙ (ТЕКСТ ДИКТОРА)</label>
                <div style={{display:"flex", gap: 8}}>
                  <CopyBtn text={script} small />
-                 <button onClick={handleGenerateHooks} disabled={busy || !topic.trim()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
+                 <button onClick={handleGenerateHooks} disabled={busy || !topic.trim() || !checkTokens()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
                </div>
              </div>
              
@@ -500,8 +553,8 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
 
              <textarea rows={5} value={script} onChange={e=>setScript(e.target.value)} placeholder="Вставьте готовый текст или нажмите «Написать»..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:16,padding:16,fontSize:14,color:"#cbd5e1",marginBottom:16, resize:"none"}}/>
              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-               <button onClick={handleDraftText} disabled={busy || !topic.trim()} style={{background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>✍️ Написать весь текст</button>
-               <button onClick={handleIntonations} disabled={busy || !script.trim()} style={{background:"rgba(168,85,247,0.1)", border:"1px solid rgba(168,85,247,0.3)", color:"#d8b4fe", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>🎭 Интонации</button>
+               <button onClick={handleDraftText} disabled={busy || !topic.trim() || !checkTokens()} style={{background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>✍️ Написать весь текст</button>
+               <button onClick={handleIntonations} disabled={busy || !script.trim() || !checkTokens()} style={{background:"rgba(168,85,247,0.1)", border:"1px solid rgba(168,85,247,0.3)", color:"#d8b4fe", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>🎭 Интонации</button>
                <button onClick={()=>setShowTTS(!showTTS)} disabled={busy || !script.trim()} style={{gridColumn:"1/-1", background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.3)", color:"#7dd3fc", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>⚙️ Настройки голоса (TTS)</button>
              </div>
              
@@ -622,6 +675,17 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                  <input type="range" min="0" max="100" value={covDark} onChange={e=>setCovDark(e.target.value)} style={{width:"100%"}}/>
               </div>
 
+              {/* НОВЫЙ БЛОК: Специальный промпт для обложки (Появляется после Шага 2) */}
+              {step2Done && thumb?.prompt_EN && (
+                <div style={{background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.4)", borderRadius:16, padding:16, marginBottom:20}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
+                    <span style={{fontSize:11, fontWeight:900, color:"#38bdf8", textTransform:"uppercase"}}>🖼 PROMPT ДЛЯ ФОНА ОБЛОЖКИ</span>
+                    <CopyBtn text={thumb.prompt_EN} small/>
+                  </div>
+                  <div style={{fontSize:12, fontFamily:"monospace", color:"#bae6fd", lineHeight:1.4}}>{thumb.prompt_EN}</div>
+                </div>
+              )}
+
               <div style={{display:"flex", gap:10}}>
                 <label style={{flex:1, height:48, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:800, textTransform:"uppercase"}}>📸 Фон<input type="file" hidden onChange={handleImageUpload}/></label>
                 <button onClick={downloadThumbnail} disabled={downloading} style={{flex:1, height:48, background:"linear-gradient(135deg, #10b981, #059669)", borderRadius:14, border:"none", fontWeight:900, color:"#fff", cursor:downloading?"not-allowed":"pointer", textTransform:"uppercase"}}>{downloading ? "Рендер..." : "💾 СКАЧАТЬ"}</button>
@@ -633,7 +697,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
             <div style={{background:"rgba(236,72,153,0.1)", border:"1px dashed rgba(236,72,153,0.4)", borderRadius:24, padding:24, textAlign:"center", marginBottom:24}}>
               <div style={{fontSize:14, fontWeight:900, color:"#fbcfe8", marginBottom:10}}>Сценарий готов! Теперь визуализация 🎨</div>
               <div style={{fontSize:12, color:"#f472b6", marginBottom:20}}>Нейросеть сгенерирует сверхдетальные 8K промпты на английском для генераторов (Veo, Whisk, Grok).</div>
-              <button onClick={handleStep2} disabled={busy} style={{width:"100%", padding:"16px", background:"linear-gradient(135deg, #db2777, #9333ea)", borderRadius:16, color:"#fff", fontWeight:900, border:"none", cursor:"pointer", boxShadow:"0 5px 20px rgba(219,39,119,0.4)", animation:"pulse-glow 2s infinite"}}>🪄 ШАГ 2: СГЕНЕРИРОВАТЬ PRO-ПРОМПТЫ (💎 1)</button>
+              <button onClick={handleStep2} disabled={busy || !checkTokens()} style={{width:"100%", padding:"16px", background:"linear-gradient(135deg, #db2777, #9333ea)", borderRadius:16, color:"#fff", fontWeight:900, border:"none", cursor:"pointer", boxShadow:"0 5px 20px rgba(219,39,119,0.4)", animation:"pulse-glow 2s infinite"}}>🪄 ШАГ 2: СГЕНЕРИРОВАТЬ PRO-ПРОМПТЫ (💎 1)</button>
             </div>
           )}
 
