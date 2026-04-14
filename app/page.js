@@ -107,40 +107,36 @@ const COVER_PRESETS = [
   { id: "truecrime", label: "True Crime", style: { container: { alignItems: "flex-start" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 34, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1 } } }
 ];
 
-const VIRAL_SYSTEM = `### SYSTEM ROLE
-You are 'Director-X'. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values. Output must be a single continuous JSON structure.
+// СИСТЕМНЫЕ ПРОМПТЫ ДЛЯ 2 ШАГОВ
+const SYS_STEP_1 = `You are 'Director-X'. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
+Create a storyboard, voiceover, sfx, and SEO. 
+ALL CONTENT MUST BE IN TARGET LANGUAGE (except global_anchor_EN and music_EN).
 
-🚨 FATAL RULES - FOLLOW OR FAIL 🚨
-1. SPLIT LANGUAGES: 
-   - TARGET LANG (RU/EN specified in prompt) for: "voice", "visual", "camera", "sfx", "text_on_screen", "thumbnail.title", "thumbnail.hook", "thumbnail.cta", "seo...".
-   - ENGLISH ONLY for: "global_anchor_EN", "imgPrompt_EN", "vidPrompt_EN", "music_EN", "b_rolls", "thumbnail.prompt_EN".
-2. DETAILED PROMPTS (CRITICAL): Every English prompt (img/vid/b_rolls) MUST BE 20-40 WORDS LONG. Describe atmosphere, lighting, camera angle, textures. NO SHORT PROMPTS.
-3. B-ROLLS: "b_rolls" MUST be an array of 2-3 highly detailed English prompts.
-4. AUDIO & TEXT: Provide sound design ("sfx") and dynamic screen text ("text_on_screen") for each frame.
-
-JSON STRUCTURE EXACTLY AS THIS:
+JSON FORMAT:
 {
-  "global_anchor_EN": "Highly detailed English character/location description...",
-  "retention": { "score": 95, "feedback": "Текст анализа..." },
+  "global_anchor_EN": "Detailed English character/location description...",
+  "retention": { "score": 95, "feedback": "Анализ..." },
   "frames": [ 
-    { 
-      "timecode": "0-3 сек", 
-      "camera": "Наезд камеры", 
-      "visual": "Мрачный лес", 
-      "sfx": "Глубокий бас, хруст веток",
-      "text_on_screen": "ОН НЕ ВЕРНУЛСЯ",
-      "voice": "В ту ночь он не вернулся...", 
-      "imgPrompt_EN": "A highly detailed cinematic wide shot of a dark misty forest at midnight, twisted branches, volumetric fog, moonlight, hyper-realistic, 8k...", 
-      "vidPrompt_EN": "A highly detailed cinematic wide shot of a dark misty forest at midnight, twisted branches, volumetric fog, moonlight, hyper-realistic, 8k..." 
-    } 
+    { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Звук", "text_on_screen": "ТИТРЫ", "voice": "Диктор..." } 
   ],
-  "b_rolls": [ "Extreme close up of a muddy footprint, glowing particles, 8k...", "Detailed English prompt 2..." ],
-  "thumbnail": { "title": "ТАЙНА ЛЕСА", "hook": "ОН ИСЧЕЗ", "cta": "СМОТРЕТЬ", "prompt_EN": "Highly detailed English prompt for cover..." },
-  "music_EN": "Dark creepy ambient drone...",
+  "thumbnail": { "title": "ЗАГОЛОВАК", "hook": "ХУК", "cta": "СМОТРЕТЬ" },
+  "music_EN": "Dark cinematic ambient...",
   "seo": { "titles": ["Заголовок"], "desc": "Описание", "tags": ["#тег"] }
 }`;
 
-async function callAPI(content, maxTokens = 8000, sysPrompt = VIRAL_SYSTEM) {
+const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
+Based on the provided Russian storyboard, generate highly detailed English 8k prompts for Midjourney/Veo. Every prompt must be 20-40 words long and describe lighting, mood, camera angle, and textures.
+
+JSON FORMAT:
+{
+  "frames_prompts": [ 
+    { "imgPrompt_EN": "A highly detailed cinematic wide shot of...", "vidPrompt_EN": "A highly detailed cinematic wide shot of..." } 
+  ],
+  "b_rolls": [ "Extreme close up of...", "Detailed English prompt 2..." ],
+  "thumbnail_prompt_EN": "Highly detailed English prompt for cover..."
+}`;
+
+async function callAPI(content, maxTokens = 8000, sysPrompt) {
   try {
     const res = await fetch("/api/chat", { 
       method: "POST", 
@@ -160,6 +156,17 @@ async function callAPI(content, maxTokens = 8000, sysPrompt = VIRAL_SYSTEM) {
   } catch (e) { throw e; }
 }
 
+function cleanJSON(rawText) {
+  let cleanText = rawText.replace(/```json/gi, "").replace(/```/gi, "").trim();
+  const startIdx = cleanText.indexOf('{');
+  const endIdx = cleanText.lastIndexOf('}');
+  if (startIdx !== -1 && endIdx !== -1) {
+    cleanText = cleanText.substring(startIdx, endIdx + 1);
+  }
+  cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u0019]+/g, "");
+  return JSON.parse(cleanText);
+}
+
 function CopyBtn({ text, label="Копировать", small=false }) {
   const [ok, setOk] = useState(false);
   return (
@@ -171,29 +178,30 @@ function CopyBtn({ text, label="Копировать", small=false }) {
 }
 
 export default function Page() {
-  const [tokens, setTokens] = useState(3);
+  const [tokens, setTokens] = useState(5);
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [topic, setTopic] = useState("");
-  const [finalTwist, setFinalTwist] = useState(""); // Новый стейт для твиста
+  const [finalTwist, setFinalTwist] = useState(""); 
   const [genre, setGenre] = useState("ТАЙНА");
   const [script, setScript] = useState("");
   
   const [dur, setDur] = useState("До 60 сек");
   const [vidFormat, setVidFormat] = useState("9:16");
   const [engine, setEngine] = useState("CINEMATIC");
-  const [customStyle, setCustomStyle] = useState(""); // Особый стиль
-  const [pacing, setPacing] = useState(3); // Темп (в секундах)
+  const [customStyle, setCustomStyle] = useState(""); 
+  const [pacing, setPacing] = useState(3); 
   const [lang, setLang] = useState("RU"); 
   const [settingsOpen, setSettingsOpen] = useState(false);
   
   const [ttsData, setTtsData] = useState("");
-  const [hooksList, setHooksList] = useState([]); // Стейт для хуков
+  const [hooksList, setHooksList] = useState([]); 
 
   const [view, setView] = useState("form");
   const [loadingMsg, setLoadingMsg] = useState("");
   const [tab, setTab] = useState("storyboard");
   
+  // Данные генерации
   const [frames, setFrames] = useState([]);
   const [bRolls, setBRolls] = useState([]);
   const [retention, setRetention] = useState(null);
@@ -202,11 +210,12 @@ export default function Page() {
   const [seo, setSeo] = useState(null);
   const [rawPrompts, setRawPrompts] = useState("");
   const [anchor, setAnchor] = useState("");
+  const [step2Done, setStep2Done] = useState(false); // Флаг второго шага
   const [busy, setBusy] = useState(false);
 
   const [bgImage, setBgImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
-  const [showSafeZone, setShowSafeZone] = useState(false); // Сейф-зона обложки
+  const [showSafeZone, setShowSafeZone] = useState(false); 
   const [covTitle, setCovTitle] = useState("");
   const [covHook, setCovHook] = useState("");
   const [covCta, setCovCta] = useState("");
@@ -248,69 +257,14 @@ export default function Page() {
     }
   };
 
-  function applyResult(rawText, fromHistory = false) {
-    let cleanText = rawText.replace(/```json/gi, "").replace(/```/gi, "").trim();
-    
-    // Мощный парсер-пылесос
-    const startIdx = cleanText.indexOf('{');
-    const endIdx = cleanText.lastIndexOf('}');
-    if (startIdx !== -1 && endIdx !== -1) {
-      cleanText = cleanText.substring(startIdx, endIdx + 1);
-    }
-    
-    // Убиваем физические переносы внутри строк
-    cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u0019]+/g, "");
-
-    try {
-      const data = JSON.parse(cleanText);
-      setFrames(data.frames || []); 
-      setBRolls(data.b_rolls || []);
-      setRetention(data.retention || null);
-      setThumb(data.thumbnail || null); 
-      setMusic(data.music_EN || ""); 
-      setSeo(data.seo || null);
-      setAnchor(data.global_anchor_EN || ""); 
-      
-      if (data.thumbnail) { 
-        setCovTitle(data.thumbnail.title || ""); 
-        setCovHook(data.thumbnail.hook || ""); 
-        setCovCta(data.thumbnail.cta || "СМОТРЕТЬ"); 
-      }
-      
-      let anchorStr = data.global_anchor_EN ? `[GLOBAL ANCHOR: ${data.global_anchor_EN}] ` : "";
-      let rScript = "🎬 СЦЕНАРИЙ:\n" + (data.frames || []).map((f, i) => `КАДР ${i+1} [${f.timecode || ''}]\n👁 Визуал: ${f.visual}\n🎙 Диктор: «${f.voice}»`).join("\n\n");
-      let imgList = "\n\n🖼 ЧИСТЫЕ IMAGE PROMPTS (8K):\n\n" + (data.frames || []).map(f => anchorStr + f.imgPrompt_EN).filter(Boolean).join("\n\n");
-      let vidList = "\n\n🎥 ЧИСТЫЕ VIDEO PROMPTS (8K):\n\n" + (data.frames || []).map(f => anchorStr + f.vidPrompt_EN).filter(Boolean).join("\n\n");
-      let bRollList = (data.b_rolls && data.b_rolls.length) ? "\n\n⚡ FLASH B-ROLLS (8K):\n\n" + data.b_rolls.map(b => anchorStr + b).join("\n\n") : "";
-      
-      setRawPrompts(rScript + imgList + vidList + bRollList); 
-      setBgImage(null); setTab("storyboard"); setView("result");
-
-      if (!fromHistory) {
-        const newItem = { id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: cleanText, format: vidFormat };
-        const newHistory = [newItem, ...history].slice(0, 10);
-        setHistory(newHistory);
-        localStorage.setItem("ds_history", JSON.stringify(newHistory));
-      }
-    } catch (e) {
-      console.error("Parse Error:", e, "\nRAW TEXT:", cleanText);
-      alert("Ошибка JSON: Нейросеть сгенерировала кривой формат текста. Попробуйте нажать кнопку еще раз.");
-      setView("form");
-    }
-  }
-
-  // --- НОВЫЙ ГЕНЕРАТОР ХУКОВ ---
+  // --- ГЕНЕРАТОР ХУКОВ ---
   async function handleGenerateHooks() {
     if (!topic.trim()) return alert("Сначала введите Тему!");
     setBusy(true); setLoadingMsg("Придумываем кликбейты..."); setView("loading");
     try {
-      const sysTxt = `You are a viral TikTok producer. Write 3 powerful hooks (1 sentence each) in RUSSIAN. Genre: ${genre}. Provide valid JSON array of 3 strings ONLY. Format: ["Хук 1", "Хук 2", "Хук 3"]`;
-      const text = await callAPI(`Topic: ${topic}`, 2000, sysTxt);
-      let clean = text.replace(/```json|```/gi, "").trim();
-      const sIdx = clean.indexOf('['); const eIdx = clean.lastIndexOf(']');
-      if(sIdx !== -1) clean = clean.substring(sIdx, eIdx+1);
-      const arr = JSON.parse(clean);
-      setHooksList(arr);
+      const text = await callAPI(`Topic: ${topic}`, 2000, `You are a viral TikTok producer. Write 3 powerful hooks (1 sentence each) in RUSSIAN. Genre: ${genre}. Provide valid JSON array of 3 strings ONLY. Format: ["Хук 1", "Хук 2", "Хук 3"]`);
+      const arr = cleanJSON(text);
+      if(Array.isArray(arr)) setHooksList(arr);
     } catch(e) { alert("Ошибка генерации хуков. Попробуйте еще раз."); } 
     finally { setBusy(false); setView("form"); }
   }
@@ -319,21 +273,20 @@ export default function Page() {
     if (!topic.trim()) return alert("Введите тему!");
     setBusy(true); setLoadingMsg("Пишем сценарий..."); setView("loading");
     try {
-      const sysTxt = `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Жанр: ${genre}. ${finalTwist ? `Сохраняй главную интригу (${finalTwist}) до самого финала.` : ""}`;
-      const text = await callAPI(`Тема: ${topic}`, 3000, sysTxt);
-      setScript(text.trim());
-      setHooksList([]); // Прячем хуки после генерации сценария
-    } catch(e) { alert(e.message); } finally { setBusy(false); setView("form"); }
+      const text = await callAPI(`Тема: ${topic}`, 3000, `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Жанр: ${genre}. ${finalTwist ? `Сохраняй интригу (${finalTwist}) до финала.` : ""}`);
+      setScript(text.trim()); setHooksList([]);
+    } catch(e) { alert(e.message || "Ошибка сети"); } 
+    finally { setBusy(false); setView("form"); }
   }
 
   async function handleIntonations() {
     if (!script.trim()) return alert("Нет текста!");
     setBusy(true); setLoadingMsg("Разметка интонаций..."); setView("loading");
     try {
-      const sysTxt = `You are an Audio Director. Расставь паузы (...) и выдели КАПСОМ слова для акцента в этом РУССКОМ тексте. Жанр: ${genre}.`;
-      const text = await callAPI(script, 3000, sysTxt);
+      const text = await callAPI(script, 3000, `You are an Audio Director. Расставь паузы (...) и выдели КАПСОМ слова для акцента в РУССКОМ тексте. Жанр: ${genre}.`);
       setScript(text.trim());
-    } catch(e) { alert(e.message); } finally { setBusy(false); setView("form"); }
+    } catch(e) { alert(e.message || "Ошибка сети"); } 
+    finally { setBusy(false); setView("form"); }
   }
 
   async function handleTTS() {
@@ -342,48 +295,99 @@ export default function Page() {
     try {
       const text = await callAPI(`Текст: ${script.substring(0,100)}... Жанр: ${genre}`, 1000, "Provide TTS settings for Google AI Studio: VOICE: [Name], SPEED: [Value], STYLE PROMPT: [English instruction]");
       setTtsData(text.trim());
-    } catch(e) { alert(e.message); } finally { setBusy(false); setView("form"); }
+    } catch(e) { alert(e.message || "Ошибка сети"); } 
+    finally { setBusy(false); setView("form"); }
   }
 
-  async function handleGenerateFullPlan() {
-    if (!topic.trim() && !script.trim()) return alert("Заполните поля!");
+  function rebuildRawText(frms, anc, brls) {
+    let anchorStr = anc ? `[GLOBAL ANCHOR: ${anc}]\n\n` : "";
+    let rScript = "🎬 СЦЕНАРИЙ:\n" + frms.map((f, i) => `КАДР ${i+1} [${f.timecode || ''}]\n👁 Визуал: ${f.visual}\n🔊 Звук: ${f.sfx||''}\n🔤 Титры: ${f.text_on_screen||''}\n🎙 Диктор: «${f.voice}»`).join("\n\n");
+    let imgList = step2Done ? ("\n\n🖼 ЧИСТЫЕ IMAGE PROMPTS (8K):\n\n" + frms.map(f => anchorStr + f.imgPrompt_EN).filter(Boolean).join("\n\n")) : "";
+    let vidList = step2Done ? ("\n\n🎥 ЧИСТЫЕ VIDEO PROMPTS (8K):\n\n" + frms.map(f => anchorStr + f.vidPrompt_EN).filter(Boolean).join("\n\n")) : "";
+    let bRollList = (brls && brls.length && step2Done) ? "\n\n⚡ FLASH B-ROLLS (8K):\n\n" + brls.map(b => anchorStr + b).join("\n\n") : "";
+    setRawPrompts(rScript + imgList + vidList + bRollList);
+  }
+
+  // --- ШАГ 1: РАСКАДРОВКА ---
+  async function handleStep1() {
+    if (!topic.trim() && !script.trim()) return alert("Заполните тему или скрипт!");
     if (!checkTokens()) return;
-    setBusy(true); setLoadingMsg("Генерация сцен и промптов..."); setView("loading");
+    setBusy(true); setLoadingMsg("Шаг 1: Создаем раскадровку и режиссуру..."); setView("loading");
     try {
       let currentScript = script.trim();
       if (!currentScript) {
-        currentScript = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text. Language: ${lang === "RU" ? "Russian" : "English"}.`);
+        currentScript = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text in ${lang === "RU" ? "Russian" : "English"}.`);
         setScript(currentScript.trim());
       }
       
-      const totalSec = DURATION_SECONDS[dur] || 60;
-      const targetFrames = Math.floor(totalSec / pacing); // Рассчет кадров на основе темпа
-      const engineStyle = VISUAL_ENGINES[engine].prompt;
-      
-      const req = `СТРОГОЕ ПРАВИЛО ПО ЯЗЫКАМ: Сценарий (voice, visual, camera, sfx, text_on_screen) и SEO - строго на ${lang === "RU" ? "РУССКОМ" : "АНГЛИЙСКОМ"}. Промпты (imgPrompt_EN, vidPrompt_EN, b_rolls) - строго на АНГЛИЙСКОМ.
-ДЕТАЛИЗАЦИЯ: Все английские промпты должны быть ДЛИННЫМИ (20-40 слов), описывать свет, атмосферу и детали. ${customStyle ? `ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ ОСОБЫЙ СТИЛЬ ВО ВСЕХ ПРОМПТАХ: ${customStyle}.` : ""}
-ОБЯЗАТЕЛЬНО: Прикрепи "shot on Arri Alexa 65, 8k resolution, photorealistic, cinematic lighting" ко всем промптам.
-ТВИСТ: ${finalTwist ? `Финальная развязка "${finalTwist}" должна раскрыться только в последних кадрах.` : ""}
-ENGAGEMENT: В последнем кадре (voice) диктор ДОЛЖЕН задать зрителям вопрос (Байт на комменты).
-
+      const targetFrames = Math.floor((DURATION_SECONDS[dur] || 60) / pacing);
+      const req = `TARGET LANGUAGE FOR SCENARIO AND SEO: ${lang === "RU" ? "РУССКИЙ" : "ENGLISH"}.
 ТЕМА: ${topic}
 ЖАНР: ${genre}
-СТИЛЬ: ${engineStyle}
-ТЕМП: ${pacing} сек. на сцену
-СЦЕНАРИЙ:
-${currentScript}
+ТВИСТ В ФИНАЛЕ: ${finalTwist}
+СЦЕНАРИЙ: ${currentScript}
+ВЫДАЙ СТРОГО JSON! РОВНО ${targetFrames} КАДРОВ.`;
 
-ВЫДАЙ СТРОГО В JSON! РОВНО ${targetFrames} КАДРОВ.`;
-
-      const text = await callAPI(req, 8000);
+      const text = await callAPI(req, 8000, SYS_STEP_1);
+      const data = cleanJSON(text);
+      
+      setFrames(data.frames || []); 
+      setRetention(data.retention || null);
+      setThumb(data.thumbnail || null); 
+      setMusic(data.music_EN || ""); 
+      setSeo(data.seo || null);
+      setAnchor(data.global_anchor_EN || ""); 
+      setBRolls([]); setStep2Done(false);
+      
+      if (data.thumbnail) { 
+        setCovTitle(data.thumbnail.title || ""); setCovHook(data.thumbnail.hook || ""); setCovCta(data.thumbnail.cta || "СМОТРЕТЬ"); 
+      }
+      
+      rebuildRawText(data.frames || [], data.global_anchor_EN, []);
       setTokens(t => t - 1);
-      applyResult(text, false);
+      setBgImage(null); setTab("storyboard"); setView("result");
+      
+      // Сохраняем в историю без промптов
+      const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(data), format: vidFormat }, ...history].slice(0, 10);
+      setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
+      
     } catch(e) { 
-      alert(e.message || "Сбой соединения. Попробуйте еще раз."); 
-      setView("form"); 
-    } finally { 
-      setBusy(false); 
-    }
+      alert("Ошибка сети или ИИ. Попробуйте еще раз."); setView("form"); 
+    } finally { setBusy(false); }
+  }
+
+  // --- ШАГ 2: PRO-ПРОМПТЫ ---
+  async function handleStep2() {
+    if (!checkTokens()) return;
+    setBusy(true); setLoadingMsg("Шаг 2: Генерируем 8k PRO-промпты..."); setView("loading");
+    try {
+      const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual}`).join("\n");
+      const req = `GLOBAL ANCHOR: ${anchor}
+STYLE: ${VISUAL_ENGINES[engine].prompt}. ${customStyle}
+STORYBOARD:
+${storyboardLite}
+
+Generate highly detailed 8k English prompts (20-40 words each). Must have exactly ${frames.length} elements in frames_prompts array.`;
+
+      const text = await callAPI(req, 8000, SYS_STEP_2);
+      const data = cleanJSON(text);
+      
+      const updatedFrames = frames.map((f, i) => {
+        const p = data.frames_prompts && data.frames_prompts[i] ? data.frames_prompts[i] : {};
+        return { ...f, imgPrompt_EN: p.imgPrompt_EN || "", vidPrompt_EN: p.vidPrompt_EN || "" };
+      });
+      
+      setFrames(updatedFrames);
+      setBRolls(data.b_rolls || []);
+      if(data.thumbnail_prompt_EN && thumb) setThumb({...thumb, prompt_EN: data.thumbnail_prompt_EN});
+      
+      setStep2Done(true);
+      rebuildRawText(updatedFrames, anchor, data.b_rolls);
+      setTokens(t => t - 1);
+      setView("result");
+    } catch(e) { 
+      alert("Ошибка при генерации промптов. Попробуйте еще раз."); setView("result"); 
+    } finally { setBusy(false); }
   }
 
   function handleImageUpload(e) {
@@ -394,8 +398,7 @@ ${currentScript}
   async function downloadThumbnail() {
     const el = document.getElementById("thumbnail-export"); if (!el) return;
     setDownloading(true);
-    const wasSafeZone = showSafeZone;
-    setShowSafeZone(false); // Прячем сейф-зону перед скачиванием
+    const wasSafeZone = showSafeZone; setShowSafeZone(false); 
     
     setTimeout(() => {
       if (!window.html2canvas) {
@@ -428,6 +431,7 @@ ${currentScript}
         *{box-sizing:border-box;margin:0;padding:0}
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@800;900&display=swap');
         @keyframes blink { 0%, 100% {opacity:1} 50% {opacity:0.3} }
+        @keyframes pulse-glow { 0% {box-shadow: 0 0 15px rgba(236,72,153,0.5);} 50% {box-shadow: 0 0 30px rgba(236,72,153,1);} 100% {box-shadow: 0 0 15px rgba(236,72,153,0.5);} }
         @keyframes spin {to{transform:rotate(360deg)}}
         .gbtn{width:100%;height:56px;border:none;border-radius:16px;cursor:pointer;font-weight:900;color:#fff;background:linear-gradient(135deg,#4f46e5,#9333ea,#ec4899);transition:all .2s;box-shadow: 0 4px 20px rgba(168,85,247,0.4);}
         .gbtn:hover{transform:translateY(-2px);filter:brightness(1.1);}
@@ -437,16 +441,6 @@ ${currentScript}
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
         .genre-scroll::-webkit-scrollbar { display: none; }
       `}</style>
-
-      {showPaywall && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",backdropFilter:"blur(20px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-           <div style={{background:"#0a0a12", border:"1px solid rgba(168,85,247,.4)", borderRadius:24, padding:40, maxWidth:400, textAlign:"center"}}>
-              <h2 style={{color:"#fff", marginBottom:10}}>Лимит исчерпан</h2>
-              <p style={{color:"#94a3b8", marginBottom:30}}>Используйте свой API ключ в настройках Vercel.</p>
-              <button onClick={()=>setShowPaywall(false)} style={{width:"100%", padding:"16px", background:"#fff", color:"#000", borderRadius:14, border:"none", fontWeight:900, cursor:"pointer"}}>ПОНЯТНО</button>
-           </div>
-        </div>
-      )}
 
       {showHistory && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:200,display:"flex",justifyContent:"center",alignItems:"center",backdropFilter:"blur(16px)"}}>
@@ -459,7 +453,7 @@ ${currentScript}
                {history.length===0 ? <div style={{color:"rgba(255,255,255,0.3)",textAlign:"center", padding:"40px 0"}}>Архив пуст</div> :
                  history.map((h) => (
                    <div key={h.id} style={{background:"rgba(255,255,255,.05)",borderRadius:16,padding:16,position:"relative", cursor:"pointer"}}>
-                     <div onClick={() => { setVidFormat(h.format || "9:16"); applyResult(h.text, true); setShowHistory(false); }}>
+                     <div onClick={() => { setVidFormat(h.format || "9:16"); applyResult(h.text, true); setStep2Done(h.text.includes("vidPrompt_EN")); setShowHistory(false); }}>
                        <div style={{fontSize:10,color:"#8b5cf6", fontWeight:700, marginBottom:6}}>{h.time}</div>
                        <div style={{fontSize:14,fontWeight:600,color:"#fff", paddingRight:30}}>{h.topic}</div>
                      </div>
@@ -488,7 +482,6 @@ ${currentScript}
       {view==="form" && (
         <div style={{maxWidth:600,margin:"0 auto",padding:"30px 20px"}}>
           
-          {/* 1. ТЕМА И ТВИСТ */}
           <div style={{...S.section, borderColor:"rgba(168,85,247,0.4)"}}>
             <label style={{...S.label, color:"#d8b4fe"}}>🎯 ИДЕЯ ИЛИ ТЕМА ХИТА</label>
             <textarea rows={2} value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Например: Загадка перевала Дятлова..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:16,padding:18,fontSize:16,color:"#fff", resize:"none", marginBottom:12}}/>
@@ -496,7 +489,6 @@ ${currentScript}
             <input type="text" value={finalTwist} onChange={e=>setFinalTwist(e.target.value)} placeholder="Например: Оказалось, что бункер был пуст" style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px dashed rgba(168,85,247,0.4)",borderRadius:12,padding:12,fontSize:13,color:"#e9d5ff", marginBottom:0}}/>
           </div>
 
-          {/* 2. ЖАНР */}
           <div style={{...S.section, padding:"20px 0"}}>
             <label style={{...S.label, paddingLeft:24}}>🎭 ЖАНР РАССКАЗА</label>
             <div className="genre-scroll" style={{display:"flex", gap:10, overflowX:"auto", padding:"0 24px"}}>
@@ -509,14 +501,12 @@ ${currentScript}
             </div>
           </div>
 
-          {/* 3. СЦЕНАРИЙ И ХУКИ */}
           <div style={S.section}>
              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
                <label style={{...S.label, marginBottom:0}}>📝 СЦЕНАРИЙ (ТЕКСТ ДИКТОРА)</label>
                <button onClick={handleGenerateHooks} disabled={busy || !topic.trim()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
              </div>
              
-             {/* Блок хуков */}
              {hooksList.length > 0 && (
                <div style={{background:"rgba(0,0,0,0.3)", border:"1px dashed rgba(249,115,22,0.3)", borderRadius:12, padding:12, marginBottom:16}}>
                  <div style={{fontSize:10, color:"#94a3b8", marginBottom:8, textTransform:"uppercase"}}>Кликни на хук, чтобы добавить в сценарий:</div>
@@ -532,10 +522,11 @@ ${currentScript}
              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
                <button onClick={handleDraftText} disabled={busy || !topic.trim()} style={{background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>✍️ Написать весь текст</button>
                <button onClick={handleIntonations} disabled={busy || !script.trim()} style={{background:"rgba(168,85,247,0.1)", border:"1px solid rgba(168,85,247,0.3)", color:"#d8b4fe", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>🎭 Интонации</button>
+               <button onClick={handleTTS} disabled={busy || !script.trim()} style={{gridColumn:"1/-1", background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.3)", color:"#7dd3fc", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>⚙️ Настройки голоса</button>
              </div>
+             {ttsData && <pre style={{marginTop:12, padding:12, background:"rgba(0,0,0,0.5)", borderRadius:10, fontSize:11, color:"#bae6fd", fontFamily:"monospace", whiteSpace:"pre-wrap"}}>{ttsData}</pre>}
           </div>
 
-          {/* 4. ТЕХНИЧЕСКИЕ НАСТРОЙКИ */}
           <div style={{marginBottom: 24}}>
              <button onClick={()=>setSettingsOpen(!settingsOpen)} style={{width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)", padding:"16px 24px", borderRadius:settingsOpen?"24px 24px 0 0":24, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", textTransform:"uppercase"}}>
                <span>⚙️ Технические настройки</span><span>{settingsOpen?"▲":"▼"}</span>
@@ -546,7 +537,7 @@ ${currentScript}
                   <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
                     {Object.entries(VISUAL_ENGINES).map(([eId, e])=><button key={eId} onClick={()=>setEngine(eId)} style={{flex:"1 1 45%",background:engine===eId?"rgba(168,85,247,.15)":"rgba(0,0,0,.4)",border:`1px solid ${engine===eId?"#a855f7":"rgba(255,255,255,.05)"}`,borderRadius:14,padding:10,fontSize:11,fontWeight:engine===eId?800:500,color:engine===eId?"#d8b4fe":"rgba(255,255,255,.5)", cursor:"pointer"}}>{e.label}</button>)}
                   </div>
-                  <input type="text" value={customStyle} onChange={e=>setCustomStyle(e.target.value)} placeholder="Кастомный стиль (VHS, Киберпанк и т.д.)" style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:12,fontSize:12,color:"#cbd5e1", marginBottom:20}}/>
+                  <input type="text" value={customStyle} onChange={e=>setCustomStyle(e.target.value)} placeholder="Особый стиль (VHS, Киберпанк и т.д.)" style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:12,fontSize:12,color:"#cbd5e1", marginBottom:20}}/>
                   
                   <label style={S.label}>⏱ Темп монтажа (Кат каждые...)</label>
                   <div style={{display:"flex",gap:8,marginBottom:20}}>
@@ -564,7 +555,7 @@ ${currentScript}
           </div>
           
           <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,padding:"16px 20px 24px",background:"linear-gradient(to top, rgba(5,5,10,1) 50%, transparent)",zIndex:100}}>
-            <button className="gbtn" onClick={handleGenerateFullPlan} disabled={(!script.trim() && !topic.trim()) || busy}>{busy?"СИСТЕМА В РАБОТЕ...":"🚀 АКТИВИРОВАТЬ НЕЙРОСЕТЬ (💎 1)"}</button>
+            <button className="gbtn" onClick={handleStep1} disabled={(!script.trim() && !topic.trim()) || busy}>{busy?"СИСТЕМА В РАБОТЕ...":"🚀 ШАГ 1: СОЗДАТЬ РАСКАДРОВКУ (💎 1)"}</button>
           </div>
         </div>
       )}
@@ -605,7 +596,6 @@ ${currentScript}
                     <div style={{...activeStyle.title, wordWrap:"break-word"}}>{covTitle}</div>
                     <div style={activeStyle.cta}>{covCta}</div>
                   </div>
-                  {/* СЕЙФ ЗОНА TIKTOK */}
                   {showSafeZone && vidFormat === "9:16" && (
                     <div style={{position:"absolute", inset:0, pointerEvents:"none", zIndex:10}}>
                       <div style={{position:"absolute", right:0, bottom:"20%", width:"18%", height:"40%", borderLeft:"2px dashed rgba(239,68,68,0.6)", borderTop:"2px dashed rgba(239,68,68,0.6)", background:"rgba(239,68,68,0.1)"}}></div>
@@ -642,12 +632,23 @@ ${currentScript}
                 <button onClick={downloadThumbnail} disabled={downloading} style={{flex:1, height:48, background:"linear-gradient(135deg, #10b981, #059669)", borderRadius:14, border:"none", fontWeight:900, color:"#fff", cursor:downloading?"not-allowed":"pointer", textTransform:"uppercase"}}>{downloading ? "Рендер..." : "💾 СКАЧАТЬ"}</button>
               </div>
               
-              <div style={{marginTop:16, background:"rgba(16,185,129,.05)", border:"1px solid rgba(16,185,129,.2)", borderRadius:14, padding:14}}>
-                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}><span style={{fontSize:10, fontWeight:800, color:"#34d399"}}>ПРОМПТ 50% / ЧЕРНЫЙ ФОН</span><CopyBtn text={thumb?.prompt_EN || ""} small/></div>
-                <div style={{fontFamily:"monospace", fontSize:12, color:"rgba(255,255,255,.6)", lineHeight:1.5}}>{thumb?.prompt_EN}</div>
-              </div>
+              {step2Done && thumb?.prompt_EN && (
+                <div style={{marginTop:16, background:"rgba(16,185,129,.05)", border:"1px solid rgba(16,185,129,.2)", borderRadius:14, padding:14}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}><span style={{fontSize:10, fontWeight:800, color:"#34d399"}}>ПРОМПТ 50% / ЧЕРНЫЙ ФОН</span><CopyBtn text={thumb?.prompt_EN || ""} small/></div>
+                  <div style={{fontFamily:"monospace", fontSize:12, color:"rgba(255,255,255,.6)", lineHeight:1.5}}>{thumb?.prompt_EN}</div>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* ШАГ 2 КНОПКА (ЕСЛИ ЕЩЕ НЕ СГЕНЕРИРОВАНО) */}
+          {!step2Done && (
+            <div style={{background:"rgba(236,72,153,0.1)", border:"1px dashed rgba(236,72,153,0.4)", borderRadius:24, padding:24, textAlign:"center", marginBottom:24}}>
+              <div style={{fontSize:14, fontWeight:900, color:"#fbcfe8", marginBottom:10}}>Сценарий готов! Теперь визуализация 🎨</div>
+              <div style={{fontSize:12, color:"#f472b6", marginBottom:20}}>Нейросеть сгенерирует сверхдетальные 8K промпты на английском для генераторов картинок и видео (Midjourney, Veo).</div>
+              <button onClick={handleStep2} disabled={busy} style={{width:"100%", padding:"16px", background:"linear-gradient(135deg, #db2777, #9333ea)", borderRadius:16, color:"#fff", fontWeight:900, border:"none", cursor:"pointer", boxShadow:"0 5px 20px rgba(219,39,119,0.4)", animation:"pulse-glow 2s infinite"}}>🪄 ШАГ 2: СГЕНЕРИРОВАТЬ PRO-ПРОМПТЫ (💎 1)</button>
+            </div>
+          )}
 
           <div style={{display:"flex", gap:10, marginBottom:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:16, overflowX:"auto"}}>
              {["storyboard","raw","seo"].map(t=>(<button key={t} onClick={()=>setTab(t)} style={{background:"none", border:"none", color:tab===t?"#a855f7":"#94a3b8", fontWeight:800, fontSize:12, textTransform:"uppercase", cursor:"pointer", whiteSpace:"nowrap"}}>{t==="raw" ? "Скрипт и Промпты" : t==="seo" ? "Музыка и SEO" : "Раскадровка"}</button>))}
@@ -672,17 +673,16 @@ ${currentScript}
                   {f.visual && <div style={{fontSize:14, color:"#fff", marginBottom:12, lineHeight:1.5}}>👁 {f.visual}</div>}
                   {f.voice && <div style={{fontSize:14, fontStyle:"italic", color:"#a855f7", marginBottom:16, borderLeft:"3px solid #a855f7", paddingLeft:12}}>«{f.voice}»</div>}
                   
-                  {/* Новые поля: SFX и Текст на экране */}
-                  <div style={{display:"flex", gap:10, marginBottom:16}}>
+                  <div style={{display:"flex", gap:10, marginBottom: step2Done ? 16 : 0}}>
                     {f.sfx && <div style={{flex:1, background:"rgba(245,158,11,0.05)", border:"1px dashed rgba(245,158,11,0.3)", padding:8, borderRadius:8, fontSize:11, color:"#fcd34d"}}>🔊 {f.sfx}</div>}
                     {f.text_on_screen && <div style={{flex:1, background:"rgba(236,72,153,0.05)", border:"1px dashed rgba(236,72,153,0.3)", padding:8, borderRadius:8, fontSize:11, color:"#fbcfe8", fontWeight:800}}>🔤 "{f.text_on_screen}"</div>}
                   </div>
 
-                  {f.imgPrompt_EN && <div style={{background:"rgba(16,185,129,.05)", padding:12, borderRadius:12, marginBottom:10}}><div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}><span style={{fontSize:9, color:"#34d399", fontWeight:800}}>IMAGE PROMPT</span><CopyBtn text={f.imgPrompt_EN} small/></div><div style={{fontSize:12, fontFamily:"monospace", color:"#6ee7b7", lineHeight:1.4}}>{f.imgPrompt_EN}</div></div>}
-                  {f.vidPrompt_EN && <div style={{background:"rgba(139,92,246,.05)", padding:12, borderRadius:12}}><div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}><span style={{fontSize:9, color:"#a78bfa", fontWeight:800}}>VIDEO PROMPT</span><CopyBtn text={f.vidPrompt_EN} small/></div><div style={{fontSize:12, fontFamily:"monospace", color:"#d8b4fe", lineHeight:1.4}}>{f.vidPrompt_EN}</div></div>}
+                  {step2Done && f.imgPrompt_EN && <div style={{background:"rgba(16,185,129,.05)", padding:12, borderRadius:12, marginBottom:10}}><div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}><span style={{fontSize:9, color:"#34d399", fontWeight:800}}>IMAGE PROMPT</span><CopyBtn text={f.imgPrompt_EN} small/></div><div style={{fontSize:12, fontFamily:"monospace", color:"#6ee7b7", lineHeight:1.4}}>{f.imgPrompt_EN}</div></div>}
+                  {step2Done && f.vidPrompt_EN && <div style={{background:"rgba(139,92,246,.05)", padding:12, borderRadius:12}}><div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}><span style={{fontSize:9, color:"#a78bfa", fontWeight:800}}>VIDEO PROMPT</span><CopyBtn text={f.vidPrompt_EN} small/></div><div style={{fontSize:12, fontFamily:"monospace", color:"#d8b4fe", lineHeight:1.4}}>{f.vidPrompt_EN}</div></div>}
                 </div>
               ))}
-              {bRolls.length > 0 && (
+              {step2Done && bRolls.length > 0 && (
                 <div style={{...S.section, border:"1px solid rgba(245,158,11,0.3)", background:"rgba(245,158,11,0.05)"}}>
                   <div style={{fontSize:12, fontWeight:900, color:"#fbbf24", marginBottom:16}}>⚡ МИКРО-ПЕРЕБИВКИ (FLASH B-ROLLS)</div>
                   {bRolls.map((b,i)=>(<div key={i} style={{fontSize:12, fontFamily:"monospace", color:"#fcd34d", marginBottom:8, paddingBottom:8, borderBottom:"1px solid rgba(245,158,11,0.1)"}}>- {b}</div>))}
