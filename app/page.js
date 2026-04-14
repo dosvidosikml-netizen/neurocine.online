@@ -84,7 +84,8 @@ ALL CONTENT MUST BE IN TARGET LANGUAGE EXCEPT "_EN" FIELDS.
 Rule: Do NOT write "Диктор: " in the voice text. Just the words.
 Rule: SEO titles must have a curiosity gap. Description MUST end on a cliffhanger.
 Rule: Provide EXACTLY 5 hashtags (2 broad, 3 specific). 
-Rule: Music prompt MUST be cinematic and strictly UNDER 20 words.
+Rule: Music prompt MUST be a rich cinematic description for Suno AI (15-20 words). DO NOT just list 3 words.
+Rule: For character_ref_EN, if the story mentions ANY human, historical figure, or mysterious silhouette (e.g., 'Iron Mask', 'Sniper'), YOU MUST create the Character Reference sheet. Use 'No character' ONLY if the story is strictly an empty landscape or mechanism without people.
 
 JSON FORMAT:
 {
@@ -96,7 +97,7 @@ JSON FORMAT:
     { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Шум", "text_on_screen": "ТИТР", "voice": "Текст диктора" } 
   ],
   "thumbnail": { "title": "ЗАГОЛОВАК", "hook": "ХУК", "cta": "СМОТРЕТЬ" },
-  "music_EN": "[Genre], [Mood], [Lead Instruments]",
+  "music_EN": "Dark cinematic orchestral score, ominous deep cello, eerie atmospheric choir, high tension buildup, ticking clock rhythm, 120 BPM, thriller soundtrack",
   "seo": { "titles": ["Viral Title 1", "Viral Title 2"], "desc": "Cliffhanger...", "tags": ["#broad1", "#niche1", "#niche2", "#niche3", "#niche4"] }
 }`;
 
