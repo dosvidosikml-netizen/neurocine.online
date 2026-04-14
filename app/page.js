@@ -139,7 +139,8 @@ JSON FORMAT:
   "thumbnail_prompt_EN": "Highly detailed English prompt for cover, main object 40-60% of frame..."
 }`;
 
-async function callAPI(content, maxTokens = 8000, sysPrompt) {
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ВЫЗОВА API С ДЕТЕКТОРОМ ОШИБОК
+async function callAPI(content, maxTokens = 4000, sysPrompt) {
   try {
     const res = await fetch("/api/chat", { 
       method: "POST", 
@@ -152,11 +153,23 @@ async function callAPI(content, maxTokens = 8000, sysPrompt) {
         max_tokens: maxTokens 
       }) 
     });
+    
     const textRes = await res.text();
-    if (!res.ok) throw new Error(`Ошибка API: ${res.status}`);
-    const data = JSON.parse(textRes);
+    let data;
+    try {
+      data = JSON.parse(textRes);
+    } catch (e) {
+      throw new Error(`Сервер вернул не JSON: ${textRes.substring(0, 100)}`);
+    }
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error || `Ошибка сервера API: ${res.status}`);
+    }
+    
     return data.text || (data.choices && data.choices[0]?.message?.content) || "";
-  } catch (e) { throw e; }
+  } catch (e) {
+    throw e;
+  }
 }
 
 function cleanJSON(rawText) {
@@ -166,7 +179,6 @@ function cleanJSON(rawText) {
   if (startIdx !== -1 && endIdx !== -1) {
     cleanText = cleanText.substring(startIdx, endIdx + 1);
   }
-  // Жестко вырезаем все переносы строк и спецсимволы, ломающие парсер
   cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u001F]+/g, "");
   return JSON.parse(cleanText);
 }
@@ -268,8 +280,9 @@ export default function Page() {
       const text = await callAPI(`Topic: ${topic}`, 2000, `You are a viral TikTok producer. Write 3 powerful hooks (1 sentence each) in RUSSIAN. Genre: ${genre}. Provide valid JSON array of 3 strings ONLY. Format: ["Хук 1", "Хук 2", "Хук 3"]`);
       const arr = cleanJSON(text);
       if(Array.isArray(arr)) setHooksList(arr);
-    } catch(e) { alert("Ошибка генерации хуков. Попробуйте еще раз."); } 
-    finally { setBusy(false); setView("form"); }
+    } catch(e) { 
+      alert("🚨 ОШИБКА ГЕНЕРАЦИИ ХУКОВ: " + e.message); 
+    } finally { setBusy(false); setView("form"); }
   }
 
   // --- УМНЫЙ ГЕНЕРАТОР ТЕКСТА С ЛИМИТОМ СЛОВ ---
@@ -277,18 +290,18 @@ export default function Page() {
     if (!topic.trim()) return alert("Введите тему!");
     setBusy(true); setLoadingMsg("Пишем сценарий..."); setView("loading");
     try {
-      // Рассчитываем точный лимит слов на основе выбранного времени
       const sec = DURATION_SECONDS[dur] || 60;
-      const maxWords = Math.floor(sec * 2.2); // При 60 сек ~ 132 слова (комфортный темп)
+      const maxWords = Math.floor(sec * 2.2); 
       
       const sysTxt = `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Жанр: ${genre}. 
-      ОГРАНИЧЕНИЕ: Текст должен звучать ровно ${sec} секунд. Напиши СТРОГО не более ${maxWords} слов! Это критично! 
+      ОГРАНИЧЕНИЕ: Текст должен звучать ровно ${sec} секунд. Напиши СТРОГО не более ${maxWords} слов! 
       ${finalTwist ? `Сохраняй интригу (${finalTwist}) до финала.` : ""}`;
       
       const text = await callAPI(`Тема: ${topic}`, 3000, sysTxt);
       setScript(text.trim()); setHooksList([]);
-    } catch(e) { alert(e.message || "Ошибка сети"); } 
-    finally { setBusy(false); setView("form"); }
+    } catch(e) { 
+      alert("🚨 ОШИБКА ГЕНЕРАЦИИ ТЕКСТА: " + e.message); 
+    } finally { setBusy(false); setView("form"); }
   }
 
   async function handleIntonations() {
@@ -297,7 +310,7 @@ export default function Page() {
     try {
       const text = await callAPI(script, 3000, `You are an Audio Director. Расставь паузы (...) и выдели КАПСОМ слова для акцента в РУССКОМ тексте. Жанр: ${genre}.`);
       setScript(text.trim());
-    } catch(e) { alert(e.message || "Ошибка сети"); } 
+    } catch(e) { alert("🚨 ОШИБКА ИНТОНАЦИЙ: " + e.message); } 
     finally { setBusy(false); setView("form"); }
   }
 
@@ -307,7 +320,7 @@ export default function Page() {
     try {
       const text = await callAPI(`Текст: ${script.substring(0,100)}... Жанр: ${genre}`, 1000, "Provide TTS settings for Google AI Studio: VOICE: [Name], SPEED: [Value], STYLE PROMPT: [English instruction]");
       setTtsData(text.trim());
-    } catch(e) { alert(e.message || "Ошибка сети"); } 
+    } catch(e) { alert("🚨 ОШИБКА НАСТРОЕК ГОЛОСА: " + e.message); } 
     finally { setBusy(false); setView("form"); }
   }
 
@@ -335,7 +348,6 @@ export default function Page() {
         setScript(currentScript.trim());
       }
       
-      // Строго 3 секунды на сцену по правилам системы
       const targetFrames = Math.floor(sec / 3);
       const req = `TARGET LANGUAGE FOR SCENARIO AND SEO: ${lang === "RU" ? "РУССКИЙ" : "ENGLISH"}.
 ТЕМА: ${topic}
@@ -363,12 +375,13 @@ export default function Page() {
       setTokens(t => t - 1);
       setBgImage(null); setTab("storyboard"); setView("result");
       
-      // Сохраняем в историю без промптов
       const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(data), format: vidFormat }, ...history].slice(0, 10);
       setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
       
     } catch(e) { 
-      alert("Ошибка сети или ИИ. Попробуйте еще раз. Интерфейс разблокирован."); setView("form"); 
+      // 🔥 ВЫВОД ИСТИННОЙ ОШИБКИ
+      alert(`🚨 ОШИБКА ШАГА 1: ${e.message}\nПроверьте баланс OpenRouter или лимиты.`); 
+      setView("form"); 
     } finally { setBusy(false); }
   }
 
@@ -402,7 +415,8 @@ Generate highly detailed 8k English prompts (20-40 words each) for Whisk, Veo an
       setTokens(t => t - 1);
       setView("result");
     } catch(e) { 
-      alert("Ошибка при генерации промптов. Попробуйте еще раз. Интерфейс разблокирован."); setView("result"); 
+      alert(`🚨 ОШИБКА ШАГА 2: ${e.message}`); 
+      setView("result"); 
     } finally { setBusy(false); }
   }
 
@@ -662,7 +676,7 @@ Generate highly detailed 8k English prompts (20-40 words each) for Whisk, Veo an
             </div>
           </div>
 
-          {/* ШАГ 2 КНОПКА (ЕСЛИ ЕЩЕ НЕ СГЕНЕРИРОВАНО) */}
+          {/* ШАГ 2 КНОПКА */}
           {!step2Done && (
             <div style={{background:"rgba(236,72,153,0.1)", border:"1px dashed rgba(236,72,153,0.4)", borderRadius:24, padding:24, textAlign:"center", marginBottom:24}}>
               <div style={{fontSize:14, fontWeight:900, color:"#fbcfe8", marginBottom:10}}>Сценарий готов! Теперь визуализация 🎨</div>
