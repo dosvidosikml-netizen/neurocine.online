@@ -70,7 +70,11 @@ const COVER_PRESETS = [
   { id: "history", label: "Dark History", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 400, fontFamily: "'Georgia', serif", color: "#d4af37", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 36, fontWeight: 900, fontFamily: "'Cinzel', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 10px 30px #000, 0 2px 4px #000", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: 2, textTransform: "uppercase", borderTop: "1px solid #d4af37", paddingTop: 6 } } },
   { id: "breaking", label: "Новости", style: { container: { alignItems: "flex-start" }, hook: { fontSize: 14, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", background: "#ef4444", padding: "4px 10px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 32, fontWeight: 900, fontFamily: "sans-serif", color: "#000", background: "#fff", padding: "4px 12px", textTransform: "uppercase", lineHeight: 1.1, textAlign: "left", marginBottom: 12 }, cta: { fontSize: 12, fontWeight: 900, color: "#ef4444", textTransform: "uppercase", background:"#000", padding:"2px 8px" } } },
   { id: "cyber", label: "Cyberpunk", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#fef08a", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8, textShadow: "0 0 10px #fef08a" }, title: { fontSize: 34, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "2px 2px 0px #0ea5e9, -2px -2px 0px #ec4899", textAlign: "center", marginBottom: 12, fontStyle: "italic" }, cta: { fontSize: 11, fontWeight: 900, color: "#000", background: "#0ea5e9", padding: "4px 12px", textTransform: "uppercase", boxShadow: "0 0 15px #0ea5e9" } } },
-  { id: "minimal", label: "Minimal", style: { container: { alignItems: "center" }, hook: { fontSize: 10, fontWeight: 500, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", letterSpacing: 4, marginBottom: 12, opacity: 0.7 }, title: { fontSize: 30, fontWeight: 300, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.2, textAlign: "center", marginBottom: 16, letterSpacing: 2 }, cta: { fontSize: 9, fontWeight: 400, color: "#fff", border: "1px solid rgba(255,255,255,0.3)", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } }
+  { id: "minimal", label: "Minimal", style: { container: { alignItems: "center" }, hook: { fontSize: 10, fontWeight: 500, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", letterSpacing: 4, marginBottom: 12, opacity: 0.7 }, title: { fontSize: 30, fontWeight: 300, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.2, textAlign: "center", marginBottom: 16, letterSpacing: 2 }, cta: { fontSize: 9, fontWeight: 400, color: "#fff", border: "1px solid rgba(255,255,255,0.3)", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
+  { id: "edge", label: "Vertical Edge", style: { container: { left: "15%", top: "50%", transform: "translate(-50%, -50%) rotate(-90deg)", alignItems: "flex-end", width: "120%", height:"auto" }, hook: { fontSize: 14, color: "#fff", background: "#ef4444", padding: "4px 12px", letterSpacing: 2 }, title: { fontSize: 44, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", whiteSpace:"nowrap", textShadow:"0 4px 10px rgba(0,0,0,0.8)" }, cta: { display:"none" } } },
+  { id: "zpattern", label: "Z-Pattern", style: { container: { left: "0", top: "0", transform: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding:"30px 20px" }, hook: { alignSelf: "flex-start", fontSize: 13, background: "#fff", color: "#000", padding: "6px 12px", fontWeight:900 }, title: { alignSelf: "center", textAlign: "center", fontSize: 36, fontWeight: 900, color: "#fff", textShadow: "0 8px 30px #000" }, cta: { alignSelf: "flex-end", fontSize: 12, color: "#0ea5e9", borderBottom: "2px solid #0ea5e9", paddingBottom:4, fontWeight:900 } } },
+  { id: "sidebar", label: "Sidebar", style: { container: { left: "0", top: "0", transform: "none", width: "45%", height: "100%", background: "rgba(0,0,0,0.85)", padding: "20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", borderRight: "2px solid #a855f7" }, hook: { color: "#a855f7", fontSize: 12, marginBottom: 15, fontWeight:800, letterSpacing:1 }, title: { color: "#fff", fontSize: 26, fontWeight: 900, textAlign: "left", marginBottom: 25, lineHeight:1.1 }, cta: { color: "#000", background: "#a855f7", padding: "8px 16px", fontSize: 10, fontWeight:900, textTransform:"uppercase" } } },
+  { id: "cinematic", label: "Cinematic", style: { container: { left: "0", top: "0", transform: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "center" }, hook: { width: "100%", background: "#000", color: "#fff", textAlign: "center", padding: "12px", fontSize: 11, letterSpacing: 4, textTransform:"uppercase" }, title: { width: "100%", background: "#000", color: "#fff", textAlign: "center", padding: "20px 10px", fontSize: 28, fontWeight: 900, marginBottom: 0, textTransform:"uppercase" }, cta: { position: "absolute", bottom: "12%", fontSize: 10, color: "#fff", border: "1px solid rgba(255,255,255,0.5)", padding: "6px 14px", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" } } }
 ];
 
 // --- СИСТЕМНЫЕ ПРОМПТЫ ---
@@ -78,6 +82,9 @@ const SYS_STEP_1 = `You are 'Director-X'. Output ONLY valid JSON. DO NOT use new
 Create a storyboard, voiceover, sfx, and SEO. 
 ALL CONTENT MUST BE IN TARGET LANGUAGE EXCEPT "_EN" FIELDS.
 Rule: Do NOT write "Диктор: " or "Narrator: " in the voice text. Just the words.
+Rule: Make SEO titles clickbaity with a curiosity gap. Description MUST end on a cliffhanger. 
+Rule: Provide EXACTLY 5 hashtags (2 broad, 3 specific). 
+Rule: Music prompt (music_EN) MUST be cinematic and strictly UNDER 20 words.
 
 JSON FORMAT:
 {
@@ -89,7 +96,7 @@ JSON FORMAT:
   ],
   "thumbnail": { "title": "ЗАГОЛОВАК", "hook": "ХУК", "cta": "СМОТРЕТЬ" },
   "music_EN": "[Genre], [Mood], [Lead Instruments], [Tempo / Vocals]",
-  "seo": { "titles": ["Заголовок"], "desc": "Описание", "tags": ["#тег"] }
+  "seo": { "titles": ["Viral Hook Title 1", "Viral Hook Title 2"], "desc": "Cliffhanger description...", "tags": ["#broad1", "#broad2", "#niche1", "#niche2", "#niche3"] }
 }`;
 
 const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
@@ -167,11 +174,15 @@ export default function Page() {
   const [thumb, setThumb] = useState(null);
   const [music, setMusic] = useState("");
   const [seo, setSeo] = useState(null);
-  const [rawPrompts, setRawPrompts] = useState("");
   const [anchor, setAnchor] = useState("");
   const [whiskRef, setWhiskRef] = useState("");
   const [step2Done, setStep2Done] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Новые состояния для чистых промптов
+  const [rawScript, setRawScript] = useState("");
+  const [rawImg, setRawImg] = useState("");
+  const [rawVid, setRawVid] = useState("");
 
   const [bgImage, setBgImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
@@ -250,13 +261,14 @@ export default function Page() {
     } catch(e) { alert("🚨 ОШИБКА ИНТОНАЦИЙ: " + e.message); } finally { setBusy(false); setView("form"); }
   }
 
-  function rebuildRawText(frms, anc, brls, s2done) {
-    let anchorStr = anc ? `[GLOBAL ANCHOR: ${anc}]\n\n` : "";
-    let rScript = "🎬 СЦЕНАРИЙ:\n" + frms.map((f, i) => `КАДР ${i+1} [${f.timecode || ''}]\n👁 Визуал: ${f.visual}\n🔊 Звук: ${f.sfx||''}\n🔤 Титры: ${f.text_on_screen||''}\n🎙 Диктор: «${f.voice}»`).join("\n\n");
-    let imgList = s2done ? ("\n\n🖼 ЧИСТЫЕ IMAGE PROMPTS (8K):\n\n" + frms.map(f => anchorStr + f.imgPrompt_EN).filter(Boolean).join("\n\n")) : "";
-    let vidList = s2done ? ("\n\n🎥 ЧИСТЫЕ VIDEO PROMPTS (8K):\n\n" + frms.map(f => anchorStr + f.vidPrompt_EN).filter(Boolean).join("\n\n")) : "";
-    let bRollList = (brls && brls.length && s2done) ? "\n\n⚡ FLASH B-ROLLS (8K):\n\n" + brls.map(b => anchorStr + b).join("\n\n") : "";
-    setRawPrompts(rScript + imgList + vidList + bRollList);
+  function rebuildRawText(frms, s2done) {
+    let scriptTxt = frms.map((f, i) => `КАДР ${i+1} [${f.timecode || ''}]\n👁 Визуал: ${f.visual}\n🔊 Звук: ${f.sfx||''}\n🔤 Титры: ${f.text_on_screen||''}\n🎙 Диктор: «${f.voice}»`).join("\n\n");
+    let imgTxt = s2done ? frms.map(f => f.imgPrompt_EN).filter(Boolean).join("\n\n") : "";
+    let vidTxt = s2done ? frms.map(f => f.vidPrompt_EN).filter(Boolean).join("\n\n") : "";
+    
+    setRawScript(scriptTxt);
+    setRawImg(imgTxt);
+    setRawVid(vidTxt);
   }
 
   async function handleStep1() {
@@ -291,10 +303,9 @@ export default function Page() {
       
       if (data.thumbnail) { setCovTitle(data.thumbnail.title || ""); setCovHook(data.thumbnail.hook || ""); setCovCta(data.thumbnail.cta || "СМОТРЕТЬ"); }
       
-      rebuildRawText(data.frames || [], data.global_anchor_EN, [], false);
+      rebuildRawText(data.frames || [], false);
       setTokens(t => t - 1); setBgImage(null); setTab("storyboard"); setView("result");
       
-      // Сохранение всего стейта в историю
       const stateData = { frames: data.frames, anchor: data.global_anchor_EN, whiskRef: data.whisk_reference_EN, retention: data.retention, thumb: data.thumbnail, seo: data.seo, music: data.music_EN, step2Done: false };
       const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
       setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
@@ -316,7 +327,6 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       const text = await callAPI(req, 8000, SYS_STEP_2);
       const data = cleanJSON(text);
       
-      // ЖЕСТКАЯ СКЛЕЙКА СТИЛЕЙ
       const updatedFrames = frames.map((f, i) => {
         const p = data.frames_prompts && data.frames_prompts[i] ? data.frames_prompts[i] : {};
         const styleText = VISUAL_ENGINES[engine]?.prompt || "";
@@ -337,10 +347,9 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       setThumb(updatedThumb);
       setStep2Done(true);
       
-      rebuildRawText(updatedFrames, anchor, data.b_rolls, true);
+      rebuildRawText(updatedFrames, true);
       setTokens(t => t - 1); setView("result");
 
-      // Обновляем историю для Шага 2
       setHistory(prev => {
          const next = [...prev];
          if(next.length > 0) { 
@@ -420,7 +429,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                       setBRolls(d.bRolls || []);
                       setStep2Done(d.step2Done || false);
                       if(d.thumb) { setCovTitle(d.thumb.title || ""); setCovHook(d.thumb.hook || ""); setCovCta(d.thumb.cta || "СМОТРЕТЬ"); }
-                      rebuildRawText(d.frames || [], d.anchor, d.bRolls || [], d.step2Done);
+                      rebuildRawText(d.frames || [], d.step2Done);
                       setShowHistory(false);
                       setView("result");
                     }} style={{background:"#10b981", border:"none", borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:11, fontWeight:800, cursor:"pointer"}}>ОТКРЫТЬ</button>
@@ -570,7 +579,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
               <div style={{display:"flex", justifyContent:"center", marginBottom:12}}>
                 <div id="thumbnail-export" style={{width:320, aspectRatio:currFormat.ratio, position:"relative", background:bgImage?`url(${bgImage}) center/cover no-repeat`:"#111", overflow:"hidden"}}>
                   <div style={{position:"absolute", inset:0, background:`linear-gradient(to top, rgba(0,0,0,${covDark/100}) 0%, rgba(0,0,0,${covDark/200}) 50%, transparent 100%)`, zIndex:1}} />
-                  <div style={{position:"absolute", left:`${covX}%`, top:`${covY}%`, transform:"translate(-50%,-50%)", width:"90%", zIndex:2, display:"flex", flexDirection:"column", alignItems:activeStyle.container?.alignItems || "center", textAlign:activeStyle.title?.textAlign || "center"}}>
+                  <div style={{position:"absolute", left:`${covX}%`, top:`${covY}%`, transform:"translate(-50%,-50%)", width:"90%", zIndex:2, display:"flex", flexDirection:"column", alignItems:activeStyle.container?.alignItems || "center", textAlign:activeStyle.title?.textAlign || "center", ...activeStyle.container}}>
                     <div style={activeStyle.hook}>{covHook}</div>
                     <div style={{...activeStyle.title, wordWrap:"break-word"}}>{covTitle}</div>
                     <div style={activeStyle.cta}>{covCta}</div>
@@ -597,8 +606,8 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                  </div>
                  
                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
-                   <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция X</label><input type="range" min="10" max="90" value={covX} onChange={e=>setCovX(e.target.value)} style={{width:"100%"}}/></div>
-                   <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция Y</label><input type="range" min="10" max="90" value={covY} onChange={e=>setCovY(e.target.value)} style={{width:"100%"}}/></div>
+                   <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция X</label><input type="range" min="0" max="100" value={covX} onChange={e=>setCovX(e.target.value)} style={{width:"100%"}}/></div>
+                   <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция Y</label><input type="range" min="0" max="100" value={covY} onChange={e=>setCovY(e.target.value)} style={{width:"100%"}}/></div>
                  </div>
                  <label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Затемнение картинки</label>
                  <input type="range" min="0" max="100" value={covDark} onChange={e=>setCovDark(e.target.value)} style={{width:"100%"}}/>
@@ -608,13 +617,6 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                 <label style={{flex:1, height:48, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:800, textTransform:"uppercase"}}>📸 Фон<input type="file" hidden onChange={handleImageUpload}/></label>
                 <button onClick={downloadThumbnail} disabled={downloading} style={{flex:1, height:48, background:"linear-gradient(135deg, #10b981, #059669)", borderRadius:14, border:"none", fontWeight:900, color:"#fff", cursor:downloading?"not-allowed":"pointer", textTransform:"uppercase"}}>{downloading ? "Рендер..." : "💾 СКАЧАТЬ"}</button>
               </div>
-              
-              {step2Done && thumb?.prompt_EN && (
-                <div style={{marginTop:16, background:"rgba(16,185,129,.05)", border:"1px solid rgba(16,185,129,.2)", borderRadius:14, padding:14}}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}><span style={{fontSize:10, fontWeight:800, color:"#34d399"}}>ПРОМПТ 50% / ЧЕРНЫЙ ФОН</span><CopyBtn text={thumb?.prompt_EN || ""} small/></div>
-                  <div style={{fontFamily:"monospace", fontSize:12, color:"rgba(255,255,255,.6)", lineHeight:1.5}}>{thumb?.prompt_EN}</div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -678,7 +680,35 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
             </div>
           )}
 
-          {tab==="raw" && <div style={S.section}><div style={{display:"flex",justifyContent:"flex-end",marginBottom:15}}><CopyBtn text={rawPrompts} label="Копировать ВСЁ"/></div><pre style={{whiteSpace:"pre-wrap", color:"#cbd5e1", fontSize:13, fontFamily:"monospace", lineHeight:1.6}}>{rawPrompts}</pre></div>}
+          {tab==="raw" && (
+            <div style={{display: "flex", flexDirection: "column", gap: 20}}>
+              <div style={{...S.section, padding:20}}>
+                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:15}}>
+                   <span style={{fontWeight:900, color:"#fff"}}>🎬 СЦЕНАРИЙ</span>
+                   <CopyBtn text={rawScript}/>
+                 </div>
+                 <pre style={{whiteSpace:"pre-wrap", color:"#cbd5e1", fontSize:13, fontFamily:"monospace", lineHeight:1.6}}>{rawScript}</pre>
+              </div>
+              {step2Done && (
+                <>
+                  <div style={{...S.section, padding:20}}>
+                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:15}}>
+                       <span style={{fontWeight:900, color:"#34d399"}}>🖼 IMAGE PROMPTS (Whisk)</span>
+                       <CopyBtn text={rawImg}/>
+                     </div>
+                     <pre style={{whiteSpace:"pre-wrap", color:"#6ee7b7", fontSize:13, fontFamily:"monospace", lineHeight:1.6}}>{rawImg}</pre>
+                  </div>
+                  <div style={{...S.section, padding:20}}>
+                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:15}}>
+                       <span style={{fontWeight:900, color:"#a78bfa"}}>🎥 VIDEO PROMPTS (Veo/Grok)</span>
+                       <CopyBtn text={rawVid}/>
+                     </div>
+                     <pre style={{whiteSpace:"pre-wrap", color:"#d8b4fe", fontSize:13, fontFamily:"monospace", lineHeight:1.6}}>{rawVid}</pre>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           
           {tab==="seo" && seo && (
             <div style={S.section}>
