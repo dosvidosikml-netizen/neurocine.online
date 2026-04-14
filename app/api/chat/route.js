@@ -15,9 +15,9 @@ export async function POST(req) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Самая умная модель
+        model: "llama-3.3-70b-versatile",
         messages: body.messages,
-        max_tokens: body.max_tokens || 7000 // Максимальный объем текста
+        max_tokens: body.max_tokens || 7000
       })
     });
 
@@ -28,7 +28,7 @@ export async function POST(req) {
       data = JSON.parse(textResponse);
     } catch (e) {
       return new Response(JSON.stringify({ error: "Сбой связи с Groq. Ответ сервера: " + textResponse.substring(0, 100) }), { 
-        status: 200, 
+        status: 500, // Честная ошибка сервера
         headers: { "Content-Type": "application/json" }
       });
     }
@@ -36,7 +36,7 @@ export async function POST(req) {
     if (!response.ok || data.error) {
       const errorMsg = data.error?.message || "Запрос заблокирован.";
       return new Response(JSON.stringify({ error: errorMsg }), { 
-        status: 200, 
+        status: 400, // Честная ошибка запроса (например, лимиты)
         headers: { "Content-Type": "application/json" }
       });
     }
@@ -44,13 +44,13 @@ export async function POST(req) {
     const text = data.choices[0].message.content;
 
     return new Response(JSON.stringify({ text }), {
-      status: 200,
+      status: 200, // Успех
       headers: { "Content-Type": "application/json" }
     });
 
   } catch (error) {
     return new Response(JSON.stringify({ error: "Внутренний сбой сервера: " + error.message }), {
-      status: 200,
+      status: 500, // Честная системная ошибка
       headers: { "Content-Type": "application/json" }
     });
   }
