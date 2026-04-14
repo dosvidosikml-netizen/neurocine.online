@@ -78,39 +78,37 @@ const COVER_PRESETS = [
 ];
 
 // --- СИСТЕМНЫЕ ПРОМПТЫ ---
-const SYS_STEP_1 = `You are 'Director-X'. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
+const SYS_STEP_1 = `You are 'Director-X'. Output ONLY valid JSON.
 Create a storyboard, voiceover, sfx, and SEO. 
 ALL CONTENT MUST BE IN TARGET LANGUAGE EXCEPT "_EN" FIELDS.
-Rule: Do NOT write "Диктор: " or "Narrator: " in the voice text. Just the words.
-Rule: Make SEO titles clickbaity with a curiosity gap. Description MUST end on a cliffhanger. 
+Rule: Do NOT write "Диктор: " in the voice text. Just the words.
+Rule: SEO titles must have a curiosity gap. Description MUST end on a cliffhanger.
 Rule: Provide EXACTLY 5 hashtags (2 broad, 3 specific). 
-Rule: Music prompt (music_EN) MUST be cinematic and strictly UNDER 20 words.
+Rule: Music prompt MUST be cinematic and strictly UNDER 20 words.
 
 JSON FORMAT:
 {
-  "global_anchor_EN": "Detailed English character/location description...",
-  "whisk_reference_EN": "Create a professional character reference sheet for: [INSERT ANCHOR HERE]. Use a clean, neutral solid background and present the sheet as a technical model turnaround in a photographic style. Organize the composition into two horizontal rows. Top row: four full-body views, standing in a line in this order: front view, left profile, right profile, back view. Bottom row: three highly detailed close-up portraits aligned under the top row: front portrait, left profile, right profile. Ensure perfect identity consistency across all panels. The character must be in a relaxed A-pose. Maintain consistent scale, accurate anatomy, and a clear silhouette. Ensure uniform spacing, clean panel separation, identical lighting (same direction, intensity, and softness) with natural shadows. 8k, photorealistic.",
+  "character_ref_EN": "Create a professional character reference sheet for: [CHARACTER DESC]. Use a clean, neutral solid background and present the sheet as a technical model turnaround in a photographic style. Organize the composition into two horizontal rows. Top row: four full-body views... (front, left, right, back). Bottom row: three close-up portraits. A-pose, accurate anatomy, identical flat lighting. 8k. (IF NO CHARACTER IN STORY, WRITE: 'No character in this scene')",
+  "location_ref_EN": "A wide architectural establishing shot of [LOCATION], empty space, highly detailed environment design, clean perspective, 8k.",
+  "style_ref_EN": "[Era/Atmosphere tags, e.g., 1980s Soviet cold war aesthetic, grainy vintage film, dim fluorescent lighting, muted colors]",
   "retention": { "score": 95, "feedback": "Анализ..." },
   "frames": [ 
-    { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Шум толпы", "text_on_screen": "ТИТРЫ", "voice": "Чистый текст диктора без приписки" } 
+    { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Шум", "text_on_screen": "ТИТР", "voice": "Текст диктора" } 
   ],
   "thumbnail": { "title": "ЗАГОЛОВАК", "hook": "ХУК", "cta": "СМОТРЕТЬ" },
-  "music_EN": "[Genre], [Mood], [Lead Instruments], [Tempo / Vocals]",
-  "seo": { "titles": ["Viral Hook Title 1", "Viral Hook Title 2"], "desc": "Cliffhanger description...", "tags": ["#broad1", "#broad2", "#niche1", "#niche2", "#niche3"] }
+  "music_EN": "[Genre], [Mood], [Lead Instruments]",
+  "seo": { "titles": ["Viral Title 1", "Viral Title 2"], "desc": "Cliffhanger...", "tags": ["#broad1", "#niche1", "#niche2", "#niche3", "#niche4"] }
 }`;
 
 const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
 Based on the storyboard, generate highly detailed English visual descriptions for frames.
-DO NOT add style tags (like 8k, cinematic, 2.5D), DO NOT add audio descriptions. JUST the pure visual subject and action.
-Make them 20-30 words.
+DO NOT add style tags (like 8k, cinematic, 2.5D), DO NOT add audio descriptions. JUST the pure visual subject and action. Make them 20-30 words.
 
 JSON FORMAT:
 {
-  "frames_prompts": [ 
-    { "imgPrompt_EN": "A close up of...", "vidPrompt_EN": "A close up of..." } 
-  ],
+  "frames_prompts": [ { "imgPrompt_EN": "A close up of...", "vidPrompt_EN": "A close up of..." } ],
   "b_rolls": [ "Extreme close up of...", "Detailed English prompt 2..." ],
-  "thumbnail_prompt_EN": "Highly detailed English prompt for cover, main object 40-60% of frame..."
+  "thumbnail_prompt_EN": "Highly detailed English prompt for cover..."
 }`;
 
 // --- ФУНКЦИИ ---
@@ -141,7 +139,7 @@ function CopyBtn({ text, label="Копировать", small=false }) {
   const [ok, setOk] = useState(false);
   return (
     <button onClick={e=>{ e.stopPropagation(); try{navigator.clipboard?.writeText(text)}catch{}; setOk(true); setTimeout(()=>setOk(false),2000); }}
-      style={{background:ok?"rgba(34,197,94,.25)":"rgba(255,255,255,.05)",border:`1px solid ${ok?"#4ade80":"rgba(255,255,255,.1)"}`,borderRadius:8,padding:small?"4px 10px":"6px 14px",fontSize:small?10:11,color:ok?"#4ade80":"rgba(255,255,255,.7)",cursor:"pointer",fontFamily:"inherit",transition:"all .2s",display:"flex",alignItems:"center",gap:5}}>
+      style={{background:ok?"rgba(34,197,94,.25)":"rgba(255,255,255,.05)",border:`1px solid ${ok?"#4ade80":"rgba(255,255,255,.1)"}`,borderRadius:8,padding:small?"4px 10px":"6px 14px",fontSize:small?10:11,color:ok?"#4ade80":"rgba(255,255,255,.7)",cursor:"pointer",fontFamily:"inherit",transition:"all .2s",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
       {ok?"✓ СКОПИРОВАНО":label}
     </button>
   );
@@ -174,12 +172,12 @@ export default function Page() {
   const [thumb, setThumb] = useState(null);
   const [music, setMusic] = useState("");
   const [seo, setSeo] = useState(null);
-  const [anchor, setAnchor] = useState("");
-  const [whiskRef, setWhiskRef] = useState("");
+  const [charRef, setCharRef] = useState("");
+  const [locRef, setLocRef] = useState("");
+  const [styleRef, setStyleRef] = useState("");
   const [step2Done, setStep2Done] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Новые состояния для чистых промптов
   const [rawScript, setRawScript] = useState("");
   const [rawImg, setRawImg] = useState("");
   const [rawVid, setRawVid] = useState("");
@@ -201,7 +199,6 @@ export default function Page() {
 
   const scrollRef = useRef(null);
 
-  // Восстановление истории и черновиков
   useEffect(() => { 
     if (typeof window !== "undefined") { 
       const savedHist = localStorage.getItem("ds_history"); 
@@ -221,7 +218,6 @@ export default function Page() {
     } 
   }, []);
 
-  // Автосохранение
   useEffect(() => {
     if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist}));
   }, [topic, script, genre, finalTwist, draftLoaded]);
@@ -266,9 +262,7 @@ export default function Page() {
     let imgTxt = s2done ? frms.map(f => f.imgPrompt_EN).filter(Boolean).join("\n\n") : "";
     let vidTxt = s2done ? frms.map(f => f.vidPrompt_EN).filter(Boolean).join("\n\n") : "";
     
-    setRawScript(scriptTxt);
-    setRawImg(imgTxt);
-    setRawVid(vidTxt);
+    setRawScript(scriptTxt); setRawImg(imgTxt); setRawVid(vidTxt);
   }
 
   async function handleStep1() {
@@ -297,8 +291,11 @@ export default function Page() {
       setThumb(data.thumbnail || null); 
       setMusic(data.music_EN || ""); 
       setSeo(data.seo || null);
-      setAnchor(data.global_anchor_EN || ""); 
-      setWhiskRef(data.whisk_reference_EN || "");
+      
+      setCharRef(data.character_ref_EN || ""); 
+      setLocRef(data.location_ref_EN || ""); 
+      setStyleRef(data.style_ref_EN || ""); 
+      
       setBRolls([]); setStep2Done(false);
       
       if (data.thumbnail) { setCovTitle(data.thumbnail.title || ""); setCovHook(data.thumbnail.hook || ""); setCovCta(data.thumbnail.cta || "СМОТРЕТЬ"); }
@@ -306,7 +303,7 @@ export default function Page() {
       rebuildRawText(data.frames || [], false);
       setTokens(t => t - 1); setBgImage(null); setTab("storyboard"); setView("result");
       
-      const stateData = { frames: data.frames, anchor: data.global_anchor_EN, whiskRef: data.whisk_reference_EN, retention: data.retention, thumb: data.thumbnail, seo: data.seo, music: data.music_EN, step2Done: false };
+      const stateData = { frames: data.frames, charRef: data.character_ref_EN, locRef: data.location_ref_EN, styleRef: data.style_ref_EN, retention: data.retention, thumb: data.thumbnail, seo: data.seo, music: data.music_EN, step2Done: false };
       const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
       setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
       
@@ -318,8 +315,7 @@ export default function Page() {
     setBusy(true); setLoadingMsg("Шаг 2: Генерируем 8k PRO-промпты..."); setView("loading");
     try {
       const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual}`).join("\n");
-      const req = `GLOBAL ANCHOR: ${anchor}
-STORYBOARD:
+      const req = `STORYBOARD:
 ${storyboardLite}
 
 Generate exactly ${frames.length} English visual prompts. Make them 20-30 words. No audio/style tags.`;
@@ -329,12 +325,13 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       
       const updatedFrames = frames.map((f, i) => {
         const p = data.frames_prompts && data.frames_prompts[i] ? data.frames_prompts[i] : {};
-        const styleText = VISUAL_ENGINES[engine]?.prompt || "";
+        const engineStyle = VISUAL_ENGINES[engine]?.prompt || "";
         const customText = customStyle ? `, ${customStyle}` : "";
+        const finalStyle = `${styleRef ? styleRef + ", " : ""}${engineStyle}${customText}`;
         const sfxText = f.sfx ? `, with ASMR audio of ${f.sfx}` : "";
         
-        let vPrompt = (p.vidPrompt_EN || f.visual) + sfxText + `, ${styleText}${customText}, 8k, masterpiece`;
-        let iPrompt = (p.imgPrompt_EN || f.visual) + `, ${styleText}${customText}, 8k, masterpiece`;
+        let vPrompt = (p.vidPrompt_EN || f.visual) + sfxText + `, ${finalStyle}, 8k, masterpiece`;
+        let iPrompt = (p.imgPrompt_EN || f.visual) + `, ${finalStyle}, 8k, masterpiece`;
 
         return { ...f, imgPrompt_EN: iPrompt, vidPrompt_EN: vPrompt };
       });
@@ -353,7 +350,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       setHistory(prev => {
          const next = [...prev];
          if(next.length > 0) { 
-           const stateData = { frames: updatedFrames, anchor, whiskRef, retention, thumb: updatedThumb, seo, music, bRolls: data.b_rolls, step2Done: true };
+           const stateData = { frames: updatedFrames, charRef, locRef, styleRef, retention, thumb: updatedThumb, seo, music, bRolls: data.b_rolls, step2Done: true };
            next[0].text = JSON.stringify(stateData); 
            localStorage.setItem("ds_history", JSON.stringify(next)); 
          }
@@ -398,6 +395,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #a855f7; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px #a855f7; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       {showHistory && (
@@ -424,8 +422,9 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                       setThumb(d.thumb || null);
                       setMusic(d.music || "");
                       setSeo(d.seo || null);
-                      setAnchor(d.anchor || "");
-                      setWhiskRef(d.whiskRef || "");
+                      setCharRef(d.charRef || "");
+                      setLocRef(d.locRef || "");
+                      setStyleRef(d.styleRef || "");
                       setBRolls(d.bRolls || []);
                       setStep2Done(d.step2Done || false);
                       if(d.thumb) { setCovTitle(d.thumb.title || ""); setCovHook(d.thumb.hook || ""); setCovCta(d.thumb.cta || "СМОТРЕТЬ"); }
@@ -451,9 +450,9 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {view==="result" && <button onClick={()=>setView("form")} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:24}}>‹</button>}
           <span style={{fontSize:18,fontWeight:900,color:"#fff",letterSpacing:-0.5}}>DOCU<span style={{color:"#a855f7"}}>SHORTS</span></span>
+          {view==="form" && frames.length>0 && <button onClick={()=>setView("result")} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:24}}>›</button>}
         </div>
         <div style={{display:"flex",gap:12, alignItems:"center"}}>
-          {view==="form" && frames.length>0 && <button onClick={()=>setView("result")} style={{background:"none",border:"none",color:"#d8b4fe",fontSize:12,fontWeight:800,cursor:"pointer"}}>👁 РЕЗУЛЬТАТ</button>}
           <button onClick={()=>setShowHistory(true)} style={{background:"none",border:"none",color:"#cbd5e1",fontSize:12,fontWeight:700, cursor:"pointer"}}>🗄 АРХИВ</button>
           <div style={{fontSize:11, fontWeight:800, color:tokens>0?"#34d399":"#ef4444", background:"rgba(255,255,255,0.05)", padding:"6px 12px", borderRadius:10}}>💎 {tokens}</div>
         </div>
@@ -471,9 +470,9 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
 
           <div style={{...S.section, padding:"20px 24px"}}>
             <label style={S.label}>🎭 ЖАНР РАССКАЗА</label>
-            <div style={{display:"flex", flexWrap:"wrap", gap:10}}>
+            <div className="hide-scroll" style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:8}}>
               {Object.entries(GENRE_PRESETS).map(([g,p])=>(
-                <button key={g} onClick={()=>setGenre(g)} style={{display:"flex", alignItems:"center", gap:8, background: genre===g ? p.col : "rgba(0,0,0,0.4)", border: `1px solid ${genre===g ? p.col : "rgba(255,255,255,0.1)"}`, boxShadow: genre===g ? `0 0 15px ${p.col}40` : "none", color: genre===g ? "#fff" : "rgba(255,255,255,0.6)", padding: "10px 16px", borderRadius: 100, fontWeight: 800, fontSize: 12, cursor: "pointer", transition: "all 0.2s"}}>
+                <button key={g} onClick={()=>setGenre(g)} style={{flexShrink:0, display:"flex", alignItems:"center", gap:6, background: genre===g ? p.col : "rgba(0,0,0,0.4)", border: `1px solid ${genre===g ? p.col : "rgba(255,255,255,0.1)"}`, color: genre===g ? "#fff" : "rgba(255,255,255,0.6)", padding: "6px 14px", borderRadius: 100, fontWeight: 800, fontSize: 11, cursor: "pointer", transition: "all 0.2s"}}>
                   <span>{p.icon}</span> <span>{g}</span>
                 </button>
               ))}
@@ -483,7 +482,10 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
           <div style={S.section}>
              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
                <label style={{...S.label, marginBottom:0}}>📝 СЦЕНАРИЙ (ТЕКСТ ДИКТОРА)</label>
-               <button onClick={handleGenerateHooks} disabled={busy || !topic.trim()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
+               <div style={{display:"flex", gap: 8}}>
+                 <CopyBtn text={script} small />
+                 <button onClick={handleGenerateHooks} disabled={busy || !topic.trim()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
+               </div>
              </div>
              
              {hooksList.length > 0 && (
@@ -506,15 +508,15 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                 <div style={{marginTop:16, display:"flex", flexDirection:"column", gap:10}}>
                   <div style={{background:"rgba(0,0,0,0.4)", border:"1px solid rgba(16,185,129,0.3)", padding:12, borderRadius:12}}>
                     <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}><span style={{fontSize:11, fontWeight:900, color:"#34d399"}}>1. МЕДЛЕННЫЙ (Dark History)</span><span style={{fontSize:10, color:"#94a3b8"}}>Speed: 0.85</span></div>
-                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><span style={{fontSize:11, fontFamily:"monospace", color:"#a7f3d0", flex:1}}>Deep, velvety, dark dramatic tone with tense slow pauses and grim whispering.</span><CopyBtn text="Deep, velvety, dark dramatic tone with tense slow pauses and grim whispering." small/></div>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><span style={{fontSize:11, fontFamily:"monospace", color:"#a7f3d0", flex:1}}>A middle-aged male voice, extremely raspy and hoarse, speaking in a low, sinister whisper right into the microphone. Slow pacing with heavy, audible breathing and dramatic pauses. Cinematic documentary style.</span><CopyBtn text="A middle-aged male voice, extremely raspy and hoarse, speaking in a low, sinister whisper right into the microphone. Slow pacing with heavy, audible breathing and dramatic pauses. Cinematic documentary style." small/></div>
                   </div>
                   <div style={{background:"rgba(0,0,0,0.4)", border:"1px solid rgba(56,189,248,0.3)", padding:12, borderRadius:12}}>
                     <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}><span style={{fontSize:11, fontWeight:900, color:"#38bdf8"}}>2. СРЕДНИЙ (Storytelling)</span><span style={{fontSize:10, color:"#94a3b8"}}>Speed: 1.1</span></div>
-                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><span style={{fontSize:11, fontFamily:"monospace", color:"#bae6fd", flex:1}}>Confident, engaging documentary narrator with clear articulation and factual emphasis.</span><CopyBtn text="Confident, engaging documentary narrator with clear articulation and factual emphasis." small/></div>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><span style={{fontSize:11, fontFamily:"monospace", color:"#bae6fd", flex:1}}>A 35-year-old male voice, professional documentary narrator. Warm, authoritative, and engaging tone. Crisp studio articulation, natural conversational inflections, no robotic monotony.</span><CopyBtn text="A 35-year-old male voice, professional documentary narrator. Warm, authoritative, and engaging tone. Crisp studio articulation, natural conversational inflections, no robotic monotony." small/></div>
                   </div>
                   <div style={{background:"rgba(0,0,0,0.4)", border:"1px solid rgba(244,63,94,0.3)", padding:12, borderRadius:12}}>
                     <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}><span style={{fontSize:11, fontWeight:900, color:"#fb7185"}}>3. БЫСТРЫЙ (Viral TikTok)</span><span style={{fontSize:10, color:"#94a3b8"}}>Speed: 1.35</span></div>
-                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><span style={{fontSize:11, fontFamily:"monospace", color:"#fecdd3", flex:1}}>High energy, aggressive viral hook delivery, breathless pacing, sensational tone.</span><CopyBtn text="High energy, aggressive viral hook delivery, breathless pacing, sensational tone." small/></div>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><span style={{fontSize:11, fontFamily:"monospace", color:"#fecdd3", flex:1}}>Young male voice, highly energetic, breathless and urgent. Speaking rapidly and aggressively with extreme excitement. Close-mic podcast style, sensational tone.</span><CopyBtn text="Young male voice, highly energetic, breathless and urgent. Speaking rapidly and aggressively with extreme excitement. Close-mic podcast style, sensational tone." small/></div>
                   </div>
                 </div>
              )}
@@ -542,6 +544,12 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
              )}
           </div>
           
+          {frames.length > 0 && (
+             <div style={{textAlign:"center", marginBottom: 20}}>
+               <button onClick={()=>setView("result")} style={{background:"none", border:"none", color:"#a855f7", fontWeight:900, fontSize:12, cursor:"pointer"}}>ВЕРНУТЬСЯ К РЕЗУЛЬТАТУ →</button>
+             </div>
+          )}
+
           <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,padding:"16px 20px 24px",background:"linear-gradient(to top, rgba(5,5,10,1) 50%, transparent)",zIndex:100}}>
             <button className="gbtn" onClick={handleStep1} disabled={(!script.trim() && !topic.trim()) || busy}>{busy?"СИСТЕМА В РАБОТЕ...":"🚀 ШАГ 1: СОЗДАТЬ РАСКАДРОВКУ (💎 1)"}</button>
           </div>
@@ -557,7 +565,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
 
       {view==="result" && (
         <div style={{maxWidth:600,margin:"0 auto",padding:"20px 20px 100px"}}>
-          <button onClick={()=>setView("form")} style={{marginBottom:20, color:"#a855f7", background:"none", border:"none", fontWeight:800, cursor:"pointer", fontSize:12}}>← НАЗАД К ПРОЕКТАМ</button>
+          <button onClick={()=>setView("form")} style={{marginBottom:20, color:"#a855f7", background:"none", border:"none", fontWeight:800, cursor:"pointer", fontSize:12}}>← ВЕРНУТЬСЯ В НАСТРОЙКИ</button>
           
           {retention && (
              <div style={{background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)", borderRadius:16, padding:16, marginBottom:24}}>
@@ -572,7 +580,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
             </div>
             
             <div style={{padding:24}}>
-              <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:16, marginBottom:10}}>
+              <div className="hide-scroll" style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:16, marginBottom:10}}>
                 {COVER_PRESETS.map(p=>(<button key={p.id} onClick={()=>setActivePreset(p.id)} style={{flexShrink:0, padding:"8px 14px", borderRadius:10, border:`1px solid ${activePreset===p.id?"#a855f7":"rgba(255,255,255,0.1)"}`, background:activePreset===p.id?"rgba(168,85,247,0.2)":"rgba(0,0,0,0.3)", color:activePreset===p.id?"#fff":"rgba(255,255,255,0.5)", fontSize:11, fontWeight:800, cursor:"pointer", textTransform:"uppercase"}}>{p.label}</button>))}
               </div>
 
@@ -628,30 +636,39 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
             </div>
           )}
 
-          <div style={{display:"flex", gap:10, marginBottom:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:16, overflowX:"auto"}}>
+          <div className="hide-scroll" style={{display:"flex", gap:10, marginBottom:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:16, overflowX:"auto"}}>
              {["storyboard","raw","seo"].map(t=>(<button key={t} onClick={()=>setTab(t)} style={{background:"none", border:"none", color:tab===t?"#a855f7":"#94a3b8", fontWeight:800, fontSize:12, textTransform:"uppercase", cursor:"pointer", whiteSpace:"nowrap"}}>{t==="raw" ? "Скрипт и Промпты" : t==="seo" ? "Музыка и SEO" : "Раскадровка"}</button>))}
           </div>
 
           {tab==="storyboard" && (
             <div>
-              {whiskRef && (
+              {charRef && (
                 <div style={{...S.section, border:"1px solid rgba(236,72,153,0.4)", background:"rgba(236,72,153,0.05)"}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-                    <span style={{fontSize:12, fontWeight:900, color:"#f472b6", textTransform:"uppercase"}}>🎭 БАЗОВЫЙ РЕФЕРЕНС (ДЛЯ WHISK)</span>
-                    <CopyBtn text={whiskRef} small/>
+                    <span style={{fontSize:12, fontWeight:900, color:"#f472b6", textTransform:"uppercase"}}>👤 CHARACTER REF (ГЕРОЙ)</span>
+                    <CopyBtn text={charRef} small/>
                   </div>
-                  <div style={{fontSize:12, color:"#fbcfe8", marginBottom:8, opacity:0.8}}>Сгенерируйте эту картинку первой, чтобы использовать её как исходник (Image Reference) для всех остальных кадров.</div>
-                  <div style={{fontSize:13, fontFamily:"monospace", color:"#fff", lineHeight:1.5, background:"rgba(0,0,0,0.5)", padding:12, borderRadius:10}}>{whiskRef}</div>
+                  <div style={{fontSize:13, fontFamily:"monospace", color:"#fff", lineHeight:1.5, background:"rgba(0,0,0,0.5)", padding:12, borderRadius:10}}>{charRef}</div>
                 </div>
               )}
               
-              {anchor && (
+              {locRef && (
                 <div style={{...S.section, border:"1px solid rgba(56,189,248,0.3)", background:"rgba(56,189,248,0.05)"}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-                    <span style={{fontSize:12, fontWeight:900, color:"#38bdf8", textTransform:"uppercase"}}>⚓ Глобальный якорь (Вшит в каждый кадр)</span>
-                    <CopyBtn text={anchor} small/>
+                    <span style={{fontSize:12, fontWeight:900, color:"#38bdf8", textTransform:"uppercase"}}>🌍 LOCATION REF (ФОН)</span>
+                    <CopyBtn text={locRef} small/>
                   </div>
-                  <div style={{fontSize:13, fontFamily:"monospace", color:"#bae6fd", lineHeight:1.5}}>{anchor}</div>
+                  <div style={{fontSize:13, fontFamily:"monospace", color:"#bae6fd", lineHeight:1.5}}>{locRef}</div>
+                </div>
+              )}
+
+              {styleRef && (
+                <div style={{...S.section, border:"1px solid rgba(250,204,21,0.3)", background:"rgba(250,204,21,0.05)"}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
+                    <span style={{fontSize:12, fontWeight:900, color:"#facc15", textTransform:"uppercase"}}>🎨 STYLE REF (АТМОСФЕРА)</span>
+                    <CopyBtn text={`${styleRef}, ${VISUAL_ENGINES[engine]?.prompt || ""}${customStyle ? ", "+customStyle : ""}`} small/>
+                  </div>
+                  <div style={{fontSize:13, fontFamily:"monospace", color:"#fef08a", lineHeight:1.5}}>{`${styleRef}, ${VISUAL_ENGINES[engine]?.prompt || ""}${customStyle ? ", "+customStyle : ""}`}</div>
                 </div>
               )}
               
