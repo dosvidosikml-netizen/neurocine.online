@@ -120,7 +120,6 @@ You are 'Director-X'. You must output ONLY a valid JSON object. Do not wrap in m
 2. DETAILED PROMPTS (CRITICAL): Every English prompt (imgPrompt_EN, vidPrompt_EN, b_rolls, thumbnail.prompt_EN) MUST BE HIGHLY DETAILED and LONG (minimum 20-40 words). Describe the subject, environment, lighting (e.g. volumetric, cinematic), camera angle (e.g. extreme close-up), mood, and textures. DO NOT write short prompts. 
 3. B-ROLLS RULE: The "b_rolls" array MUST contain 2-3 HIGHLY DETAILED visual prompts in English. DO NOT use placeholders like "Flash b-roll".
 4. PACING: Strictly 3 seconds per scene.
-5. NO Midjourney or Leonardo AI mentions. Design prompts for Grok Super, Veo, Whisk.
 
 JSON STRUCTURE EXACTLY AS THIS:
 {
@@ -197,7 +196,7 @@ export default function Page() {
   const [music, setMusic] = useState("");
   const [seo, setSeo] = useState(null);
   const [rawPrompts, setRawPrompts] = useState("");
-  const [anchor, setAnchor] = useState(""); // <-- Вернули Якорь!
+  const [anchor, setAnchor] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [bgImage, setBgImage] = useState(null);
@@ -244,9 +243,18 @@ export default function Page() {
   };
 
   function applyResult(rawText, fromHistory = false) {
-    let cleanText = rawText.replace(/```json|```/gi, "").trim();
+    let cleanText = rawText;
+    
+    // ПЫЛЕСОС: Ищем строгие границы JSON, чтобы отсечь лишний текст от ИИ
     const startIdx = cleanText.indexOf('{');
-    if (startIdx !== -1) cleanText = cleanText.substring(startIdx);
+    const endIdx = cleanText.lastIndexOf('}');
+    
+    if (startIdx !== -1 && endIdx !== -1) {
+      cleanText = cleanText.substring(startIdx, endIdx + 1);
+    }
+    
+    // Убиваем случайные переносы строк и спецсимволы внутри JSON, которые крашат парсер
+    cleanText = cleanText.replace(/[\u0000-\u001F]+/g, " ");
 
     try {
       const data = JSON.parse(cleanText);
@@ -256,7 +264,7 @@ export default function Page() {
       setThumb(data.thumbnail || null); 
       setMusic(data.music_EN || ""); 
       setSeo(data.seo || null);
-      setAnchor(data.global_anchor_EN || ""); // Сохраняем якорь в стейт
+      setAnchor(data.global_anchor_EN || ""); 
       
       if (data.thumbnail) { 
         setCovTitle(data.thumbnail.title || ""); 
@@ -280,6 +288,7 @@ export default function Page() {
         localStorage.setItem("ds_history", JSON.stringify(newHistory));
       }
     } catch (e) {
+      console.error(e);
       alert("Ошибка JSON. ИИ выдал неверный формат. Попробуйте еще раз.");
       setView("form");
     }
