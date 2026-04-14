@@ -102,8 +102,8 @@ const DURATION_CONFIG = {
 const DURATIONS = Object.keys(DURATION_CONFIG);
 
 const COVER_PRESETS = [
-  { id: "netflix", label: "Netflix", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, fontFamily: "'Georgia', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,0.9)", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2 } } },
-  { id: "mrbeast", label: "MrBeast", style: { container: { alignItems: "center" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", transform: "rotate(-3deg)", marginBottom: 4 }, title: { fontSize: 40, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px #ff00ff", transform: "rotate(-3deg)", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, textTransform: "uppercase", transform: "rotate(-3deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" } } },
+  { id: "netflix", label: "Netflix", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, fontFamily: "'Georgia', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,0.9)", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
+  { id: "mrbeast", label: "MrBeast", style: { container: { alignItems: "center" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", textTransform: "uppercase", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", transform: "rotate(-3deg)", marginBottom: 4 }, title: { fontSize: 40, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px #ff00ff", transform: "rotate(-3deg)", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, textTransform: "uppercase", transform: "rotate(-3deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" } } },
   { id: "tiktok", label: "TikTok", style: { container: { alignItems: "center" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12 }, title: { fontSize: 28, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
   { id: "truecrime", label: "True Crime", style: { container: { alignItems: "flex-start" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 34, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1 } } },
   { id: "horror", label: "Ужасы", style: { container: { alignItems: "center" }, hook: { fontSize: 14, fontWeight: 900, fontFamily: "'Cinzel', serif", color: "#dc2626", textTransform: "uppercase", letterSpacing: 6, marginBottom: 8, textShadow: "0 0 10px #dc2626" }, title: { fontSize: 36, fontWeight: 900, fontFamily: "'Cinzel', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 5px 20px #000, 0 0 15px #dc2626", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 3, opacity: 0.6 } } },
@@ -111,27 +111,33 @@ const COVER_PRESETS = [
 ];
 
 const VIRAL_SYSTEM = `### SYSTEM ROLE
-You are 'Director-X'. Output ONLY valid JSON.
+You are 'Director-X'. You must output ONLY a valid JSON object. Do not wrap in markdown or add text outside JSON.
 
-🚨 STRICT MULTILINGUAL RULES - DO NOT IGNORE 🚨
-You must strictly separate languages based on fields:
-1. TARGET LANGUAGE (Russian): "voice", "visual", "camera", "thumbnail.title", "thumbnail.hook", "thumbnail.cta", "seo.titles", "seo.desc", "retention.feedback".
-2. ENGLISH ONLY: "global_anchor_EN", "imgPrompt_EN", "vidPrompt_EN", "music_EN", "b_rolls".
+🚨 FATAL RULES - FOLLOW OR FAIL 🚨
+1. LANGUAGES MUST BE SPLIT:
+   - "voice", "visual", "camera", "thumbnail.title", "thumbnail.hook", "thumbnail.cta", "seo.titles", "seo.desc", "retention.feedback" MUST BE TRANSLATED TO RUSSIAN (РУССКИЙ ЯЗЫК). Do NOT use English for these fields!
+   - "global_anchor_EN", "imgPrompt_EN", "vidPrompt_EN", "music_EN", "b_rolls" MUST BE IN ENGLISH.
+2. B-ROLLS RULE: The "b_rolls" array MUST contain 2-3 detailed visual prompts in English (e.g. "Extreme close-up of a dusty computer keyboard, 8k, cinematic"). DO NOT use placeholders like "Flash b-roll".
+3. PACING: Strictly 3 seconds per scene.
 
-🚨 TECHNICAL RULES:
-1. PACING: Strictly 3 seconds per scene.
-2. 8K QUALITY: Append ", shot on Arri Alexa 65, 8k resolution, photorealistic, cinematic lighting" to EVERY English prompt (imgPrompt, vidPrompt, b_rolls).
-3. B-ROLLS: "b_rolls" MUST NOT be placeholders. It MUST be an array of 2-3 highly detailed English visual prompts.
-
-JSON STRUCTURE:
+JSON STRUCTURE EXACTLY AS THIS (replace content):
 {
   "global_anchor_EN": "Detailed English character/location desc...",
-  "retention": { "score": 95, "feedback": "Русский анализ..." },
-  "frames": [ { "timecode": "0-3 сек", "camera": "Русский текст", "visual": "Русский текст", "voice": "Русский текст", "imgPrompt_EN": "English...", "vidPrompt_EN": "English..." } ],
-  "b_rolls": [ "Detailed English prompt 1...", "Detailed English prompt 2..." ],
-  "thumbnail": { "title": "Русский", "hook": "Русский", "cta": "Русский", "prompt_EN": "English..." },
+  "retention": { "score": 95, "feedback": "Русский текст анализа..." },
+  "frames": [ 
+    { 
+      "timecode": "0-3 сек", 
+      "camera": "Наезд камеры", 
+      "visual": "Старый заброшенный бункер, тусклый свет", 
+      "voice": "В глубинах советской эпохи...", 
+      "imgPrompt_EN": "Dimly lit abandoned bunker, 8k...", 
+      "vidPrompt_EN": "Dimly lit abandoned bunker, 8k..." 
+    } 
+  ],
+  "b_rolls": [ "English detailed prompt 1...", "English detailed prompt 2..." ],
+  "thumbnail": { "title": "МЕРТВАЯ РУКА", "hook": "СЕКРЕТНЫЙ ПРОЕКТ СССР", "cta": "СМОТРЕТЬ", "prompt_EN": "English..." },
   "music_EN": "English prompt...",
-  "seo": { "titles": ["Русский"], "desc": "Русский текст", "tags": ["#тег"] }
+  "seo": { "titles": ["Русский заголовок"], "desc": "Русский текст", "tags": ["#тег"] }
 }`;
 
 async function callAPI(content, maxTokens = 8000, sysPrompt = VIRAL_SYSTEM) {
@@ -311,13 +317,16 @@ export default function Page() {
     try {
       let currentScript = script.trim();
       if (!currentScript) {
-        currentScript = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text. Target language: ${lang}`);
+        currentScript = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text. TARGET LANGUAGE MUST BE ${lang === "RU" ? "RUSSIAN" : "ENGLISH"}.`);
         setScript(currentScript.trim());
       }
       const durCfg = DURATION_CONFIG[dur] || DURATION_CONFIG["До 60 сек"];
       const engineStyle = VISUAL_ENGINES[engine].prompt;
       
-      const req = `CRITICAL: ALL SCENE DESCRIPTIONS AND DIALOGUE (voice, visual) MUST BE IN ${lang === "RU" ? "RUSSIAN" : "ENGLISH"}. PROMPTS MUST BE IN ENGLISH. B-ROLLS MUST BE DETAILED ENGLISH PROMPTS.
+      const req = `СТРОГОЕ ПРАВИЛО: ВСЕ ПОЛЯ СЦЕНАРИЯ (voice, visual, camera) И SEO ДОЛЖНЫ БЫТЬ НА ${lang === "RU" ? "РУССКОМ ЯЗЫКЕ" : "АНГЛИЙСКОМ"}.
+ПРОМПТЫ ДЛЯ КАРТИНОК И ВИДЕО - ТОЛЬКО НА АНГЛИЙСКОМ.
+B-ROLLS - ЭТО ПОЛНОЦЕННЫЕ АНГЛИЙСКИЕ ПРОМПТЫ, ЗАПРЕЩЕНО ПИСАТЬ "Flash b-roll".
+
 ТЕМА: ${topic}
 ЖАНР: ${genre}
 СТИЛЬ: ${engineStyle}
@@ -325,6 +334,7 @@ export default function Page() {
 ${currentScript}
 
 ВЫДАЙ СТРОГО В JSON! РОВНО ${durCfg.frames} КАДРОВ. СТРОГО 3 СЕКУНДЫ НА СЦЕНУ.`;
+
       const text = await callAPI(req, 8000);
       setTokens(t => t - 1);
       applyResult(text, false);
@@ -516,11 +526,13 @@ ${currentScript}
               </div>
 
               <div style={{background:"rgba(0,0,0,0.3)", borderRadius:16, padding:20, marginBottom:20}}>
-                 <div style={{display:"flex", flexDirection:"column", gap:8, marginBottom:16}}>
+                 <label style={{fontSize:11, color:"#d8b4fe", fontWeight:900, textTransform:"uppercase", marginBottom:12, display:"block"}}>📝 ТЕКСТ НА ОБЛОЖКЕ</label>
+                 <div style={{display:"flex", flexDirection:"column", gap:10, marginBottom:20}}>
                    <input type="text" value={covHook} onChange={e=>setCovHook(e.target.value)} placeholder="Верхний текст (Hook)" style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", padding:"12px", borderRadius:10, color:"#fff", fontSize:13}} />
                    <input type="text" value={covTitle} onChange={e=>setCovTitle(e.target.value)} placeholder="Главный заголовок" style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(168,85,247,0.4)", padding:"12px", borderRadius:10, color:"#fff", fontSize:13, fontWeight:800}} />
                    <input type="text" value={covCta} onChange={e=>setCovCta(e.target.value)} placeholder="Нижний текст (CTA)" style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", padding:"12px", borderRadius:10, color:"#fff", fontSize:13}} />
                  </div>
+                 
                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
                    <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция X</label><input type="range" min="10" max="90" value={covX} onChange={e=>setCovX(e.target.value)} style={{width:"100%"}}/></div>
                    <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция Y</label><input type="range" min="10" max="90" value={covY} onChange={e=>setCovY(e.target.value)} style={{width:"100%"}}/></div>
