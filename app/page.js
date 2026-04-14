@@ -53,14 +53,14 @@ const GENRE_PRESETS = {
 const FORMATS = [ { id:"9:16", label:"Вертикальный", ratio:"9/16" }, { id:"16:9", label:"Горизонтальный", ratio:"16/9" }, { id:"1:1", label:"Квадрат", ratio:"1/1" } ];
 
 const VISUAL_ENGINES = {
-  "CINEMATIC": { label: "Кино-реализм", prompt: "cinematic realism, photorealistic, deep shadows, 8k, Arri Alexa 65" },
-  "DARK_HISTORY": { label: "Dark History", prompt: "dark history grunge, dirty vintage film effect, scratches, bleak atmosphere, heavy vignette, 8k, Arri Alexa 65" },
-  "ANIMATION_2_5D": { label: "2.5D Анимация", prompt: "2.5D stylized 3D render, Pixar and Studio Ghibli aesthetics, warm soft lighting, 8k" },
-  "X_RAY": { label: "X-Ray / Схемы", prompt: "x-ray exploded view, detailed engineering diagram, glowing internal parts, technical cross-section render, 8k" }
+  "CINEMATIC": { label: "Кино-реализм", prompt: "cinematic realism, photorealistic, deep shadows, Arri Alexa 65" },
+  "DARK_HISTORY": { label: "Dark History", prompt: "dark history grunge, dirty vintage film effect, scratches, bleak atmosphere, heavy vignette, Arri Alexa 65" },
+  "ANIMATION_2_5D": { label: "2.5D Анимация", prompt: "2.5D stylized 3D render, Pixar and Studio Ghibli aesthetics, warm soft lighting" },
+  "X_RAY": { label: "X-Ray / Схемы", prompt: "x-ray exploded view, detailed engineering diagram, glowing internal parts, technical cross-section render" }
 };
 
 const DURATION_SECONDS = { "15 сек": 15, "30–45 сек": 40, "До 60 сек": 60, "1.5 мин": 90, "3 мин": 180 };
-const DURATIONS = Object.keys(DURATION_SECONDS); // 🔥 Исправлено: добавил массив длительностей
+const DURATIONS = Object.keys(DURATION_SECONDS);
 
 const COVER_PRESETS = [
   { id: "netflix", label: "Netflix", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, fontFamily: "'Georgia', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,0.9)", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
@@ -82,7 +82,7 @@ Rule: Do NOT write "Диктор: " or "Narrator: " in the voice text. Just the 
 JSON FORMAT:
 {
   "global_anchor_EN": "Detailed English character/location description...",
-  "whisk_reference_EN": "Character Design Sheet or Architectural Blueprint prompt for Whisk based on anchor. Highly detailed, 8k...",
+  "whisk_reference_EN": "Create a professional character reference sheet for: [INSERT ANCHOR HERE]. Use a clean, neutral solid background and present the sheet as a technical model turnaround in a photographic style. Organize the composition into two horizontal rows. Top row: four full-body views, standing in a line in this order: front view, left profile, right profile, back view. Bottom row: three highly detailed close-up portraits aligned under the top row: front portrait, left profile, right profile. Ensure perfect identity consistency across all panels. The character must be in a relaxed A-pose. Maintain consistent scale, accurate anatomy, and a clear silhouette. Ensure uniform spacing, clean panel separation, identical lighting (same direction, intensity, and softness) with natural shadows. 8k, photorealistic.",
   "retention": { "score": 95, "feedback": "Анализ..." },
   "frames": [ 
     { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Шум толпы", "text_on_screen": "ТИТРЫ", "voice": "Чистый текст диктора без приписки" } 
@@ -93,19 +93,14 @@ JSON FORMAT:
 }`;
 
 const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
-Based on the storyboard, generate highly detailed English prompts for Whisk, Veo and Grok Super.
-DO NOT mention Midjourney or Leonardo.
-
-STRICT RULES:
-1. Every prompt MUST be between 30 and 40 words long. Detail the lighting, atmosphere, and textures.
-2. Every prompt MUST end with tags: 8k, hyperdetailed, [user chosen style].
-3. For video prompts, YOU MUST append the SFX audio cue at the end like this: ", with ASMR audio of [SFX from storyboard]".
-4. Main object MUST occupy 40-60% of frame.
+Based on the storyboard, generate highly detailed English visual descriptions for frames.
+DO NOT add style tags (like 8k, cinematic, 2.5D), DO NOT add audio descriptions. JUST the pure visual subject and action.
+Make them 20-30 words.
 
 JSON FORMAT:
 {
   "frames_prompts": [ 
-    { "imgPrompt_EN": "A highly detailed wide shot of...", "vidPrompt_EN": "A highly detailed wide shot of..., with ASMR audio of crowd cheering" } 
+    { "imgPrompt_EN": "A close up of...", "vidPrompt_EN": "A close up of..." } 
   ],
   "b_rolls": [ "Extreme close up of...", "Detailed English prompt 2..." ],
   "thumbnail_prompt_EN": "Highly detailed English prompt for cover, main object 40-60% of frame..."
@@ -191,10 +186,35 @@ export default function Page() {
 
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const scrollRef = useRef(null);
 
-  useEffect(() => { if (typeof window !== "undefined") { const saved = localStorage.getItem("ds_history"); if (saved) setHistory(JSON.parse(saved)); } }, []);
+  // Восстановление истории и черновиков
+  useEffect(() => { 
+    if (typeof window !== "undefined") { 
+      const savedHist = localStorage.getItem("ds_history"); 
+      if (savedHist) setHistory(JSON.parse(savedHist)); 
+
+      const savedDraft = localStorage.getItem("ds_draft");
+      if (savedDraft) {
+         try {
+           const d = JSON.parse(savedDraft);
+           if (d.topic) setTopic(d.topic);
+           if (d.script) setScript(d.script);
+           if (d.genre) setGenre(d.genre);
+           if (d.finalTwist) setFinalTwist(d.finalTwist);
+         } catch(e){}
+      }
+      setDraftLoaded(true);
+    } 
+  }, []);
+
+  // Автосохранение
+  useEffect(() => {
+    if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist}));
+  }, [topic, script, genre, finalTwist, draftLoaded]);
+
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({top:0,behavior:"smooth"}); }, [view]);
 
   const checkTokens = () => { if (tokens <= 0) { setShowPaywall(true); return false; } return true; };
@@ -274,7 +294,9 @@ export default function Page() {
       rebuildRawText(data.frames || [], data.global_anchor_EN, [], false);
       setTokens(t => t - 1); setBgImage(null); setTab("storyboard"); setView("result");
       
-      const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(data), format: vidFormat }, ...history].slice(0, 10);
+      // Сохранение всего стейта в историю
+      const stateData = { frames: data.frames, anchor: data.global_anchor_EN, whiskRef: data.whisk_reference_EN, retention: data.retention, thumb: data.thumbnail, seo: data.seo, music: data.music_EN, step2Done: false };
+      const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
       setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
       
     } catch(e) { alert(`🚨 ОШИБКА ШАГА 1: ${e.message}\nПроверьте логи Vercel.`); setView("form"); } finally { setBusy(false); }
@@ -284,28 +306,51 @@ export default function Page() {
     if (!checkTokens()) return;
     setBusy(true); setLoadingMsg("Шаг 2: Генерируем 8k PRO-промпты..."); setView("loading");
     try {
-      const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual}. SFX: ${f.sfx}`).join("\n");
+      const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual}`).join("\n");
       const req = `GLOBAL ANCHOR: ${anchor}
-STYLE TAGS REQUIRED: ${VISUAL_ENGINES[engine].prompt}. ${customStyle}
 STORYBOARD:
 ${storyboardLite}
 
-Generate exactly ${frames.length} English prompts for frames_prompts. Integrate SFX into vidPrompt_EN. Make them 30-40 words.`;
+Generate exactly ${frames.length} English visual prompts. Make them 20-30 words. No audio/style tags.`;
 
       const text = await callAPI(req, 8000, SYS_STEP_2);
       const data = cleanJSON(text);
       
+      // ЖЕСТКАЯ СКЛЕЙКА СТИЛЕЙ
       const updatedFrames = frames.map((f, i) => {
         const p = data.frames_prompts && data.frames_prompts[i] ? data.frames_prompts[i] : {};
-        return { ...f, imgPrompt_EN: p.imgPrompt_EN || "", vidPrompt_EN: p.vidPrompt_EN || "" };
+        const styleText = VISUAL_ENGINES[engine]?.prompt || "";
+        const customText = customStyle ? `, ${customStyle}` : "";
+        const sfxText = f.sfx ? `, with ASMR audio of ${f.sfx}` : "";
+        
+        let vPrompt = (p.vidPrompt_EN || f.visual) + sfxText + `, ${styleText}${customText}, 8k, masterpiece`;
+        let iPrompt = (p.imgPrompt_EN || f.visual) + `, ${styleText}${customText}, 8k, masterpiece`;
+
+        return { ...f, imgPrompt_EN: iPrompt, vidPrompt_EN: vPrompt };
       });
       
-      setFrames(updatedFrames); setBRolls(data.b_rolls || []);
-      if(data.thumbnail_prompt_EN && thumb) setThumb({...thumb, prompt_EN: data.thumbnail_prompt_EN});
-      
+      let updatedThumb = thumb;
+      if(data.thumbnail_prompt_EN && thumb) updatedThumb = {...thumb, prompt_EN: data.thumbnail_prompt_EN};
+
+      setFrames(updatedFrames); 
+      setBRolls(data.b_rolls || []);
+      setThumb(updatedThumb);
       setStep2Done(true);
+      
       rebuildRawText(updatedFrames, anchor, data.b_rolls, true);
       setTokens(t => t - 1); setView("result");
+
+      // Обновляем историю для Шага 2
+      setHistory(prev => {
+         const next = [...prev];
+         if(next.length > 0) { 
+           const stateData = { frames: updatedFrames, anchor, whiskRef, retention, thumb: updatedThumb, seo, music, bRolls: data.b_rolls, step2Done: true };
+           next[0].text = JSON.stringify(stateData); 
+           localStorage.setItem("ds_history", JSON.stringify(next)); 
+         }
+         return next;
+      });
+
     } catch(e) { alert(`🚨 ОШИБКА ШАГА 2: ${e.message}`); setView("result"); } finally { setBusy(false); }
   }
 
@@ -345,6 +390,53 @@ Generate exactly ${frames.length} English prompts for frames_prompts. Integrate 
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #a855f7; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px #a855f7; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
       `}</style>
+
+      {showHistory && (
+        <div style={{position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+          <div style={{background:"#111827", border:"1px solid #374151", borderRadius:24, width:"100%", maxWidth:500, maxHeight:"80vh", display:"flex", flexDirection:"column", overflow:"hidden"}}>
+            <div style={{padding:"20px 24px", borderBottom:"1px solid #374151", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+               <h2 style={{fontSize:18, fontWeight:900, color:"#fff"}}>🗄 Архив Проектов</h2>
+               <button onClick={()=>setShowHistory(false)} style={{background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{padding:20, overflowY:"auto", flex:1, display:"flex", flexDirection:"column", gap:12}}>
+              {history.length === 0 ? (
+                <div style={{color:"#9ca3af", textAlign:"center", padding:20}}>Архив пуст</div>
+              ) : history.map(item => (
+                <div key={item.id} style={{background:"rgba(255,255,255,0.05)", borderRadius:16, padding:16, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:14, fontWeight:800, color:"#d8b4fe", marginBottom:4}}>{item.topic || "Без названия"}</div>
+                    <div style={{fontSize:11, color:"#9ca3af"}}>{item.time} • {item.format || "9:16"}</div>
+                  </div>
+                  <div style={{display:"flex", gap:8}}>
+                    <button onClick={()=>{
+                      const d = JSON.parse(item.text);
+                      setFrames(d.frames || []);
+                      setRetention(d.retention || null);
+                      setThumb(d.thumb || null);
+                      setMusic(d.music || "");
+                      setSeo(d.seo || null);
+                      setAnchor(d.anchor || "");
+                      setWhiskRef(d.whiskRef || "");
+                      setBRolls(d.bRolls || []);
+                      setStep2Done(d.step2Done || false);
+                      if(d.thumb) { setCovTitle(d.thumb.title || ""); setCovHook(d.thumb.hook || ""); setCovCta(d.thumb.cta || "СМОТРЕТЬ"); }
+                      rebuildRawText(d.frames || [], d.anchor, d.bRolls || [], d.step2Done);
+                      setShowHistory(false);
+                      setView("result");
+                    }} style={{background:"#10b981", border:"none", borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:11, fontWeight:800, cursor:"pointer"}}>ОТКРЫТЬ</button>
+                    <button onClick={()=>deleteFromHistory(item.id)} style={{background:"#ef4444", border:"none", borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:11, fontWeight:800, cursor:"pointer"}}>УДАЛИТЬ</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {history.length > 0 && (
+              <div style={{padding:"16px 20px", borderTop:"1px solid #374151"}}>
+                 <button onClick={clearHistory} style={{width:"100%", background:"rgba(239,68,68,0.1)", color:"#ef4444", border:"1px solid rgba(239,68,68,0.3)", borderRadius:12, padding:12, fontWeight:800, cursor:"pointer"}}>ОЧИСТИТЬ АРХИВ</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <nav style={S.nav}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
