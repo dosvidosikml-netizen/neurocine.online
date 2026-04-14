@@ -108,9 +108,9 @@ const COVER_PRESETS = [
 ];
 
 // СИСТЕМНЫЕ ПРОМПТЫ ДЛЯ 2 ШАГОВ
-const SYS_STEP_1 = `You are 'Director-X'. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
+const SYS_STEP_1 = `You are 'Director-X'. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values. Use single quotes inside text.
 Create a storyboard, voiceover, sfx, and SEO. 
-ALL CONTENT MUST BE IN TARGET LANGUAGE (except global_anchor_EN and music_EN).
+ALL CONTENT MUST BE IN TARGET LANGUAGE.
 
 JSON FORMAT:
 {
@@ -125,7 +125,10 @@ JSON FORMAT:
 }`;
 
 const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
-Based on the provided Russian storyboard, generate highly detailed English 8k prompts for Midjourney/Veo. Every prompt must be 20-40 words long and describe lighting, mood, camera angle, and textures.
+Based on the storyboard, generate highly detailed English 8k prompts for Veo, Whisk, and Grok Super. 
+DO NOT mention Midjourney or Leonardo.
+Every prompt must be 20-40 words long. 
+For thumbnail_prompt_EN, the main object MUST occupy 40-60% of the frame.
 
 JSON FORMAT:
 {
@@ -133,7 +136,7 @@ JSON FORMAT:
     { "imgPrompt_EN": "A highly detailed cinematic wide shot of...", "vidPrompt_EN": "A highly detailed cinematic wide shot of..." } 
   ],
   "b_rolls": [ "Extreme close up of...", "Detailed English prompt 2..." ],
-  "thumbnail_prompt_EN": "Highly detailed English prompt for cover..."
+  "thumbnail_prompt_EN": "Highly detailed English prompt for cover, main object 40-60% of frame..."
 }`;
 
 async function callAPI(content, maxTokens = 8000, sysPrompt) {
@@ -163,7 +166,8 @@ function cleanJSON(rawText) {
   if (startIdx !== -1 && endIdx !== -1) {
     cleanText = cleanText.substring(startIdx, endIdx + 1);
   }
-  cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u0019]+/g, "");
+  // Жестко вырезаем все переносы строк и спецсимволы, ломающие парсер
+  cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u001F]+/g, "");
   return JSON.parse(cleanText);
 }
 
@@ -190,7 +194,6 @@ export default function Page() {
   const [vidFormat, setVidFormat] = useState("9:16");
   const [engine, setEngine] = useState("CINEMATIC");
   const [customStyle, setCustomStyle] = useState(""); 
-  const [pacing, setPacing] = useState(3); 
   const [lang, setLang] = useState("RU"); 
   const [settingsOpen, setSettingsOpen] = useState(false);
   
@@ -210,7 +213,7 @@ export default function Page() {
   const [seo, setSeo] = useState(null);
   const [rawPrompts, setRawPrompts] = useState("");
   const [anchor, setAnchor] = useState("");
-  const [step2Done, setStep2Done] = useState(false); // Флаг второго шага
+  const [step2Done, setStep2Done] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [bgImage, setBgImage] = useState(null);
@@ -320,13 +323,14 @@ export default function Page() {
         setScript(currentScript.trim());
       }
       
-      const targetFrames = Math.floor((DURATION_SECONDS[dur] || 60) / pacing);
+      // Строго 3 секунды на сцену по правилам системы
+      const targetFrames = Math.floor((DURATION_SECONDS[dur] || 60) / 3);
       const req = `TARGET LANGUAGE FOR SCENARIO AND SEO: ${lang === "RU" ? "РУССКИЙ" : "ENGLISH"}.
 ТЕМА: ${topic}
 ЖАНР: ${genre}
 ТВИСТ В ФИНАЛЕ: ${finalTwist}
 СЦЕНАРИЙ: ${currentScript}
-ВЫДАЙ СТРОГО JSON! РОВНО ${targetFrames} КАДРОВ.`;
+ВЫДАЙ СТРОГО JSON! СТРОГО 3 СЕКУНДЫ НА СЦЕНУ. РОВНО ${targetFrames} КАДРОВ.`;
 
       const text = await callAPI(req, 8000, SYS_STEP_1);
       const data = cleanJSON(text);
@@ -352,7 +356,7 @@ export default function Page() {
       setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
       
     } catch(e) { 
-      alert("Ошибка сети или ИИ. Попробуйте еще раз."); setView("form"); 
+      alert("Ошибка сети или ИИ. Попробуйте еще раз. Интерфейс разблокирован."); setView("form"); 
     } finally { setBusy(false); }
   }
 
@@ -367,7 +371,7 @@ STYLE: ${VISUAL_ENGINES[engine].prompt}. ${customStyle}
 STORYBOARD:
 ${storyboardLite}
 
-Generate highly detailed 8k English prompts (20-40 words each). Must have exactly ${frames.length} elements in frames_prompts array.`;
+Generate highly detailed 8k English prompts (20-40 words each) for Whisk, Veo and Grok Super. Must have exactly ${frames.length} elements in frames_prompts array.`;
 
       const text = await callAPI(req, 8000, SYS_STEP_2);
       const data = cleanJSON(text);
@@ -386,7 +390,7 @@ Generate highly detailed 8k English prompts (20-40 words each). Must have exactl
       setTokens(t => t - 1);
       setView("result");
     } catch(e) { 
-      alert("Ошибка при генерации промптов. Попробуйте еще раз."); setView("result"); 
+      alert("Ошибка при генерации промптов. Попробуйте еще раз. Интерфейс разблокирован."); setView("result"); 
     } finally { setBusy(false); }
   }
 
@@ -441,6 +445,16 @@ Generate highly detailed 8k English prompts (20-40 words each). Must have exactl
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 2px; }
         .genre-scroll::-webkit-scrollbar { display: none; }
       `}</style>
+
+      {showPaywall && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",backdropFilter:"blur(20px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+           <div style={{background:"#0a0a12", border:"1px solid rgba(168,85,247,.4)", borderRadius:24, padding:40, maxWidth:400, textAlign:"center"}}>
+              <h2 style={{color:"#fff", marginBottom:10}}>Лимит исчерпан</h2>
+              <p style={{color:"#94a3b8", marginBottom:30}}>Используйте свой API ключ в настройках Vercel.</p>
+              <button onClick={()=>setShowPaywall(false)} style={{width:"100%", padding:"16px", background:"#fff", color:"#000", borderRadius:14, border:"none", fontWeight:900, cursor:"pointer"}}>ПОНЯТНО</button>
+           </div>
+        </div>
+      )}
 
       {showHistory && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:200,display:"flex",justifyContent:"center",alignItems:"center",backdropFilter:"blur(16px)"}}>
@@ -539,11 +553,6 @@ Generate highly detailed 8k English prompts (20-40 words each). Must have exactl
                   </div>
                   <input type="text" value={customStyle} onChange={e=>setCustomStyle(e.target.value)} placeholder="Особый стиль (VHS, Киберпанк и т.д.)" style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:12,fontSize:12,color:"#cbd5e1", marginBottom:20}}/>
                   
-                  <label style={S.label}>⏱ Темп монтажа (Кат каждые...)</label>
-                  <div style={{display:"flex",gap:8,marginBottom:20}}>
-                     {[{v:2, l:"2 сек (Агрессивный)"}, {v:3, l:"3 сек (Стандарт)"}, {v:4, l:"4 сек (Плавный)"}].map(p=><button key={p.v} onClick={()=>setPacing(p.v)} style={{flex:1,background:pacing===p.v?"rgba(236,72,153,.15)":"rgba(0,0,0,.4)",border:`1px solid ${pacing===p.v?"#f472b6":"rgba(255,255,255,.05)"}`,borderRadius:14,padding:"10px 4px",fontSize:11,fontWeight:pacing===p.v?800:500,color:pacing===p.v?"#fbcfe8":"rgba(255,255,255,.5)", cursor:"pointer", textAlign:"center"}}>{p.l}</button>)}
-                  </div>
-
                   <label style={S.label}>🌐 Язык сценария</label>
                   <div style={{display:"flex",gap:8,marginBottom:20}}>{["RU", "EN"].map(l=><button key={l} onClick={()=>setLang(l)} style={{flex:1,background:lang===l?"rgba(245,158,11,.15)":"rgba(0,0,0,.4)",border:`1px solid ${lang===l?"#fbbf24":"rgba(255,255,255,.05)"}`,borderRadius:14,padding:10,fontSize:12,fontWeight:lang===l?800:500,color:lang===l?"#fcd34d":"rgba(255,255,255,.5)", cursor:"pointer"}}>{l === "RU" ? "Русский" : "English"}</button>)}</div>
                   <label style={S.label}>📐 Формат</label>
@@ -645,7 +654,7 @@ Generate highly detailed 8k English prompts (20-40 words each). Must have exactl
           {!step2Done && (
             <div style={{background:"rgba(236,72,153,0.1)", border:"1px dashed rgba(236,72,153,0.4)", borderRadius:24, padding:24, textAlign:"center", marginBottom:24}}>
               <div style={{fontSize:14, fontWeight:900, color:"#fbcfe8", marginBottom:10}}>Сценарий готов! Теперь визуализация 🎨</div>
-              <div style={{fontSize:12, color:"#f472b6", marginBottom:20}}>Нейросеть сгенерирует сверхдетальные 8K промпты на английском для генераторов картинок и видео (Midjourney, Veo).</div>
+              <div style={{fontSize:12, color:"#f472b6", marginBottom:20}}>Нейросеть сгенерирует сверхдетальные 8K промпты на английском для генераторов картинок и видео (Veo, Whisk, Grok).</div>
               <button onClick={handleStep2} disabled={busy} style={{width:"100%", padding:"16px", background:"linear-gradient(135deg, #db2777, #9333ea)", borderRadius:16, color:"#fff", fontWeight:900, border:"none", cursor:"pointer", boxShadow:"0 5px 20px rgba(219,39,119,0.4)", animation:"pulse-glow 2s infinite"}}>🪄 ШАГ 2: СГЕНЕРИРОВАТЬ PRO-ПРОМПТЫ (💎 1)</button>
             </div>
           )}
