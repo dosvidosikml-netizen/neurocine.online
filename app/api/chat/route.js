@@ -1,57 +1,35 @@
-// @ts-nocheck
-/* eslint-disable */
-
-export const maxDuration = 60; // УБИВАЕМ ЛИМИТ 10 СЕК. ДАЕМ VERCEL ЖДАТЬ ЦЕЛУЮ МИНУТУ
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   try {
     const body = await req.json();
+    const apiKey = process.env.GROQ_API_KEY; // Твой новый ключ из Vercel
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://docushorts-pro.vercel.app", 
+        "X-Title": "DocuShorts Pro",
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "meta-llama/llama-3.1-70b-instruct", 
         messages: body.messages,
-        max_tokens: body.max_tokens || 7000
+        max_tokens: 4000,
+        temperature: 0.7
       })
     });
 
-    const textResponse = await response.text();
-
-    let data;
-    try {
-      data = JSON.parse(textResponse);
-    } catch (e) {
-      return new Response(JSON.stringify({ error: "Сбой связи с Groq. Ответ сервера: " + textResponse.substring(0, 100) }), { 
-        status: 500, // Честная ошибка сервера
-        headers: { "Content-Type": "application/json" }
-      });
+    const data = await response.json();
+    if (!response.ok) {
+      return new Response(JSON.stringify({ error: data.error?.message || "OpenRouter Error" }), { status: response.status });
     }
 
-    if (!response.ok || data.error) {
-      const errorMsg = data.error?.message || "Запрос заблокирован.";
-      return new Response(JSON.stringify({ error: errorMsg }), { 
-        status: 400, // Честная ошибка запроса (например, лимиты)
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-
-    const text = data.choices[0].message.content;
-
-    return new Response(JSON.stringify({ text }), {
-      status: 200, // Успех
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(JSON.stringify({ text: data.choices[0].message.content }), { status: 200 });
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: "Внутренний сбой сервера: " + error.message }), {
-      status: 500, // Честная системная ошибка
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
