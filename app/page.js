@@ -117,13 +117,14 @@ You are 'Director-X'. You must output ONLY a valid JSON object. Do not wrap in m
 1. LANGUAGES MUST BE SPLIT:
    - "voice", "visual", "camera", "thumbnail.title", "thumbnail.hook", "thumbnail.cta", "seo.titles", "seo.desc", "retention.feedback" MUST BE IN RUSSIAN (РУССКИЙ ЯЗЫК).
    - "global_anchor_EN", "imgPrompt_EN", "vidPrompt_EN", "music_EN", "b_rolls", "thumbnail.prompt_EN" MUST BE IN ENGLISH.
-2. DETAILED PROMPTS (CRITICAL): Every English prompt (imgPrompt_EN, vidPrompt_EN, b_rolls, thumbnail.prompt_EN) MUST BE HIGHLY DETAILED and LONG (minimum 20-40 words). You MUST describe the subject, environment, lighting (e.g. volumetric, cinematic, dramatic), camera angle (e.g. extreme close-up, wide shot), mood, and textures. DO NOT write short prompts. 
+2. DETAILED PROMPTS (CRITICAL): Every English prompt (imgPrompt_EN, vidPrompt_EN, b_rolls, thumbnail.prompt_EN) MUST BE HIGHLY DETAILED and LONG (minimum 20-40 words). Describe the subject, environment, lighting (e.g. volumetric, cinematic), camera angle (e.g. extreme close-up), mood, and textures. DO NOT write short prompts. 
 3. B-ROLLS RULE: The "b_rolls" array MUST contain 2-3 HIGHLY DETAILED visual prompts in English. DO NOT use placeholders like "Flash b-roll".
 4. PACING: Strictly 3 seconds per scene.
+5. NO Midjourney or Leonardo AI mentions. Design prompts for Grok Super, Veo, Whisk.
 
 JSON STRUCTURE EXACTLY AS THIS:
 {
-  "global_anchor_EN": "Highly detailed English character/location description...",
+  "global_anchor_EN": "Highly detailed English character/location description to maintain consistency across scenes...",
   "retention": { "score": 95, "feedback": "Русский текст анализа..." },
   "frames": [ 
     { 
@@ -196,6 +197,7 @@ export default function Page() {
   const [music, setMusic] = useState("");
   const [seo, setSeo] = useState(null);
   const [rawPrompts, setRawPrompts] = useState("");
+  const [anchor, setAnchor] = useState(""); // <-- Вернули Якорь!
   const [busy, setBusy] = useState(false);
 
   const [bgImage, setBgImage] = useState(null);
@@ -254,6 +256,7 @@ export default function Page() {
       setThumb(data.thumbnail || null); 
       setMusic(data.music_EN || ""); 
       setSeo(data.seo || null);
+      setAnchor(data.global_anchor_EN || ""); // Сохраняем якорь в стейт
       
       if (data.thumbnail) { 
         setCovTitle(data.thumbnail.title || ""); 
@@ -326,6 +329,7 @@ export default function Page() {
       
       const req = `СТРОГОЕ ПРАВИЛО ПО ЯЗЫКАМ: Сценарий (voice, visual, camera) и SEO - строго на ${lang === "RU" ? "РУССКОМ" : "АНГЛИЙСКОМ"}. Промпты - на АНГЛИЙСКОМ.
 СТРОГОЕ ПРАВИЛО ДЕТАЛИЗАЦИИ: Промпты для картинок, видео, обложки и B-Rolls ДОЛЖНЫ БЫТЬ МАКСИМАЛЬНО ДЛИННЫМИ И ДЕТАЛЬНЫМИ (минимум 20-40 слов). Обязательно описывай атмосферу, освещение, текстуры, ракурс камеры и детали объектов! Короткие промпты запрещены. Прикрепи "shot on Arri Alexa 65, 8k resolution, photorealistic, cinematic lighting" к каждому промпту.
+ОБЯЗАТЕЛЬНО: Создай мощный "global_anchor_EN" для согласованности.
 
 ТЕМА: ${topic}
 ЖАНР: ${genre}
@@ -559,6 +563,17 @@ ${currentScript}
 
           {tab==="storyboard" && (
             <div>
+              {/* ВЫВОД ГЛОБАЛЬНОГО ЯКОРЯ */}
+              {anchor && (
+                <div style={{...S.section, border:"1px solid rgba(56,189,248,0.3)", background:"rgba(56,189,248,0.05)"}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
+                    <span style={{fontSize:12, fontWeight:900, color:"#38bdf8", textTransform:"uppercase"}}>⚓ Глобальный якорь (Референс персонажа/локации)</span>
+                    <CopyBtn text={anchor} small/>
+                  </div>
+                  <div style={{fontSize:13, fontFamily:"monospace", color:"#bae6fd", lineHeight:1.5}}>{anchor}</div>
+                </div>
+              )}
+              
               {frames.map((f,i)=>(
                 <div key={i} style={{...S.section, position:"relative", overflow:"hidden"}}>
                   <div style={{display:"flex", justifyContent:"space-between", marginBottom:16}}><span style={{fontSize:12, fontWeight:900, color:"#ef4444", display:"flex", alignItems:"center", gap:6}}><span style={{width:8,height:8,background:"#ef4444",borderRadius:"50%",animation:"blink 1.5s infinite"}}/> REC {String(i+1).padStart(2,"0")}</span><span style={{fontSize:10, color:"#cbd5e1", background:"rgba(255,255,255,0.1)", padding:"4px 8px", borderRadius:6, fontFamily:"monospace"}}>TC: {f.timecode}</span></div>
