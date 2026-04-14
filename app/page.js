@@ -40,14 +40,14 @@ const NeuralBackground = () => {
 
 // --- КОНСТАНТЫ И ПРЕСЕТЫ ---
 const GENRE_PRESETS = {
-  "КРИМИНАЛ":      { icon:"🔫", col:"#ef4444" }, 
-  "ТАЙНА":         { icon:"🔍", col:"#a855f7" },
-  "ИСТОРИЯ":       { icon:"📜", col:"#f97316" }, 
-  "НАУКА":         { icon:"⚗",  col:"#06b6d4" },
-  "ВОЙНА":         { icon:"⚔",  col:"#dc2626" }, 
-  "ПРИРОДА":       { icon:"🌿", col:"#22c55e" },
-  "ПСИХОЛОГИЯ":    { icon:"🧠", col:"#ec4899" }, 
-  "ЗАГАДКИ":       { icon:"👁", col:"#fbbf24" },
+  "КРИМИНАЛ":      { icon:"🔫", col:"#ef4444", defaultFont: "'Creepster', cursive", defaultColor: "#ef4444" }, 
+  "ТАЙНА":         { icon:"🔍", col:"#a855f7", defaultFont: "'Creepster', cursive", defaultColor: "#a855f7" },
+  "ИСТОРИЯ":       { icon:"📜", col:"#f97316", defaultFont: "'Cinzel', serif", defaultColor: "#fbbf24" }, 
+  "НАУКА":         { icon:"⚗",  col:"#06b6d4", defaultFont: "'Montserrat', sans-serif", defaultColor: "#0ea5e9" },
+  "ВОЙНА":         { icon:"⚔",  col:"#dc2626", defaultFont: "Impact, sans-serif", defaultColor: "#ffffff" }, 
+  "ПРИРОДА":       { icon:"🌿", col:"#22c55e", defaultFont: "'Montserrat', sans-serif", defaultColor: "#22c55e" },
+  "ПСИХОЛОГИЯ":    { icon:"🧠", col:"#ec4899", defaultFont: "'Cinzel', serif", defaultColor: "#ffffff" }, 
+  "ЗАГАДКИ":       { icon:"👁", col:"#fbbf24", defaultFont: "Impact, sans-serif", defaultColor: "#ffdd00" },
 };
 
 const FORMATS = [ { id:"9:16", label:"Вертикальный", ratio:"9/16" }, { id:"16:9", label:"Горизонтальный", ratio:"16/9" }, { id:"1:1", label:"Квадрат", ratio:"1/1" } ];
@@ -62,19 +62,31 @@ const VISUAL_ENGINES = {
 const DURATION_SECONDS = { "15 сек": 15, "30–45 сек": 40, "До 60 сек": 60, "1.5 мин": 90, "3 мин": 180 };
 const DURATIONS = Object.keys(DURATION_SECONDS);
 
+// Очищенные от жестких left/top шаблоны для умного позиционирования
 const COVER_PRESETS = [
-  { id: "netflix", label: "Netflix", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, fontFamily: "'Georgia', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,0.9)", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
-  { id: "mrbeast", label: "MrBeast", style: { container: { alignItems: "center" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", textTransform: "uppercase", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", transform: "rotate(-3deg)", marginBottom: 4 }, title: { fontSize: 40, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px #ff00ff", transform: "rotate(-3deg)", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, textTransform: "uppercase", transform: "rotate(-3deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" } } },
-  { id: "tiktok", label: "TikTok", style: { container: { alignItems: "center" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12 }, title: { fontSize: 28, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "truecrime", label: "True Crime", style: { container: { alignItems: "flex-start" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 34, fontWeight: 900, fontFamily: "'Arial Black', sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "history", label: "Dark History", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 400, fontFamily: "'Georgia', serif", color: "#d4af37", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 36, fontWeight: 900, fontFamily: "'Cinzel', serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 10px 30px #000, 0 2px 4px #000", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: 2, textTransform: "uppercase", borderTop: "1px solid #d4af37", paddingTop: 6 } } },
-  { id: "breaking", label: "Новости", style: { container: { alignItems: "flex-start" }, hook: { fontSize: 14, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", background: "#ef4444", padding: "4px 10px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 32, fontWeight: 900, fontFamily: "sans-serif", color: "#000", background: "#fff", padding: "4px 12px", textTransform: "uppercase", lineHeight: 1.1, textAlign: "left", marginBottom: 12 }, cta: { fontSize: 12, fontWeight: 900, color: "#ef4444", textTransform: "uppercase", background:"#000", padding:"2px 8px" } } },
-  { id: "cyber", label: "Cyberpunk", style: { container: { alignItems: "center" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#fef08a", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8, textShadow: "0 0 10px #fef08a" }, title: { fontSize: 34, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.1, textShadow: "2px 2px 0px #0ea5e9, -2px -2px 0px #ec4899", textAlign: "center", marginBottom: 12, fontStyle: "italic" }, cta: { fontSize: 11, fontWeight: 900, color: "#000", background: "#0ea5e9", padding: "4px 12px", textTransform: "uppercase", boxShadow: "0 0 15px #0ea5e9" } } },
-  { id: "minimal", label: "Minimal", style: { container: { alignItems: "center" }, hook: { fontSize: 10, fontWeight: 500, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", letterSpacing: 4, marginBottom: 12, opacity: 0.7 }, title: { fontSize: 30, fontWeight: 300, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", lineHeight: 1.2, textAlign: "center", marginBottom: 16, letterSpacing: 2 }, cta: { fontSize: 9, fontWeight: 400, color: "#fff", border: "1px solid rgba(255,255,255,0.3)", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "edge", label: "Vertical Edge", style: { container: { left: "15%", top: "50%", transform: "translate(-50%, -50%) rotate(-90deg)", alignItems: "flex-end", width: "120%", height:"auto" }, hook: { fontSize: 14, color: "#fff", background: "#ef4444", padding: "4px 12px", letterSpacing: 2 }, title: { fontSize: 44, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", whiteSpace:"nowrap", textShadow:"0 4px 10px rgba(0,0,0,0.8)" }, cta: { display:"none" } } },
-  { id: "zpattern", label: "Z-Pattern", style: { container: { left: "0", top: "0", transform: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding:"30px 20px" }, hook: { alignSelf: "flex-start", fontSize: 13, background: "#fff", color: "#000", padding: "6px 12px", fontWeight:900 }, title: { alignSelf: "center", textAlign: "center", fontSize: 36, fontWeight: 900, color: "#fff", textShadow: "0 8px 30px #000" }, cta: { alignSelf: "flex-end", fontSize: 12, color: "#0ea5e9", borderBottom: "2px solid #0ea5e9", paddingBottom:4, fontWeight:900 } } },
-  { id: "sidebar", label: "Sidebar", style: { container: { left: "0", top: "0", transform: "none", width: "45%", height: "100%", background: "rgba(0,0,0,0.85)", padding: "20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", borderRight: "2px solid #a855f7" }, hook: { color: "#a855f7", fontSize: 12, marginBottom: 15, fontWeight:800, letterSpacing:1 }, title: { color: "#fff", fontSize: 26, fontWeight: 900, textAlign: "left", marginBottom: 25, lineHeight:1.1 }, cta: { color: "#000", background: "#a855f7", padding: "8px 16px", fontSize: 10, fontWeight:900, textTransform:"uppercase" } } },
-  { id: "cinematic", label: "Cinematic", style: { container: { left: "0", top: "0", transform: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "center" }, hook: { width: "100%", background: "#000", color: "#fff", textAlign: "center", padding: "12px", fontSize: 11, letterSpacing: 4, textTransform:"uppercase" }, title: { width: "100%", background: "#000", color: "#fff", textAlign: "center", padding: "20px 10px", fontSize: 28, fontWeight: 900, marginBottom: 0, textTransform:"uppercase" }, cta: { position: "absolute", bottom: "12%", fontSize: 10, color: "#fff", border: "1px solid rgba(255,255,255,0.5)", padding: "6px 14px", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" } } }
+  { id: "netflix", label: "Netflix", defaultX: 50, defaultY: 50, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px rgba(0,0,0,0.9)", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
+  { id: "mrbeast", label: "MrBeast", defaultX: 50, defaultY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", textTransform: "uppercase", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", transform: "rotate(-3deg)", marginBottom: 4 }, title: { fontSize: 40, fontWeight: 900, textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px rgba(0,0,0,0.8)", transform: "rotate(-3deg)", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, textTransform: "uppercase", transform: "rotate(-3deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" } } },
+  { id: "tiktok", label: "TikTok", defaultX: 50, defaultY: 50, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12 }, title: { fontSize: 28, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
+  { id: "sidebar", label: "Sidebar", defaultX: 25, defaultY: 50, style: { container: { width: "50%", height: "100%", background: "rgba(0,0,0,0.85)", padding: "20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", borderRight: "2px solid #a855f7" }, hook: { color: "#a855f7", fontSize: 12, marginBottom: 15, fontWeight:800, letterSpacing:1 }, title: { fontSize: 28, fontWeight: 900, textAlign: "left", marginBottom: 25, lineHeight:1.1 }, cta: { color: "#000", background: "#a855f7", padding: "8px 16px", fontSize: 10, fontWeight:900, textTransform:"uppercase" } } },
+  { id: "edge", label: "Vertical Edge", defaultX: 15, defaultY: 50, style: { container: { alignItems: "flex-end", width: "120%", height:"auto", customTransform: "translate(-50%, -50%) rotate(-90deg)" }, hook: { fontSize: 14, color: "#fff", background: "#ef4444", padding: "4px 12px", letterSpacing: 2 }, title: { fontSize: 44, fontWeight: 900, textTransform: "uppercase", whiteSpace:"nowrap", textShadow:"0 4px 10px rgba(0,0,0,0.8)" }, cta: { display:"none" } } },
+  { id: "zpattern", label: "Z-Pattern", defaultX: 50, defaultY: 50, style: { container: { width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding:"30px 20px" }, hook: { alignSelf: "flex-start", fontSize: 13, background: "#fff", color: "#000", padding: "6px 12px", fontWeight:900 }, title: { alignSelf: "center", textAlign: "center", fontSize: 36, fontWeight: 900, textShadow: "0 8px 30px #000" }, cta: { alignSelf: "flex-end", fontSize: 12, color: "#0ea5e9", borderBottom: "2px solid #0ea5e9", paddingBottom:4, fontWeight:900 } } }
+];
+
+const FONTS = [
+  { id: "Impact, sans-serif", label: "Viral (Толстый)" },
+  { id: "'Creepster', cursive", label: "Horror (Рваный)" },
+  { id: "'Cinzel', serif", label: "Cinematic (Кино)" },
+  { id: "'Montserrat', sans-serif", label: "Clean (Док)" },
+  { id: "'Courier New', monospace", label: "Secret (Машинка)" }
+];
+
+const COLORS = [
+  { id: "#ffffff", label: "Белый" },
+  { id: "#ffdd00", label: "Желтый" },
+  { id: "#ef4444", label: "Кровавый" },
+  { id: "#0ea5e9", label: "Неоновый" },
+  { id: "#a855f7", label: "Фиолетовый" },
+  { id: "#22c55e", label: "Токсичный" }
 ];
 
 // --- СИСТЕМНЫЕ ПРОМПТЫ ---
@@ -89,27 +101,24 @@ Rule: For character_ref_EN, if the story mentions ANY human, historical figure, 
 
 JSON FORMAT:
 {
-  "character_ref_EN": "Create a professional character reference sheet for: [CHARACTER DESC]. Use a clean, neutral solid background and present the sheet as a technical model turnaround in a photographic style. Organize the composition into two horizontal rows. Top row: four full-body views... (front, left, right, back). Bottom row: three close-up portraits. A-pose, accurate anatomy, identical flat lighting. 8k. (IF NO CHARACTER IN STORY, WRITE: 'No character in this scene')",
-  "location_ref_EN": "A wide architectural establishing shot of [LOCATION], empty space, highly detailed environment design, clean perspective, 8k.",
-  "style_ref_EN": "[Era/Atmosphere tags, e.g., 1980s Soviet cold war aesthetic, grainy vintage film, dim fluorescent lighting, muted colors]",
+  "character_ref_EN": "Create a professional character reference sheet for: [CHARACTER DESC]. Use a clean, neutral solid background and present the sheet as a technical model turnaround in a photographic style. Organize the composition into two horizontal rows. Top row: four full-body views... (front, left, right, back). Bottom row: three close-up portraits. A-pose, accurate anatomy, identical flat lighting. 8k.",
+  "location_ref_EN": "A wide architectural establishing shot of [LOCATION]...",
+  "style_ref_EN": "[Era/Atmosphere tags...]",
   "retention": { "score": 95, "feedback": "Анализ..." },
-  "frames": [ 
-    { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Шум", "text_on_screen": "ТИТР", "voice": "Текст диктора" } 
-  ],
+  "frames": [ { "timecode": "0-3 сек", "camera": "Наезд", "visual": "Описание кадра", "sfx": "Шум", "text_on_screen": "ТИТР", "voice": "Текст диктора" } ],
   "thumbnail": { "title": "ЗАГОЛОВАК", "hook": "ХУК", "cta": "СМОТРЕТЬ" },
-  "music_EN": "Dark cinematic orchestral score, ominous deep cello, eerie atmospheric choir, high tension buildup, ticking clock rhythm, 120 BPM, thriller soundtrack",
-  "seo": { "titles": ["Viral Title 1", "Viral Title 2"], "desc": "Cliffhanger...", "tags": ["#broad1", "#niche1", "#niche2", "#niche3", "#niche4"] }
+  "music_EN": "Dark cinematic orchestral score, ominous deep cello...",
+  "seo": { "titles": ["Viral Title 1", "Viral Title 2"], "desc": "Cliffhanger...", "tags": ["#tag1", "#tag2"] }
 }`;
 
 const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON. DO NOT use newlines (\\n) inside string values.
-Based on the storyboard, generate highly detailed English visual descriptions for frames.
-DO NOT add style tags (like 8k, cinematic, 2.5D), DO NOT add audio descriptions. JUST the pure visual subject and action. Make them 20-30 words.
+Based on the storyboard, generate highly detailed English visual descriptions for frames. Make them 20-30 words.
 
 JSON FORMAT:
 {
   "frames_prompts": [ { "imgPrompt_EN": "A close up of...", "vidPrompt_EN": "A close up of..." } ],
   "b_rolls": [ "Extreme close up of...", "Detailed English prompt 2..." ],
-  "thumbnail_prompt_EN": "Highly detailed English prompt for the thumbnail background. Rule: Main subject (face or artifact) MUST take 40-60% of the frame. Emotion: shock/mystery. MUST include: 'dark empty background space for text layout', 8k, photorealistic."
+  "thumbnail_prompt_EN": "Analyze the core mystery of the story. The thumbnail MUST feature the main enigmatic object or central mysterious character (e.g., 'The Iron Mask', 'The empty bunker'). DO NOT focus on secondary characters just because their names are mentioned. Create a visual hook that sparks extreme curiosity. Rule: Main subject MUST take 40-60% of the frame. Emotion: shock/mystery. MUST include: 'dark empty background space for text layout', 8k, photorealistic."
 }`;
 
 // --- ФУНКЦИИ ---
@@ -149,6 +158,7 @@ function CopyBtn({ text, label="Копировать", small=false }) {
 export default function Page() {
   const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [clicks, setClicks] = useState(0); // Для God Mode
   
   const [topic, setTopic] = useState("");
   const [finalTwist, setFinalTwist] = useState(""); 
@@ -187,12 +197,16 @@ export default function Page() {
   const [bgImage, setBgImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [showSafeZone, setShowSafeZone] = useState(false); 
+  
+  // Cover State
   const [covTitle, setCovTitle] = useState("");
   const [covHook, setCovHook] = useState("");
   const [covCta, setCovCta] = useState("");
   const [covDark, setCovDark] = useState(50);
   const [covX, setCovX] = useState(50);
   const [covY, setCovY] = useState(50);
+  const [covFont, setCovFont] = useState(FONTS[1].id);
+  const [covColor, setCovColor] = useState(COLORS[0].id);
   const [activePreset, setActivePreset] = useState("netflix");
 
   const [history, setHistory] = useState([]);
@@ -204,11 +218,9 @@ export default function Page() {
   // --- ИНИЦИАЛИЗАЦИЯ И БИЛЛИНГ ---
   useEffect(() => { 
     if (typeof window !== "undefined") { 
-      // Загрузка Истории
       const savedHist = localStorage.getItem("ds_history"); 
       if (savedHist) setHistory(JSON.parse(savedHist)); 
 
-      // Загрузка Черновика
       const savedDraft = localStorage.getItem("ds_draft");
       if (savedDraft) {
          try {
@@ -221,7 +233,6 @@ export default function Page() {
       }
       setDraftLoaded(true);
 
-      // Загрузка Биллинга (Кристаллы)
       const today = new Date().toLocaleDateString();
       const savedBilling = localStorage.getItem("ds_billing");
       if (savedBilling) {
@@ -241,13 +252,32 @@ export default function Page() {
     } 
   }, []);
 
+  // Авто-смена шрифта и цвета при смене жанра
+  useEffect(() => {
+    if (GENRE_PRESETS[genre]) {
+      setCovFont(GENRE_PRESETS[genre].defaultFont);
+      setCovColor(GENRE_PRESETS[genre].defaultColor);
+    }
+  }, [genre]);
+
   useEffect(() => {
     if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist}));
   }, [topic, script, genre, finalTwist, draftLoaded]);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({top:0,behavior:"smooth"}); }, [view]);
 
-  // Списание кристалла
+  // God Mode (5 тапов)
+  const handleGodMode = () => {
+    setClicks(c => c + 1);
+    if (clicks + 1 >= 5) {
+      setTokens(999);
+      localStorage.setItem("ds_billing", JSON.stringify({ tokens: 999, date: new Date().toLocaleDateString() }));
+      alert("✨ GOD MODE ACTIVATED: 💎 999 ✨");
+      setClicks(0);
+    }
+    setTimeout(() => setClicks(0), 1500);
+  };
+
   const deductToken = () => {
     setTokens(prev => {
       const next = prev - 1;
@@ -257,15 +287,19 @@ export default function Page() {
   };
 
   const checkTokens = () => { 
-    if (tokens <= 0) { 
-      setShowPaywall(true); 
-      return false; 
-    } 
+    if (tokens <= 0) { setShowPaywall(true); return false; } 
     return true; 
   };
 
   const deleteFromHistory = (id) => { setHistory(prev => { const next = prev.filter(item => item.id !== id); localStorage.setItem("ds_history", JSON.stringify(next)); return next; }); };
   const clearHistory = () => { if(confirm("Очистить архив проектов?")) { setHistory([]); localStorage.removeItem("ds_history"); } };
+
+  // Умный выбор пресета
+  const applyPreset = (presetId) => {
+    setActivePreset(presetId);
+    const p = COVER_PRESETS.find(x => x.id === presetId);
+    if (p) { setCovX(p.defaultX); setCovY(p.defaultY); }
+  };
 
   async function handleGenerateHooks() {
     if (!topic.trim()) return alert("Сначала введите Тему!");
@@ -300,7 +334,6 @@ export default function Page() {
     let scriptTxt = frms.map((f, i) => `КАДР ${i+1} [${f.timecode || ''}]\n👁 Визуал: ${f.visual}\n🔊 Звук: ${f.sfx||''}\n🔤 Титры: ${f.text_on_screen||''}\n🎙 Диктор: «${f.voice}»`).join("\n\n");
     let imgTxt = s2done ? frms.map(f => f.imgPrompt_EN).filter(Boolean).join("\n\n") : "";
     let vidTxt = s2done ? frms.map(f => f.vidPrompt_EN).filter(Boolean).join("\n\n") : "";
-    
     setRawScript(scriptTxt); setRawImg(imgTxt); setRawVid(vidTxt);
   }
 
@@ -325,16 +358,8 @@ export default function Page() {
       const text = await callAPI(req, 8000, SYS_STEP_1);
       const data = cleanJSON(text);
       
-      setFrames(data.frames || []); 
-      setRetention(data.retention || null);
-      setThumb(data.thumbnail || null); 
-      setMusic(data.music_EN || ""); 
-      setSeo(data.seo || null);
-      
-      setCharRef(data.character_ref_EN || ""); 
-      setLocRef(data.location_ref_EN || ""); 
-      setStyleRef(data.style_ref_EN || ""); 
-      
+      setFrames(data.frames || []); setRetention(data.retention || null); setThumb(data.thumbnail || null); setMusic(data.music_EN || ""); setSeo(data.seo || null);
+      setCharRef(data.character_ref_EN || ""); setLocRef(data.location_ref_EN || ""); setStyleRef(data.style_ref_EN || ""); 
       setBRolls([]); setStep2Done(false);
       
       if (data.thumbnail) { setCovTitle(data.thumbnail.title || ""); setCovHook(data.thumbnail.hook || ""); setCovCta(data.thumbnail.cta || "СМОТРЕТЬ"); }
@@ -355,10 +380,7 @@ export default function Page() {
     setBusy(true); setLoadingMsg("Шаг 2: Генерируем 8k PRO-промпты..."); setView("loading");
     try {
       const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual}`).join("\n");
-      const req = `STORYBOARD:
-${storyboardLite}
-
-Generate exactly ${frames.length} English visual prompts. Make them 20-30 words. No audio/style tags.`;
+      const req = `STORYBOARD:\n${storyboardLite}\n\nGenerate exactly ${frames.length} English visual prompts. Make them 20-30 words. No audio/style tags.`;
 
       const text = await callAPI(req, 8000, SYS_STEP_2);
       const data = cleanJSON(text);
@@ -372,17 +394,13 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
         
         let vPrompt = (p.vidPrompt_EN || f.visual) + sfxText + `, ${finalStyle}, 8k, masterpiece`;
         let iPrompt = (p.imgPrompt_EN || f.visual) + `, ${finalStyle}, 8k, masterpiece`;
-
         return { ...f, imgPrompt_EN: iPrompt, vidPrompt_EN: vPrompt };
       });
       
       let updatedThumb = thumb;
       if(data.thumbnail_prompt_EN && thumb) updatedThumb = {...thumb, prompt_EN: data.thumbnail_prompt_EN};
 
-      setFrames(updatedFrames); 
-      setBRolls(data.b_rolls || []);
-      setThumb(updatedThumb);
-      setStep2Done(true);
+      setFrames(updatedFrames); setBRolls(data.b_rolls || []); setThumb(updatedThumb); setStep2Done(true);
       
       rebuildRawText(updatedFrames, true);
       deductToken();
@@ -426,7 +444,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       <NeuralBackground />
       <style>{`
         *{box-sizing:border-box;margin:0;padding:0}
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@800;900&family=Creepster&display=swap');
         @keyframes blink { 0%, 100% {opacity:1} 50% {opacity:0.3} }
         @keyframes pulse-glow { 0% {box-shadow: 0 0 15px rgba(236,72,153,0.5);} 50% {box-shadow: 0 0 30px rgba(236,72,153,1);} 100% {box-shadow: 0 0 15px rgba(236,72,153,0.5);} }
         @keyframes spin {to{transform:rotate(360deg)}}
@@ -471,20 +489,10 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                   <div style={{display:"flex", gap:8}}>
                     <button onClick={()=>{
                       const d = JSON.parse(item.text);
-                      setFrames(d.frames || []);
-                      setRetention(d.retention || null);
-                      setThumb(d.thumb || null);
-                      setMusic(d.music || "");
-                      setSeo(d.seo || null);
-                      setCharRef(d.charRef || "");
-                      setLocRef(d.locRef || "");
-                      setStyleRef(d.styleRef || "");
-                      setBRolls(d.bRolls || []);
-                      setStep2Done(d.step2Done || false);
+                      setFrames(d.frames || []); setRetention(d.retention || null); setThumb(d.thumb || null); setMusic(d.music || ""); setSeo(d.seo || null);
+                      setCharRef(d.charRef || ""); setLocRef(d.locRef || ""); setStyleRef(d.styleRef || ""); setBRolls(d.bRolls || []); setStep2Done(d.step2Done || false);
                       if(d.thumb) { setCovTitle(d.thumb.title || ""); setCovHook(d.thumb.hook || ""); setCovCta(d.thumb.cta || "СМОТРЕТЬ"); }
-                      rebuildRawText(d.frames || [], d.step2Done);
-                      setShowHistory(false);
-                      setView("result");
+                      rebuildRawText(d.frames || [], d.step2Done); setShowHistory(false); setView("result");
                     }} style={{background:"#10b981", border:"none", borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:11, fontWeight:800, cursor:"pointer"}}>ОТКРЫТЬ</button>
                     <button onClick={()=>deleteFromHistory(item.id)} style={{background:"#ef4444", border:"none", borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:11, fontWeight:800, cursor:"pointer"}}>УДАЛИТЬ</button>
                   </div>
@@ -503,7 +511,7 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
       <nav style={S.nav}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {view==="result" && <button onClick={()=>setView("form")} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:24}}>‹</button>}
-          <span style={{fontSize:18,fontWeight:900,color:"#fff",letterSpacing:-0.5}}>DOCU<span style={{color:"#a855f7"}}>SHORTS</span></span>
+          <span onClick={handleGodMode} style={{fontSize:18,fontWeight:900,color:"#fff",letterSpacing:-0.5, cursor:"pointer"}}>DOCU<span style={{color:"#a855f7"}}>SHORTS</span></span>
           {view==="form" && frames.length>0 && <button onClick={()=>setView("result")} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:24}}>›</button>}
         </div>
         <div style={{display:"flex",gap:12, alignItems:"center"}}>
@@ -635,15 +643,15 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
             
             <div style={{padding:24}}>
               <div className="hide-scroll" style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:16, marginBottom:10}}>
-                {COVER_PRESETS.map(p=>(<button key={p.id} onClick={()=>setActivePreset(p.id)} style={{flexShrink:0, padding:"8px 14px", borderRadius:10, border:`1px solid ${activePreset===p.id?"#a855f7":"rgba(255,255,255,0.1)"}`, background:activePreset===p.id?"rgba(168,85,247,0.2)":"rgba(0,0,0,0.3)", color:activePreset===p.id?"#fff":"rgba(255,255,255,0.5)", fontSize:11, fontWeight:800, cursor:"pointer", textTransform:"uppercase"}}>{p.label}</button>))}
+                {COVER_PRESETS.map(p=>(<button key={p.id} onClick={()=>applyPreset(p.id)} style={{flexShrink:0, padding:"8px 14px", borderRadius:10, border:`1px solid ${activePreset===p.id?"#a855f7":"rgba(255,255,255,0.1)"}`, background:activePreset===p.id?"rgba(168,85,247,0.2)":"rgba(0,0,0,0.3)", color:activePreset===p.id?"#fff":"rgba(255,255,255,0.5)", fontSize:11, fontWeight:800, cursor:"pointer", textTransform:"uppercase"}}>{p.label}</button>))}
               </div>
 
               <div style={{display:"flex", justifyContent:"center", marginBottom:12}}>
                 <div id="thumbnail-export" style={{width:320, aspectRatio:currFormat.ratio, position:"relative", background:bgImage?`url(${bgImage}) center/cover no-repeat`:"#111", overflow:"hidden"}}>
                   <div style={{position:"absolute", inset:0, background:`linear-gradient(to top, rgba(0,0,0,${covDark/100}) 0%, rgba(0,0,0,${covDark/200}) 50%, transparent 100%)`, zIndex:1}} />
-                  <div style={{position:"absolute", left:`${covX}%`, top:`${covY}%`, transform:"translate(-50%,-50%)", width:"90%", zIndex:2, display:"flex", flexDirection:"column", alignItems:activeStyle.container?.alignItems || "center", textAlign:activeStyle.title?.textAlign || "center", ...activeStyle.container}}>
+                  <div style={{...activeStyle.container, position:"absolute", left:`${covX}%`, top:`${covY}%`, transform: activeStyle.container.customTransform || "translate(-50%,-50%)", zIndex:2 }}>
                     <div style={activeStyle.hook}>{covHook}</div>
-                    <div style={{...activeStyle.title, wordWrap:"break-word"}}>{covTitle}</div>
+                    <div style={{...activeStyle.title, fontFamily: covFont, color: covColor, wordWrap:"break-word"}}>{covTitle}</div>
                     <div style={activeStyle.cta}>{covCta}</div>
                   </div>
                   {showSafeZone && vidFormat === "9:16" && (
@@ -667,15 +675,27 @@ Generate exactly ${frames.length} English visual prompts. Make them 20-30 words.
                    <input type="text" value={covCta} onChange={e=>setCovCta(e.target.value)} placeholder="Нижний текст (CTA)" style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", padding:"12px", borderRadius:10, color:"#fff", fontSize:13}} />
                  </div>
                  
-                 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
+                 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20}}>
                    <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция X</label><input type="range" min="0" max="100" value={covX} onChange={e=>setCovX(e.target.value)} style={{width:"100%"}}/></div>
                    <div><label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Позиция Y</label><input type="range" min="0" max="100" value={covY} onChange={e=>setCovY(e.target.value)} style={{width:"100%"}}/></div>
                  </div>
+
+                 {/* Мини-Canva: Шрифты и Цвета */}
+                 <div style={{background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:12, padding:16, marginBottom:16}}>
+                    <label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:10, display:"block"}}>Атмосфера текста</label>
+                    <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:8, marginBottom:8}} className="hide-scroll">
+                      {FONTS.map(f => ( <button key={f.id} onClick={()=>setCovFont(f.id)} style={{background:covFont===f.id?"rgba(168,85,247,0.2)":"rgba(0,0,0,0.5)", border:`1px solid ${covFont===f.id?"#a855f7":"rgba(255,255,255,0.1)"}`, color:"#fff", padding:"6px 12px", borderRadius:8, fontSize:11, fontFamily:f.id, whiteSpace:"nowrap", cursor:"pointer"}}>{f.label}</button> ))}
+                    </div>
+                    <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                      {COLORS.map(c => ( <div key={c.id} onClick={()=>setCovColor(c.id)} style={{width:24, height:24, borderRadius:"50%", background:c.id, cursor:"pointer", border:covColor===c.id?"3px solid #fff":"1px solid rgba(255,255,255,0.2)", boxShadow:covColor===c.id?`0 0 10px ${c.id}`:"none"}}/> ))}
+                      <input type="color" value={covColor} onChange={e=>setCovColor(e.target.value)} style={{width:26, height:26, padding:0, border:"none", borderRadius:"50%", cursor:"pointer", background:"none"}}/>
+                    </div>
+                 </div>
+
                  <label style={{fontSize:10, color:"#94a3b8", fontWeight:800, textTransform:"uppercase", marginBottom:8, display:"block"}}>Затемнение картинки</label>
                  <input type="range" min="0" max="100" value={covDark} onChange={e=>setCovDark(e.target.value)} style={{width:"100%"}}/>
               </div>
 
-              {/* НОВЫЙ БЛОК: Специальный промпт для обложки (Появляется после Шага 2) */}
               {step2Done && thumb?.prompt_EN && (
                 <div style={{background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.4)", borderRadius:16, padding:16, marginBottom:20}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
