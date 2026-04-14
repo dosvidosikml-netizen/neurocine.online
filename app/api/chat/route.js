@@ -18,9 +18,9 @@ export async function POST(req) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.3-70b-instruct", // Умная и качественная модель
+        model: "meta-llama/llama-3.3-70b-instruct",
         provider: {
-          require: ["groq"] // 🔥 ЧИТ-КОД: Принудительно используем сверхбыстрые чипы Groq
+          order: ["Groq"] // 🔥 Исправил опечатку: теперь OpenRouter поймет команду
         },
         messages: body.messages,
         max_tokens: 3000,
