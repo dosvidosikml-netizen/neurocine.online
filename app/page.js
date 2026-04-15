@@ -261,7 +261,7 @@ export default function Page() {
   const [lang, setLang] = useState("RU"); 
   
   // UI состояния
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(true); // Откроем настройки по умолчанию для удобства
   const [showTTS, setShowTTS] = useState(false);
   const [hooksList, setHooksList] = useState([]); 
   const [view, setView] = useState("form");
@@ -462,8 +462,20 @@ export default function Page() {
     if (!topic.trim()) return alert("Введите тему!");
     setBusy(true); setLoadingMsg("Пишем сценарий..."); setView("loading");
     try {
-      const sec = DURATION_SECONDS[dur] || 60; const maxWords = Math.floor(sec * 2.2); 
-      const sysTxt = `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Без слова "Диктор:". Жанр: ${genre}. ОГРАНИЧЕНИЕ: СТРОГО не более ${maxWords} слов! Последнее предложение - байт на комментарий.`;
+      const sec = DURATION_SECONDS[dur] || 60; 
+      
+      // ЖЕСТКИЙ ЛИМИТ СЛОВ ДЛЯ РИТМА
+      let wordLimitRule = "";
+      if (sec <= 15) wordLimitRule = "СТРОГО от 30 до 40 слов";
+      else if (sec <= 40) wordLimitRule = "СТРОГО от 70 до 90 слов";
+      else if (sec <= 60) wordLimitRule = "СТРОГО от 120 до 140 слов";
+      else if (sec <= 90) wordLimitRule = "СТРОГО от 180 до 200 слов";
+      else wordLimitRule = `СТРОГО около ${Math.floor(sec * 2.2)} слов`;
+
+      const sysTxt = `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Без слова "Диктор:". Жанр: ${genre}. 
+ОГРАНИЧЕНИЕ: Напиши текст объемом ${wordLimitRule}. Это критически важно для удержания тайминга! Если текст будет коротким, ритм сломается. Расширяй историю деталями, чтобы попасть в точное количество слов.
+Последнее предложение - байт на комментарий. ${finalTwist ? `Интрига: ${finalTwist}` : ""}`;
+      
       const text = await callAPI(`Тема: ${topic}`, 3000, sysTxt);
       setScript(text.replace(/Диктор:\s*/gi, "").trim()); setHooksList([]);
     } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); setView("form"); }
@@ -764,31 +776,7 @@ export default function Page() {
             </div>
           </div>
 
-          <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24, backdropFilter:"blur(20px)"}}>
-             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-               <label style={{fontSize:11, fontWeight:800, letterSpacing:2, color:"#94a3b8", display:"block", marginBottom:0, textTransform:"uppercase"}}>📝 Сценарий</label>
-               <div style={{display:"flex", gap:8}}>
-                 <CopyBtn text={script} small />
-                 <button onClick={handleGenerateHooks} disabled={busy || !topic.trim()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
-               </div>
-             </div>
-             
-             {hooksList.length > 0 && (
-               <div style={{background:"rgba(0,0,0,0.3)", border:"1px dashed rgba(249,115,22,0.3)", borderRadius:12, padding:12, marginBottom:16}}>
-                 <div style={{display:"flex", flexDirection:"column", gap:6}}>
-                   {hooksList.map((h, i) => ( <div key={i} onClick={() => { setScript(h + " " + script); setHooksList([]); }} style={{background:"rgba(255,255,255,0.05)", padding:10, borderRadius:8, fontSize:13, color:"#fcd34d", cursor:"pointer", borderLeft:"3px solid #f59e0b"}}>{h}</div> ))}
-                 </div>
-               </div>
-             )}
-             
-             <textarea rows={5} value={script} onChange={e => setScript(e.target.value)} placeholder="Вставьте текст или нажмите 'Написать'..." style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px solid rgba(255,255,255,.1)", borderRadius:16, padding:16, fontSize:14, color:"#cbd5e1", marginBottom:16, resize:"none"}}/>
-             
-             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-               <button onClick={handleDraftText} disabled={busy || !topic.trim()} style={{background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>✍️ Написать текст</button>
-               <button onClick={() => setShowTTS(!showTTS)} style={{background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.3)", color:"#7dd3fc", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>⚙️ Голос (TTS)</button>
-             </div>
-          </div>
-
+          {/* НАСТРОЙКИ (ТЕПЕРЬ НАВЕРХУ!) */}
           <div style={{marginBottom: 24}}>
              <button onClick={() => setSettingsOpen(!settingsOpen)} style={{width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)", padding:"16px 24px", borderRadius:settingsOpen ? "24px 24px 0 0" : 24, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", textTransform:"uppercase"}}>
                <span>⚙️ Технические настройки</span><span>{settingsOpen ? "▲" : "▼"}</span>
@@ -831,6 +819,31 @@ export default function Page() {
 
                </div>
              )}
+          </div>
+
+          <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24, backdropFilter:"blur(20px)"}}>
+             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
+               <label style={{fontSize:11, fontWeight:800, letterSpacing:2, color:"#94a3b8", display:"block", marginBottom:0, textTransform:"uppercase"}}>📝 Сценарий</label>
+               <div style={{display:"flex", gap:8}}>
+                 <CopyBtn text={script} small />
+                 <button onClick={handleGenerateHooks} disabled={busy || !topic.trim()} style={{background:"rgba(249,115,22,0.15)", color:"#fbbf24", border:"1px solid rgba(249,115,22,0.3)", borderRadius:8, padding:"4px 10px", fontSize:10, fontWeight:900, cursor:"pointer"}}>🔥 3 ХУКА</button>
+               </div>
+             </div>
+             
+             {hooksList.length > 0 && (
+               <div style={{background:"rgba(0,0,0,0.3)", border:"1px dashed rgba(249,115,22,0.3)", borderRadius:12, padding:12, marginBottom:16}}>
+                 <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                   {hooksList.map((h, i) => ( <div key={i} onClick={() => { setScript(h + " " + script); setHooksList([]); }} style={{background:"rgba(255,255,255,0.05)", padding:10, borderRadius:8, fontSize:13, color:"#fcd34d", cursor:"pointer", borderLeft:"3px solid #f59e0b"}}>{h}</div> ))}
+                 </div>
+               </div>
+             )}
+             
+             <textarea rows={5} value={script} onChange={e => setScript(e.target.value)} placeholder="Вставьте текст или нажмите 'Написать'..." style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px solid rgba(255,255,255,.1)", borderRadius:16, padding:16, fontSize:14, color:"#cbd5e1", marginBottom:16, resize:"none"}}/>
+             
+             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+               <button onClick={handleDraftText} disabled={busy || !topic.trim()} style={{background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>✍️ Написать текст</button>
+               <button onClick={() => setShowTTS(!showTTS)} style={{background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.3)", color:"#7dd3fc", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>⚙️ Голос (TTS)</button>
+             </div>
           </div>
 
           <div style={{position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:600, padding:"16px 20px 24px", background:"linear-gradient(to top, rgba(5,5,10,1) 50%, transparent)", zIndex:100}}>
@@ -1038,7 +1051,7 @@ export default function Page() {
             </div>
           )}
 
-          {/* Вкладка 2: Сырые данные (Восстановленная) */}
+          {/* Вкладка 2: Сырые данные */}
           {tab === "raw" && (
             <div style={{display: "flex", flexDirection: "column", gap: 20}}>
               <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24}}>
