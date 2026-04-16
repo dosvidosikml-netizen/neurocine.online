@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from "react";
 
-// --- ОПТИМИЗИРОВАННЫЙ ФОН (Защита от краша на мобильных) ---
+// --- ОПТИМИЗИРОВАННЫЙ ФОН ---
 const NeuralBackground = () => {
   const canvasRef = useRef(null);
   
@@ -102,19 +102,15 @@ const VISUAL_ENGINES = {
 const DURATION_SECONDS = { "15 сек": 15, "30–45 сек": 40, "До 60 сек": 60, "1.5 мин": 90, "3 мин": 180 };
 const DURATIONS = Object.keys(DURATION_SECONDS);
 
+// Базовая защита от обрезки текста для всех пресетов
+const SAFE_TEXT_STYLE = { width: "100%", padding: "0 15px", boxSizing: "border-box", wordBreak: "break-word", overflowWrap: "break-word" };
+
 const COVER_PRESETS = [
-  { id: "netflix", label: "Netflix", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 32, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px #000", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
-  { id: "mrbeast", label: "MrBeast", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", textTransform: "uppercase", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", transform: "rotate(-3deg)", marginBottom: 4 }, title: { fontSize: 40, fontWeight: 900, textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px rgba(0,0,0,0.8)", transform: "rotate(-3deg)", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, textTransform: "uppercase", transform: "rotate(-3deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" } } },
-  { id: "tiktok", label: "TikTok", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12 }, title: { fontSize: 28, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "truecrime", label: "True Crime", defX: 10, defY: 50, style: { container: { alignItems: "flex-start", width: "85%" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 34, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "history", label: "Dark History", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 12, fontWeight: 400, fontFamily: "'Georgia', serif", color: "#d4af37", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8, textShadow: "0 2px 4px #000" }, title: { fontSize: 36, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 10px 30px #000", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: 2, textTransform: "uppercase", borderTop: "1px solid #d4af37", paddingTop: 6 } } },
-  { id: "breaking", label: "Новости", defX: 10, defY: 80, style: { container: { alignItems: "flex-start", width: "90%" }, hook: { fontSize: 14, fontWeight: 900, fontFamily: "sans-serif", color: "#fff", background: "#ef4444", padding: "4px 10px", textTransform: "uppercase", marginBottom: 8 }, title: { fontSize: 32, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, color: "#000", background: "#fff", padding: "4px 12px", textAlign: "left", marginBottom: 12 }, cta: { fontSize: 12, fontWeight: 900, color: "#ef4444", textTransform: "uppercase", background:"#000", padding:"2px 8px" } } },
-  { id: "cyber", label: "Cyberpunk", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#fef08a", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8, textShadow: "0 0 10px #fef08a" }, title: { fontSize: 34, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "2px 2px 0px #0ea5e9, -2px -2px 0px #ec4899", textAlign: "center", marginBottom: 12, fontStyle: "italic" }, cta: { fontSize: 11, fontWeight: 900, color: "#000", background: "#0ea5e9", padding: "4px 12px", textTransform: "uppercase", boxShadow: "0 0 15px #0ea5e9" } } },
-  { id: "minimal", label: "Minimal", defX: 50, defY: 80, style: { container: { alignItems: "center", width: "90%" }, hook: { fontSize: 10, fontWeight: 500, fontFamily: "sans-serif", color: "#fff", textTransform: "uppercase", letterSpacing: 4, marginBottom: 12, opacity: 0.7 }, title: { fontSize: 30, fontWeight: 300, textTransform: "uppercase", lineHeight: 1.2, textAlign: "center", marginBottom: 16, letterSpacing: 2 }, cta: { fontSize: 9, fontWeight: 400, color: "#fff", border: "1px solid rgba(255,255,255,0.3)", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "edge", label: "Vertical Edge", defX: 15, defY: 50, style: { container: { alignItems: "flex-end", width: "120%", customTransform: "translate(-50%, -50%) rotate(-90deg)" }, hook: { fontSize: 14, color: "#fff", background: "#ef4444", padding: "4px 12px", letterSpacing: 2 }, title: { fontSize: 44, fontWeight: 900, textTransform: "uppercase", whiteSpace:"nowrap", textShadow:"0 4px 10px rgba(0,0,0,0.8)" }, cta: { display:"none" } } },
-  { id: "zpattern", label: "Z-Pattern", defX: 50, defY: 50, style: { container: { width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding:"40px 20px" }, hook: { alignSelf: "flex-start", fontSize: 13, background: "#fff", color: "#000", padding: "6px 12px", fontWeight:900 }, title: { alignSelf: "center", textAlign: "center", fontSize: 36, fontWeight: 900, textShadow: "0 8px 30px #000" }, cta: { alignSelf: "flex-end", fontSize: 12, color: "#0ea5e9", borderBottom: "2px solid #0ea5e9", paddingBottom:4, fontWeight:900 } } },
-  { id: "sidebar", label: "Sidebar", defX: 25, defY: 50, style: { container: { width: "50%", height: "100%", background: "rgba(0,0,0,0.85)", padding: "20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", borderRight: "2px solid #a855f7" }, hook: { color: "#a855f7", fontSize: 12, marginBottom: 15, fontWeight:800, letterSpacing:1 }, title: { fontSize: 28, fontWeight: 900, textAlign: "left", marginBottom: 25, lineHeight:1.1 }, cta: { color: "#000", background: "#a855f7", padding: "8px 16px", fontSize: 10, fontWeight:900, textTransform:"uppercase" } } },
-  { id: "cinematic", label: "Cinematic", defX: 50, defY: 50, style: { container: { width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "center" }, hook: { width: "100%", background: "#000", color: "#fff", textAlign: "center", padding: "12px", fontSize: 11, letterSpacing: 4 }, title: { width: "100%", background: "#000", color: "#fff", textAlign: "center", padding: "20px 10px", fontSize: 28, fontWeight: 900, marginBottom: 0 }, cta: { position: "absolute", bottom: "12%", fontSize: 10, color: "#fff", border: "1px solid rgba(255,255,255,0.5)", padding: "6px 14px", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" } } }
+  { id: "netflix", label: "Netflix", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { ...SAFE_TEXT_STYLE, fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000", textAlign: "center" }, title: { ...SAFE_TEXT_STYLE, fontSize: 32, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px #000", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
+  { id: "mrbeast", label: "MrBeast", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { ...SAFE_TEXT_STYLE, fontSize: 16, fontWeight: 900, fontFamily: "Impact, sans-serif", color: "#ffdd00", textTransform: "uppercase", WebkitTextStroke: "1px #000", textShadow: "3px 3px 0 #000", transform: "rotate(-3deg)", marginBottom: 4, textAlign: "center" }, title: { ...SAFE_TEXT_STYLE, fontSize: 40, fontWeight: 900, textTransform: "uppercase", lineHeight: 1, WebkitTextStroke: "2px #000", textShadow: "5px 5px 0 #000, 0 0 40px rgba(0,0,0,0.8)", transform: "rotate(-3deg)", textAlign: "center", marginBottom: 16 }, cta: { fontSize: 13, fontWeight: 900, color: "#ff00ff", background: "#000", border: "2px solid #ff00ff", padding: "6px 14px", borderRadius: 8, textTransform: "uppercase", transform: "rotate(-3deg)", boxShadow: "0 4px 15px rgba(0,0,0,0.8)" } } },
+  { id: "tiktok", label: "TikTok", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12, textAlign: "center" }, title: { ...SAFE_TEXT_STYLE, fontSize: 28, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
+  { id: "truecrime", label: "True Crime", defX: 10, defY: 50, style: { container: { alignItems: "flex-start", width: "90%" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8, marginLeft: 15 }, title: { ...SAFE_TEXT_STYLE, fontSize: 34, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px 4px 15px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1, marginLeft: 15 } } },
+  { id: "history", label: "Dark History", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { ...SAFE_TEXT_STYLE, fontSize: 12, fontWeight: 400, fontFamily: "'Georgia', serif", color: "#d4af37", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8, textShadow: "0 2px 4px #000", textAlign: "center" }, title: { ...SAFE_TEXT_STYLE, fontSize: 36, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 10px 30px #000", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: 2, textTransform: "uppercase", borderTop: "1px solid #d4af37", paddingTop: 6 } } }
 ];
 
 const FONTS = [
@@ -129,49 +125,51 @@ const FONTS = [
   { id: "'Courier New', monospace", label: "Secret (Машинка)" }
 ];
 
-const COLORS = [
-  "#ffffff", "#ffdd00", "#facc15", "#ef4444", "#ec4899", 
-  "#0ea5e9", "#a855f7", "#22c55e", "#f97316", "#000000"
-];
+const COLORS = ["#ffffff", "#ffdd00", "#facc15", "#ef4444", "#ec4899", "#0ea5e9", "#a855f7", "#22c55e", "#f97316", "#000000"];
 
-// --- СИСТЕМНЫЕ ПРОМПТЫ (V5.0 - VIRAL MATRIX) ---
+// --- СИСТЕМНЫЕ ПРОМПТЫ (V6.0 - ULTIMATE MATRIX) ---
 const SYS_STEP_1 = `You are 'Director-X', Elite Viral Video Producer. Output ONLY valid JSON.
 ### SYSTEM ROLE & VIRAL ALGORITHMS (STRICT ADHERENCE REQUIRED)
-1. РИТМ (RETENTION ENGINE): Смена кадра СТРОГО каждые 3 секунды. Никаких плавающих диапазонов. Одно предложение может занимать несколько кадров.
+1. РИТМ (RETENTION ENGINE): Смена кадра СТРОГО каждые 3 секунды. Никаких плавающих диапазонов.
 2. СЛОВАРНЫЙ ЛИМИТ: 5-8 слов на сцену. Без слова "Диктор:".
-3. ВИЗУАЛЬНЫЙ ЯКОРЬ: Выдели 1-2 главных слова в сцене КАПСОМ. Визуал (visual) должен быть сфокусирован ИМЕННО на этом слове (крупный план, макро). Никаких общих пейзажей.
-4. TEXT ON SCREEN: Каждое слово КАПСОМ должно дублироваться в поле "text_on_screen" для динамики.
-5. RE-ENGAGEMENT: В сцене на 15-18 секунде обязателен триггер удержания (например: "Но самое страшное...", "Посмотри, что произошло дальше...").
-6. SEAMLESS LOOP: Финальная фраза видео должна грамматически соединяться с Хуком (первой фразой).
-7. SFX PAUSES: Текст в конце сцен должен заканчиваться "...", оставляя время для звукового эффекта. Таймкоды в SFX обязательны (e.g. "[0:04] Deep Boom").
-8. УДЕРЖАНИЕ: Дай жесткую оценку (60-99%) и критику в 1 предложение на русском.
-9. МУЗЫКА: Используй теги [Genre: ...], [Instruments: ...], [Mood: ...].
+3. ВИЗУАЛЬНЫЙ ЯКОРЬ: Выдели 1-2 главных слова в сцене КАПСОМ. Визуал ДОЛЖЕН быть сфокусирован ИМЕННО на этом слове (макро/детали). ЗАПРЕЩЕНЫ абстрактные общие планы!
+4. TEXT ON SCREEN: Каждое слово КАПСОМ должно дублироваться в поле "text_on_screen".
+5. RE-ENGAGEMENT: На 15-18 секунде обязателен резкий триггер смены интонации ("Но самое странное...", "И тут происходит необъяснимое...").
+6. SEAMLESS LOOP: Финальная фраза грамматически соединяется с первой.
+7. SFX: Текст в конце сцен заканчивается "...", оставляя время для звукового эффекта (e.g. "[0:02] Deep Boom").
+8. МУЗЫКА (SUNO): Строгий формат: "[Genre: Dark Ambient], [Mood: Suspenseful], [Instruments: Deep drone]".
+9. SEO МАТРИЦА: Сгенерируй 3 РАЗНЫХ варианта заголовков и описаний (Агрессивный, Тайна, Поиск).
+10. NATIVE CYRILLIC: В блоке thumbnail создай 'text_for_rendering' (1-3 русских слова) для генерации на обложке.
 
 JSON FORMAT:
 {
   "character_ref_EN": "Detailed description of the main entity/person for continuity. 8k.",
   "location_ref_EN": "A wide architectural establishing shot...",
   "style_ref_EN": "[Era/Atmosphere tags...]",
-  "retention": { "score": 85, "feedback": "Слабый триггер на 15 секунде, зритель может уйти." },
-  "frames": [ { "timecode": "0-3 сек", "camera": "Macro Close-up", "visual": "Крупный план, старинная книга, рука тянется к ней", "sfx": "[0:02] Glitch Swoosh", "text_on_screen": "УБИЙСТВЕННУЮ", "voice": "Представь: ты берешь УБИЙСТВЕННУЮ книгу..." } ],
-  "thumbnail": { "title": "ЗАГОЛОВОК", "hook": "ХУК", "cta": "СМОТРЕТЬ" },
-  "music_EN": "[Genre: Cinematic Thriller], [Instruments: Cello, Ticking Clock], [Mood: Suspenseful]",
-  "seo": { "titles": ["Viral Title 1"], "desc": "Cliffhanger...", "tags": ["#tag1"] }
+  "retention": { "score": 95, "feedback": "Критическая оценка удержания на русском." },
+  "frames": [ { "timecode": "0-3 сек", "camera": "Macro Close-up", "visual": "Крупный план детали", "sfx": "[0:02] Glitch", "text_on_screen": "АКЦЕНТ", "voice": "Текст диктора с АКЦЕНТ словом..." } ],
+  "thumbnail": { "title": "ЗАГОЛОВОК", "hook": "ХУК", "cta": "СМОТРЕТЬ", "text_for_rendering": "КОРОТКИЙ ТЕКСТ" },
+  "music_EN": "[Genre: Cinematic Thriller], [Mood: Suspenseful], [Instruments: Cello]",
+  "seo_variants": [
+    { "title": "Вариант 1 (Кликбейт)", "desc": "Описание 1...", "tags": ["#тег1"] },
+    { "title": "Вариант 2 (Тайна)", "desc": "Описание 2...", "tags": ["#тег2"] },
+    { "title": "Вариант 3 (Поиск)", "desc": "Описание 3...", "tags": ["#тег3"] }
+  ]
 }`;
 
 const SYS_STEP_2 = `You are an Elite AI Prompter. Output ONLY valid JSON.
 ### STRICT RULES FOR PROMPT GENERATION
-1. PLATFORM BANNED: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать Midjourney или Leonardo. Не используй их параметры.
-2. IMAGE PROMPTS (Whisk/Veo): 'imgPrompt_EN' - фокус на гиперреализм, высокий контраст, композицию. Главный объект занимает 40-60%. 20-30 words.
-3. VIDEO PROMPTS (Grok Super): 'vidPrompt_EN' - обязательно начинай с движения камеры (Zoom-in, Pan) и описывай динамику. 20-30 words.
-4. CONTINUITY GLUE: Если в кадре есть человек, ты ОБЯЗАН использовать его точное описание из 'character_ref_EN'.
-5. B-ROLLS: Сгенерируй 2-3 промпта микро-перебивок (X-ray, macro shots, diagrams).
+1. PLATFORM BANNED: NO Midjourney or Leonardo parameters.
+2. IMAGE PROMPTS (Whisk/Veo): 'imgPrompt_EN' - STRICTLY RETENTIONAL HORROR. NO wide shots. Focus entirely on a single shocking detail, extreme macro, disturbing textures, harsh dramatic lighting.
+3. NATIVE CYRILLIC: If 'text_for_rendering' is provided, you MUST include this exact phrase in the 'thumbnail_prompt_EN': \`a text string "[TEXT_FOR_RENDERING]" written in bold cinematic script on the main object\`. Do not translate the text!
+4. VIDEO PROMPTS (Grok Super): 'vidPrompt_EN' must describe camera movement. AT THE END of every vidPrompt_EN, you MUST append the exact ASMR audio tag based on the SFX. Format: \`, clear ASMR audio of [sound action], isolated sound, zero background noise, no ambient hum.\`
+5. CONTINUITY: Apply 'character_ref_EN' if a person is in the frame.
 
 JSON FORMAT:
 {
-  "frames_prompts": [ { "imgPrompt_EN": "Cinematic close-up...", "vidPrompt_EN": "Cinematic slow zoom-in..." } ],
+  "frames_prompts": [ { "imgPrompt_EN": "Extreme close up of...", "vidPrompt_EN": "Cinematic slow zoom-in on..., clear ASMR audio of heavy stone grinding, isolated sound, zero background noise." } ],
   "b_rolls": [ "X-ray view of...", "Extreme macro shot of..." ],
-  "thumbnail_prompt_EN": "..."
+  "thumbnail_prompt_EN": "Shocking cinematic macro shot of a decaying jar. On the jar, a text string 'АПТЕКА МУМИЙ' written in bold cinematic script. Dramatic lighting, 8k."
 }`;
 
 // --- ФУНКЦИИ ---
@@ -181,22 +179,13 @@ async function callAPI(content, maxTokens = 4000, sysPrompt) {
       method: "POST", 
       headers: { "Content-Type": "application/json" }, 
       body: JSON.stringify({ 
-        messages: [
-          { role: "system", content: sysPrompt }, 
-          { role: "user", content }
-        ], 
+        messages: [{ role: "system", content: sysPrompt }, { role: "user", content }], 
         max_tokens: maxTokens 
       }) 
     });
-    
     const textRes = await res.text();
     let data;
-    try { 
-      data = JSON.parse(textRes); 
-    } catch (e) { 
-      throw new Error(`Сервер вернул не JSON: ${textRes.substring(0, 100)}`); 
-    }
-    
+    try { data = JSON.parse(textRes); } catch (e) { throw new Error(`Сервер вернул не JSON: ${textRes.substring(0, 100)}`); }
     if (!res.ok || data.error) throw new Error(data.error || "Ошибка API");
     return data.text || "";
   } catch (e) { throw e; }
@@ -206,9 +195,7 @@ function cleanJSON(rawText) {
   let cleanText = rawText.replace(/```json/gi, "").replace(/```/gi, "").trim();
   const startIdx = cleanText.indexOf('{'); 
   const endIdx = cleanText.lastIndexOf('}');
-  if (startIdx !== -1 && endIdx !== -1) {
-    cleanText = cleanText.substring(startIdx, endIdx + 1);
-  }
+  if (startIdx !== -1 && endIdx !== -1) cleanText = cleanText.substring(startIdx, endIdx + 1);
   cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u001F]+/g, "");
   return JSON.parse(cleanText);
 }
@@ -216,40 +203,34 @@ function cleanJSON(rawText) {
 function CopyBtn({ text, label="Копировать", small=false }) {
   const [ok, setOk] = useState(false);
   return (
-    <button onClick={e => { 
-        e.stopPropagation(); 
-        try { navigator.clipboard?.writeText(text); } catch{}
-        setOk(true); 
-        setTimeout(() => setOk(false), 2000); 
-      }}
-      style={{
-        background: ok ? "rgba(34,197,94,.25)" : "rgba(255,255,255,.05)",
-        border: `1px solid ${ok ? "#4ade80" : "rgba(255,255,255,.1)"}`,
-        borderRadius: 8,
-        padding: small ? "4px 10px" : "6px 14px",
-        fontSize: small ? 10 : 11,
-        color: ok ? "#4ade80" : "rgba(255,255,255,.7)",
-        cursor: "pointer",
-        fontFamily: "inherit",
-        transition: "all .2s",
-        display: "flex",
-        alignItems: "center",
-        gap: 5,
-        whiteSpace: "nowrap"
-      }}>
+    <button onClick={e => { e.stopPropagation(); try { navigator.clipboard?.writeText(text); } catch{} setOk(true); setTimeout(() => setOk(false), 2000); }}
+      style={{ background: ok ? "rgba(34,197,94,.25)" : "rgba(255,255,255,.05)", border: `1px solid ${ok ? "#4ade80" : "rgba(255,255,255,.1)"}`, borderRadius: 8, padding: small ? "4px 10px" : "6px 14px", fontSize: small ? 10 : 11, color: ok ? "#4ade80" : "rgba(255,255,255,.7)", cursor: "pointer", fontFamily: "inherit", transition: "all .2s", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
       {ok ? "✓ СКОПИРОВАНО" : label}
     </button>
   );
 }
 
-// --- MAIN COMPONENT ---
+// Компонент попапа информации
+const InfoModal = ({ isOpen, onClose, title, content }) => {
+  if (!isOpen) return null;
+  return (
+    <div style={{position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}} onClick={onClose}>
+      <div style={{background:"#111827", border:"1px solid #a855f7", borderRadius:20, padding:24, maxWidth:400, width:"100%"}} onClick={e => e.stopPropagation()}>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+          <h3 style={{color:"#d8b4fe", fontSize:16, fontWeight:900, textTransform:"uppercase"}}>{title}</h3>
+          <button onClick={onClose} style={{background:"none", border:"none", color:"#9ca3af", fontSize:20, cursor:"pointer"}}>×</button>
+        </div>
+        <div style={{color:"#cbd5e1", fontSize:14, lineHeight:1.6}} dangerouslySetInnerHTML={{__html: content}} />
+      </div>
+    </div>
+  );
+};
+
 export default function Page() {
-  // Биллинг и состояние
   const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
   const [clicks, setClicks] = useState(0); 
   
-  // Ввод данных
   const [topic, setTopic] = useState("");
   const [finalTwist, setFinalTwist] = useState(""); 
   const [genre, setGenre] = useState("ТАЙНА");
@@ -260,35 +241,35 @@ export default function Page() {
   const [customStyle, setCustomStyle] = useState(""); 
   const [lang, setLang] = useState("RU"); 
   
-  // UI состояния
-  const [settingsOpen, setSettingsOpen] = useState(true); // Откроем настройки по умолчанию для удобства
+  const [settingsOpen, setSettingsOpen] = useState(true); 
   const [showTTS, setShowTTS] = useState(false);
   const [hooksList, setHooksList] = useState([]); 
   const [view, setView] = useState("form");
   const [loadingMsg, setLoadingMsg] = useState("");
   const [tab, setTab] = useState("storyboard");
   
-  // Результаты Шага 1
+  // Информация и Гайды
+  const [infoModal, setInfoModal] = useState({ isOpen: false, title: "", content: "" });
+  const [showGuide, setShowGuide] = useState(false);
+  
   const [frames, setFrames] = useState([]);
   const [retention, setRetention] = useState(null);
   const [thumb, setThumb] = useState(null);
   const [music, setMusic] = useState("");
-  const [seo, setSeo] = useState(null);
+  const [seoVariants, setSeoVariants] = useState([]);
   const [charRef, setCharRef] = useState("");
   const [locRef, setLocRef] = useState("");
   const [styleRef, setStyleRef] = useState("");
   
-  // Результаты Шага 2
   const [bRolls, setBRolls] = useState([]);
   const [step2Done, setStep2Done] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [generatingSEO, setGeneratingSEO] = useState(false);
 
-  // Сырые тексты для вкладки Raw
   const [rawScript, setRawScript] = useState("");
   const [rawImg, setRawImg] = useState("");
   const [rawVid, setRawVid] = useState("");
 
-  // Студия Обложек
   const [bgImage, setBgImage] = useState(null);
   const [logoImage, setLogoImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
@@ -313,19 +294,16 @@ export default function Page() {
   const [logoY, setLogoY] = useState(10);
   const [logoSize, setLogoSize] = useState(20);
 
-  // История
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
 
   const scrollRef = useRef(null);
 
-  // ИНИЦИАЛИЗАЦИЯ
   useEffect(() => { 
     if (typeof window !== "undefined") { 
       const savedHist = localStorage.getItem("ds_history"); 
       if (savedHist) setHistory(JSON.parse(savedHist)); 
-
       const savedDraft = localStorage.getItem("ds_draft");
       if (savedDraft) {
          try {
@@ -343,112 +321,56 @@ export default function Page() {
       if (savedBilling) {
         try {
           const b = JSON.parse(savedBilling);
-          if (b.date !== today) { 
-            setTokens(3); 
-            localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today })); 
-          } else { 
-            setTokens(b.tokens); 
-          }
+          if (b.date !== today) { setTokens(3); localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today })); } 
+          else { setTokens(b.tokens); }
         } catch(e) { setTokens(3); }
-      } else { 
-        localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today })); 
-        setTokens(3); 
-      }
+      } else { localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today })); setTokens(3); }
     } 
   }, []);
 
-  // Авто-смена стиля при выборе жанра
-  useEffect(() => { 
-    if (GENRE_PRESETS[genre]) { 
-      setCovFont(GENRE_PRESETS[genre].font); 
-      setCovColor(GENRE_PRESETS[genre].color); 
-    } 
-  }, [genre]);
+  useEffect(() => { if (GENRE_PRESETS[genre]) { setCovFont(GENRE_PRESETS[genre].font); setCovColor(GENRE_PRESETS[genre].color); } }, [genre]);
+  useEffect(() => { if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist})); }, [topic, script, genre, finalTwist, draftLoaded]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({top:0, behavior:"smooth"}); }, [view]);
 
-  // Авто-сохранение черновика
-  useEffect(() => { 
-    if (draftLoaded) {
-      localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist})); 
-    }
-  }, [topic, script, genre, finalTwist, draftLoaded]);
-
-  // Скролл вверх при смене экрана
-  useEffect(() => { 
-    if (scrollRef.current) scrollRef.current.scrollTo({top:0, behavior:"smooth"}); 
-  }, [view]);
-
-  // God Mode (5 тапов по логотипу)
   const handleGodMode = () => {
     setClicks(c => c + 1);
-    if (clicks + 1 >= 5) {
-      setTokens(999); 
-      localStorage.setItem("ds_billing", JSON.stringify({ tokens: 999, date: new Date().toLocaleDateString() }));
-      alert("✨ GOD MODE ACTIVATED: 💎 999 ✨"); 
-      setClicks(0);
-    }
+    if (clicks + 1 >= 5) { setTokens(999); localStorage.setItem("ds_billing", JSON.stringify({ tokens: 999, date: new Date().toLocaleDateString() })); alert("✨ GOD MODE ACTIVATED: 💎 999 ✨"); setClicks(0); }
     setTimeout(() => setClicks(0), 1500);
   };
 
-  // Биллинг
-  const deductToken = () => { 
-    setTokens(prev => { 
-      const next = prev - 1; 
-      localStorage.setItem("ds_billing", JSON.stringify({ tokens: next, date: new Date().toLocaleDateString() })); 
-      return next; 
-    }); 
-  };
-  
-  const checkTokens = () => { 
-    if (tokens <= 0) { setShowPaywall(true); return false; } 
-    return true; 
-  };
-  
-  const deleteFromHistory = (id) => { 
-    setHistory(prev => { 
-      const next = prev.filter(item => item.id !== id); 
-      localStorage.setItem("ds_history", JSON.stringify(next)); 
-      return next; 
-    }); 
-  };
-  
-  const clearHistory = () => { 
-    if(confirm("Очистить архив проектов?")) { setHistory([]); localStorage.removeItem("ds_history"); } 
-  };
+  const deductToken = () => { setTokens(prev => { const next = prev - 1; localStorage.setItem("ds_billing", JSON.stringify({ tokens: next, date: new Date().toLocaleDateString() })); return next; }); };
+  const checkTokens = () => { if (tokens <= 0) { setShowPaywall(true); return false; } return true; };
+  const deleteFromHistory = (id) => { setHistory(prev => { const next = prev.filter(item => item.id !== id); localStorage.setItem("ds_history", JSON.stringify(next)); return next; }); };
+  const clearHistory = () => { if(confirm("Очистить архив проектов?")) { setHistory([]); localStorage.removeItem("ds_history"); } };
 
-  // Работа со стилями обложки
   const applyPreset = (presetId) => {
     setActivePreset(presetId); 
     const p = COVER_PRESETS.find(x => x.id === presetId);
-    if (p) { 
-      setCovX(p.defX); 
-      setCovY(p.defY); 
-      setSizeHook(p.style.hook.fontSize || 12); 
-      setSizeTitle(p.style.title.fontSize || 32); 
-      setSizeCta(p.style.cta?.fontSize || 10); 
-    }
+    if (p) { setCovX(p.defX); setCovY(p.defY); setSizeHook(p.style.hook.fontSize || 12); setSizeTitle(p.style.title.fontSize || 32); setSizeCta(p.style.cta?.fontSize || 10); }
   };
 
   const saveCustomPreset = () => {
     const p = { covX, covY, covFont, covColor, sizeHook, sizeTitle, sizeCta, covDark, logoX, logoY, logoSize };
-    localStorage.setItem("ds_custom_preset", JSON.stringify(p));
-    alert("⭐ Ваш стиль успешно сохранен в памяти!");
+    localStorage.setItem("ds_custom_preset", JSON.stringify(p)); alert("⭐ Ваш стиль успешно сохранен в памяти!");
   };
 
   const loadCustomPreset = () => {
     const p = JSON.parse(localStorage.getItem("ds_custom_preset"));
     if (p) {
-      setCovX(p.covX); setCovY(p.covY); setCovFont(p.covFont); setCovColor(p.covColor); 
-      setSizeHook(p.sizeHook); setSizeTitle(p.sizeTitle); setSizeCta(p.sizeCta); setCovDark(p.covDark);
-      if(p.logoX) setLogoX(p.logoX);
-      if(p.logoY) setLogoY(p.logoY);
-      if(p.logoSize) setLogoSize(p.logoSize);
-      setActivePreset("custom");
-    } else {
-      alert("У вас еще нет сохраненного стиля.");
-    }
+      setCovX(p.covX); setCovY(p.covY); setCovFont(p.covFont); setCovColor(p.covColor); setSizeHook(p.sizeHook); setSizeTitle(p.sizeTitle); setSizeCta(p.sizeCta); setCovDark(p.covDark);
+      if(p.logoX) setLogoX(p.logoX); if(p.logoY) setLogoY(p.logoY); if(p.logoSize) setLogoSize(p.logoSize); setActivePreset("custom");
+    } else { alert("У вас еще нет сохраненного стиля."); }
   };
 
-  // АПИ Функции
+  const openInfo = (type) => {
+    const infos = {
+      engine: { title: "Визуальный движок", content: "<b>Кино-реализм:</b> Идеально для фактов и тайн.<br/><b>Dark History:</b> Рваный, мрачный стиль с шумом пленки.<br/><b>2.5D Анимация:</b> Мягкий стиль Pixar/Ghibli для сторителлинга.<br/><b>X-Ray:</b> Схемы и рентген для науки." },
+      format: { title: "Формат и Длительность", content: "Для Shorts/TikTok всегда используйте <b>9:16</b>.<br/>Длительность определяет объем сценария. Для удержания ритма (смена кадра каждые 3 секунды), система жестко контролирует количество слов." },
+      seo: { title: "Вирусное SEO", content: "Матрица SEO создает 3 варианта: <b>Кликбейт</b> (эмоции/шок), <b>Тайна</b> (интрига/загадка) и <b>Поиск</b> (алгоритмы YouTube). Вы можете сгенерировать дополнительные варианты." }
+    };
+    setInfoModal({ isOpen: true, ...infos[type] });
+  };
+
   async function handleGenerateHooks() {
     if (!topic.trim()) return alert("Сначала введите Тему!");
     setBusy(true); setLoadingMsg("Придумываем кликбейты..."); setView("loading");
@@ -460,11 +382,9 @@ export default function Page() {
 
   async function handleDraftText() {
     if (!topic.trim()) return alert("Введите тему!");
-    setBusy(true); setLoadingMsg("Пишем сценарий..."); setView("loading");
+    setBusy(true); setLoadingMsg("Пишем сценарий (Экватор-контроль)..."); setView("loading");
     try {
       const sec = DURATION_SECONDS[dur] || 60; 
-      
-      // ЖЕСТКИЙ ЛИМИТ СЛОВ ДЛЯ РИТМА
       let wordLimitRule = "";
       if (sec <= 15) wordLimitRule = "СТРОГО от 30 до 40 слов";
       else if (sec <= 40) wordLimitRule = "СТРОГО от 70 до 90 слов";
@@ -474,6 +394,7 @@ export default function Page() {
 
       const sysTxt = `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Без слова "Диктор:". Жанр: ${genre}. 
 ОГРАНИЧЕНИЕ: Напиши текст объемом ${wordLimitRule}. Это критически важно для удержания тайминга! Если текст будет коротким, ритм сломается. Расширяй историю деталями, чтобы попасть в точное количество слов.
+ПРАВИЛО ЭКВАТОРА: Ровно в середине текста (экватор видео) ты ОБЯЗАН вставить фразу-триггер, которая ломает ритм и заново захватывает внимание (например: "Но самое страшное в этой истории...", "И тут происходит необъяснимое...").
 Последнее предложение - байт на комментарий. ${finalTwist ? `Интрига: ${finalTwist}` : ""}`;
       
       const text = await callAPI(`Тема: ${topic}`, 3000, sysTxt);
@@ -481,13 +402,14 @@ export default function Page() {
     } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); setView("form"); }
   }
 
-  async function handleIntonations() {
-    if (!script.trim()) return alert("Нет текста!");
-    setBusy(true); setLoadingMsg("Разметка интонаций..."); setView("loading");
+  async function handleAddSEOVariant() {
+    setGeneratingSEO(true);
     try {
-      const text = await callAPI(script, 3000, `You are an Audio Director. Расставь паузы (...) и выдели КАПСОМ слова для акцента в РУССКОМ тексте. Жанр: ${genre}.`);
-      setScript(text.trim());
-    } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); setView("form"); }
+      const req = `Тема: ${topic}. Сценарий: ${script}. Сгенерируй еще 1 АБСОЛЮТНО НОВЫЙ и шокирующий вариант SEO для вирусного видео. Выдай только JSON объект: { "title": "...", "desc": "...", "tags": ["#tag1"] }`;
+      const text = await callAPI(req, 1000, `Output ONLY valid JSON object representing 1 SEO variant.`);
+      const newVar = cleanJSON(text);
+      setSeoVariants(prev => [...prev, newVar]);
+    } catch (e) { alert("Ошибка генерации SEO: " + e.message); } finally { setGeneratingSEO(false); }
   }
 
   function rebuildRawText(frms, s2done) {
@@ -523,7 +445,7 @@ export default function Page() {
       setRetention(data.retention || null); 
       setThumb(data.thumbnail || null); 
       setMusic(data.music_EN || ""); 
-      setSeo(data.seo || null);
+      setSeoVariants(data.seo_variants || []);
       
       setCharRef(data.character_ref_EN || ""); 
       setLocRef(data.location_ref_EN || ""); 
@@ -545,7 +467,7 @@ export default function Page() {
       setTab("storyboard"); 
       setView("result");
       
-      const stateData = { frames: data.frames, charRef: data.character_ref_EN, locRef: data.location_ref_EN, styleRef: data.style_ref_EN, retention: data.retention, thumb: data.thumbnail, seo: data.seo, music: data.music_EN, step2Done: false };
+      const stateData = { frames: data.frames, charRef: data.character_ref_EN, locRef: data.location_ref_EN, styleRef: data.style_ref_EN, retention: data.retention, thumb: data.thumbnail, seoVariants: data.seo_variants, music: data.music_EN, step2Done: false };
       const newHistory = [{ id: Date.now(), topic: topic || "Генерация", time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
       setHistory(newHistory); localStorage.setItem("ds_history", JSON.stringify(newHistory));
       
@@ -557,8 +479,9 @@ export default function Page() {
     setBusy(true); setLoadingMsg("Шаг 2: Генерируем 8k PRO-промпты..."); setView("loading");
     
     try {
-      const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual}`).join("\n");
-      const req = `STORYBOARD:\n${storyboardLite}\n\nGenerate exactly ${frames.length} English visual prompts. ONLY use Veo, Whisk and Grok Super rules. NO MIDJOURNEY.`;
+      const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual} | SFX: ${f.sfx}`).join("\n");
+      const textToRender = thumb?.text_for_rendering ? `\n\nNATIVE CYRILLIC REQUIRED: text_for_rendering = "${thumb.text_for_rendering}"` : "";
+      const req = `STORYBOARD:\n${storyboardLite}${textToRender}\n\nGenerate exactly ${frames.length} English visual prompts. ONLY use Veo, Whisk and Grok Super rules. MACRO HORROR ONLY for thumbnail. INCLUDE ASMR TAGS at end of vidPrompt.`;
       
       const text = await callAPI(req, 8000, SYS_STEP_2);
       const data = cleanJSON(text);
@@ -587,7 +510,7 @@ export default function Page() {
       setHistory(prev => {
          const next = [...prev];
          if(next.length > 0) { 
-           const stateData = { frames: updatedFrames, charRef, locRef, styleRef, retention, thumb, seo, music, bRolls: data.b_rolls, step2Done: true };
+           const stateData = { frames: updatedFrames, charRef, locRef, styleRef, retention, thumb: {...thumb, prompt_EN: data.thumbnail_prompt_EN}, seoVariants, music, bRolls: data.b_rolls, step2Done: true };
            next[0].text = JSON.stringify(stateData); 
            localStorage.setItem("ds_history", JSON.stringify(next)); 
          }
@@ -596,16 +519,8 @@ export default function Page() {
     } catch(e) { alert(`🚨 ОШИБКА ШАГА 2: ${e.message}`); setView("result"); } finally { setBusy(false); }
   }
 
-  // Загрузки
-  function handleImageUpload(e) { 
-    const file = e.target.files[0]; if (!file) return; 
-    const reader = new FileReader(); reader.onload = (ev) => setBgImage(ev.target.result); reader.readAsDataURL(file); 
-  }
-  
-  function handleLogoUpload(e) { 
-    const file = e.target.files[0]; if (!file) return; 
-    const reader = new FileReader(); reader.onload = (ev) => setLogoImage(ev.target.result); reader.readAsDataURL(file); 
-  }
+  function handleImageUpload(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setBgImage(ev.target.result); reader.readAsDataURL(file); }
+  function handleLogoUpload(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setLogoImage(ev.target.result); reader.readAsDataURL(file); }
   
   async function downloadThumbnail() {
     const el = document.getElementById("thumbnail-export"); if (!el) return;
@@ -631,15 +546,9 @@ export default function Page() {
     element.innerHTML = `
       <div style="font-family: Arial, sans-serif; padding: 40px; color: #111;">
         <h1 style="color: #a855f7;">🎬 DOCUSHORTS PRODUCER BRIEF</h1>
-        <h2>Тема: ${topic || "Без темы"}</h2>
-        <p><strong>Жанр:</strong> ${genre}</p>
-        <hr style="margin: 20px 0;" />
-        
+        <h2>Тема: ${topic || "Без темы"}</h2><p><strong>Жанр:</strong> ${genre}</p><hr style="margin: 20px 0;" />
         <h3>🎵 Музыка (Suno AI Prompt):</h3>
-        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px;">
-          ${music || "Не сгенерировано"}
-        </div>
-        
+        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px;">${music || "Не сгенерировано"}</div>
         <hr style="margin: 20px 0;" />
         <h3>📝 Раскадровка:</h3>
         ${frames.map((f, i) => `
@@ -649,33 +558,18 @@ export default function Page() {
             <div style="margin-top: 6px; color: #d97706; font-size: 14px;"><b>🔊 SFX:</b> ${f.sfx || "-"}</div>
             ${f.text_on_screen ? `<div style="margin-top: 6px; color: #ec4899; font-size: 14px;"><b>🔤 Титр:</b> ${f.text_on_screen}</div>` : ''}
             <div style="margin-top: 6px; color: #7c3aed; font-style: italic; font-size: 15px;"><b>🎙 Диктор:</b> «${f.voice}»</div>
-            ${step2Done ? `<div style="margin-top: 10px; padding: 10px; background: #f8fafc; font-size: 12px; color: #475569; font-family: monospace;"><b>Prompt:</b> ${f.vidPrompt_EN}</div>` : ''}
+            ${step2Done ? `<div style="margin-top: 10px; padding: 10px; background: #f8fafc; font-size: 12px; color: #475569; font-family: monospace;"><b>Video Prompt (Grok Super):</b> ${f.vidPrompt_EN}</div>` : ''}
           </div>
         `).join('')}
-      </div>
-    `;
+      </div>`;
     
-    const opt = { 
-      margin: 0.5, 
-      filename: `Brief_${Date.now()}.pdf`, 
-      image: { type: 'jpeg', quality: 0.98 }, 
-      html2canvas: { scale: 2 }, 
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } 
-    };
-
+    const opt = { margin: 0.5, filename: `Brief_${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
     if (!window.html2pdf) {
-      const s = document.createElement("script");
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-      s.onload = () => { 
-        window.html2pdf().set(opt).from(element).save().then(() => setPdfDownloading(false)); 
-      };
-      document.body.appendChild(s);
-    } else {
-      window.html2pdf().set(opt).from(element).save().then(() => setPdfDownloading(false));
-    }
+      const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+      s.onload = () => { window.html2pdf().set(opt).from(element).save().then(() => setPdfDownloading(false)); }; document.body.appendChild(s);
+    } else { window.html2pdf().set(opt).from(element).save().then(() => setPdfDownloading(false)); }
   }
 
-  // Стили
   const currFormat = FORMATS.find(f => f.id === vidFormat) || FORMATS[0]; 
   const activeStyle = activePreset === "custom" ? COVER_PRESETS[0].style : COVER_PRESETS.find(p => p.id === activePreset).style;
 
@@ -685,41 +579,52 @@ export default function Page() {
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700;900&family=Creepster&family=Montserrat:wght@800;900&family=Oswald:wght@700&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
-        
         .gbtn { width: 100%; height: 56px; border: none; border-radius: 16px; cursor: pointer; font-weight: 900; color: #fff; background: linear-gradient(135deg, #4f46e5, #9333ea, #ec4899); transition: all 0.2s; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4); }
         .gbtn:hover { transform: translateY(-2px); filter: brightness(1.1); }
-        
         textarea:focus, input[type="text"]:focus { outline: none; border-color: rgba(168, 85, 247, 0.6) !important; background: rgba(0, 0, 0, 0.6) !important; }
-        
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #a855f7; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px #a855f7; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
-        
         .hide-scroll::-webkit-scrollbar { display: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
       `}</style>
 
-      {/* ЭКРАН ЖАДНОСТИ */}
+      {/* МОДАЛКИ */}
       {showPaywall && (
         <div style={{position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
           <div style={{background:"#111827", border:"1px solid #a855f7", borderRadius:24, padding:30, maxWidth:400, textAlign:"center", position:"relative", boxShadow:"0 10px 50px rgba(168,85,247,0.3)"}}>
             <button onClick={() => setShowPaywall(false)} style={{position:"absolute", top:15, right:15, background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button>
-            <div style={{fontSize:50, marginBottom:10}}>💎</div>
-            <h2 style={{fontSize:22, fontWeight:900, color:"#fff", marginBottom:10}}>Лимит исчерпан</h2>
+            <div style={{fontSize:50, marginBottom:10}}>💎</div><h2 style={{fontSize:22, fontWeight:900, color:"#fff", marginBottom:10}}>Лимит исчерпан</h2>
             <p style={{fontSize:14, color:"#cbd5e1", marginBottom:24, lineHeight:1.5}}>Магия на сегодня закончилась (3 кристалла). Возвращайтесь завтра или оформите PRO.</p>
             <button onClick={() => setShowPaywall(false)} style={{width:"100%", background:"linear-gradient(135deg, #a855f7, #ec4899)", border:"none", padding:"16px", borderRadius:16, color:"#fff", fontWeight:900, cursor:"pointer"}}>ПОНЯТНО</button>
           </div>
         </div>
       )}
 
+      {showGuide && (
+        <div style={{position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}} onClick={() => setShowGuide(false)}>
+          <div style={{background:"#111827", border:"1px solid #10b981", borderRadius:24, padding:30, maxWidth:450, position:"relative"}} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowGuide(false)} style={{position:"absolute", top:15, right:15, background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button>
+            <h2 style={{fontSize:20, fontWeight:900, color:"#fff", marginBottom:16, borderBottom:"1px solid rgba(255,255,255,0.1)", paddingBottom:12}}>📖 ПРАВИЛА ВИРУСНОСТИ</h2>
+            <ul style={{color:"#cbd5e1", fontSize:14, lineHeight:1.6, paddingLeft:20}}>
+              <li style={{marginBottom:10}}><b>Правило 3 секунд:</b> Картинка должна меняться каждые 3 секунды. Не пишите длинные тексты, иначе ритм умрет.</li>
+              <li style={{marginBottom:10}}><b>Визуальный Якорь:</b> Забудьте про общие планы! Просите ИИ показывать макро-детали. Одно акцентное слово КАПСОМ в тексте = фокус в кадре.</li>
+              <li style={{marginBottom:10}}><b>Экватор (15 сек):</b> В середине видео зритель скучает. Обязательно ломайте ритм фразой-крючком ("Но самое странное...").</li>
+              <li style={{marginBottom:10}}><b>Хоррор Обложки:</b> Обложка должна вызывать дикое любопытство или легкое отвращение.</li>
+            </ul>
+            <button onClick={() => setShowGuide(false)} style={{width:"100%", background:"#10b981", border:"none", padding:"12px", borderRadius:12, color:"#fff", fontWeight:900, cursor:"pointer", marginTop:10}}>Я ГОТОВ СОЗДАВАТЬ ХИТЫ</button>
+          </div>
+        </div>
+      )}
+
+      <InfoModal isOpen={infoModal.isOpen} onClose={() => setInfoModal({...infoModal, isOpen: false})} title={infoModal.title} content={infoModal.content} />
+
       {/* АРХИВ */}
       {showHistory && (
         <div style={{position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
           <div style={{background:"#111827", border:"1px solid #374151", borderRadius:24, width:"100%", maxWidth:500, maxHeight:"80vh", display:"flex", flexDirection:"column", overflow:"hidden"}}>
             <div style={{padding:"20px 24px", borderBottom:"1px solid #374151", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-               <h2 style={{fontSize:18, fontWeight:900, color:"#fff"}}>🗄 Архив Проектов</h2>
-               <button onClick={() => setShowHistory(false)} style={{background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button>
+               <h2 style={{fontSize:18, fontWeight:900, color:"#fff"}}>🗄 Архив Проектов</h2><button onClick={() => setShowHistory(false)} style={{background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button>
             </div>
             <div style={{padding:20, overflowY:"auto", flex:1, display:"flex", flexDirection:"column", gap:12}}>
               {history.map(item => (
@@ -728,7 +633,7 @@ export default function Page() {
                   <div style={{display:"flex", gap:8}}>
                     <button onClick={() => {
                       const d = JSON.parse(item.text);
-                      setFrames(d.frames || []); setRetention(d.retention || null); setThumb(d.thumb || null); setMusic(d.music || ""); setSeo(d.seo || null);
+                      setFrames(d.frames || []); setRetention(d.retention || null); setThumb(d.thumb || null); setSeoVariants(d.seoVariants || []); setMusic(d.music || "");
                       setCharRef(d.charRef || ""); setLocRef(d.locRef || ""); setStyleRef(d.styleRef || ""); setBRolls(d.bRolls || []); setStep2Done(d.step2Done || false);
                       if(d.thumb) { setCovTitle(d.thumb.title || ""); setCovHook(d.thumb.hook || ""); setCovCta(d.thumb.cta || "СМОТРЕТЬ"); applyPreset("netflix"); }
                       rebuildRawText(d.frames || [], d.step2Done); setShowHistory(false); setView("result");
@@ -750,15 +655,23 @@ export default function Page() {
           <span onClick={handleGodMode} style={{fontSize:18,fontWeight:900,color:"#fff",letterSpacing:-0.5, cursor:"pointer"}}>DOCU<span style={{color:"#a855f7"}}>SHORTS</span></span>
         </div>
         <div style={{display:"flex",gap:12, alignItems:"center"}}>
-          <button onClick={() => setShowHistory(true)} style={{background:"none",border:"none",color:"#cbd5e1",fontSize:12,fontWeight:700, cursor:"pointer"}}>🗄 АРХИВ</button>
+          <button onClick={() => setShowGuide(true)} style={{background:"none",border:"none",color:"#10b981",fontSize:11,fontWeight:800, cursor:"pointer"}}>📖 ГАЙД</button>
+          <button onClick={() => setShowHistory(true)} style={{background:"none",border:"none",color:"#cbd5e1",fontSize:11,fontWeight:700, cursor:"pointer"}}>🗄 АРХИВ</button>
           <div style={{fontSize:11, fontWeight:800, color:tokens > 0 ? "#34d399" : "#ef4444", background:"rgba(255,255,255,0.05)", padding:"6px 12px", borderRadius:10}}>💎 {tokens}</div>
         </div>
       </nav>
 
       {/* ВЬЮ: ФОРМА */}
       {view === "form" && (
-        <div style={{maxWidth:600, margin:"0 auto", padding:"30px 20px"}}>
+        <div style={{maxWidth:600, margin:"0 auto", padding:"20px 20px 30px"}}>
           
+          {/* Умная кнопка возврата */}
+          {frames.length > 0 && (
+            <button onClick={() => setView("result")} style={{width:"100%", padding:"14px", background:"linear-gradient(135deg, #10b981, #059669)", border:"none", borderRadius:16, color:"#fff", fontWeight:900, marginBottom:20, cursor:"pointer", boxShadow:"0 4px 15px rgba(16, 185, 129, 0.4)", textTransform:"uppercase"}}>
+              ➔ ВЕРНУТЬСЯ К РЕЗУЛЬТАТУ
+            </button>
+          )}
+
           <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(168,85,247,0.3)", borderRadius:24, padding:24, backdropFilter:"blur(20px)"}}>
             <label style={{fontSize:11, fontWeight:800, letterSpacing:2, color:"#d8b4fe", display:"block", marginBottom:12, textTransform:"uppercase"}}>🎯 Идея или тема хита</label>
             <textarea rows={2} value={topic} onChange={e => setTopic(e.target.value)} placeholder="Например: Загадка перевала Дятлова..." style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px solid rgba(255,255,255,.1)", borderRadius:16, padding:18, fontSize:16, color:"#fff", resize:"none", marginBottom:12}}/>
@@ -776,7 +689,7 @@ export default function Page() {
             </div>
           </div>
 
-          {/* НАСТРОЙКИ (ТЕПЕРЬ НАВЕРХУ!) */}
+          {/* ТЕХНИЧЕСКИЕ НАСТРОЙКИ (С ПОДСКАЗКАМИ) */}
           <div style={{marginBottom: 24}}>
              <button onClick={() => setSettingsOpen(!settingsOpen)} style={{width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)", padding:"16px 24px", borderRadius:settingsOpen ? "24px 24px 0 0" : 24, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", textTransform:"uppercase"}}>
                <span>⚙️ Технические настройки</span><span>{settingsOpen ? "▲" : "▼"}</span>
@@ -784,36 +697,34 @@ export default function Page() {
              {settingsOpen && (
                <div style={{background:"rgba(15,15,25,.3)", border:"1px solid rgba(255,255,255,.05)", borderTop:"none", padding:24, borderRadius:"0 0 24px 24px", backdropFilter:"blur(20px)"}}>
                   
-                  <label style={{fontSize:10, color:"#94a3b8", display:"block", marginBottom:8, textTransform:"uppercase"}}>🎨 Визуальный движок</label>
+                  <div style={{display:"flex", alignItems:"center", marginBottom:8}}>
+                    <label style={{fontSize:10, color:"#94a3b8", textTransform:"uppercase"}}>🎨 Визуальный движок</label>
+                    <button onClick={() => openInfo('engine')} style={{background:"none", border:"none", color:"#a855f7", cursor:"pointer", marginLeft:6, fontSize:12}}>ℹ️</button>
+                  </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
                     {Object.entries(VISUAL_ENGINES).map(([eId, e]) => (<button key={eId} onClick={() => setEngine(eId)} style={{flex:"1 1 45%", background: engine === eId ? "rgba(168,85,247,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${engine === eId ? "#a855f7" : "rgba(255,255,255,.05)"}`, borderRadius:14, padding:10, fontSize:11, color: engine === eId ? "#d8b4fe" : "rgba(255,255,255,.5)", cursor:"pointer"}}>{e.label}</button>))}
                   </div>
-                  
                   <input type="text" value={customStyle} onChange={e => setCustomStyle(e.target.value)} placeholder="Особый стиль (VHS, Киберпанк и т.д.)" style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px solid rgba(255,255,255,.1)", borderRadius:12, padding:12, fontSize:12, color:"#cbd5e1", marginBottom:20}}/>
                   
-                  <label style={{fontSize:10, color:"#94a3b8", display:"block", marginBottom:8, textTransform:"uppercase"}}>🌐 Язык и Формат</label>
+                  <div style={{display:"flex", alignItems:"center", marginBottom:8}}>
+                    <label style={{fontSize:10, color:"#94a3b8", textTransform:"uppercase"}}>🌐 Язык и Формат</label>
+                    <button onClick={() => openInfo('format')} style={{background:"none", border:"none", color:"#a855f7", cursor:"pointer", marginLeft:6, fontSize:12}}>ℹ️</button>
+                  </div>
                   <div style={{display:"flex", gap:8, marginBottom:16}}>
                     {["RU", "EN"].map(l => (
-                      <button key={l} onClick={() => setLang(l)} style={{flex:1, background: lang === l ? "rgba(245,158,11,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${lang === l ? "#fbbf24" : "rgba(255,255,255,.05)"}`, borderRadius:14, padding:10, fontSize:12, fontWeight: lang === l ? 800 : 500, color: lang === l ? "#fcd34d" : "rgba(255,255,255,.5)", cursor:"pointer"}}>
-                        {l === "RU" ? "Русский" : "English"}
-                      </button>
+                      <button key={l} onClick={() => setLang(l)} style={{flex:1, background: lang === l ? "rgba(245,158,11,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${lang === l ? "#fbbf24" : "rgba(255,255,255,.05)"}`, borderRadius:14, padding:10, fontSize:12, fontWeight: lang === l ? 800 : 500, color: lang === l ? "#fcd34d" : "rgba(255,255,255,.5)", cursor:"pointer"}}>{l === "RU" ? "Русский" : "English"}</button>
                     ))}
                   </div>
-                  
                   <div style={{display:"flex", gap:8, marginBottom:20}}>
                     {FORMATS.map(f => (
-                      <button key={f.id} onClick={() => setVidFormat(f.id)} style={{flex:1, background: vidFormat === f.id ? "rgba(14,165,233,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${vidFormat === f.id ? "#0ea5e9" : "rgba(255,255,255,.05)"}`, borderRadius:14, padding:10, fontSize:12, fontWeight: vidFormat === f.id ? 800 : 500, color: vidFormat === f.id ? "#bae6fd" : "rgba(255,255,255,.5)", cursor:"pointer"}}>
-                        {f.id}
-                      </button>
+                      <button key={f.id} onClick={() => setVidFormat(f.id)} style={{flex:1, background: vidFormat === f.id ? "rgba(14,165,233,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${vidFormat === f.id ? "#0ea5e9" : "rgba(255,255,255,.05)"}`, borderRadius:14, padding:10, fontSize:12, fontWeight: vidFormat === f.id ? 800 : 500, color: vidFormat === f.id ? "#bae6fd" : "rgba(255,255,255,.5)", cursor:"pointer"}}>{f.id}</button>
                     ))}
                   </div>
 
                   <label style={{fontSize:10, color:"#94a3b8", display:"block", marginBottom:8, textTransform:"uppercase"}}>⏳ Длительность видео</label>
                   <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
                     {DURATIONS.map(d => (
-                      <button key={d} onClick={() => setDur(d)} style={{background: dur === d ? "rgba(249,115,22,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${dur === d ? "#f97316" : "rgba(255,255,255,.05)"}`, borderRadius:20, padding:"10px 16px", fontSize:12, fontWeight: dur === d ? 800 : 500, color: dur === d ? "#fdba74" : "rgba(255,255,255,.5)", cursor:"pointer"}}>
-                        {d}
-                      </button>
+                      <button key={d} onClick={() => setDur(d)} style={{background: dur === d ? "rgba(249,115,22,.15)" : "rgba(0,0,0,.4)", border:`1px solid ${dur === d ? "#f97316" : "rgba(255,255,255,.05)"}`, borderRadius:20, padding:"10px 16px", fontSize:12, fontWeight: dur === d ? 800 : 500, color: dur === d ? "#fdba74" : "rgba(255,255,255,.5)", cursor:"pointer"}}>{d}</button>
                     ))}
                   </div>
 
@@ -891,16 +802,11 @@ export default function Page() {
               <div style={{display:"flex", justifyContent:"center", marginBottom:12}}>
                 <div id="thumbnail-export" style={{width:320, aspectRatio:currFormat.ratio, position:"relative", background: bgImage ? `url(${bgImage}) center/cover no-repeat` : "#111", overflow:"hidden", borderRadius: 8}}>
                   <div style={{position:"absolute", inset:0, background:`linear-gradient(to top, rgba(0,0,0,${covDark/100}) 0%, rgba(0,0,0,${covDark/200}) 50%, transparent 100%)`, zIndex:1}} />
-                  
-                  {/* LOGO LAYER */}
-                  {logoImage && (
-                    <img src={logoImage} style={{position:"absolute", left:`${logoX}%`, top:`${logoY}%`, transform:"translate(-50%,-50%)", width:`${logoSize}%`, zIndex:3, pointerEvents:"none"}} alt="Logo" />
-                  )}
+                  {logoImage && <img src={logoImage} style={{position:"absolute", left:`${logoX}%`, top:`${logoY}%`, transform:"translate(-50%,-50%)", width:`${logoSize}%`, zIndex:3, pointerEvents:"none"}} alt="Logo" />}
 
-                  {/* TEXT LAYER */}
                   <div style={{...activeStyle.container, position:"absolute", left:`${covX}%`, top:`${covY}%`, transform: activeStyle.container.customTransform || "translate(-50%,-50%)", zIndex:2 }}>
                     <div style={{...activeStyle.hook, fontSize: Number(sizeHook)}}>{covHook}</div>
-                    <div style={{...activeStyle.title, fontFamily: covFont, color: covColor, fontSize: Number(sizeTitle), wordWrap:"break-word"}}>{covTitle}</div>
+                    <div style={{...activeStyle.title, fontFamily: covFont, color: covColor, fontSize: Number(sizeTitle)}}>{covTitle}</div>
                     <div style={{...activeStyle.cta, fontSize: Number(sizeCta)}}>{covCta}</div>
                   </div>
                   
@@ -1075,27 +981,47 @@ export default function Page() {
           )}
           
           {/* Вкладка 3: SEO */}
-          {tab === "seo" && seo && (
-            <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24}}>
-              <div style={{background:"rgba(245,158,11,.05)", border:"1px solid rgba(245,158,11,.2)", padding:16, borderRadius:16, marginBottom:16}}>
-                 <div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}><span style={{fontSize:11, fontWeight:900, color:"#fbbf24"}}>🎵 МУЗЫКА (SUNO AI)</span><CopyBtn text={music} small/></div>
-                 <div style={{fontFamily:"monospace", fontSize:13, color:"#fcd34d"}}>{music || "Промпт не сгенерирован"}</div>
+          {tab === "seo" && (
+            <div style={{marginBottom:24}}>
+              <div style={{background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24, marginBottom:16}}>
+                 <div style={{display:"flex", alignItems:"center", marginBottom:8}}>
+                    <span style={{fontSize:11, fontWeight:900, color:"#fbbf24", textTransform:"uppercase"}}>🎵 МУЗЫКА (SUNO AI)</span>
+                 </div>
+                 <div style={{background:"rgba(245,158,11,.05)", border:"1px solid rgba(245,158,11,.2)", padding:16, borderRadius:16}}>
+                    <div style={{display:"flex", justifyContent:"flex-end", marginBottom:8}}><CopyBtn text={music || "Промпт не сгенерирован"} small/></div>
+                    <div style={{fontFamily:"monospace", fontSize:13, color:"#fcd34d"}}>{music || "Промпт не сгенерирован"}</div>
+                 </div>
               </div>
-              <div style={{background:"rgba(59,130,246,.05)", border:"1px solid rgba(59,130,246,.2)", padding:16, borderRadius:16}}>
-                   <span style={{fontSize:11, fontWeight:900, color:"#60a5fa", display:"block", marginBottom:12}}>🚀 ВИРУСНОЕ SEO</span>
-                   <div style={{fontSize:13, color:"#fff", marginBottom:8}}><strong>Названия:</strong></div>
-                   <ul style={{color:"#93c5fd", fontSize:13, paddingLeft:20, marginBottom:16}}>{seo.titles?.map((t, i) => <li key={i} style={{marginBottom:4}}>{t}</li>)}</ul>
-                   <div style={{fontSize:13, color:"#fff", marginBottom:8}}><strong>Описание:</strong></div>
-                   <div style={{color:"#93c5fd", fontSize:13, marginBottom:16, whiteSpace:"pre-wrap"}}>{seo.desc}</div>
-                   <div style={{fontSize:13, color:"#fff", marginBottom:8}}><strong>Теги:</strong></div>
-                   <div style={{color:"#93c5fd", fontSize:13}}>{seo.tags?.join(" ")}</div>
+
+              <div style={{background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24}}>
+                   <div style={{display:"flex", alignItems:"center", marginBottom:16}}>
+                      <span style={{fontSize:11, fontWeight:900, color:"#60a5fa", textTransform:"uppercase"}}>🚀 МАТРИЦА ВИРУСНОГО SEO</span>
+                      <button onClick={() => openInfo('seo')} style={{background:"none", border:"none", color:"#60a5fa", cursor:"pointer", marginLeft:6, fontSize:12}}>ℹ️</button>
+                   </div>
+                   
+                   {seoVariants && seoVariants.length > 0 ? (
+                     <div style={{display:"flex", flexDirection:"column", gap:16}}>
+                       {seoVariants.map((seoVar, i) => (
+                         <div key={i} style={{background:"rgba(59,130,246,.05)", border:"1px solid rgba(59,130,246,.2)", padding:16, borderRadius:16}}>
+                            <div style={{fontSize:11, color:"#93c5fd", fontWeight:800, marginBottom:8}}>ВАРИАНТ {i+1}</div>
+                            <div style={{fontSize:14, color:"#fff", fontWeight:900, marginBottom:8}}>{seoVar.title}</div>
+                            <div style={{color:"#bfdbfe", fontSize:13, marginBottom:12, lineHeight:1.5}}>{seoVar.desc}</div>
+                            <div style={{color:"#60a5fa", fontSize:12, fontWeight:700}}>{seoVar.tags?.join(" ")}</div>
+                         </div>
+                       ))}
+                       <button onClick={handleAddSEOVariant} disabled={generatingSEO} style={{width:"100%", padding:"12px", background:"rgba(59,130,246,0.1)", border:"1px dashed rgba(59,130,246,0.5)", borderRadius:12, color:"#60a5fa", fontWeight:800, cursor: generatingSEO ? "not-allowed" : "pointer"}}>
+                          {generatingSEO ? "ГЕНЕРАЦИЯ..." : "➕ СГЕНЕРИРОВАТЬ ЕЩЕ ВАРИАНТ"}
+                       </button>
+                     </div>
+                   ) : (
+                     <div style={{color:"#94a3b8", fontSize:13}}>SEO не сгенерировано.</div>
+                   )}
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* КНОПКА СКАЧАТЬ PDF БРИФ */}
       {view === "result" && frames.length > 0 && (
          <div style={{position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:600, padding:"16px 20px 24px", background:"linear-gradient(to top, rgba(5,5,10,1) 50%, transparent)", zIndex:100}}>
            <button onClick={downloadPDF} disabled={pdfDownloading} style={{width:"100%", height:56, background:"#fff", border:"none", borderRadius:16, color:"#000", fontWeight:900, fontSize:14, cursor: pdfDownloading ? "not-allowed" : "pointer", boxShadow:"0 4px 20px rgba(255,255,255,0.2)"}}>
