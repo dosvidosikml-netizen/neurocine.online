@@ -1,14 +1,21 @@
 export async function POST(req) {
   try {
-    const body = await req.json();
+    // ЗАЩИТА: Проверяем наличие секретного ключа от нашего фронтенда
+    const secretToken = req.headers.get("x-access-token");
+    if (secretToken !== "proffi-core") {
+      console.warn("Попытка несанкционированного доступа к API");
+      return new Response(JSON.stringify({ error: "ACCESS DENIED. SYS_LOCKED." }), { 
+        status: 403, 
+        headers: { "Content-Type": "application/json" } 
+      });
+    }
 
+    const body = await req.json();
     const messages = body.messages || [];
     const maxTokens = body.max_tokens || 4000;
     
-    // Динамический выбор модели. Если фронтенд не передал, используем твою базовую Ламу.
     const model = body.model || "meta-llama/llama-3.3-70b-instruct";
 
-    // Стучимся в твой платный OpenRouter
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
