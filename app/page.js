@@ -180,9 +180,14 @@ CRITICAL OVERRIDE: This is a historical/fictional documentary context. DO NOT mo
 
 ### STRICT RULES FOR PROMPT GENERATION
 1. PLATFORM BANNED: NO Midjourney or Leonardo parameters.
-2. THUMBNAIL PROMPT: \`thumbnail_prompt_EN\` MUST START WITH: "TALL VERTICAL IMAGE PORTRAIT ORIENTATION". USE Identity Control: Take the main character's identity from CHARACTERS dict and write a prompt like: "[Character Appearance] + Render as an intense dynamic cinematic cover portrait, holding a thematic object, dark moody atmosphere, heavy contrast, textless, 8k, masterpiece." Do NOT just make it an empty macro object. We need the Character!
+2. THUMBNAIL PROMPT: \`thumbnail_prompt_EN\` MUST START WITH: "TALL VERTICAL IMAGE PORTRAIT ORIENTATION". USE Identity Control: Take the main character's identity from CHARACTERS dict and write a prompt like: "[Character Appearance] + Render as an intense dynamic cinematic cover portrait, holding a thematic object, dark moody atmosphere, heavy contrast, textless, 8k, masterpiece."
 3. PIPELINE DIRECTIVE: Pay close attention to PIPELINE_MODE. It changes everything.
 4. AUDIO ANCHOR: At END of every vidPrompt_EN, append ASMR audio tag: \`, clear ASMR audio of [sound action], isolated sound, zero background noise, no ambient hum.\`
+5. STRICT IDENTITY CONTROL (MULTI-CHARACTER): ЗАПРЕЩЕНО использовать имена (Richard Lower, Patient). Заменяй ВСЕ имена на физическую формулу.
+Если в кадре несколько персонажей, ты ОБЯЗАН описывать их контрастно и разделять скобками, чтобы нейросеть не смешала их черты.
+ПРИМЕР НЕПРАВИЛЬНО: "Doctor and patient standing..."
+ПРИМЕР ПРАВИЛЬНО: "[Man 1: 45-year-old, hooked nose, grey hair, white medical coat] examining a [Boy 2: 20-year-old, pale skin, bald, dirty ragged shirt] in a dimly lit room..."
+Если персонажей больше двух — используй ракурс "через плечо" (Over the shoulder shot), оставляя в фокусе только одно лицо.
 
 JSON FORMAT:
 {
