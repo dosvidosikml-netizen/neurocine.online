@@ -4,6 +4,9 @@ export async function POST(req) {
 
     const messages = body.messages || [];
     const maxTokens = body.max_tokens || 4000;
+    
+    // Динамический выбор модели. Если фронтенд не передал, используем твою базовую Ламу.
+    const model = body.model || "meta-llama/llama-3.3-70b-instruct";
 
     // Стучимся в твой платный OpenRouter
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -15,11 +18,10 @@ export async function POST(req) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.3-70b-instruct", 
+        model: model, 
         messages: messages,
         max_tokens: maxTokens,
         temperature: 0.2,
-        // ВОТ ЭТА СТРОКА РЕШАЕТ ВСЮ ПРОБЛЕМУ С ВЫДАЧЕЙ:
         response_format: { type: "json_object" }
       })
     });
