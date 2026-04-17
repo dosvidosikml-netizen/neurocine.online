@@ -232,7 +232,7 @@ function CopyBtn({ text, label="COPY", fullWidth=false }) {
 }
 
 // ОСНОВНОЙ КОМПОНЕНТ РЕЖИССЕРА
-function DirectorDashboard() {
+export default function Page() {
   const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
   const [clicks, setClicks] = useState(0); 
@@ -1107,42 +1107,4 @@ function DirectorDashboard() {
       </div>
     </div>
   );
-}
-
-// === ОБЕРТКА БЕЗОПАСНОСТИ (STEALTH MODE) ===
-export default function SecureWrapper() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [keyBuffer, setKeyBuffer] = useState("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && sessionStorage.getItem("ds_unlocked") === "true") {
-      setUnlocked(true);
-      return;
-    }
-
-    const handleKeyDown = (e) => {
-      setKeyBuffer(prev => {
-        const newBuffer = (prev + e.key).slice(-10).toLowerCase();
-        if (newBuffer.includes("proffi")) {
-          sessionStorage.setItem("ds_unlocked", "true");
-          setUnlocked(true);
-        }
-        return newBuffer;
-      });
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  if (!unlocked) {
-    return (
-      <div style={{background:"#05050A", height:"100vh", width:"100vw", display:"flex", alignItems:"center", justifyContent:"center", color:"#111", fontFamily:"monospace", fontSize:14}}>
-        <div style={{animation:"blink 1s step-end infinite"}}>_</div>
-        <style>{`@keyframes blink { 50% { opacity: 0; } }`}</style>
-      </div>
-    );
-  }
-
-  return <DirectorDashboard />;
 }
