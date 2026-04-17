@@ -444,8 +444,9 @@ export default function Page() {
     if (!topic.trim()) return alert("Сначала введите Тему!");
     setBusy(true); setLoadingMsg("Придумываем кликбейты..."); setView("loading");
     try {
-      const text = await callAPI(`Topic: ${topic}`, 2000, `You are a viral TikTok producer. Write 3 powerful hooks (1 sentence each) in RUSSIAN. Genre: ${genre}. Provide valid JSON array of 3 strings ONLY. Format: ["Хук 1", "Хук 2", "Хук 3"]`);
-      const arr = cleanJSON(text); if(Array.isArray(arr)) setHooksList(arr);
+      const text = await callAPI(`Topic: ${topic}`, 2000, `You are a viral TikTok producer. Write 3 powerful hooks (1 sentence each) in RUSSIAN. Genre: ${genre}. Provide valid JSON object ONLY. Format: { "hooks": ["Хук 1", "Хук 2", "Хук 3"] }`);
+      const data = cleanJSON(text);
+      if(data && Array.isArray(data.hooks)) setHooksList(data.hooks);
     } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); setView("form"); }
   }
 
@@ -461,17 +462,26 @@ export default function Page() {
       else if (sec <= 90) wordLimitRule = "СТРОГО от 180 до 200 слов";
       else wordLimitRule = `СТРОГО около ${Math.floor(sec * 2.2)} слов`;
 
-      const sysTxt = `You are 'Director-X'. Напиши ТОЛЬКО текст диктора на РУССКОМ ЯЗЫКЕ. Без слова "Диктор:". Жанр: ${genre}.
+      const sysTxt = `You are 'Director-X'. Напиши текст диктора на РУССКОМ ЯЗЫКЕ. Без слова "Диктор:". Жанр: ${genre}.
 ОГРАНИЧЕНИЯ:
-1. WIKIPEDIA BAN: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ скучные исторические вступления ("В начале 17 века..."). Начинай с жесткого хука в лоб (шок, страх, парадокс, интрига).
-2. NO META-TEXT: ЗАПРЕЩЕНО писать мета-комментарии (типа "Фраза, которая ломает ритм:"). Просто пиши сам рассказ! ЗАПРЕЩЕНО использовать markdown-разметку (**).
-3. ОБЪЕМ: ${wordLimitRule}. Это критически важно для удержания тайминга!
+1. WIKIPEDIA BAN: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ скучные исторические вступления ("В начале 17 века..."). Начинай с жесткого хука в лоб.
+2. NO META-TEXT: ЗАПРЕЩЕНО писать мета-комментарии. Просто пиши сам рассказ!
+3. ОБЪЕМ: ${wordLimitRule}. Это критически важно!
 4. ПРАВИЛО ЭКВАТОРА: В середине текста вставь неожиданный поворот в сюжете.
-5. ПРАВИЛО ФИНАЛА: Текст логически завершен, последняя фраза - байт на коммент. ${finalTwist ? `Интрига: ${finalTwist}` : ""}`;
+5. ПРАВИЛО ФИНАЛА: Текст логически завершен, последняя фраза - байт на коммент. ${finalTwist ? `Интрига: ${finalTwist}` : ""}
+
+ВЫДАЙ СТРОГО JSON ОБЪЕКТ: { "script": "твой сгенерированный текст" }`;
       
       const manualChars = chars.map(c => `${c.name}: ${c.desc}`).join(" | ");
       const text = await callAPI(`Тема: ${topic}\nПерсонажи: ${manualChars}`, 3000, sysTxt);
-      setScript(text.replace(/Диктор:\s*/gi, "").trim()); setHooksList([]);
+      const data = cleanJSON(text);
+      
+      if (data && data.script) {
+        setScript(data.script.replace(/Диктор:\s*/gi, "").trim());
+      } else {
+        setScript(text.replace(/Диктор:\s*/gi, "").trim());
+      }
+      setHooksList([]);
     } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); setView("form"); }
   }
 
@@ -505,8 +515,10 @@ export default function Page() {
       if (!currentScript) {
         setLoadingMsg("Генерируем текст диктора...");
         const maxWords = Math.floor(sec * 2.2);
-        currentScript = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text in ${lang === "RU" ? "Russian" : "English"}. NO MARKDOWN (**). MUST be under ${maxWords} words. Logical ending required. DO NOT WRITE "Narrator:". NO "Wikipedia" intros, start with a shock.`);
-        setScript(currentScript.trim());
+        const rawVoiceText = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text in ${lang === "RU" ? "Russian" : "English"}. NO MARKDOWN (**). MUST be under ${maxWords} words. Logical ending required. DO NOT WRITE "Narrator:". NO "Wikipedia" intros, start with a shock. OUTPUT STRICTLY JSON: { "script": "text here" }`);
+        const parsedVoice = cleanJSON(rawVoiceText);
+        currentScript = (parsedVoice.script || rawVoiceText).trim();
+        setScript(currentScript);
       }
       
       setLoadingMsg("Шаг 1/2: Пишем раскадровку и ДНК...");
@@ -762,7 +774,7 @@ export default function Page() {
 
           <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(168,85,247,0.3)", borderRadius:24, padding:24, backdropFilter:"blur(20px)"}}>
             <label style={{fontSize:11, fontWeight:800, letterSpacing:2, color:"#d8b4fe", display:"block", marginBottom:12, textTransform:"uppercase"}}>🎯 Идея или тема хита</label>
-            <textarea rows={2} value={topic} onChange={e => setTopic(e.target.value)} placeholder="Нанапример: Загадка перевала Дятлова..." style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px solid rgba(255,255,255,.1)", borderRadius:16, padding:18, fontSize:16, color:"#fff", resize:"none", marginBottom:12}}/>
+            <textarea rows={2} value={topic} onChange={e => setTopic(e.target.value)} placeholder="Например: Загадка перевала Дятлова..." style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px solid rgba(255,255,255,.1)", borderRadius:16, padding:18, fontSize:16, color:"#fff", resize:"none", marginBottom:12}}/>
             <input type="text" value={finalTwist} onChange={e => setFinalTwist(e.target.value)} placeholder="Скрытый твист в конце..." style={{width:"100%", background:"rgba(0,0,0,.5)", border:"1px dashed rgba(168,85,247,0.4)", borderRadius:12, padding:12, fontSize:13, color:"#e9d5ff"}}/>
           </div>
 
@@ -818,7 +830,7 @@ export default function Page() {
                      <input type="text" value={c.name} onChange={e => updateChar(c.id, 'name', e.target.value)} style={{background:"none", border:"none", color:"#fbcfe8", fontWeight:800, fontSize:12, width:"100%"}} placeholder="Имя (напр. Палач)" />
                      <button onClick={() => removeChar(c.id)} style={{background:"none", border:"none", color:"#ef4444", fontSize:16, cursor:"pointer"}}>×</button>
                    </div>
-                   <textarea rows={3} value={c.desc} onChange={updateChar(c.id, 'desc', e.target.value)} placeholder="Внешность своими словами ИЛИ готовый англ. промпт для референса (Identity Key)." style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"none", borderRadius:8, padding:10, fontSize:12, color:"#cbd5e1", resize:"none"}} />
+                   <textarea rows={3} value={c.desc} onChange={e => updateChar(c.id, 'desc', e.target.value)} placeholder="Внешность своими словами ИЛИ готовый англ. промпт для референса (Identity Key)." style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"none", borderRadius:8, padding:10, fontSize:12, color:"#cbd5e1", resize:"none"}} />
                  </div>
                ))}
              </div>
@@ -1220,4 +1232,3 @@ export default function Page() {
     </div>
   );
 }
-
