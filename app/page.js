@@ -154,6 +154,7 @@ CRITICAL OVERRIDE: This is an educational documentary. DO NOT moralize, censor, 
 6. LOCATION REF: Поле \`location_ref_EN\` ОБЯЗАНО быть детальным кинематографичным промптом локации НА АНГЛИЙСКОМ ЯЗЫКЕ (минимум 15-20 слов). Если пользователь передал свою локацию - используй её без изменений.
 7. AUTO-DETECT CHARACTERS: Извлеки всех ключевых персонажей. Для каждого сгенерируй \`ref_sheet_prompt\` СТРОГО по этому шаблону: "Create a professional character reference sheet of [ПЕРЕВОД ВНЕШНОСТИ НА АНГЛИЙСКИЙ]. Use a clean, neutral plain background and present the sheet as a technical model turnaround in a photographic style. Arrange the composition into two horizontal rows. Top row: four full-body standing views placed side-by-side in this order: front view, left profile view (facing left), right profile view (facing right), back view. Bottom row: three highly detailed close-up portraits aligned beneath the full-body row in this order: front portrait, left profile portrait (facing left), right profile portrait (facing right). Maintain perfect identity consistency across every panel. Keep the subject in a relaxed A-pose and with consistent scale and alignment between views, accurate anatomy, and clear silhouette; ensure even spacing and clean panel separation, with uniform framing and consistent head height across the full-body lineup and consistent facial scale across the portraits. Lighting should be consistent across all panels (same direction, intensity, and softness), with natural, controlled shadows that preserve detail without dramatic mood shifts. Output a crisp, print-ready reference sheet look, sharp details."
 8. RETENTION SCORE: Честно высчитай процент удержания (от 1 до 100) на основе длины, скучности и силы хука. Генерируй РЕАЛЬНУЮ ЦИФРУ (напр. 64, 88, 72). ЗАПРЕЩЕНО ПИСАТЬ 95 ВСЕГДА! В feedback пиши жесткий анализ на русском языке.
+9. TTS TAGS: В начале каждой реплики диктора (поле voice) ОБЯЗАТЕЛЬНО ставь тег эмоции: [shock], [whisper], [epic], [sad] или [aggressive]. ИИ должен сам выбирать уместную эмоцию для фразы.
 
 JSON FORMAT:
 {
@@ -161,7 +162,7 @@ JSON FORMAT:
   "location_ref_EN": "Detailed cinematic english prompt...",
   "style_ref_EN": "[Era/Atmosphere tags...]",
   "retention": { "score": "[CALCULATED_SCORE_1_100]", "feedback": "[INSERT YOUR HARSH RUSSIAN CRITIQUE HERE]" },
-  "frames": [ { "timecode": "0-3 сек", "camera": "Macro Close-up", "visual": "Крупный план детали", "characters_in_frame": ["CHAR_1"], "sfx": "[0:02] Glitch", "text_on_screen": "АКЦЕНТ", "voice": "Текст диктора с АКЦЕНТ словом..." } ]
+  "frames": [ { "timecode": "0-3 сек", "camera": "Macro Close-up", "visual": "Крупный план детали", "characters_in_frame": ["CHAR_1"], "sfx": "[0:02] Glitch", "text_on_screen": "АКЦЕНТ", "voice": "[epic] Текст диктора с АКЦЕНТ словом..." } ]
 }`;
 
 const SYS_STEP_1B = `You are 'Marketing-X', Elite Viral Packager. Analyze the provided STORYBOARD and output ONLY valid JSON.
@@ -276,7 +277,6 @@ export default function Page() {
   const [showTTS, setShowTTS] = useState(false);
   const [ttsVoice, setTtsVoice] = useState("Male_Deep"); 
   const [ttsSpeed, setTtsSpeed] = useState("1.15");
-  const [ttsEmotion, setTtsEmotion] = useState("AUTO");
 
   const [hooksList, setHooksList] = useState([]); 
   const [view, setView] = useState("form");
@@ -353,7 +353,6 @@ export default function Page() {
            if (d.studioStyle) setStudioStyle(d.studioStyle);
            if (d.ttsVoice) setTtsVoice(d.ttsVoice);
            if (d.ttsSpeed) setTtsSpeed(d.ttsSpeed);
-           if (d.ttsEmotion) setTtsEmotion(d.ttsEmotion);
          } catch(e){}
       }
       setDraftLoaded(true);
@@ -371,7 +370,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => { if (GENRE_PRESETS[genre]) { setCovFont(GENRE_PRESETS[genre].font); setCovColor(GENRE_PRESETS[genre].color); } }, [genre]);
-  useEffect(() => { if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist, chars, pipelineMode, studioMode, studioLoc, studioStyle, ttsVoice, ttsSpeed, ttsEmotion})); }, [topic, script, genre, finalTwist, chars, pipelineMode, studioMode, studioLoc, studioStyle, ttsVoice, ttsSpeed, ttsEmotion, draftLoaded]);
+  useEffect(() => { if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, finalTwist, chars, pipelineMode, studioMode, studioLoc, studioStyle, ttsVoice, ttsSpeed})); }, [topic, script, genre, finalTwist, chars, pipelineMode, studioMode, studioLoc, studioStyle, ttsVoice, ttsSpeed, draftLoaded]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({top:0, behavior:"smooth"}); }, [view]);
 
   const handleGodMode = () => {
@@ -458,9 +457,8 @@ export default function Page() {
       let wordLimitRule = "";
       if (sec <= 15) wordLimitRule = "СТРОГО от 30 до 40 слов";
       else if (sec <= 40) wordLimitRule = "СТРОГО от 70 до 90 слов";
-      else if (sec <= 60) wordLimitRule = "СТРОГО от 120 до 140 слов";
-      else if (sec <= 90) wordLimitRule = "СТРОГО от 180 до 200 слов";
-      else wordLimitRule = `СТРОГО около ${Math.floor(sec * 2.2)} слов`;
+      else if (sec <= 60) wordLimitRule = "СТРОГО 130-150 слов. Опиши атмосферу подробно, минимум 4-5 длинных абзацев. Меньше 12 предложений КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО!";
+      else wordLimitRule = `СТРОГО около ${Math.floor(sec * 2.2)} слов. Обязательно длинные, детализированные абзацы.`;
 
       const sysTxt = `You are 'Director-X'. Напиши текст диктора на РУССКОМ ЯЗЫКЕ. Без слова "Диктор:". Жанр: ${genre}.
 ОГРАНИЧЕНИЯ:
@@ -515,7 +513,8 @@ export default function Page() {
       if (!currentScript) {
         setLoadingMsg("Генерируем текст диктора...");
         const maxWords = Math.floor(sec * 2.2);
-        const rawVoiceText = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text in ${lang === "RU" ? "Russian" : "English"}. NO MARKDOWN (**). MUST be under ${maxWords} words. Logical ending required. DO NOT WRITE "Narrator:". NO "Wikipedia" intros, start with a shock. OUTPUT STRICTLY JSON: { "script": "text here" }`);
+        let volRule = maxWords > 100 ? `MUST be ~${maxWords} words. Write 4-5 detailed paragraphs. DO NOT WRITE SHORT TEXT.` : `MUST be under ${maxWords} words.`;
+        const rawVoiceText = await callAPI(`Тема: ${topic}`, 3000, `Write only voiceover text in ${lang === "RU" ? "Russian" : "English"}. NO MARKDOWN (**). ${volRule} Logical ending required. DO NOT WRITE "Narrator:". NO "Wikipedia" intros, start with a shock. OUTPUT STRICTLY JSON: { "script": "text here" }`);
         const parsedVoice = cleanJSON(rawVoiceText);
         currentScript = (parsedVoice.script || rawVoiceText).trim();
         setScript(currentScript);
@@ -653,7 +652,7 @@ export default function Page() {
         <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px;">${music || "Не сгенерировано"}</div>
         <hr style="margin: 20px 0;" />
         <h3>🎙 Настройки Диктора:</h3>
-        <p><strong>Голос:</strong> ${ttsVoice} | <strong>Скорость:</strong> ${ttsSpeed}x | <strong>Эмоция:</strong> ${ttsEmotion}</p>
+        <p><strong>Голос:</strong> ${ttsVoice} | <strong>Скорость:</strong> ${ttsSpeed}x | <strong>Эмоция:</strong> Авто (теги в тексте)</p>
         <hr style="margin: 20px 0;" />
         <h3>📝 Раскадровка:</h3>
         ${frames.map((f, i) => `
@@ -878,22 +877,12 @@ export default function Page() {
                        <option value="Doc_Narrator">Универсальный Документальный</option>
                      </select>
                    </div>
-                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
-                     <div>
-                       <label style={{fontSize:10, color:"#bae6fd", display:"block", marginBottom:4}}>Скорость (Speed: {ttsSpeed}x)</label>
-                       <input type="range" min="0.8" max="1.5" step="0.05" value={ttsSpeed} onChange={e => setTtsSpeed(e.target.value)} style={{width:"100%"}}/>
-                     </div>
-                     <div>
-                       <label style={{fontSize:10, color:"#bae6fd", display:"block", marginBottom:4}}>Эмоция / Интонация</label>
-                       <select value={ttsEmotion} onChange={e => setTtsEmotion(e.target.value)} style={{width:"100%", background:"#111", color:"#fff", border:"1px solid #333", padding:10, borderRadius:10, fontSize:12}}>
-                         <option value="AUTO">АВТО (По сценарию)</option>
-                         <option value="Whisper">Шепот / Тайна</option>
-                         <option value="Aggressive">Агрессивная (Кликбейт)</option>
-                         <option value="Epic">Эпичный рассказчик</option>
-                       </select>
-                     </div>
+                   <div>
+                     <label style={{fontSize:10, color:"#bae6fd", display:"block", marginBottom:4}}>Скорость (Speed: {ttsSpeed}x)</label>
+                     <input type="range" min="0.8" max="1.5" step="0.05" value={ttsSpeed} onChange={e => setTtsSpeed(e.target.value)} style={{width:"100%"}}/>
                    </div>
                  </div>
+                 <div style={{marginTop:12, fontSize:10, color:"#38bdf8", fontStyle:"italic", textAlign:"center"}}>Эмоции и интонации ИИ-режиссер расставит сам с помощью тегов [shock], [whisper] и т.д.</div>
                </div>
              )}
           </div>
