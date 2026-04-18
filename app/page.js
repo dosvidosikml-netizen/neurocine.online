@@ -526,8 +526,12 @@ export default function Page() {
       const data1A = cleanJSON(text1A);
       
       setLoadingMsg("Шаг 2/2: Упаковка SEO и маркетинга...");
-      const text1B = await callAPI(JSON.stringify(data1A.frames), 3000, SYS_STEP_1B);
-      const data1B = cleanJSON(text1B);
+      
+      // ИСПРАВЛЕНИЕ: Броня от пустых массивов
+      const framesForSEO = data1A.frames || [];
+      const text1B = await callAPI(JSON.stringify(framesForSEO), 3000, SYS_STEP_1B);
+      let data1B = {};
+      try { data1B = cleanJSON(text1B) || {}; } catch(e){}
 
       setFrames(data1A.frames || []); 
       setRetention(data1A.retention || null); 
@@ -685,21 +689,30 @@ export default function Page() {
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700;900&family=Creepster&family=Montserrat:wght@800;900&family=Oswald:wght@700&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
+        
         .gbtn { width: 100%; height: 56px; border: none; border-radius: 16px; cursor: pointer; font-weight: 900; color: #fff; background: linear-gradient(135deg, #4f46e5, #9333ea, #ec4899); transition: all 0.2s; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4); text-transform: uppercase; font-size: 15px;}
         .gbtn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .gbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
         .block-card { background: rgba(15,15,25,.6); border: 1px solid rgba(255,255,255,.08); border-radius: 20px; padding: 20px; margin-bottom: 20px; backdrop-filter: blur(20px); }
         .block-title { font-size: 11px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;}
-        textarea:focus, input[type="text"]:focus { outline: none; border-color: rgba(168, 85, 247, 0.6) !important; background: rgba(0, 0, 0, 0.6) !important; }
+        
+        textarea:focus, input[type="text"]:focus, select:focus { outline: none; border-color: rgba(168, 85, 247, 0.6) !important; background: rgba(0, 0, 0, 0.6) !important; }
+        
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #a855f7; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px #a855f7; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+        
         .hide-scroll::-webkit-scrollbar { display: none; }
+        
         .asset-slot { width: 100px; height: 100px; border: 2px dashed rgba(255,255,255,0.15); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(0,0,0,0.4); transition: all 0.2s; flex-shrink: 0; }
         .asset-slot:hover { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.1); }
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
+      {/* МОДАЛЬНЫЕ ОКНА */}
       {showPaywall && (
         <div style={{position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
           <div style={{background:"#111827", border:"1px solid #a855f7", borderRadius:24, padding:30, maxWidth:400, textAlign:"center", position:"relative", boxShadow:"0 10px 50px rgba(168,85,247,0.3)"}}>
@@ -829,6 +842,8 @@ export default function Page() {
                  </div>
               </div>
 
+              {/* Убрали старый уродливый блок настроек голоса с первого шага */}
+
               <div style={{height: 100}} />
               <div style={{position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:600, padding:"16px 20px 24px", background:"linear-gradient(to top, rgba(5,5,10,1) 70%, transparent)", zIndex:100}}>
                 <button className="gbtn" onClick={() => { setWizardStep(2); window.scrollTo(0,0); }} style={{background: "linear-gradient(135deg, #3b82f6, #8b5cf6)"}}>
@@ -844,6 +859,16 @@ export default function Page() {
               <button onClick={() => setWizardStep(1)} style={{background:"none", border:"none", color:"#94a3b8", fontWeight:800, fontSize:12, cursor:"pointer", marginBottom: 20}}>
                 ← НАЗАД В НАСТРОЙКИ
               </button>
+
+              {/* Блок Выбора Диктора перед текстом (Выглядит стильно) */}
+              <div className="block-card" style={{borderLeft:"3px solid #8b5cf6", paddingBottom:15}}>
+                 <div className="block-title"><span style={{color:"#c4b5fd"}}>🎙 ВЫБОР ДИКТОРА (TTS)</span></div>
+                 <div style={{display:"flex", gap:10}}>
+                   <select value={ttsVoice} onChange={e => setTtsVoice(e.target.value)} style={{flex:1, background:"#111", color:"#fff", border:"1px solid #333", padding:"12px 14px", borderRadius:12, fontSize:13, fontWeight:700}}>
+                     {TTS_SPEAKERS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                   </select>
+                 </div>
+              </div>
 
               <div className="block-card" style={{borderLeft:"3px solid #fbbf24"}}>
                  <div className="block-title"><span style={{color:"#fbbf24"}}>5. СЦЕНАРИЙ И ХУКИ (Story)</span></div>
@@ -866,7 +891,7 @@ export default function Page() {
                    </div>
                  )}
 
-                 <textarea rows={8} value={script} onChange={e => setScript(e.target.value)} placeholder="Вставьте сюда готовый текст диктора..." style={{width:"100%", background:"#111", border:"1px solid #333", borderRadius:12, padding:14, fontSize:14, color:"#cbd5e1", resize:"none", marginBottom:12}}/>
+                 <textarea rows={10} value={script} onChange={e => setScript(e.target.value)} placeholder="Вставьте сюда готовый текст диктора..." style={{width:"100%", background:"#111", border:"1px solid #333", borderRadius:12, padding:14, fontSize:14, color:"#cbd5e1", resize:"none"}}/>
               </div>
 
               <div style={{height: 100}} />
@@ -880,6 +905,7 @@ export default function Page() {
         </div>
       )}
 
+      {/* ЗАГРУЗКА */}
       {view === "loading" && (
         <div style={{display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", padding:"20px", textAlign:"center"}}>
            <div style={{width:60, height:60, border:"4px solid rgba(168,85,247,0.2)", borderTopColor:"#a855f7", borderRadius:"50%", animation:"spin 1s linear infinite", marginBottom:24}} />
@@ -912,7 +938,7 @@ export default function Page() {
              </div>
           )}
 
-          {/* НОВЫЙ БЛОК ГЕНЕРАЦИИ (С ВЫБОРОМ РЕЖИМА) */}
+          {/* НОВЫЙ БЛОК ГЕНЕРАЦИИ (С ВЫБОРОМ РЕЖИМА I2V/T2V) */}
           {!step2Done && (
             <div style={{background:"rgba(236,72,153,0.05)", border:"1px solid rgba(236,72,153,0.3)", borderRadius:24, padding:24, textAlign:"center", marginBottom:24}}>
               <div style={{marginBottom: 20, display: "flex", flexDirection: "column", gap: 10, alignItems: "center"}}>
@@ -950,6 +976,7 @@ export default function Page() {
             </div>
           )}
 
+          {/* ВКЛАДКИ РЕЗУЛЬТАТОВ */}
           <div className="hide-scroll" style={{display:"flex", gap:10, marginBottom:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:16, overflowX:"auto"}}>
              {["storyboard", "raw", "tts", "seo"].map(t => (
                <button key={t} onClick={() => setTab(t)} style={{background:"none", border:"none", color: tab === t ? "#a855f7" : "#94a3b8", fontWeight:800, fontSize:12, textTransform:"uppercase", cursor:"pointer", whiteSpace:"nowrap"}}>
@@ -958,6 +985,7 @@ export default function Page() {
              ))}
           </div>
 
+          {/* ВКЛАДКА: РАСКАДРОВКА */}
           {tab === "storyboard" && (
             <div>
               {generatedChars && generatedChars.length > 0 && (
@@ -966,7 +994,7 @@ export default function Page() {
                   {generatedChars.map((c, i) => (
                     <div key={i} style={{marginBottom: i !== generatedChars.length - 1 ? 16 : 0, paddingBottom: i !== generatedChars.length - 1 ? 16 : 0, borderBottom: i !== generatedChars.length - 1 ? "1px solid rgba(236,72,153,0.1)" : "none"}}>
                       <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
-                        <span style={{fontSize:13, fontWeight:800, color:"#fbcfe8"}}>{c.name} ({c.id})</span>
+                        <span style={{fontSize:13, fontWeight:800, color:"#fbcfe8"}}>{c.name}</span>
                         <CopyBtn text={c.ref_sheet_prompt} small/>
                       </div>
                       <div style={{fontSize:12, fontFamily:"monospace", color:"#f9a8d4", lineHeight:1.4}}>{c.ref_sheet_prompt}</div>
@@ -983,8 +1011,8 @@ export default function Page() {
               )}
               {styleRef && (
                 <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(250,204,21,0.3)", borderRadius:24, padding:24}}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}><span style={{fontSize:12, fontWeight:900, color:"#facc15", textTransform:"uppercase"}}>🎨 STYLE REF</span><CopyBtn text={`${styleRef}, ${VISUAL_ENGINES[engine]?.prompt || ""}${customStyle ? ", "+customStyle : ""}`} small/></div>
-                  <div style={{fontSize:13, fontFamily:"monospace", color:"#fef08a", lineHeight:1.5}}>{`${styleRef}, ${VISUAL_ENGINES[engine]?.prompt || ""}${customStyle ? ", "+customStyle : ""}`}</div>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}><span style={{fontSize:12, fontWeight:900, color:"#facc15", textTransform:"uppercase"}}>🎨 STYLE REF</span><CopyBtn text={`${styleRef}, ${VISUAL_ENGINES[engine]?.prompt || ""}`} small/></div>
+                  <div style={{fontSize:13, fontFamily:"monospace", color:"#fef08a", lineHeight:1.5}}>{`${styleRef}, ${VISUAL_ENGINES[engine]?.prompt || ""}`}</div>
                 </div>
               )}
               
@@ -1016,6 +1044,7 @@ export default function Page() {
             </div>
           )}
 
+          {/* ВКЛАДКА: ПРОМПТЫ */}
           {tab === "raw" && (
             <div style={{display: "flex", flexDirection: "column", gap: 20}}>
               <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24}}>
@@ -1038,7 +1067,7 @@ export default function Page() {
             </div>
           )}
 
-          {/* НОВАЯ ВКЛАДКА: АУДИО-СТУДИЯ (TTS) КАК НА СКРИНШОТЕ */}
+          {/* НОВАЯ ВКЛАДКА: АУДИО-СТУДИЯ (TTS) */}
           {tab === "tts" && (
             <div style={{marginBottom:24}}>
               <div style={{background:"#111", border:"1px solid #333", borderRadius:24, padding:24}}>
@@ -1078,7 +1107,7 @@ export default function Page() {
                      <CopyBtn text={fullTtsText} small />
                    </div>
                    <div style={{background:"#000", border:"1px solid #333", padding:16, borderRadius:12, color:"#fff", fontSize:15, lineHeight:1.6, height:250, overflowY:"auto"}}>
-                     {fullTtsText}
+                     {fullTtsText || "Сценарий пока не сгенерирован."}
                    </div>
                  </div>
 
@@ -1086,6 +1115,7 @@ export default function Page() {
             </div>
           )}
           
+          {/* ВКЛАДКА: SEO И МУЗЫКА */}
           {tab === "seo" && (
             <div style={{marginBottom:24}}>
               <div style={{background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24, marginBottom:16}}>
@@ -1200,17 +1230,21 @@ export default function Page() {
                    
                    {seoVariants && seoVariants.length > 0 ? (
                      <div style={{display:"flex", flexDirection:"column", gap:16}}>
-                       {seoVariants.map((seoVar, i) => (
-                         <div key={i} style={{background: SEO_COLORS[i%3].bg, border:`1px solid ${SEO_COLORS[i%3].border}`, padding:16, borderRadius:16}}>
-                            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-                              <div style={{fontSize:11, color:SEO_COLORS[i%3].title, fontWeight:900, letterSpacing:1}}>ВАРИАНТ {i+1}</div>
-                            </div>
-                            <div style={{fontSize:14, color:"#fff", fontWeight:900, marginBottom:8}}>📌 ЗАГОЛОВОК:<br/><span style={{fontWeight:800}}>{seoVar.title}</span></div>
-                            <div style={{color:SEO_COLORS[i%3].text, fontSize:13, marginBottom:12, lineHeight:1.5}}>📝 ОПИСАНИЕ:<br/>{seoVar.desc}</div>
-                            <div style={{color:SEO_COLORS[i%3].title, fontSize:12, fontWeight:700, marginBottom:16}}>🏷 ТЕГИ:<br/>{seoVar.tags?.join(" ")}</div>
-                            <CopyBtn text={`${seoVar.title}\n\n${seoVar.desc}\n\n${seoVar.tags?.join(" ")}`} label="СКОПИРОВАТЬ ВАРИАНТ" fullWidth />
-                         </div>
-                       ))}
+                       {seoVariants.map((s, i) => {
+                         // БРОНЯ ОТ КРАША ТЕГОВ
+                         const safeTags = Array.isArray(s.tags) ? s.tags.join(" ") : (s.tags || "");
+                         return (
+                           <div key={i} style={{background: SEO_COLORS[i%3].bg, border:`1px solid ${SEO_COLORS[i%3].border}`, padding:16, borderRadius:16}}>
+                              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
+                                <div style={{fontSize:11, color:SEO_COLORS[i%3].title, fontWeight:900, letterSpacing:1}}>ВАРИАНТ {i+1}</div>
+                              </div>
+                              <div style={{fontSize:14, color:"#fff", fontWeight:900, marginBottom:8}}>📌 ЗАГОЛОВОК:<br/><span style={{fontWeight:800}}>{s.title}</span></div>
+                              <div style={{color:SEO_COLORS[i%3].text, fontSize:13, marginBottom:12, lineHeight:1.5}}>📝 ОПИСАНИЕ:<br/>{s.desc}</div>
+                              <div style={{color:SEO_COLORS[i%3].title, fontSize:12, fontWeight:700, marginBottom:16}}>🏷 ТЕГИ:<br/>{safeTags}</div>
+                              <CopyBtn text={`${s.title}\n\n${s.desc}\n\n${safeTags}`} label="СКОПИРОВАТЬ ВАРИАНТ" fullWidth />
+                           </div>
+                         );
+                       })}
                        <button onClick={handleAddSEOVariant} disabled={generatingSEO} style={{width:"100%", padding:"12px", background:"rgba(59,130,246,0.1)", border:"1px dashed rgba(59,130,246,0.5)", borderRadius:12, color:"#60a5fa", fontWeight:800, cursor: generatingSEO ? "not-allowed" : "pointer"}}>
                           {generatingSEO ? "ГЕНЕРАЦИЯ..." : "➕ СГЕНЕРИРОВАТЬ ЕЩЕ ВАРИАНТ"}
                        </button>
