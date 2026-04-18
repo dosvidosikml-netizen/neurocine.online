@@ -233,6 +233,12 @@ function CopyBtn({ text, label="COPY", fullWidth=false }) {
 
 // ОСНОВНОЙ КОМПОНЕНТ РЕЖИССЕРА
 export default function Page() {
+  // ПРЕДОХРАНИТЕЛЬ ДЛЯ RENDER: Ждем загрузки в браузере
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
   const [clicks, setClicks] = useState(0); 
@@ -333,6 +339,11 @@ export default function Page() {
   }, []);
 
   useEffect(() => { if (draftLoaded) localStorage.setItem("ds_draft", JSON.stringify({topic, script, genre, chars, pipelineMode, studioLoc, engine, finalTwist, customStyle})); }, [topic, script, genre, chars, pipelineMode, studioLoc, engine, finalTwist, customStyle, draftLoaded]);
+
+  // Если мы рендеримся на сервере Render, просто отдаем черный экран без ошибок
+  if (!isMounted) {
+    return <div style={{background: "#05050A", width: "100vw", height: "100vh"}} />;
+  }
 
   const handleGodMode = () => {
     setClicks(c => c + 1);
