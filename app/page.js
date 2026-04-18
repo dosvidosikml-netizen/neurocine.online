@@ -92,7 +92,6 @@ const FORMATS = [
   { id:"1:1", label:"Квадрат", ratio:"1/1" } 
 ];
 
-// ОБНОВЛЕННАЯ МАТРИЦА СТИЛЕЙ: ХАРДКОРНЫЙ РЕАЛИЗМ
 const VISUAL_ENGINES = {
   "CINEMATIC": { label: "Кино-реализм", prompt: "extreme photorealistic, gritty skin texture, visible skin pores, sweat, micro-details, imperfections, raw documentary photography, harsh directional lighting, volumetric fog, shot on 35mm lens, cinematic rim light" },
   "DARK_HISTORY": { label: "Dark History", prompt: "dark history grunge, gritty realism, muddy and bleak atmosphere, dirty vintage film effect, thick fog, raw footage, harsh shadows, heavy vignette, Arri Alexa 65" },
@@ -199,13 +198,14 @@ JSON FORMAT:
   "thumbnail_prompt_EN": "TALL VERTICAL IMAGE PORTRAIT ORIENTATION, [Identity Key] Render as an intense dynamic cinematic cover portrait..."
 }`;
 
-// --- ФУНКЦИИ ---
-async function callAPI(content, maxTokens = 4000, sysPrompt) {
+// --- ФУНКЦИИ АПИ ---
+async function callAPI(content, maxTokens = 4000, sysPrompt, model = "meta-llama/llama-3.3-70b-instruct") {
   try {
     const res = await fetch("/api/chat", { 
       method: "POST", 
       headers: { "Content-Type": "application/json" }, 
       body: JSON.stringify({ 
+        model: model,
         messages: [{ role: "system", content: sysPrompt }, { role: "user", content }], 
         max_tokens: maxTokens 
       }) 
@@ -214,6 +214,32 @@ async function callAPI(content, maxTokens = 4000, sysPrompt) {
     let data;
     try { data = JSON.parse(textRes); } catch (e) { throw new Error(`Сервер вернул не JSON: ${textRes.substring(0, 100)}`); }
     if (!res.ok || data.error) throw new Error(data.error || "Ошибка API");
+    return data.text || "";
+  } catch (e) { throw e; }
+}
+
+async function callVisionAPI(base64Image, sysPrompt) {
+  try {
+    const res = await fetch("/api/chat", { 
+      method: "POST", 
+      headers: { "Content-Type": "application/json" }, 
+      body: JSON.stringify({ 
+        model: "openai/gpt-4o-mini", // Дешевая и быстрая модель для зрения
+        messages: [
+          { role: "system", content: sysPrompt }, 
+          { role: "user", content: [ 
+              { type: "text", text: "Опиши человека на фото. ВЫДАЙ ТОЛЬКО JSON ОБЪЕКТ." }, 
+              { type: "image_url", image_url: { url: base64Image } } 
+            ] 
+          }
+        ], 
+        max_tokens: 1500 
+      }) 
+    });
+    const textRes = await res.text();
+    let data;
+    try { data = JSON.parse(textRes); } catch (e) { throw new Error(`Сервер вернул не JSON: ${textRes.substring(0, 100)}`); }
+    if (!res.ok || data.error) throw new Error(data.error || "Ошибка Vision API");
     return data.text || "";
   } catch (e) { throw e; }
 }
@@ -421,6 +447,29 @@ export default function Page() {
   const addChar = () => setChars([...chars, { id: `CHAR_${Date.now()}`, name: "", desc: "" }]);
   const removeChar = (id) => setChars(chars.filter(c => c.id !== id));
   const updateChar = (id, field, value) => setChars(chars.map(c => c.id === id ? { ...c, [field]: value } : c));
+
+  async function handleCharImageUpload(e, id) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
+      setBusy(true); setLoadingMsg("ИИ сканирует лицо..."); setView("loading");
+      try {
+        const sys = `You are an elite Character Designer. Describe the person's physical appearance in the image in English. Focus ONLY on physical traits: age, jawline, facial hair, scars, eye color, specific clothing style. DO NOT describe the background or lighting. Return ONLY a valid JSON object: { "desc": "Detailed english prompt..." }`;
+        const rawText = await callVisionAPI(base64, sys);
+        const parsed = cleanJSON(rawText);
+        if (parsed && parsed.desc) {
+          updateChar(id, 'desc', `[${parsed.desc}]`);
+        }
+      } catch (err) {
+        alert("🚨 ОШИБКА АНАЛИЗА ФОТО: " + err.message);
+      } finally {
+        setBusy(false); setView("form");
+      }
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function handleGenerateCasting() {
     if (!topic.trim() && !script.trim() && chars.length === 0) return alert("Введите тему, скрипт или добавьте персонажей вручную!");
@@ -792,7 +841,7 @@ export default function Page() {
             </div>
           </div>
 
-          {/* СЦЕНАРИЙ (Перемещен выше) */}
+          {/* СЦЕНАРИЙ */}
           <div style={{marginBottom:24, background:"rgba(15,15,25,.4)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24, backdropFilter:"blur(20px)"}}>
              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
                <label style={{fontSize:11, fontWeight:800, letterSpacing:2, color:"#94a3b8", display:"block", marginBottom:0, textTransform:"uppercase"}}>📝 Сценарий</label>
@@ -817,7 +866,6 @@ export default function Page() {
                <button onClick={() => setShowTTS(!showTTS)} style={{background:"rgba(14,165,233,0.1)", border:"1px dashed rgba(14,165,233,0.3)", color:"#7dd3fc", padding:12, borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer"}}>⚙️ Голос (TTS)</button>
              </div>
 
-             {/* PRO-НАСТРОЙКИ ДИКТОРА (Удален тупой селект эмоций) */}
              {showTTS && (
                <div style={{marginTop:16, padding:20, background:"rgba(0,0,0,0.4)", borderRadius:16, border:"1px solid rgba(14,165,233,0.4)"}}>
                  <div style={{display:"flex", alignItems:"center", marginBottom:12}}>
@@ -837,7 +885,6 @@ export default function Page() {
                      <input type="range" min="0.8" max="1.5" step="0.05" value={ttsSpeed} onChange={e => setTtsSpeed(e.target.value)} style={{width:"100%"}}/>
                    </div>
                  </div>
-                 <div style={{marginTop:12, fontSize:10, color:"#38bdf8", fontStyle:"italic", textAlign:"center"}}>Эмоции и интонации ИИ-режиссер расставит сам с помощью тегов [shock], [whisper] и т.д.</div>
                </div>
              )}
           </div>
@@ -882,9 +929,15 @@ export default function Page() {
                  <div key={c.id} style={{background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:12, padding:12}}>
                    <div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}>
                      <input type="text" value={c.name} onChange={e => updateChar(c.id, 'name', e.target.value)} style={{background:"none", border:"none", color:"#fbcfe8", fontWeight:800, fontSize:12, width:"100%"}} placeholder="Имя (напр. Палач)" />
-                     <button onClick={() => removeChar(c.id)} style={{background:"none", border:"none", color:"#ef4444", fontSize:16, cursor:"pointer"}}>×</button>
+                     <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                       <label style={{background:"rgba(56,189,248,0.15)", border:"1px solid rgba(56,189,248,0.3)", color:"#bae6fd", fontSize:10, padding:"4px 8px", borderRadius:6, cursor:"pointer", fontWeight:800}}>
+                         📸 ФОТО
+                         <input type="file" accept="image/*" hidden onChange={(e) => handleCharImageUpload(e, c.id)} />
+                       </label>
+                       <button onClick={() => removeChar(c.id)} style={{background:"none", border:"none", color:"#ef4444", fontSize:16, cursor:"pointer"}}>×</button>
+                     </div>
                    </div>
-                   <textarea rows={3} value={c.desc} onChange={e => updateChar(c.id, 'desc', e.target.value)} placeholder="Внешность своими словами ИЛИ готовый англ. промпт для референса (Identity Key)." style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"none", borderRadius:8, padding:10, fontSize:12, color:"#cbd5e1", resize:"none"}} />
+                   <textarea rows={3} value={c.desc} onChange={e => updateChar(c.id, 'desc', e.target.value)} placeholder="Внешность своими словами ИЛИ загрузите ФОТО для авто-анализа." style={{width:"100%", background:"rgba(255,255,255,0.05)", border:"none", borderRadius:8, padding:10, fontSize:12, color:"#cbd5e1", resize:"none"}} />
                  </div>
                ))}
              </div>
