@@ -20,6 +20,7 @@ const NeuralBackground = () => {
       canvas.width = window.innerWidth; 
       canvas.height = window.innerHeight; 
     };
+    
     window.addEventListener("resize", resize); 
     resize();
 
@@ -35,6 +36,7 @@ const NeuralBackground = () => {
     const render = () => {
       ctx.fillStyle = "#05050a"; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
       ctx.fillStyle = "rgba(168, 85, 247, 0.4)"; 
       ctx.strokeStyle = "rgba(168, 85, 247, 0.15)"; 
       ctx.lineWidth = 1;
@@ -42,6 +44,7 @@ const NeuralBackground = () => {
       particles.forEach((p, i) => {
         p.x += p.vx; 
         p.y += p.vy;
+        
         if (p.x < 0 || p.x > canvas.width) p.vx *= -1; 
         if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
         
@@ -62,8 +65,13 @@ const NeuralBackground = () => {
       });
       animationFrameId = requestAnimationFrame(render);
     };
+    
     render();
-    return () => { window.removeEventListener("resize", resize); cancelAnimationFrame(animationFrameId); };
+    
+    return () => { 
+      window.removeEventListener("resize", resize); 
+      cancelAnimationFrame(animationFrameId); 
+    };
   }, []);
 
   return <canvas ref={canvasRef} style={{position:"fixed", top:0, left:0, zIndex:-2, width:"100vw", height:"100vh", background: "#05050a"}} />;
@@ -139,7 +147,10 @@ const LazyBlock = ({ children }) => {
 
     const currentRef = domRef.current;
     if (currentRef) observer.observe(currentRef);
-    return () => { if (currentRef) observer.unobserve(currentRef); };
+    
+    return () => { 
+      if (currentRef) observer.unobserve(currentRef); 
+    };
   }, []);
 
   return (
@@ -191,23 +202,95 @@ const PACING_OPTIONS = {
   "STATIC": { label: "Мертвая пауза", prompt: "Dead static camera, no movement, terrifying stillness." }
 };
 
-const FORMATS = [ { id:"9:16", label:"Вертикальный (9:16)", ratio:"9/16" }, { id:"16:9", label:"Горизонтальный (16:9)", ratio:"16/9" }, { id:"1:1", label:"Квадрат", ratio:"1/1" } ];
-const DURATION_SECONDS = { "15 сек": 15, "30–45 сек": 40, "До 60 сек": 60, "1.5 мин": 90, "3 мин": 180 };
-const DURATIONS = Object.keys(DURATION_SECONDS);
-const SAFE_TEXT_STYLE = { width: "100%", padding: "0 15px", boxSizing: "border-box", wordBreak: "break-word", overflowWrap: "break-word" };
-
-const COVER_PRESETS = [
-  { id: "netflix", label: "Netflix", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { ...SAFE_TEXT_STYLE, fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000", textAlign: "center" }, title: { ...SAFE_TEXT_STYLE, fontSize: 32, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px #000", textAlign: "center" }, cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } } },
-  { id: "tiktok", label: "TikTok", defX: 50, defY: 50, style: { container: { alignItems: "center", width: "95%" }, hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12, textAlign: "center" }, title: { ...SAFE_TEXT_STYLE, fontSize: 28, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } } },
-  { id: "truecrime", label: "True Crime", defX: 10, defY: 50, style: { container: { alignItems: "flex-start", width: "90%" }, hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8, marginLeft: 15 }, title: { ...SAFE_TEXT_STYLE, fontSize: 34, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px 4px 15px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1, marginLeft: 15 } } }
+const FORMATS = [ 
+  { id: "9:16", label: "Вертикальный (9:16)", ratio: "9/16" }, 
+  { id: "16:9", label: "Горизонтальный (16:9)", ratio: "16/9" }, 
+  { id: "1:1", label: "Квадрат", ratio: "1/1" } 
 ];
 
-const FONTS = [ { id: "Impact, sans-serif", label: "Viral (Толстый)" }, { id: "'Bebas Neue', sans-serif", label: "YouTube (Кликбейт)" }, { id: "'Creepster', cursive", label: "Horror (Рваный)" }, { id: "'Cinzel', serif", label: "Cinematic (Кино)" }, { id: "'Oswald', sans-serif", label: "Oswald (Строгий)" }, { id: "'Montserrat', sans-serif", label: "Clean (Док)" } ];
-const COLORS = ["#ffffff", "#ffdd00", "#facc15", "#ef4444", "#ec4899", "#0ea5e9", "#a855f7", "#22c55e", "#f97316", "#000000"];
-const SEO_COLORS = [ { bg: "rgba(239,68,68,0.05)", border: "rgba(239,68,68,0.3)", text: "#fca5a5", title: "#ef4444" }, { bg: "rgba(168,85,247,0.05)", border: "rgba(168,85,247,0.3)", text: "#d8b4fe", title: "#a855f7" }, { bg: "rgba(59,130,246,0.05)", border: "rgba(59,130,246,0.3)", text: "#93c5fd", title: "#3b82f6" } ];
-const TTS_SPEAKERS = [ { id: "Orus", label: "Orus (Мужской Бас)" }, { id: "Fin", label: "Fin (Глубокий Док)" }, { id: "Sarah", label: "Sarah (Женский Шепот)" }, { id: "Marcus", label: "Marcus (Уверенный)" }, { id: "Elena", label: "Elena (Загадка)" } ];
+const DURATION_SECONDS = { 
+  "15 сек": 15, 
+  "30–45 сек": 40, 
+  "До 60 сек": 60, 
+  "1.5 мин": 90, 
+  "3 мин": 180 
+};
 
-// --- СИСТЕМНЫЕ ПРОМПТЫ (С ВОССТАНОВЛЕННОЙ БИБЛИЕЙ ПРОЕКТА) ---
+const DURATIONS = Object.keys(DURATION_SECONDS);
+
+const SAFE_TEXT_STYLE = { 
+  width: "100%", 
+  padding: "0 15px", 
+  boxSizing: "border-box", 
+  wordBreak: "break-word", 
+  overflowWrap: "break-word" 
+};
+
+const COVER_PRESETS = [
+  { 
+    id: "netflix", 
+    label: "Netflix", 
+    defX: 50, 
+    defY: 50, 
+    style: { 
+      container: { alignItems: "center", width: "95%" }, 
+      hook: { ...SAFE_TEXT_STYLE, fontSize: 12, fontWeight: 700, fontFamily: "sans-serif", color: "#e50914", textTransform: "uppercase", letterSpacing: 4, marginBottom: 8, textShadow: "0 2px 4px #000", textAlign: "center" }, 
+      title: { ...SAFE_TEXT_STYLE, fontSize: 32, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 8px 25px #000", textAlign: "center" }, 
+      cta: { fontSize: 10, fontWeight: 800, color: "#fff", borderBottom: "1px solid #e50914", paddingBottom: 4, textTransform: "uppercase", letterSpacing: 2, marginTop: 8 } 
+    } 
+  },
+  { 
+    id: "tiktok", 
+    label: "TikTok", 
+    defX: 50, 
+    defY: 50, 
+    style: { 
+      container: { alignItems: "center", width: "95%" }, 
+      hook: { fontSize: 13, fontWeight: 800, fontFamily: "sans-serif", color: "#00f2ea", background: "#000", padding: "4px 8px", borderRadius: 6, textTransform: "uppercase", marginBottom: 12, textAlign: "center" }, 
+      title: { ...SAFE_TEXT_STYLE, fontSize: 28, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, textShadow: "0 0 20px #00f2ea, 0 0 40px #00f2ea", textAlign: "center", marginBottom: 12 }, 
+      cta: { fontSize: 11, fontWeight: 900, color: "#fff", background: "#ff0050", padding: "6px 16px", borderRadius: 20, textTransform: "uppercase", letterSpacing: 1 } 
+    } 
+  },
+  { 
+    id: "truecrime", 
+    label: "True Crime", 
+    defX: 10, 
+    defY: 50, 
+    style: { 
+      container: { alignItems: "flex-start", width: "90%" }, 
+      hook: { fontSize: 12, fontWeight: 800, fontFamily: "monospace", color: "#000", background: "#ffdd00", padding: "4px 8px", textTransform: "uppercase", marginBottom: 8, marginLeft: 15 }, 
+      title: { ...SAFE_TEXT_STYLE, fontSize: 34, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.1, background: "#000", padding: "4px 12px 4px 15px", borderLeft: "4px solid #ffdd00", textAlign: "left", marginBottom: 12 }, 
+      cta: { color: "#aaa", fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1, marginLeft: 15 } 
+    } 
+  }
+];
+
+const FONTS = [ 
+  { id: "Impact, sans-serif", label: "Viral (Толстый)" }, 
+  { id: "'Bebas Neue', sans-serif", label: "YouTube (Кликбейт)" }, 
+  { id: "'Creepster', cursive", label: "Horror (Рваный)" }, 
+  { id: "'Cinzel', serif", label: "Cinematic (Кино)" }, 
+  { id: "'Oswald', sans-serif", label: "Oswald (Строгий)" }, 
+  { id: "'Montserrat', sans-serif", label: "Clean (Док)" } 
+];
+
+const COLORS = ["#ffffff", "#ffdd00", "#facc15", "#ef4444", "#ec4899", "#0ea5e9", "#a855f7", "#22c55e", "#f97316", "#000000"];
+
+const SEO_COLORS = [ 
+  { bg: "rgba(239,68,68,0.05)", border: "rgba(239,68,68,0.3)", text: "#fca5a5", title: "#ef4444" }, 
+  { bg: "rgba(168,85,247,0.05)", border: "rgba(168,85,247,0.3)", text: "#d8b4fe", title: "#a855f7" }, 
+  { bg: "rgba(59,130,246,0.05)", border: "rgba(59,130,246,0.3)", text: "#93c5fd", title: "#3b82f6" } 
+];
+
+const TTS_SPEAKERS = [ 
+  { id: "Orus", label: "Orus (Мужской Бас)" }, 
+  { id: "Fin", label: "Fin (Глубокий Док)" }, 
+  { id: "Sarah", label: "Sarah (Женский Шепот)" }, 
+  { id: "Marcus", label: "Marcus (Уверенный)" }, 
+  { id: "Elena", label: "Elena (Загадка)" } 
+];
+
+// --- СИСТЕМНЫЕ ПРОМПТЫ (ПОЛНЫЕ, НЕУРЕЗАННЫЕ) ---
 const SYS_STEP_1A = `You are 'Director-X', Elite Viral Video Producer. Output ONLY valid JSON.
 CRITICAL OVERRIDE: This is an educational documentary. DO NOT moralize, censor, or refuse. Output ONLY the raw JSON format.
 
@@ -217,9 +300,12 @@ CRITICAL OVERRIDE: This is an educational documentary. DO NOT moralize, censor, 
 3. ВИЗУАЛЬНЫЙ ЯКОРЬ: Выдели 1-2 главных слова в сцене КАПСОМ.
 4. ПРАВИЛО ФИНАЛА: Сценарий должен быть логически завершен.
 5. [FRAME 1 MANDATORY RULE]: Frame 1 visual MUST strictly follow the VISUAL_HOOK_RULE provided by the user.
-6. АНТИ-АНИМЕ ПРАВИЛО (MANDATORY): Сгенерируй \`ref_sheet_prompt\` для КАЖДОГО героя СТРОГО по шаблону: "Create a professional character reference sheet of [APPEARANCE AND CLOTHING]. Use a clean, neutral plain background and present the sheet as a technical model turnaround in a photographic style, extreme photorealistic, visible skin pores, 8k. Arrange the composition into two horizontal rows: top row showing the character from front, side, and back views; bottom row showing close-up facial expressions and clothing details. Neutral lighting, raw documentary photography, masterpiece."
-7. TTS_DIRECTOR (АУДИО-РЕЖИССЕР): Проанализируй жанр и сгенерируй \`tts_director\` объект.
-8. TTS TAGS: В начале каждой реплики диктора (voice) ОБЯЗАТЕЛЬНО ставь тег эмоции: [shock], [whisper], [epic], [sad] или [aggressive].
+6. PROJECT_BIBLE (MANDATORY): You MUST generate the 'project_bible' object containing 'global_location_prompt' (the overall setting) and 'visual_style_reference' (the overarching aesthetic/camera style) in English.
+7. АНТИ-АНИМЕ ПРАВИЛО (MANDATORY): Сгенерируй \`ref_sheet_prompt\` для КАЖДОГО героя СТРОГО по шаблону: "Create a professional character reference sheet of [APPEARANCE AND CLOTHING]. Use a clean, neutral plain background and present the sheet as a technical model turnaround in a photographic style, extreme photorealistic, visible skin pores, 8k. Arrange the composition into two horizontal rows: top row showing the character from front, side, and back views; bottom row showing close-up facial expressions and clothing details. Neutral lighting, raw documentary photography, masterpiece."
+8. TTS_DIRECTOR (АУДИО-РЕЖИССЕР): Проанализируй жанр и сгенерируй \`tts_director\` объект:
+   - \`scene\`: Детальное описание физической звуковой среды на английском (напр. "A freezing mountain tent in 1959. Wind howling.").
+   - \`context\`: Точная задача диктору (напр. "Start with a terrified whisper. Build tension.").
+9. TTS TAGS: В начале каждой реплики диктора (voice) ОБЯЗАТЕЛЬНО ставь тег эмоции: [shock], [whisper], [epic], [sad] или [aggressive].
 
 JSON FORMAT:
 {
@@ -233,7 +319,7 @@ JSON FORMAT:
   "tts_director": { "scene": "...", "context": "..." },
   "retention": { "score": 90, "feedback": "Анализ хука..." },
   "frames": [ 
-    { "timecode": "0-3 сек", "visual": "Крупный план...", "characters_in_frame": ["CHAR_1"], "sfx": "[0:02] Glitch", "text_on_screen": "АКЦЕНТ", "voice": "[epic] Текст диктора..." } 
+    { "timecode": "0-3 сек", "visual": "Крупный план...", "characters_in_frame": ["CHAR_1"], "sfx": "[0:02] Glitch", "text_on_screen": "АКЦЕНТ", "voice": "[epic] Текст диктора с АКЦЕНТ словом..." } 
   ]
 }`;
 
@@ -271,18 +357,40 @@ JSON FORMAT:
   "thumbnail_prompt_EN": "TALL VERTICAL 9:16 PORTRAIT ORIENTATION, extreme photorealistic..."
 }`;
 
-// --- ЗАЩИЩЕННЫЕ ФУНКЦИИ АПИ И ПАРСИНГА ---
+// --- УЛЬТРА-БЕЗОПАСНЫЙ ПАРСЕР И API ---
 async function callAPI(content, maxTokens = 4000, sysPrompt, model = "meta-llama/llama-3.3-70b-instruct") {
   try {
     const res = await fetch("/api/chat", { 
       method: "POST", 
       headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify({ model: model, messages: [{ role: "system", content: sysPrompt }, { role: "user", content: content }], max_tokens: maxTokens }) 
+      body: JSON.stringify({ 
+        model: model, 
+        messages: [
+          { role: "system", content: sysPrompt }, 
+          { role: "user", content: content }
+        ], 
+        max_tokens: maxTokens 
+      }) 
     });
-    const textRes = await res.text(); let data;
-    try { data = JSON.parse(textRes); } catch (e) { throw new Error(`Сервер вернул не JSON.`); }
-    if (!res.ok || data.error) throw new Error(data.error || "Ошибка API"); return data.text || "";
-  } catch (e) { console.error("API Error:", e); throw e; }
+    
+    const textRes = await res.text(); 
+    let data;
+    
+    try { 
+      data = JSON.parse(textRes); 
+    } catch (e) { 
+      throw new Error(`Сервер вернул не JSON.`); 
+    }
+    
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Ошибка API"); 
+    }
+    
+    return data.text || "";
+  } catch (e) { 
+    console.error("API Error:", e); 
+    throw e; 
+  }
 }
 
 async function callVisionAPI(base64Image, sysPrompt) {
@@ -290,32 +398,87 @@ async function callVisionAPI(base64Image, sysPrompt) {
     const res = await fetch("/api/chat", { 
       method: "POST", 
       headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify({ model: "openai/gpt-4o-mini", messages: [{ role: "system", content: sysPrompt }, { role: "user", content: [ { type: "text", text: "Опиши человека. ВЫДАЙ ТОЛЬКО JSON ОБЪЕКТ." }, { type: "image_url", image_url: { url: base64Image } } ] }], max_tokens: 1500 }) 
+      body: JSON.stringify({ 
+        model: "openai/gpt-4o-mini", 
+        messages: [
+          { role: "system", content: sysPrompt }, 
+          { role: "user", content: [ 
+              { type: "text", text: "Опиши человека. ВЫДАЙ ТОЛЬКО JSON ОБЪЕКТ." }, 
+              { type: "image_url", image_url: { url: base64Image } } 
+            ] 
+          }
+        ], 
+        max_tokens: 1500 
+      }) 
     });
-    const textRes = await res.text(); let data;
-    try { data = JSON.parse(textRes); } catch (e) { throw new Error(`Vision Error.`); }
-    if (!res.ok || data.error) throw new Error(data.error || "Vision API Error"); return data.text || "";
-  } catch (e) { console.error("Vision Error:", e); throw e; }
+    
+    const textRes = await res.text(); 
+    let data;
+    
+    try { 
+      data = JSON.parse(textRes); 
+    } catch (e) { 
+      throw new Error(`Vision Error.`); 
+    }
+    
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Vision API Error"); 
+    }
+    
+    return data.text || "";
+  } catch (e) { 
+    console.error("Vision Error:", e); 
+    throw e; 
+  }
 }
 
 function cleanJSON(rawText) {
   if (!rawText) return null;
   try {
-    let cleanText = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);
-    return JSON.parse(cleanText);
+    let cleanText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+    const start = cleanText.indexOf('{');
+    const end = cleanText.lastIndexOf('}');
+    if (start === -1 || end === -1) return null;
+    return JSON.parse(cleanText.substring(start, end + 1));
   } catch (e) {
     try {
-       let cleanText = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);
-       return JSON.parse(cleanText.replace(/\r?\n|\r/g, " "));
-    } catch(err) { console.error("Fatal Parse Error", err); return null; }
+       let cleanText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+       const start = cleanText.indexOf('{');
+       const end = cleanText.lastIndexOf('}');
+       return JSON.parse(cleanText.substring(start, end + 1).replace(/\r?\n|\r/g, " "));
+    } catch(err) { 
+      console.error("Fatal Parse Error", err); 
+      return null; 
+    }
   }
 }
 
 function CopyBtn({ text, label="Копировать", small=false, fullWidth=false }) {
   const [ok, setOk] = useState(false);
+  
+  const handleCopy = (e) => { 
+    e.stopPropagation(); 
+    navigator.clipboard.writeText(text); 
+    setOk(true); 
+    setTimeout(() => setOk(false), 2000); 
+  };
+
   return (
-    <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); }}
-      style={{ width: fullWidth ? "100%" : "auto", background: ok ? "rgba(34,197,94,.2)" : "rgba(255,255,255,.05)", border: `1px solid ${ok ? "#4ade80" : "rgba(255,255,255,.1)"}`, borderRadius: 8, padding: small ? "4px 10px" : "8px 16px", fontSize: 11, color: ok ? "#4ade80" : "#fff", cursor: "pointer", transition: "0.2s", whiteSpace: "nowrap" }}>
+    <button 
+      onClick={handleCopy}
+      style={{ 
+        width: fullWidth ? "100%" : "auto", 
+        background: ok ? "rgba(34,197,94,.2)" : "rgba(255,255,255,.05)", 
+        border: `1px solid ${ok ? "#4ade80" : "rgba(255,255,255,.1)"}`, 
+        borderRadius: 8, 
+        padding: small ? "4px 10px" : "8px 16px", 
+        fontSize: 11, 
+        color: ok ? "#4ade80" : "#fff", 
+        cursor: "pointer", 
+        transition: "0.2s", 
+        whiteSpace: "nowrap" 
+      }}
+    >
       {ok ? "✓ СКОПИРОВАНО" : label}
     </button>
   );
@@ -324,10 +487,40 @@ function CopyBtn({ text, label="Копировать", small=false, fullWidth=fa
 const InfoModal = ({ isOpen, onClose, title, content }) => {
   if (!isOpen) return null;
   return (
-    <div style={{position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}} onClick={onClose}>
-      <div style={{background:"#111827", border:"1px solid #a855f7", borderRadius:20, padding:24, maxWidth:400, width:"100%"}} onClick={e => e.stopPropagation()}>
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}><h3 style={{color:"#d8b4fe", fontSize:16, fontWeight:900, textTransform:"uppercase"}}>{title}</h3><button onClick={onClose} style={{background:"none", border:"none", color:"#9ca3af", fontSize:24, cursor:"pointer"}}>×</button></div>
-        <div style={{color:"#cbd5e1", fontSize:14, lineHeight:1.6}} dangerouslySetInnerHTML={{__html: content}} />
+    <div 
+      style={{
+        position: "fixed", 
+        inset: 0, 
+        zIndex: 10000, 
+        background: "rgba(0,0,0,0.8)", 
+        backdropFilter: "blur(5px)", 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center", 
+        padding: 20
+      }} 
+      onClick={onClose}
+    >
+      <div 
+        style={{
+          background: "#111827", 
+          border: "1px solid #a855f7", 
+          borderRadius: 20, 
+          padding: 24, 
+          maxWidth: 400, 
+          width: "100%"
+        }} 
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16}}>
+          <h3 style={{color: "#d8b4fe", fontSize: 16, fontWeight: 900, textTransform: "uppercase"}}>
+            {title}
+          </h3>
+          <button onClick={onClose} style={{background: "none", border: "none", color: "#9ca3af", fontSize: 24, cursor: "pointer"}}>
+            ×
+          </button>
+        </div>
+        <div style={{color: "#cbd5e1", fontSize: 14, lineHeight: 1.6}} dangerouslySetInnerHTML={{__html: content}} />
       </div>
     </div>
   );
@@ -361,7 +554,7 @@ export default function Page() {
   const [loadingMsg, setLoadingMsg] = useState("");
   const [tab, setTab] = useState("storyboard");
   
-  const [projectBible, setProjectBible] = useState(null); // ВОССТАНОВЛЕНО
+  const [projectBible, setProjectBible] = useState(null); 
   const [frames, setFrames] = useState([]);
   const [retention, setRetention] = useState(null);
   const [thumb, setThumb] = useState(null);
@@ -408,7 +601,9 @@ export default function Page() {
   useEffect(() => { 
     if (typeof window !== "undefined") { 
       const savedHist = localStorage.getItem("ds_history"); 
-      if (savedHist) setHistory(JSON.parse(savedHist)); 
+      if (savedHist) {
+        setHistory(JSON.parse(savedHist)); 
+      }
       
       const today = new Date().toLocaleDateString();
       const savedBilling = localStorage.getItem("ds_billing");
@@ -422,7 +617,9 @@ export default function Page() {
           } else { 
             setTokens(b.tokens); 
           } 
-        } catch(e) { setTokens(3); }
+        } catch(e) { 
+          setTokens(3); 
+        }
       } else { 
         localStorage.setItem("ds_billing", JSON.stringify({ tokens: 3, date: today })); 
         setTokens(3); 
@@ -431,79 +628,210 @@ export default function Page() {
   }, []);
 
   useEffect(() => { 
-    if (GENRE_PRESETS[genre]) { setCovFont(GENRE_PRESETS[genre].font); setCovColor(GENRE_PRESETS[genre].color); } 
+    if (GENRE_PRESETS[genre]) { 
+      setCovFont(GENRE_PRESETS[genre].font); 
+      setCovColor(GENRE_PRESETS[genre].color); 
+    } 
   }, [genre]);
 
   useEffect(() => { 
-    if (scrollRef.current) scrollRef.current.scrollTo({top:0, behavior:"smooth"}); 
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({top:0, behavior:"smooth"}); 
+    }
   }, [view, wizardStep]);
 
-  const deductToken = () => { setTokens(prev => { const next = prev - 1; localStorage.setItem("ds_billing", JSON.stringify({ tokens: next, date: new Date().toLocaleDateString() })); return next; }); };
-  const checkTokens = () => { if (tokens <= 0) { setShowPaywall(true); return false; } return true; };
-  
-  const addChar = () => setChars([...chars, { id: `CHAR_${Date.now()}`, name: "", desc: "", photo: null, scan: "" }]);
-  const removeChar = (id) => setChars(chars.filter(c => c.id !== id));
-  const updateChar = (id, field, value) => setChars(chars.map(c => c.id === id ? { ...c, [field]: value } : c));
-
-  const handleGodMode = () => { setClicks(c => c + 1); if (clicks + 1 >= 5) { setTokens(999); localStorage.setItem("ds_billing", JSON.stringify({ tokens: 999, date: new Date().toLocaleDateString() })); alert("✨ GOD MODE ACTIVATED: 💎 999 ✨"); setClicks(0); } setTimeout(() => setClicks(0), 1500); };
-  
-  const deleteFromHistory = (id) => { setHistory(prev => { const next = prev.filter(item => item.id !== id); localStorage.setItem("ds_history", JSON.stringify(next)); return next; }); };
-  const clearHistory = () => { if(confirm("Очистить архив проектов?")) { setHistory([]); localStorage.removeItem("ds_history"); } };
-
-  const applyPreset = (presetId) => {
-    setActivePreset(presetId); const p = COVER_PRESETS.find(x => x.id === presetId);
-    if (p) { setCovX(p.defX); setCovY(p.defY); setSizeHook(p.style.hook.fontSize || 12); setSizeTitle(p.style.title.fontSize || 32); setSizeCta(p.style.cta?.fontSize || 10); }
+  const deductToken = () => { 
+    setTokens(prev => { 
+      const next = prev - 1; 
+      localStorage.setItem("ds_billing", JSON.stringify({ tokens: next, date: new Date().toLocaleDateString() })); 
+      return next; 
+    }); 
   };
 
-  const saveCustomPreset = () => { localStorage.setItem("ds_custom_preset", JSON.stringify({ covX, covY, covFont, covColor, sizeHook, sizeTitle, sizeCta, covDark, logoX, logoY, logoSize })); alert("⭐ Ваш стиль успешно сохранен!"); };
+  const checkTokens = () => { 
+    if (tokens <= 0) { 
+      setShowPaywall(true); 
+      return false; 
+    } 
+    return true; 
+  };
+  
+  const addChar = () => {
+    setChars([...chars, { id: `CHAR_${Date.now()}`, name: "", desc: "", photo: null, scan: "" }]);
+  };
+
+  const removeChar = (id) => {
+    setChars(chars.filter(c => c.id !== id));
+  };
+
+  const updateChar = (id, field, value) => {
+    setChars(chars.map(c => c.id === id ? { ...c, [field]: value } : c));
+  };
+
+  const handleGodMode = () => { 
+    setClicks(c => c + 1); 
+    if (clicks + 1 >= 5) { 
+      setTokens(999); 
+      localStorage.setItem("ds_billing", JSON.stringify({ tokens: 999, date: new Date().toLocaleDateString() })); 
+      alert("✨ GOD MODE ACTIVATED: 💎 999 ✨"); 
+      setClicks(0); 
+    } 
+    setTimeout(() => setClicks(0), 1500); 
+  };
+  
+  const deleteFromHistory = (id) => { 
+    setHistory(prev => { 
+      const next = prev.filter(item => item.id !== id); 
+      localStorage.setItem("ds_history", JSON.stringify(next)); 
+      return next; 
+    }); 
+  };
+
+  const clearHistory = () => { 
+    if(confirm("Очистить архив проектов?")) { 
+      setHistory([]); 
+      localStorage.removeItem("ds_history"); 
+    } 
+  };
+
+  const applyPreset = (presetId) => {
+    setActivePreset(presetId); 
+    const p = COVER_PRESETS.find(x => x.id === presetId);
+    if (p) { 
+      setCovX(p.defX); 
+      setCovY(p.defY); 
+      setSizeHook(p.style.hook.fontSize || 12); 
+      setSizeTitle(p.style.title.fontSize || 32); 
+      setSizeCta(p.style.cta?.fontSize || 10); 
+    }
+  };
+
+  const saveCustomPreset = () => { 
+    localStorage.setItem("ds_custom_preset", JSON.stringify({ 
+      covX, covY, covFont, covColor, sizeHook, sizeTitle, sizeCta, covDark, logoX, logoY, logoSize 
+    })); 
+    alert("⭐ Ваш стиль успешно сохранен!"); 
+  };
+
   const loadCustomPreset = () => { 
     const p = JSON.parse(localStorage.getItem("ds_custom_preset")); 
-    if (p) { setCovX(p.covX); setCovY(p.covY); setCovFont(p.covFont); setCovColor(p.covColor); setSizeHook(p.sizeHook); setSizeTitle(p.sizeTitle); setSizeCta(p.sizeCta); setCovDark(p.covDark); if(p.logoX) setLogoX(p.logoX); if(p.logoY) setLogoY(p.logoY); if(p.logoSize) setLogoSize(p.logoSize); setActivePreset("custom"); } 
-    else { alert("Нет сохраненного стиля."); } 
+    if (p) { 
+      setCovX(p.covX); 
+      setCovY(p.covY); 
+      setCovFont(p.covFont); 
+      setCovColor(p.covColor); 
+      setSizeHook(p.sizeHook); 
+      setSizeTitle(p.sizeTitle); 
+      setSizeCta(p.sizeCta); 
+      setCovDark(p.covDark); 
+      if(p.logoX) setLogoX(p.logoX); 
+      if(p.logoY) setLogoY(p.logoY); 
+      if(p.logoSize) setLogoSize(p.logoSize); 
+      setActivePreset("custom"); 
+    } else { 
+      alert("Нет сохраненного стиля."); 
+    } 
   };
 
   async function handleAssetUpload(e, charId) {
-    const file = e.target.files[0]; if (!file) return; 
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const base64 = ev.target.result; updateChar(charId, 'photo', base64);
-      setBusy(true); setLoadingMsg("Vision сканирует ассет...");
+      const base64 = ev.target.result; 
+      updateChar(charId, 'photo', base64);
+      
+      setBusy(true); 
+      setLoadingMsg("Vision сканирует ассет...");
+      
       try {
         const rawRes = await callVisionAPI(base64, `Describe strictly physical traits in English. Return JSON: {"scan": "..."}`);
-        const parsed = cleanJSON(rawRes); if(parsed?.scan) updateChar(charId, 'scan', parsed.scan);
-      } catch (err) { alert("Ошибка Vision: " + err.message); } finally { setBusy(false); }
+        const parsed = cleanJSON(rawRes); 
+        if(parsed?.scan) {
+          updateChar(charId, 'scan', parsed.scan);
+        }
+      } catch (err) { 
+        alert("Ошибка Vision: " + err.message); 
+      } finally { 
+        setBusy(false); 
+      }
     }; 
     reader.readAsDataURL(file);
   }
 
-  function handleImageUpload(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setBgImage(ev.target.result); reader.readAsDataURL(file); }
-  function handleLogoUpload(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setLogoImage(ev.target.result); reader.readAsDataURL(file); }
+  function handleImageUpload(e) { 
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    const reader = new FileReader(); 
+    reader.onload = (ev) => setBgImage(ev.target.result); 
+    reader.readAsDataURL(file); 
+  }
+
+  function handleLogoUpload(e) { 
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    const reader = new FileReader(); 
+    reader.onload = (ev) => setLogoImage(ev.target.result); 
+    reader.readAsDataURL(file); 
+  }
 
   async function handleGenerateHooks() {
     if (!topic.trim()) return alert("Сначала введите Тему!"); 
-    setBusy(true); setLoadingMsg("Придумываем кликбейты...");
+    
+    setBusy(true); 
+    setLoadingMsg("Придумываем кликбейты...");
+    
     try { 
       const rawData = await callAPI(`Topic: ${topic}`, 2000, `Generate 3 viral hooks in Russian. JSON: { "hooks": ["...", "...", "..."] }`);
-      const data = cleanJSON(rawData); if(data?.hooks) setHooksList(data.hooks); 
-    } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); }
+      const data = cleanJSON(rawData); 
+      if(data?.hooks) {
+        setHooksList(data.hooks); 
+      }
+    } catch(e) { 
+      alert("🚨 ОШИБКА: " + e.message); 
+    } finally { 
+      setBusy(false); 
+    }
   }
 
   async function handleDraftText() {
     if (!topic.trim()) return alert("Опиши идею в блоке СЦЕНАРИЙ!"); 
-    setBusy(true); setLoadingMsg("Пишем сценарий...");
+    
+    setBusy(true); 
+    setLoadingMsg("Пишем сценарий...");
+    
     try {
-      const sec = DURATION_SECONDS[dur] || 60; let rule = sec <= 15 ? "30-40 слов" : sec <= 40 ? "70-90 слов" : "130-150 слов";
+      const sec = DURATION_SECONDS[dur] || 60; 
+      let rule = sec <= 15 ? "30-40 слов" : sec <= 40 ? "70-90 слов" : "130-150 слов";
+      
       const rawData = await callAPI(`Тема: ${topic}`, 3000, `Write voiceover script in Russian. Genre: ${genre}. Length: STRICTLY ${rule}. JSON: { "script": "..." }`);
-      const data = cleanJSON(rawData); if (data?.script) setScript(data.script.replace(/Диктор:\s*/gi, "").trim()); setHooksList([]);
-    } catch(e) { alert("🚨 ОШИБКА: " + e.message); } finally { setBusy(false); }
+      const data = cleanJSON(rawData); 
+      
+      if (data?.script) {
+        setScript(data.script.replace(/Диктор:\s*/gi, "").trim()); 
+      }
+      setHooksList([]);
+    } catch(e) { 
+      alert("🚨 ОШИБКА: " + e.message); 
+    } finally { 
+      setBusy(false); 
+    }
   }
 
   async function handleAddSEOVariant() {
     setGeneratingSEO(true);
     try { 
       const rawRes = await callAPI(`Topic: ${topic}. Script: ${script}. Create 1 new unique SEO variant. JSON: { "title": "...", "desc": "...", "tags": ["#1", "#2", "#3"] }`, 1000, `Output valid JSON.`);
-      const newVar = cleanJSON(rawRes); if (newVar) setSeoVariants(prev => [...prev, newVar]); 
-    } catch (e) { console.error(e); } finally { setGeneratingSEO(false); }
+      const newVar = cleanJSON(rawRes); 
+      if (newVar) {
+        setSeoVariants(prev => [...prev, newVar]); 
+      }
+    } catch (e) { 
+      console.error(e); 
+    } finally { 
+      setGeneratingSEO(false); 
+    }
   }
 
   function rebuildRawText(frms, s2done) {
@@ -515,73 +843,137 @@ export default function Page() {
 
   async function handleStep1() {
     if (!script.trim() || !topic.trim()) return alert("Заполни тему и сценарий!");
-    if (!checkTokens()) { setShowPaywall(true); return; }
+    if (!checkTokens()) { 
+      setShowPaywall(true); 
+      return; 
+    }
     
-    setBusy(true); setView("loading"); setLoadingMsg("Шаг 1/2: Создаем Библию Проекта и Аудио-профиль...");
+    setBusy(true); 
+    setView("loading"); 
+    setLoadingMsg("Шаг 1/2: Создаем Библию Проекта и Аудио-профиль...");
     
     try {
       const targetFrames = Math.floor((DURATION_SECONDS[dur] || 60) / 3);
       const charsStr = chars.map(c => `${c.name}: ${c.desc}`).join(" | ");
       const hookInstruction = VISUAL_HOOKS[visualHook]?.prompt || "";
+      
       const req1A = `ТЕМА: ${topic}. ЖАНР: ${genre}.\nГЕРОИ: ${charsStr}.\nСЦЕНАРИЙ: ${script}.\nVISUAL_HOOK_RULE (FRAME 1): ${hookInstruction}.\nВЫДАЙ JSON. РОВНО ${targetFrames} КАДРОВ.`;
       
       const rawText1A = await callAPI(req1A, 6000, SYS_STEP_1A);
       const data1A = cleanJSON(rawText1A);
-      if (!data1A || !data1A.frames) throw new Error("Нейросеть вернула пустой или поврежденный ответ на Шаге 1.");
+      
+      if (!data1A || !data1A.frames) {
+        throw new Error("Нейросеть вернула пустой или поврежденный ответ на Шаге 1.");
+      }
 
       setLoadingMsg("Упаковка SEO...");
+      
       const framesForSEO = data1A.frames || [];
       const rawText1B = await callAPI(JSON.stringify(framesForSEO), 3000, SYS_STEP_1B);
-      let data1B = {}; try { data1B = cleanJSON(rawText1B) || {}; } catch(e) { console.error("SEO parse error"); }
+      
+      let data1B = {}; 
+      try { 
+        data1B = cleanJSON(rawText1B) || {}; 
+      } catch(e) { 
+        console.error("SEO parse error"); 
+      }
 
-      // ВОССТАНОВЛЕНО: Чтение project_bible из ответа ИИ
       setProjectBible(data1A.project_bible || null);
       setFrames(data1A.frames || []); 
       setRetention(data1A.retention || null); 
       setGeneratedChars(data1A.characters_EN || []);
       
-      if (data1A.tts_director) { setTtsScene(data1A.tts_director.scene || ""); setTtsContext(data1A.tts_director.context || ""); }
+      if (data1A.tts_director) { 
+        setTtsScene(data1A.tts_director.scene || ""); 
+        setTtsContext(data1A.tts_director.context || ""); 
+      }
       
-      let safeMusic = data1B.music_EN || ""; if (typeof safeMusic === 'object') safeMusic = JSON.stringify(safeMusic);
+      let safeMusic = data1B.music_EN || ""; 
+      if (typeof safeMusic === 'object') {
+        safeMusic = JSON.stringify(safeMusic);
+      }
+      
       let safeSeo = Array.isArray(data1B.seo_variants) ? data1B.seo_variants : [];
-      if (data1B.seo_variants && !Array.isArray(data1B.seo_variants)) { if (typeof data1B.seo_variants === 'object') safeSeo = [data1B.seo_variants]; }
+      if (data1B.seo_variants && !Array.isArray(data1B.seo_variants)) { 
+        if (typeof data1B.seo_variants === 'object') {
+          safeSeo = [data1B.seo_variants]; 
+        }
+      }
 
-      setThumb(data1B.thumbnail || null); setMusic(safeMusic); setSeoVariants(safeSeo); setStep2Done(false); 
-      rebuildRawText(data1A.frames || [], false); deductToken(); setBgImage(null); setTab("storyboard"); setView("result");
+      setThumb(data1B.thumbnail || null); 
+      setMusic(safeMusic); 
+      setSeoVariants(safeSeo); 
+      setStep2Done(false); 
       
-      if (data1B.thumbnail) { setCovTitle(data1B.thumbnail.title || ""); setCovHook(data1B.thumbnail.hook || ""); setCovCta(data1B.thumbnail.cta || "СМОТРЕТЬ"); applyPreset("netflix"); }
+      rebuildRawText(data1A.frames || [], false); 
+      deductToken(); 
+      setBgImage(null); 
+      setTab("storyboard"); 
+      setView("result");
       
-      const stateData = { 
-        projectBible: data1A.project_bible, // Сохраняем в историю
-        frames: data1A.frames, 
-        generatedChars: data1A.characters_EN, 
-        retention: data1A.retention, 
-        thumb: data1B.thumbnail, 
-        seoVariants: safeSeo, 
-        music: safeMusic, 
-        step2Done: false, 
-        ttsScene: data1A.tts_director?.scene, 
-        ttsContext: data1A.tts_director?.context 
-      };
+      if (data1B.thumbnail) { 
+        setCovTitle(data1B.thumbnail.title || ""); 
+        setCovHook(data1B.thumbnail.hook || ""); 
+        setCovCta(data1B.thumbnail.cta || "СМОТРЕТЬ"); 
+        applyPreset("netflix"); 
+      }
       
-      const newHist = [{ id: Date.now(), topic, time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
-      setHistory(newHist); localStorage.setItem("ds_history", JSON.stringify(newHist));
+      setTimeout(() => {
+        const stateData = { 
+          projectBible: data1A.project_bible, 
+          frames: data1A.frames, 
+          generatedChars: data1A.characters_EN, 
+          retention: data1A.retention, 
+          thumb: data1B.thumbnail, 
+          seoVariants: safeSeo, 
+          music: safeMusic, 
+          step2Done: false, 
+          ttsScene: data1A.tts_director?.scene, 
+          ttsContext: data1A.tts_director?.context 
+        };
+        const newHist = [{ id: Date.now(), topic, time: new Date().toLocaleString("ru-RU"), text: JSON.stringify(stateData), format: vidFormat }, ...history].slice(0, 10);
+        setHistory(newHist); 
+        localStorage.setItem("ds_history", JSON.stringify(newHist));
+      }, 500);
       
-    } catch(e) { alert(`🚨 ОШИБКА ШАГА 1: ${e.message}`); setView("form"); } finally { setBusy(false); }
+    } catch(e) { 
+      alert(`🚨 ОШИБКА ШАГА 1: ${e.message}`); 
+      setView("form"); 
+    } finally { 
+      setBusy(false); 
+    }
   }
 
+  // ============================================================
+  // ТВОЙ ИСПРАВЛЕННЫЙ И БЕЗОПАСНЫЙ handleStep2
+  // ============================================================
   async function handleStep2() {
     if (!checkTokens()) return; 
-    setBusy(true); setLoadingMsg("Шаг 2: Рендер PRO-промптов..."); setView("loading");
+    
+    setBusy(true); 
+    setLoadingMsg("Шаг 2: Рендер PRO-промптов..."); 
+    setView("loading");
     
     try {
       const storyboardLite = frames.map((f, i) => {
         let charsInFrame = f?.characters_in_frame;
-        if (Array.isArray(charsInFrame)) charsInFrame = charsInFrame.join(","); else if (!charsInFrame) charsInFrame = "";
-        return `Frame ${i+1}: Visual: ${f?.visual} | Chars: ${charsInFrame}`;
+        if (Array.isArray(charsInFrame)) {
+          charsInFrame = charsInFrame.join(","); 
+        } else if (!charsInFrame) {
+          charsInFrame = "";
+        }
+        
+        // ФИХ: Обрезаем visual до 120 символов чтобы уменьшить размер промпта
+        const visualShort = (f?.visual || "").substring(0, 120);
+        return `Frame ${i+1}: Visual: ${visualShort} | Chars: ${charsInFrame}`;
       }).join("\n");
 
-      const charsDict = generatedChars.map(c => `${c?.id}: ${c?.ref_sheet_prompt}`).join("\n");
+      // ФИХ ГЛАВНЫЙ: Обрезаем ref_sheet_prompt до 250 символов — они были огромными и роняли сервер
+      const charsDict = generatedChars.map(c => {
+        const shortPrompt = (c?.ref_sheet_prompt || "").substring(0, 250);
+        return `${c?.id}: ${shortPrompt}`;
+      }).join("\n");
+
       let formatString = "TALL VERTICAL 9:16 PORTRAIT ORIENTATION";
       if (vidFormat === "16:9") formatString = "WIDE HORIZONTAL 16:9 LANDSCAPE ORIENTATION";
       if (vidFormat === "1:1") formatString = "SQUARE 1:1 ORIENTATION";
@@ -595,7 +987,8 @@ export default function Page() {
 
       const req = `${pipelineDirective}\nSTORYBOARD:\n${storyboardLite}\nCHARACTERS:\n${charsDict}\nFORMAT: ${formatString}\nPACING: ${pacingDir}\n${dirNote}`;
       
-      const rawRes = await callAPI(req, 8000, SYS_STEP_2);
+      // ФИХ: Уменьшено с 8000 до 4000 токенов — этого хватает, но не роняет сервер
+      const rawRes = await callAPI(req, 4000, SYS_STEP_2);
       const data = cleanJSON(rawRes) || {};
       const engineStyle = VISUAL_ENGINES[engine]?.prompt || "";
       
@@ -608,22 +1001,54 @@ export default function Page() {
       });
 
       let safeThumbPrompt = data.thumbnail_prompt_EN;
-      if (typeof safeThumbPrompt === 'object' && safeThumbPrompt !== null) { safeThumbPrompt = JSON.stringify(safeThumbPrompt); }
+      if (typeof safeThumbPrompt === 'object' && safeThumbPrompt !== null) { 
+        safeThumbPrompt = JSON.stringify(safeThumbPrompt); 
+      }
 
-      setFrames(updatedFrames); setThumb(prev => ({ ...(prev || {}), prompt_EN: safeThumbPrompt })); setStep2Done(true); 
-      rebuildRawText(updatedFrames, true); deductToken(); setView("result");
+      setFrames(updatedFrames); 
+      setThumb(prev => ({ ...(prev || {}), prompt_EN: safeThumbPrompt })); 
+      setStep2Done(true); 
+      
+      rebuildRawText(updatedFrames, true); 
+      deductToken(); 
+      setView("result");
 
       setHistory(prev => {
          const next = [...prev];
          if(next.length > 0) { 
-           const stateData = { projectBible, frames: updatedFrames, generatedChars, retention, thumb: { ...(thumb || {}), prompt_EN: safeThumbPrompt }, seoVariants, music, step2Done: true, ttsScene, ttsContext };
-           next[0].text = JSON.stringify(stateData); localStorage.setItem("ds_history", JSON.stringify(next)); 
+           const stateData = { 
+             projectBible, 
+             frames: updatedFrames, 
+             generatedChars, 
+             retention, 
+             thumb: { ...(thumb || {}), prompt_EN: safeThumbPrompt }, 
+             seoVariants, 
+             music, 
+             step2Done: true, 
+             ttsScene, 
+             ttsContext 
+           };
+           
+           try {
+             next[0].text = JSON.stringify(stateData); 
+             localStorage.setItem("ds_history", JSON.stringify(next)); 
+           } catch(storageErr) {
+             // ФИХ: Если localStorage переполнен — не падаем, просто не сохраняем
+             console.warn("localStorage full, skipping history save");
+           }
          }
          return next;
       });
       
-    } catch(e) { alert(`🚨 ОШИБКА ШАГА 2: ${e.message}`); setView("result"); } finally { setBusy(false); }
+    } catch(e) { 
+      alert(`🚨 ОШИБКА ШАГА 2: ${e.message}`); 
+      setView("result"); 
+    } finally { 
+      setBusy(false); 
+    }
   }
+  const activeStyle = COVER_PRESETS.find(p => p.id === activePreset)?.style || COVER_PRESETS[0].style;
+
   return (
     <div 
       ref={scrollRef} 
@@ -634,13 +1059,14 @@ export default function Page() {
         position: "relative", 
         zIndex: 1, 
         overflowY: "auto", 
-        fontFamily: "sans-serif"
+        fontFamily: "sans-serif",
+        /* БЕЗОПАСНЫЙ ФОН БЕЗ CANVAS (СПАСАЕТ ПАМЯТЬ И ПРОЦЕССОР) */
+        background: "radial-gradient(circle at 50% 0%, #1e1b4b 0%, #05050a 60%, #000000 100%)"
       }}
     >
-      <NeuralBackground />
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700;900&family=Creepster&family=Montserrat:wght@800;900&family=Oswald:wght@700&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700;900&family=Creepster&family=Montserrat:wght@800;900&family=Oswald:wght@700&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
         
         .gbtn { 
           width: 100%; 
@@ -665,14 +1091,15 @@ export default function Page() {
           cursor: not-allowed; 
         }
         
-        /* ВОЗВРАЩЕН ПРЕМИУМ-ДИЗАЙН СО СТЕКЛОМ */
+        /* ПРЕМИУМ-СТЕКЛО ВОЗВРАЩЕНО (БЕЗОПАСНО НА СТАТИЧНОМ ФОНЕ) */
         .block-card { 
-          background: rgba(15,15,25,.6); 
-          border: 1px solid rgba(255,255,255,.08); 
+          background: rgba(15, 15, 25, 0.6); 
+          border: 1px solid rgba(255, 255, 255, 0.08); 
           border-radius: 20px; 
           padding: 20px; 
           margin-bottom: 20px; 
           backdrop-filter: blur(20px); 
+          -webkit-backdrop-filter: blur(20px);
         }
         .block-title { 
           font-size: 11px; 
@@ -741,8 +1168,6 @@ export default function Page() {
           from { opacity: 0; transform: translateY(10px); } 
           to { opacity: 1; transform: translateY(0); } 
         }
-        .blinking-cursor { animation: blink 1s step-end infinite; }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
       `}</style>
 
       {/* МОДАЛЬНЫЕ ОКНА */}
@@ -776,7 +1201,7 @@ export default function Page() {
       <InfoModal isOpen={infoModal.isOpen} onClose={() => setInfoModal({...infoModal, isOpen: false})} title={infoModal.title} content={infoModal.content} />
 
       {showHistory && (
-        <div style={{position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+        <div style={{position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
           <div style={{background:"#111827", border:"1px solid #374151", borderRadius:24, width:"100%", maxWidth:500, maxHeight:"80vh", display:"flex", flexDirection:"column", overflow:"hidden"}}>
             <div style={{padding:"20px 24px", borderBottom:"1px solid #374151", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
                <h2 style={{fontSize:18, fontWeight:900, color:"#fff"}}>🗄 Архив Проектов</h2>
@@ -835,7 +1260,7 @@ export default function Page() {
       )}
 
       {/* НАВБАР */}
-      <nav style={{position:"sticky", top:0, zIndex:50, background:"rgba(5,5,10,.6)", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(255,255,255,.05)", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px"}}>
+      <nav style={{position:"sticky", top:0, zIndex:50, background:"rgba(5,5,10,.6)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderBottom:"1px solid rgba(255,255,255,.05)", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {view === "result" && (
             <button onClick={() => setView("form")} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:24}}>‹</button>
@@ -844,7 +1269,6 @@ export default function Page() {
             DOCU<span style={{color:"#a855f7"}}>SHORTS</span>
           </span>
           
-          {/* КНОПКА ВОЗВРАТА К РЕЗУЛЬТАТАМ */}
           {frames.length > 0 && view === "form" && (
             <button onClick={() => setView("result")} style={{marginLeft: 10, background:"linear-gradient(135deg, #10b981, #059669)", border:"none", color:"#fff", padding:"6px 12px", borderRadius:10, fontSize:11, fontWeight:900, cursor:"pointer", boxShadow:"0 0 10px rgba(16,185,129,0.4)"}}>
               ➔ К РЕЗУЛЬТАТАМ
@@ -1188,7 +1612,7 @@ export default function Page() {
               <div style={{background:"#111", border:"1px solid #333", borderRadius:24, padding:24}}>
                  <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #333", paddingBottom:16, marginBottom:20}}>
                     <span style={{fontSize:14, fontWeight:900, color:"#fff"}}>🎙 Аудио-Студия (TTS Director)</span>
-                    <button onClick={() => openInfo('tts')} style={{background:"none", border:"none", color:"#a855f7", cursor:"pointer", fontSize:16}}>ℹ️</button>
+                    <button onClick={() => setInfoModal({isOpen: true, title: "Аудио-Студия", content: "В этом разделе нейросеть подготовила точную задачу для диктора и сгенерировала звуковую атмосферу."})} style={{background:"none", border:"none", color:"#a855f7", cursor:"pointer", fontSize:16}}>ℹ️</button>
                  </div>
                  
                  <div style={{marginBottom: 20}}>
@@ -1349,7 +1773,7 @@ export default function Page() {
               <div style={{background:"rgba(15,15,25,.6)", border:"1px solid rgba(255,255,255,.08)", borderRadius:24, padding:24}}>
                    <div style={{display:"flex", alignItems:"center", marginBottom:16}}>
                       <span style={{fontSize:11, fontWeight:900, color:"#60a5fa", textTransform:"uppercase"}}>🚀 МАТРИЦА ВИРУСНОГО SEO</span>
-                      <button onClick={() => openInfo('seo')} style={{background:"none", border:"none", color:"#60a5fa", cursor:"pointer", marginLeft:6, fontSize:12}}>ℹ️</button>
+                      <button onClick={() => setInfoModal({isOpen: true, title: "Матрица SEO", content: "Сгенерированные ИИ уникальные варианты названий и тегов для публикации."})} style={{background:"none", border:"none", color:"#60a5fa", cursor:"pointer", marginLeft:6, fontSize:12}}>ℹ️</button>
                    </div>
                    
                    {seoVariants && seoVariants.length > 0 ? (
@@ -1379,15 +1803,6 @@ export default function Page() {
             </div>
           )}
         </div>
-      )}
-
-      {/* КНОПКА ГЕНЕРАЦИИ PDF БРИФА */}
-      {view === "result" && step2Done && frames.length > 0 && (
-         <div style={{padding:"0 20px 40px", maxWidth:600, margin:"0 auto"}}>
-           <button onClick={downloadPDF} disabled={pdfDownloading} style={{width:"100%", height:56, background:"rgba(15,15,25,0.6)", backdropFilter:"blur(10px)", border:"1px solid rgba(168,85,247,0.5)", borderRadius:16, color:"#d8b4fe", fontWeight:900, fontSize:14, cursor: pdfDownloading ? "not-allowed" : "pointer", boxShadow:"0 4px 20px rgba(168,85,247,0.15)", textTransform:"uppercase"}}>
-             {pdfDownloading ? "ГЕНЕРАЦИЯ PDF..." : "📄 СКАЧАТЬ ФИНАЛЬНЫЙ PDF БРИФ"}
-           </button>
-         </div>
       )}
     </div>
   );
