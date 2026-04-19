@@ -699,16 +699,16 @@ Output: { "characters_EN": [ { "id": "CHAR_1", "name": "Имя", "dna": "[CHAR_1
         // Проверяем — если ИИ уже вставил DNA (содержит "_DNA:"), не дублируем
         const rawVid = p.vidPrompt_EN || f.visual;
         const rawImg = p.imgPrompt_EN || f.visual;
-        const vidAlreadyHasDna = rawVid.includes("_DNA:");
         
-        let vPrompt = `${realismPrefix}${dnaAlreadyHasDna ? "" : dnaPrefix}${finalStyle}, ${rawVid}`.replace("dnaAlreadyHasDna", vidAlreadyHasDna ? "true" : "false");
-        // Fix: реальная логика без опечатки
-        vPrompt = vidAlreadyHasDna
+        // Проверяем — если ИИ уже вставил DNA (содержит "_DNA:"), не дублируем
+        const vidAlreadyHasDna = rawVid.includes("_DNA:");
+        const imgAlreadyHasDna = rawImg.includes("_DNA:");
+
+        const vPrompt = vidAlreadyHasDna
           ? `${realismPrefix}${finalStyle}, ${rawVid}`
           : `${realismPrefix}${dnaPrefix}${finalStyle}, ${rawVid}`;
         
-        const imgAlreadyHasDna = rawImg.includes("_DNA:");
-        let iPrompt = imgAlreadyHasDna
+        const iPrompt = imgAlreadyHasDna
           ? `${realismPrefix}${finalStyle}, ${rawImg}`
           : `${realismPrefix}${dnaPrefix}${finalStyle}, ${rawImg}`;
         
