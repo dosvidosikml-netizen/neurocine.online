@@ -583,7 +583,6 @@ export default function Page() {
         zIndex: 1, 
         overflowY: "auto", 
         fontFamily: "sans-serif",
-        /* НОВЫЙ БЕЗОПАСНЫЙ ФОН БЕЗ CANVAS (СПАСАЕТ ПАМЯТЬ) */
         background: "radial-gradient(circle at 50% 0%, #1e1b4b 0%, #05050a 60%, #000000 100%)"
       }}
     >
@@ -614,7 +613,6 @@ export default function Page() {
           cursor: not-allowed; 
         }
         
-        /* ПРЕМИУМ-СТЕКЛО ВОЗВРАЩЕНО (БЕЗОПАСНО БЕЗ CANVAS) */
         .block-card { 
           background: rgba(15, 15, 25, 0.6); 
           border: 1px solid rgba(255, 255, 255, 0.08); 
@@ -1023,7 +1021,6 @@ export default function Page() {
           {/* ВКЛАДКА: РАСКАДРОВКА */}
           {tab === "storyboard" && (
             <div>
-              {/* ВОССТАНОВЛЕНО: БИБЛИЯ ПРОЕКТА */}
               {projectBible && (
                 <div style={{marginBottom:24, background:"rgba(56,189,248,0.05)", border:"1px solid rgba(56,189,248,0.3)", borderRadius:24, padding:24}}>
                   <div style={{fontSize:12, fontWeight:900, color:"#38bdf8", marginBottom:16, textTransform:"uppercase"}}>📖 БИБЛИЯ ПРОЕКТА</div>
