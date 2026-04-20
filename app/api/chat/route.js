@@ -3,13 +3,15 @@ export async function POST(req) {
     const body = await req.json();
 
     const messages = body.messages || [];
-    const maxTokens = Math.min(body.max_tokens || 4000, 5000); // ФИХ: Ограничиваем максимум до 5000
+    // Увеличен лимит: 5000 обрезал JSON на полуслове → cleanJSON падал → краш
+    const maxTokens = Math.min(body.max_tokens || 4000, 8000);
     
     const model = body.model || "meta-llama/llama-3.3-70b-instruct";
 
-    // ФИХ: Добавлен таймаут 25 секунд чтобы сервер не падал
+    // Таймаут увеличен с 25 до 55 сек:
+    // Шаг 1A (20 кадров) реально занимает 30-45 сек — 25 сек убивал запрос слишком рано
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
 
     let response;
     try {
@@ -34,7 +36,7 @@ export async function POST(req) {
       clearTimeout(timeoutId);
     }
 
-    // ФИХ: Сначала читаем текст, потом парсим — чтобы не падать на HTML-ошибках
+    // Читаем текст до парсинга — чтобы не падать на HTML-ошибках
     const rawText = await response.text();
     
     let data;
@@ -60,9 +62,8 @@ export async function POST(req) {
   } catch (error) {
     console.error("API Error:", error);
     
-    // ФИХ: Понятное сообщение при таймауте
     const message = error.name === "AbortError" 
-      ? "Запрос занял слишком много времени. Попробуйте уменьшить длительность видео."
+      ? "Сервер не успел ответить за 55 сек. Попробуйте уменьшить длительность видео или повторите."
       : (error.message || "Внутренняя ошибка сервера");
     
     return new Response(JSON.stringify({ error: message }), { 
