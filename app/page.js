@@ -226,15 +226,21 @@ JSON FORMAT:
   "thumbnail_prompt_EN": "TALL VERTICAL IMAGE PORTRAIT ORIENTATION, no text, no watermarks, [engine style], [DNA physical desc], intense cinematic portrait, ..., (text:1.5) —no"
 }`;
 
+// --- МОДЕЛИ ---
+// Умная модель для всех задач (Render даёт достаточно времени)
+const MODEL_FAST = "meta-llama/llama-3.3-70b-instruct";
+const MODEL_STD  = "meta-llama/llama-3.3-70b-instruct";
+
 // --- ФУНКЦИИ АПИ ---
 // Утилита: пауза
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// callAPI с таймаутом 45 сек и авто-ретраем 1 раз
-async function callAPI(content, maxTokens = 4000, sysPrompt, model = "meta-llama/llama-3.3-70b-instruct", retries = 1) {
+// callAPI с таймаутом 90 сек (Render Free засыпает и просыпается 50+ сек)
+// и авто-ретраем 1 раз
+async function callAPI(content, maxTokens = 4000, sysPrompt, model = MODEL_STD, retries = 1) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 сек таймаут
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 сек — с запасом на cold start
     try {
       const res = await fetch("/api/chat", { 
         method: "POST",
@@ -257,12 +263,31 @@ async function callAPI(content, maxTokens = 4000, sysPrompt, model = "meta-llama
       const isTimeout = e.name === "AbortError";
       const isNetwork = e.message.includes("fetch") || e.message.includes("network") || e.message.includes("Failed");
       if ((isTimeout || isNetwork) && attempt < retries) {
-        await sleep(2000); // Ждём 2 сек перед ретраем
+        await sleep(3000);
         continue;
       }
-      if (isTimeout) throw new Error("⏱ Сервер не успел ответить за 45 сек. Попробуйте уменьшить длительность видео или повторите.");
+      if (isTimeout) throw new Error("⏱ Сервер не ответил за 90 сек. Сервер мог уснуть — попробуйте ещё раз, при повторном запросе будет быстрее.");
       throw e;
     }
+  }
+}
+
+// Прогрев сервера — лёгкий ping чтобы Render проснулся ДО основного запроса
+async function warmupServer(onWaking) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch("/api/chat", {
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: MODEL_STD, messages: [{ role: "user", content: "hi" }], max_tokens: 5 })
+    });
+    clearTimeout(t);
+    // Если ответ пришёл быстро — сервер уже тёплый
+  } catch(e) {
+    // Сервер спал — уведомляем пользователя и ждём пока проснётся
+    if (onWaking) onWaking();
+    await sleep(8000); // Даём серверу время подняться
   }
 }
 
@@ -615,6 +640,11 @@ Output: { "characters_EN": [ { "id": "CHAR_1", "name": "Имя", "dna": "[CHAR_1
     setBusy(true); setView("loading");
     
     try {
+      // Прогреваем Render-сервер перед основным запросом
+      // Render Free засыпает после 15 мин — первый запрос занимает 50+ сек
+      setLoadingMsg("🔄 Проверяем соединение с сервером...");
+      await warmupServer(() => setLoadingMsg("😴 Сервер просыпается (~15 сек), подождите..."));
+      
       let currentScript = script.trim();
       const sec = DURATION_SECONDS[dur] || 60;
       
@@ -628,26 +658,62 @@ Output: { "characters_EN": [ { "id": "CHAR_1", "name": "Имя", "dna": "[CHAR_1
         setScript(currentScript);
       }
       
-      // ЗАЩИТА ОТ ПЕРЕГРУЗКИ: ограничиваем кол-во кадров
-      // 60 кадров = падение. Лимит: 25 кадров макс (75 сек)
+      // Render.com выдерживает долгие запросы — снимаем искусственный лимит
       const rawTargetFrames = Math.floor(sec / 3);
-      const targetFrames = Math.min(rawTargetFrames, 25);
-      if (rawTargetFrames > 25) {
-        setLoadingMsg(`⚠️ Видео ${dur} = ${rawTargetFrames} кадров. Генерируем первые 25 для стабильности...`);
-        await sleep(1500);
-      }
-
+      const targetFrames = rawTargetFrames; // без ограничений
+      
       setLoadingMsg("🎬 Шаг 1/2: Пишем раскадровку и ДНК персонажей...");
       const preGeneratedChars = generatedChars.length > 0 ? JSON.stringify(generatedChars) : JSON.stringify(chars);
       const studioInfo = studioMode === "MANUAL" ? `ВВОДНЫЕ СТУДИИ: Локация [${studioLoc}], Стиль [${studioStyle}]. НЕ МЕНЯЙ ИХ!` : "ВВОДНЫЕ СТУДИИ: Автоматически.";
-      
-      // Для длинных видео уменьшаем max_tokens шага 1B чтобы не упасть
-      const step1ATokens = targetFrames <= 10 ? 4000 : targetFrames <= 20 ? 5000 : 6000;
-      
-      const req1A = `LANGUAGE: ${lang === "RU" ? "РУССКИЙ" : "ENGLISH"}.\nТЕМА: ${topic}. ЖАНР: ${genre}.\n${studioInfo}\nПЕРСОНАЖИ ВВОДНЫЕ: ${preGeneratedChars}. СЦЕНАРИЙ: ${currentScript}. \nВЫДАЙ СТРОГО JSON! СТРОГО 3 СЕКУНДЫ НА СЦЕНУ. РОВНО ${targetFrames} КАДРОВ. ПРАВИЛО ФИНАЛА: Не обрывай текст на полуслове!`;
-      
-      const text1A = await callAPI(req1A, step1ATokens, SYS_STEP_1A);
-      const data1A = cleanJSON(text1A);
+
+      // БАТЧ-ГЕНЕРАЦИЯ раскадровки
+      // Каждый батч = отдельный лёгкий запрос к серверу
+      // 10 кадров * ~150 токенов = ~1500 токенов на батч → быстро и стабильно
+      const BATCH_SIZE = 10;
+      const totalBatches = Math.ceil(targetFrames / BATCH_SIZE);
+      let allFrames = [];
+      let data1A = null;
+
+      // Нарезаем сценарий на равные части для каждого батча
+      const scriptWords = currentScript.split(/\s+/);
+      const wordsPerBatch = Math.ceil(scriptWords.length / totalBatches);
+
+      for (let batch = 0; batch < totalBatches; batch++) {
+        const batchStart = batch * BATCH_SIZE + 1;
+        const batchEnd = Math.min((batch + 1) * BATCH_SIZE, targetFrames);
+        const batchCount = batchEnd - batchStart + 1;
+        const timecodeStart = (batchStart - 1) * 3;
+
+        // Даём каждому батчу свой кусок сценария
+        const wordStart = batch * wordsPerBatch;
+        const scriptChunk = scriptWords.slice(wordStart, wordStart + wordsPerBatch + 20).join(" ");
+
+        setLoadingMsg(`🎬 Раскадровка: кадры ${batchStart}–${batchEnd} из ${targetFrames} (батч ${batch+1}/${totalBatches})`);
+
+        const isFirstBatch = batch === 0;
+
+        const batchReq = isFirstBatch
+          ? `LANGUAGE: ${lang === "RU" ? "РУССКИЙ" : "ENGLISH"}.\nТЕМА: ${topic}. ЖАНР: ${genre}.\n${studioInfo}\nПЕРСОНАЖИ: ${preGeneratedChars}.\nСЦЕНАРИЙ (кадры ${batchStart}–${batchEnd}): ${scriptChunk}.\nВЫДАЙ СТРОГО JSON! 3 СЕК/КАДР. РОВНО ${batchCount} КАДРОВ. Тайм-коды с ${timecodeStart} сек.`
+          : `LANGUAGE: ${lang === "RU" ? "РУССКИЙ" : "ENGLISH"}.\nПРОДОЛЖЕНИЕ. ЖАНР: ${genre}.\nПЕРСОНАЖИ: ${JSON.stringify(data1A.characters_EN || [])}.\nЛОКАЦИЯ: ${data1A.location_ref_EN || ""}.\nСЦЕНАРИЙ (кадры ${batchStart}–${batchEnd}): ${scriptChunk}.\nВЫДАЙ СТРОГО JSON! РОВНО ${batchCount} КАДРОВ. Тайм-коды с ${timecodeStart} сек. Используй тех же персонажей.`;
+
+        const batchSys = isFirstBatch
+          ? SYS_STEP_1A
+          : `${SYS_STEP_1A}\nIMPORTANT: Continuation batch ${batch+1}/${totalBatches}. Output JSON with ONLY "frames" array. Reuse existing characters_EN. Timecodes start from ${timecodeStart} sec.`;
+
+        const batchText = await callAPI(batchReq, 3500, batchSys, MODEL_FAST);
+        const batchData = cleanJSON(batchText);
+
+        if (isFirstBatch) {
+          data1A = batchData;
+          allFrames = batchData.frames || [];
+        } else {
+          allFrames = [...allFrames, ...(batchData.frames || [])];
+        }
+
+        if (batch < totalBatches - 1) await sleep(300);
+      }
+
+      data1A.frames = allFrames;
       
       setLoadingMsg("📊 Шаг 2/2: Генерируем SEO, музыку и обложку...");
       // Передаём только первые 10 кадров для SEO — не нужно всё
@@ -692,77 +758,91 @@ Output: { "characters_EN": [ { "id": "CHAR_1", "name": "Имя", "dna": "[CHAR_1
 
   async function handleStep2() {
     if (!checkTokens()) return;
-    setBusy(true); setLoadingMsg(`Шаг 2: Компилируем PRO-промпты (${pipelineMode} режим)...`); setView("loading");
+    setBusy(true); setLoadingMsg(`🪄 Шаг 2: Генерируем PRO-промпты (${pipelineMode} режим)...`); setView("loading");
     
     try {
-      const storyboardLite = frames.map((f, i) => `Frame ${i+1}: Visual: ${f.visual} | SFX: ${f.sfx} | Chars: ${(f.characters_in_frame || []).join(",")}`).join("\n");
-      
-      // Строим DNA-словарь: { CHAR_1: "[CHAR_1_DNA: ...]", ... }
       const charDnaDict = {};
       generatedChars.forEach(c => { if (c.dna) charDnaDict[c.id] = c.dna; });
       const charsDict = generatedChars.map(c => `${c.id} DNA: ${c.dna || c.ref_sheet_prompt}`).join("\n");
       const textToRender = thumb?.text_for_rendering ? `\n\nNATIVE CYRILLIC REQUIRED: text_for_rendering = "${thumb.text_for_rendering}"` : "";
       
       const pipelineDirective = pipelineMode === "I2V" 
-        ? "PIPELINE_MODE = I2V (Studio). EXTREMELY IMPORTANT: Keep 'vidPrompt_EN' very short! Describe ONLY the physical action and camera movement. DO NOT describe character appearance or location details."
-        : "PIPELINE_MODE = T2V (Direct). EXTREMELY IMPORTANT: Use GLOBAL ANCHORS! Rigidly construct 'vidPrompt_EN' as: [Location Detail] + [Detailed Character Appearance] + [Action] + [Camera Movement].";
+        ? "PIPELINE_MODE = I2V (Studio). Keep 'vidPrompt_EN' very short — ONLY action and camera movement."
+        : "PIPELINE_MODE = T2V (Direct). 'vidPrompt_EN' = [DNA_BLOCK] + [Location] + [Action] + [Camera].";
 
-      const req = `PIPELINE RULE:\n${pipelineDirective}\n\nSTORYBOARD:\n${storyboardLite}\n\nCHARACTERS:\n${charsDict}\n\nLOCATION:\n${locRef}${textToRender}\n\nGenerate exactly ${frames.length} English visual prompts.`;
-      
-      const text = await callAPI(req, 8000, SYS_STEP_2);
-      const data = cleanJSON(text);
-      
+      // БАТЧ-ГЕНЕРАЦИЯ промптов по 10 кадров
+      const PROMPT_BATCH = 10;
+      const totalPromptBatches = Math.ceil(frames.length / PROMPT_BATCH);
+      let allPrompts = [];
+      let thumbnailPromptRaw = "";
+
+      for (let batch = 0; batch < totalPromptBatches; batch++) {
+        const bStart = batch * PROMPT_BATCH;
+        const bEnd = Math.min(bStart + PROMPT_BATCH, frames.length);
+        const batchFrames = frames.slice(bStart, bEnd);
+        const isLastBatch = batch === totalPromptBatches - 1;
+
+        setLoadingMsg(`🎥 Промпты: кадры ${bStart+1}–${bEnd} из ${frames.length} (${batch+1}/${totalPromptBatches})`);
+
+        const batchStoryboard = batchFrames.map((f, i) => 
+          `Frame ${bStart+i+1}: Visual: ${f.visual} | SFX: ${f.sfx} | Chars: ${(f.characters_in_frame || []).join(",")}`
+        ).join("\n");
+
+        const batchReq = `PIPELINE RULE:\n${pipelineDirective}\n\nSTORYBOARD (frames ${bStart+1}–${bEnd}):\n${batchStoryboard}\n\nCHARACTERS:\n${charsDict}\n\nLOCATION:\n${locRef}${isLastBatch ? textToRender : ""}\n\nGenerate exactly ${batchFrames.length} prompts.${isLastBatch ? "\nAlso generate thumbnail_prompt_EN." : "\nSkip thumbnail_prompt_EN."}`;
+
+        const batchText = await callAPI(batchReq, 4000, SYS_STEP_2, MODEL_FAST);
+        const batchData = cleanJSON(batchText);
+
+        allPrompts = [...allPrompts, ...(batchData.frames_prompts || [])];
+        if (isLastBatch && batchData.thumbnail_prompt_EN) {
+          thumbnailPromptRaw = batchData.thumbnail_prompt_EN;
+        }
+        // b_rolls берём из последнего батча
+        if (isLastBatch) {
+          setBRolls(batchData.b_rolls || []);
+        }
+
+        if (batch < totalPromptBatches - 1) await sleep(300);
+      }
+
+      // Собираем финальные промпты с DNA и realism prefix
+      const engineStyle = VISUAL_ENGINES[engine]?.prompt || "";
+      const customText = customStyle ? `, ${customStyle}` : "";
+      const finalStyle = `${engineStyle}${styleRef ? ", " + styleRef : ""}${customText}`;
+      const realismPrefix = (engine === "CINEMATIC" || engine === "DARK_HISTORY")
+        ? "RAW photo, photorealistic, no CGI, no 3D render, no illustration, no plastic, no airbrushed skin, "
+        : "";
+
       const updatedFrames = frames.map((f, i) => {
-        const p = data.frames_prompts && data.frames_prompts[i] ? data.frames_prompts[i] : {};
-        const engineStyle = VISUAL_ENGINES[engine]?.prompt || "";
-        const customText = customStyle ? `, ${customStyle}` : "";
-        const finalStyle = `${engineStyle}${styleRef ? ", " + styleRef : ""}${customText}`;
-        
-        // REALISM PREFIX — максимальный вес через начало промпта
-        const realismPrefix = (engine === "CINEMATIC" || engine === "DARK_HISTORY")
-          ? "RAW photo, photorealistic, no CGI, no 3D render, no illustration, no plastic, no airbrushed skin, "
-          : "";
-
-        // DNA INJECTION — вшиваем ДНК каждого персонажа из кадра в начало vidPrompt
-        // Это JS-слой защиты: даже если ИИ забыл DNA — мы добавим принудительно
+        const p = allPrompts[i] || {};
         const frameChars = f.characters_in_frame || [];
-        const dnaBlocks = frameChars
-          .map(cid => charDnaDict[cid])
-          .filter(Boolean)
-          .join(", ");
+        const dnaBlocks = frameChars.map(cid => charDnaDict[cid]).filter(Boolean).join(", ");
         const dnaPrefix = dnaBlocks ? `${dnaBlocks}, ` : "";
 
-        // Проверяем — если ИИ уже вставил DNA (содержит "_DNA:"), не дублируем
         const rawVid = p.vidPrompt_EN || f.visual;
         const rawImg = p.imgPrompt_EN || f.visual;
-        
-        // Проверяем — если ИИ уже вставил DNA (содержит "_DNA:"), не дублируем
         const vidAlreadyHasDna = rawVid.includes("_DNA:");
         const imgAlreadyHasDna = rawImg.includes("_DNA:");
 
         const vPrompt = vidAlreadyHasDna
           ? `${realismPrefix}${finalStyle}, ${rawVid}`
           : `${realismPrefix}${dnaPrefix}${finalStyle}, ${rawVid}`;
-        
         const iPrompt = imgAlreadyHasDna
           ? `${realismPrefix}${finalStyle}, ${rawImg}`
           : `${realismPrefix}${dnaPrefix}${finalStyle}, ${rawImg}`;
-        
+
         return { ...f, imgPrompt_EN: iPrompt, vidPrompt_EN: vPrompt };
       });
 
-      // Очищаем промпт обложки от аудио-тегов ASMR (они только для видео!)
-      // и добавляем "no text, no watermarks" чтобы не было надписей на картинке
-      const rawThumbPrompt = data.thumbnail_prompt_EN || "";
-      const cleanThumbPrompt = rawThumbPrompt
+      // Чистим thumbnail от ASMR-тегов
+      const cleanThumbPrompt = thumbnailPromptRaw
         .replace(/,?\s*clear ASMR audio of[^,.]*/gi, "")
         .replace(/,?\s*isolated sound[^,.]*/gi, "")
         .replace(/,?\s*zero background noise[^,.]*/gi, "")
         .replace(/,?\s*no ambient hum[^,.]*/gi, "")
-        .replace(/\.\s*$/, "")
-        .trim();
-      const finalThumbPrompt = cleanThumbPrompt.includes("no text") 
-        ? cleanThumbPrompt 
+        .replace(/\.\s*$/, "").trim();
+      const finalThumbPrompt = cleanThumbPrompt.includes("no text")
+        ? cleanThumbPrompt
         : cleanThumbPrompt + ", no text, no watermarks, no letters, no subtitles, (text:1.5), (watermark:1.5) —no";
 
       setFrames(updatedFrames); 
