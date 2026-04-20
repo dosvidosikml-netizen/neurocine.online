@@ -778,7 +778,7 @@ Output: { "characters_EN": [ { "id": "CHAR_1", "name": "Имя", "dna": "[CHAR_1
 
   async function handleDraftText() {
     if (!topic.trim()) return alert("Введите тему!");
-    setBusy(true); setLoadingMsg("Пишем сценарий..."); setView("loading");
+    setBusy(true); setScript(""); setLoadingMsg("Пишем сценарий..."); setView("loading");
     try {
       const sec = DURATION_SECONDS[dur] || 60; 
       let wordLimitRule = "";
@@ -920,6 +920,10 @@ LAW 11 — NO MARKDOWN: Убери все ** из текста. Акценты �
     if (!checkTokens()) return;
     
     setBusy(true); setView("loading");
+    
+    // Сбрасываем старые результаты перед новой генерацией
+    setFrames([]); setStep2Done(false); setSeoVariants([]); setMusic("");
+    setBRolls([]); setRawScript(""); setRawImg(""); setRawVid(""); setRetention(null);
     
     try {
       // Прогреваем Render-сервер перед основным запросом
@@ -1386,7 +1390,7 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
       {/* ══ NAV ══════════════════════════════════════════════════════ */}
       <nav className="nav-bar" style={{position:"sticky",top:0,zIndex:50,height:62,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px"}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          {view==="result"&&<button onClick={()=>setView("form")} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",color:"#fff",cursor:"pointer",fontSize:18,width:34,height:34,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",transition:"background .2s"}} onMouseEnter={e=>e.target.style.background="rgba(255,255,255,.12)"} onMouseLeave={e=>e.target.style.background="rgba(255,255,255,.06)"}>‹</button>}
+          {view==="result"&&<button onClick={()=>{setView("form");setBusy(false);}} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",color:"#fff",cursor:"pointer",fontSize:18,width:34,height:34,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",transition:"background .2s"}} onMouseEnter={e=>e.target.style.background="rgba(255,255,255,.12)"} onMouseLeave={e=>e.target.style.background="rgba(255,255,255,.06)"}>‹</button>}
           <span onClick={handleGodMode} style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:"-0.5px",cursor:"pointer",userSelect:"none"}}>
             NEURO<span style={{background:"linear-gradient(135deg,#a855f7,#ec4899)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>CINE</span>
           </span>
@@ -1414,7 +1418,7 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
             {/* ИДЕЯ */}
             <div className="glass panel" style={{padding:24}}>
               <label style={{fontSize:10,fontWeight:900,letterSpacing:"2.5px",color:"#d8b4fe",display:"block",marginBottom:14,textTransform:"uppercase"}}>🎯 Идея или тема хита</label>
-              <textarea rows={2} value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Например: Загадка перевала Дятлова..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(168,85,247,.2)",borderRadius:14,padding:16,fontSize:16,color:"#fff",resize:"none",marginBottom:12,fontFamily:"inherit"}}/>
+              <textarea rows={2} value={topic} onChange={e=>{const v=e.target.value;setTopic(v);if(!v.trim()){setScript("");setFrames([]);setHooksList([]);setStep2Done(false);setSeoVariants([]);setMusic("");setBRolls([]);setRawScript("");setRawImg("");setRawVid("");setRetention(null);setBusy(false);}}} placeholder="Например: Загадка перевала Дятлова..." style={{width:"100%",background:"rgba(0,0,0,.5)",border:"1px solid rgba(168,85,247,.2)",borderRadius:14,padding:16,fontSize:16,color:"#fff",resize:"none",marginBottom:12,fontFamily:"inherit"}}/>
               <input type="text" value={finalTwist} onChange={e=>setFinalTwist(e.target.value)} placeholder="💡 Скрытый твист в конце..." style={{width:"100%",background:"rgba(0,0,0,.4)",border:"1px dashed rgba(168,85,247,.3)",borderRadius:12,padding:12,fontSize:13,color:"#e9d5ff",fontFamily:"inherit"}}/>
             </div>
 
