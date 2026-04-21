@@ -763,10 +763,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // callAPI с таймаутом 90 сек (Render Free засыпает и просыпается 50+ сек)
 // и авто-ретраем 1 раз
-async function callAPI(content, maxTokens = 4000, sysPrompt, model = MODEL_STD, retries = 1) {
+async function callAPI(content, maxTokens = 4000, sysPrompt, model = MODEL_STD, retries = 1, timeoutMs = 90000) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 сек — с запасом на cold start
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch("/api/chat", { 
         method: "POST",
@@ -794,7 +794,7 @@ async function callAPI(content, maxTokens = 4000, sysPrompt, model = MODEL_STD, 
         await sleep(3000);
         continue;
       }
-      if (isTimeout) throw new Error("⏱ Сервер не ответил за 90 сек. Сервер мог уснуть — попробуйте ещё раз, при повторном запросе будет быстрее.");
+      if (isTimeout) throw new Error(`⏱ Сервер не ответил за ${Math.round(timeoutMs/1000)} сек. Попробуйте ещё раз.`);
       throw e;
     }
   }
@@ -944,6 +944,8 @@ export default function Page() {
   
   const [bRolls, setBRolls] = useState([]);
   const [step2Done, setStep2Done] = useState(false);
+  // Частичный прогресс Шага 2 — сохраняем готовые батчи чтобы не потерять оплаченные запросы
+  const [step2Partial, setStep2Partial] = useState(null); // { prompts, fromBatch, totalBatches, thumbRaw, brolls }
   const [busy, setBusy] = useState(false);
   const [generatingSEO, setGeneratingSEO] = useState(false);
   const [ttsStudioData, setTtsStudioData] = useState(null);
@@ -1550,10 +1552,16 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
     } catch(e) { alert(`🚨 ОШИБКА ШАГА 1: ${e.message}`); setView("form"); } finally { setBusy(false); }
   }
 
-  async function handleStep2() {
+  async function handleStep2(resumeFrom = null) {
     if (!checkTokens()) return;
-    setBusy(true); setLoadingMsg(`🪄 Шаг 2: Генерируем PRO-промпты (${pipelineMode} режим)...`); setView("loading");
-    
+    setBusy(true); setView("loading");
+
+    // Прогреваем сервер — между Шагом 1 и 2 пользователь изучает раскадровку,
+    // за это время Render Free успевает заснуть снова (< 15 мин без запросов)
+    setLoadingMsg("🔄 Проверяем соединение... 💎 API не тратится");
+    await warmupServer(() => setLoadingMsg("😴 Сервер просыпается (~15 сек)... 💎 API ещё не тратится, ждите!"));
+    setLoadingMsg(`🪄 Шаг 2: Генерируем PRO-промпты (${pipelineMode} режим)...`);
+
     try {
       const charDnaDict = {};
       generatedChars.forEach(c => { if (c.dna) charDnaDict[c.id] = c.dna; });
@@ -1564,14 +1572,20 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
         ? "PIPELINE_MODE = I2V (Studio). Keep 'vidPrompt_EN' very short — ONLY action and camera movement."
         : "PIPELINE_MODE = T2V (Direct). 'vidPrompt_EN' = [DNA_BLOCK] + [Location] + [Action] + [Camera].";
 
-      // БАТЧ-ГЕНЕРАЦИЯ промптов по 10 кадров
-      const PROMPT_BATCH = 5; // 10 кадров × длинные DNA = JSON обрывался на 15000 символах
+      const PROMPT_BATCH = 5;
       const totalPromptBatches = Math.ceil(frames.length / PROMPT_BATCH);
-      let allPrompts = [];
-      let thumbnailPromptRaw = "";
-      let finalBRolls = [];
 
-      for (let batch = 0; batch < totalPromptBatches; batch++) {
+      // Восстанавливаем уже оплаченные батчи если это продолжение после ошибки
+      let allPrompts = resumeFrom ? [...resumeFrom.prompts] : [];
+      let thumbnailPromptRaw = resumeFrom ? (resumeFrom.thumbRaw || "") : "";
+      let finalBRolls = resumeFrom ? (resumeFrom.brolls || []) : [];
+      const startBatch = resumeFrom ? resumeFrom.fromBatch : 0;
+
+      if (resumeFrom) {
+        setStep2Partial(null); // Сбрасываем partial — начинаем продолжение
+      }
+
+      for (let batch = startBatch; batch < totalPromptBatches; batch++) {
         const bStart = batch * PROMPT_BATCH;
         const bEnd = Math.min(bStart + PROMPT_BATCH, frames.length);
         const batchFrames = frames.slice(bStart, bEnd);
@@ -1585,14 +1599,24 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
 
         const batchReq = `PIPELINE RULE:\n${pipelineDirective}\n\nSTORYBOARD (frames ${bStart+1}–${bEnd}):\n${batchStoryboard}\n\nCHARACTERS:\n${charsDict}\n\nLOCATION:\n${locRef}${isLastBatch ? textToRender : ""}\n\nGenerate exactly ${batchFrames.length} prompts.${isLastBatch ? "\nAlso generate thumbnail_prompt_EN." : "\nSkip thumbnail_prompt_EN."}`;
 
-        const batchText = await callAPI(batchReq, 6000, SYS_STEP_2, MODEL_FAST);
-        const batchData = cleanJSON(batchText);
+        let batchData;
+        try {
+          // 150 сек таймаут для тяжёлых промпт-батчей, 2 ретрая
+          const batchText = await callAPI(batchReq, 6000, SYS_STEP_2, MODEL_FAST, 2, 150000);
+          batchData = cleanJSON(batchText);
+        } catch(batchErr) {
+          // Батч упал — сохраняем УЖЕ ОПЛАЧЕННЫЙ прогресс и сообщаем пользователю
+          setStep2Partial({ prompts: allPrompts, fromBatch: batch, totalBatches: totalPromptBatches, thumbRaw: thumbnailPromptRaw, brolls: finalBRolls });
+          setBusy(false);
+          setView("result");
+          alert(`⚠️ Шаг 2 прерван на батче ${batch+1}/${totalPromptBatches} (кадры ${bStart+1}–${bEnd}).\n\n✅ Кадры 1–${bStart} уже готовы и сохранены.\n❌ Кадры ${bStart+1}–${frames.length} не обработаны.\n\n💡 Нажмите кнопку "▶ ПРОДОЛЖИТЬ" чтобы дообработать оставшиеся кадры без повторной оплаты готовых.\n\nОшибка: ${batchErr.message}`);
+          return;
+        }
 
         allPrompts = [...allPrompts, ...(batchData.frames_prompts || [])];
         if (isLastBatch && batchData.thumbnail_prompt_EN) {
           thumbnailPromptRaw = batchData.thumbnail_prompt_EN;
         }
-        // b_rolls берём из последнего батча
         if (isLastBatch) {
           finalBRolls = batchData.b_rolls || [];
           setBRolls(finalBRolls);
@@ -1641,6 +1665,7 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
         ? cleanThumbPrompt
         : cleanThumbPrompt + ", no text, no watermarks, no letters, no subtitles, (text:1.5), (watermark:1.5) —no";
 
+      setStep2Partial(null); // Успех — очищаем partial
       setFrames(updatedFrames); 
       setThumb({...thumb, prompt_EN: finalThumbPrompt}); 
       setStep2Done(true);
@@ -1658,7 +1683,7 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
          }
          return next;
       });
-    } catch(e) { alert(`🚨 ОШИБКА ШАГА 2: ${e.message}`); setView("result"); } finally { setBusy(false); }
+    } catch(e) { alert(`🚨 ОШИБКА ШАГА 2: ${e.message}\n\n💡 Попробуйте ещё раз — уже оплаченные батчи не повторятся.`); setView("result"); } finally { setBusy(false); }
   }
 
   function handleImageUpload(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setBgImage(ev.target.result); reader.readAsDataURL(file); }
@@ -2310,7 +2335,17 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
           {/* STEP 2 BTN */}
           {!step2Done&&(
             <div style={{background:"rgba(236,72,153,.07)",border:"1px dashed rgba(236,72,153,.35)",borderRadius:20,padding:20,textAlign:"center",marginBottom:20}}>
-              <button onClick={handleStep2} disabled={busy||!checkTokens()} style={{width:"100%",padding:"16px",background:"linear-gradient(135deg,#db2777,#9333ea)",borderRadius:14,color:"#fff",fontWeight:900,border:"none",cursor:"pointer",boxShadow:"0 6px 24px rgba(219,39,119,.4)",fontSize:15,letterSpacing:"0.5px",transition:"all .2s"}} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"} onMouseLeave={e=>e.currentTarget.style.transform="translateY(0)"}>🪄 ШАГ 2: СГЕНЕРИРОВАТЬ PRO-ПРОМПТЫ СЦЕН (💎 1)</button>
+              {step2Partial&&(
+                <div style={{marginBottom:12,padding:"10px 14px",background:"rgba(234,179,8,.07)",border:"1px solid rgba(234,179,8,.3)",borderRadius:12}}>
+                  <div style={{fontSize:12,color:"#fcd34d",fontWeight:700,marginBottom:8}}>
+                    ⚠️ Прервано на батче {step2Partial.fromBatch+1}/{step2Partial.totalBatches} — кадры 1–{step2Partial.fromBatch*5} уже готовы
+                  </div>
+                  <button onClick={()=>handleStep2(step2Partial)} disabled={busy} style={{width:"100%",padding:"12px",background:"linear-gradient(135deg,#d97706,#b45309)",borderRadius:12,color:"#fff",fontWeight:900,border:"none",cursor:"pointer",fontSize:14,letterSpacing:"0.5px",marginBottom:6}}>
+                    ▶ ПРОДОЛЖИТЬ С КАДРА {step2Partial.fromBatch*5+1} (без повторной оплаты)
+                  </button>
+                </div>
+              )}
+              <button onClick={()=>handleStep2(null)} disabled={busy||!checkTokens()} style={{width:"100%",padding:"16px",background:"linear-gradient(135deg,#db2777,#9333ea)",borderRadius:14,color:"#fff",fontWeight:900,border:"none",cursor:"pointer",boxShadow:"0 6px 24px rgba(219,39,119,.4)",fontSize:15,letterSpacing:"0.5px",transition:"all .2s"}} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"} onMouseLeave={e=>e.currentTarget.style.transform="translateY(0)"}>🪄 ШАГ 2: СГЕНЕРИРОВАТЬ PRO-ПРОМПТЫ СЦЕН (💎 1)</button>
             </div>
           )}
 
