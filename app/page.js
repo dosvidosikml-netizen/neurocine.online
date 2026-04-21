@@ -403,7 +403,7 @@ JSON FORMAT:
 // --- МОДЕЛИ ---
 // Умная модель для всех задач (Render даёт достаточно времени)
 const MODEL_FAST = "meta-llama/llama-3.3-70b-instruct";
-const MODEL_STD  = "anthropic/claude-sonnet-4-5";
+const MODEL_STD  = "anthropic/claude-sonnet-4-6";
 
 // --- ФУНКЦИИ АПИ ---
 // Утилита: пауза
