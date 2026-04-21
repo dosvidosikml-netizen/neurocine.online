@@ -80,167 +80,234 @@ const NeuralBackground = () => {
 const LOCK_PIN = "2025";
 
 const DemonCanvas = () => {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current; if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let af;
-    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-    window.addEventListener("resize", resize); resize();
+  return (
+    <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#06000c"}}>
 
-    // ── Состояние ──
-    let bx = canvas.width / 2, by = canvas.height / 2;
-    let bvx = 5, bvy = -6;
-    const GROUND = 0.78;
-    let jx = canvas.width * 0.2;
-    let sx = canvas.width * 0.75;
-    let jackFacing = 1, shepFacing = -1;
-    let frame = 0;
+      {/* ── Атмосферный фон ── */}
+      <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 80% 60% at 50% 100%, rgba(80,20,120,0.35) 0%, transparent 70%)"}} />
+      <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 50% 40% at 20% 80%, rgba(40,0,80,0.2) 0%, transparent 60%)"}} />
 
-    // Следы лап
-    const paws = [];
-    // Вспышки
-    const bursts = [];
+      {/* ── Звёзды ── */}
+      {[...Array(28)].map((_,i) => (
+        <div key={i} style={{
+          position:"absolute",
+          width: i%5===0 ? 3 : 2,
+          height: i%5===0 ? 3 : 2,
+          borderRadius:"50%",
+          background:"#fff",
+          left: `${(i * 37 + 11) % 97}%`,
+          top: `${(i * 23 + 7) % 55}%`,
+          opacity: 0.15 + (i%4)*0.12,
+          animation:`starTwinkle ${2+i%3}s ease-in-out infinite`,
+          animationDelay:`${(i*0.37)%3}s`
+        }}/>
+      ))}
 
-    const spawnBurst = (x, y) => {
-      bursts.push({ x, y, life: 1.0 });
-    };
+      {/* ── Трава / земля ── */}
+      <div style={{
+        position:"absolute", bottom:0, left:0, right:0,
+        height:"28%",
+        background:"linear-gradient(to top, rgba(15,5,30,1) 0%, rgba(25,8,50,0.8) 60%, transparent 100%)"
+      }}/>
+      {/* Линия горизонта */}
+      <div style={{
+        position:"absolute", bottom:"27%", left:0, right:0, height:1,
+        background:"linear-gradient(to right, transparent, rgba(120,60,180,0.4), rgba(168,85,247,0.6), rgba(120,60,180,0.4), transparent)"
+      }}/>
 
-    const render = () => {
-      frame++;
-      const W = canvas.width, H = canvas.height;
-      const groundY = H * GROUND;
+      {/* ── МЯЧ ── */}
+      <div style={{
+        position:"absolute",
+        bottom:"27%",
+        left:"50%",
+        animation:"ballBounce 1.8s cubic-bezier(0.33,0,0.66,1) infinite, ballTravel 6s ease-in-out infinite",
+        zIndex:4
+      }}>
+        {/* Тень мяча */}
+        <div style={{
+          position:"absolute", bottom:-8, left:"50%", transform:"translateX(-50%)",
+          width:24, height:6, borderRadius:"50%",
+          background:"rgba(0,0,0,0.5)",
+          animation:"shadowScale 1.8s ease-in-out infinite",
+          filter:"blur(3px)"
+        }}/>
+        {/* Сам мяч — SVG */}
+        <svg width="38" height="38" viewBox="0 0 38 38" style={{display:"block", animation:"ballSpin 1.8s linear infinite", filter:"drop-shadow(0 0 8px rgba(255,200,50,0.7)) drop-shadow(0 2px 4px rgba(0,0,0,0.8))"}}>
+          <defs>
+            <radialGradient id="ballGrad" cx="35%" cy="30%" r="60%">
+              <stop offset="0%" stopColor="#fff9e0"/>
+              <stop offset="40%" stopColor="#f5c842"/>
+              <stop offset="100%" stopColor="#b8860b"/>
+            </radialGradient>
+          </defs>
+          <circle cx="19" cy="19" r="17" fill="url(#ballGrad)" stroke="rgba(0,0,0,0.3)" strokeWidth="1"/>
+          <path d="M19 2 Q26 8 26 19 Q26 30 19 36 Q12 30 12 19 Q12 8 19 2Z" fill="rgba(0,0,0,0.12)" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" fillRule="evenodd"/>
+          <path d="M2 19 Q10 13 19 13 Q28 13 36 19 Q28 25 19 25 Q10 25 2 19Z" fill="rgba(0,0,0,0.12)" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" fillRule="evenodd"/>
+          <ellipse cx="13" cy="12" rx="3" ry="2" fill="rgba(255,255,255,0.35)" transform="rotate(-20,13,12)"/>
+        </svg>
+      </div>
 
-      // Фон
-      ctx.fillStyle = "#06000c";
-      ctx.fillRect(0, 0, W, H);
+      {/* ── ДЖЕК-РАССЕЛ (бежит слева) ── */}
+      <div style={{
+        position:"absolute", bottom:"26.5%",
+        animation:"jackRun 6s ease-in-out infinite",
+        zIndex:5
+      }}>
+        <div style={{animation:"dogBob 0.4s ease-in-out infinite", filter:"drop-shadow(0 4px 12px rgba(0,0,0,0.7))"}}>
+          <svg width="80" height="56" viewBox="0 0 80 56">
+            <defs>
+              <linearGradient id="jackGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f5e6c8"/>
+                <stop offset="100%" stopColor="#d4a96a"/>
+              </linearGradient>
+            </defs>
+            {/* Тело */}
+            <ellipse cx="38" cy="34" rx="22" ry="13" fill="url(#jackGrad)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5"/>
+            {/* Пятна */}
+            <ellipse cx="30" cy="30" rx="8" ry="6" fill="rgba(80,40,10,0.3)"/>
+            <ellipse cx="48" cy="36" rx="6" ry="4" fill="rgba(80,40,10,0.25)"/>
+            {/* Голова */}
+            <circle cx="58" cy="26" r="12" fill="url(#jackGrad)" stroke="rgba(0,0,0,0.1)" strokeWidth="0.5"/>
+            <ellipse cx="54" cy="22" rx="5" ry="4" fill="rgba(80,40,10,0.35)"/>
+            {/* Ухо */}
+            <ellipse cx="63" cy="16" rx="5" ry="7" fill="#c8975a" transform="rotate(15,63,16)"/>
+            {/* Нос */}
+            <ellipse cx="68" cy="28" rx="3" ry="2" fill="#1a0a00"/>
+            <ellipse cx="67" cy="27" rx="1" ry="0.8" fill="rgba(255,255,255,0.4)"/>
+            {/* Глаз */}
+            <circle cx="63" cy="22" r="2.5" fill="#1a0a00"/>
+            <circle cx="62.5" cy="21.5" r="0.8" fill="rgba(255,255,255,0.7)"/>
+            {/* Хвост */}
+            <path d="M16 30 Q4 18 8 10" stroke="#d4a96a" strokeWidth="5" fill="none" strokeLinecap="round"/>
+            {/* Ноги — бег */}
+            <line x1="28" y1="44" x2="22" y2="56" stroke="#c8975a" strokeWidth="5" strokeLinecap="round" style={{transformOrigin:"28px 44px", animation:"legFront 0.4s ease-in-out infinite"}}/>
+            <line x1="36" y1="45" x2="44" y2="55" stroke="#c8975a" strokeWidth="5" strokeLinecap="round" style={{transformOrigin:"36px 45px", animation:"legBack 0.4s ease-in-out infinite"}}/>
+            <line x1="44" y1="44" x2="38" y2="56" stroke="#d4a96a" strokeWidth="4" strokeLinecap="round" style={{transformOrigin:"44px 44px", animation:"legBack 0.4s ease-in-out infinite 0.2s"}}/>
+            <line x1="52" y1="43" x2="58" y2="54" stroke="#d4a96a" strokeWidth="4" strokeLinecap="round" style={{transformOrigin:"52px 43px", animation:"legFront 0.4s ease-in-out infinite 0.2s"}}/>
+          </svg>
+        </div>
+      </div>
 
-      // Мягкий фиолетовый градиент снизу
-      const grd = ctx.createRadialGradient(W/2, H*0.9, 0, W/2, H*0.9, H*0.5);
-      grd.addColorStop(0, "rgba(80,0,120,0.18)");
-      grd.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = grd;
-      ctx.fillRect(0, 0, W, H);
+      {/* ── НЕМЕЦКАЯ ОВЧАРКА (бежит справа, навстречу) ── */}
+      <div style={{
+        position:"absolute", bottom:"26%",
+        animation:"shepRun 6s ease-in-out infinite",
+        zIndex:5
+      }}>
+        <div style={{animation:"dogBob 0.35s ease-in-out infinite 0.15s", transform:"scaleX(-1)", filter:"drop-shadow(0 4px 12px rgba(0,0,0,0.7))"}}>
+          <svg width="96" height="66" viewBox="0 0 96 66">
+            <defs>
+              <linearGradient id="shepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#8b6914"/>
+                <stop offset="50%" stopColor="#5c3d0a"/>
+                <stop offset="100%" stopColor="#2a1500"/>
+              </linearGradient>
+              <linearGradient id="shepLight" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#c8901a"/>
+                <stop offset="100%" stopColor="#6b3f08"/>
+              </linearGradient>
+            </defs>
+            {/* Тело */}
+            <ellipse cx="46" cy="40" rx="28" ry="16" fill="url(#shepGrad)"/>
+            {/* Спина темнее */}
+            <ellipse cx="40" cy="32" rx="20" ry="8" fill="rgba(0,0,0,0.35)"/>
+            {/* Бок светлее */}
+            <ellipse cx="52" cy="44" rx="14" ry="7" fill="url(#shepLight)" opacity="0.6"/>
+            {/* Голова */}
+            <ellipse cx="70" cy="28" rx="13" ry="11" fill="url(#shepGrad)"/>
+            {/* Морда вытянутая */}
+            <ellipse cx="82" cy="33" rx="9" ry="6" fill="#7a5010"/>
+            {/* Уши стоячие */}
+            <polygon points="64,18 60,2 70,14" fill="#3d2008"/>
+            <polygon points="74,16 72,1 80,13" fill="#3d2008"/>
+            <polygon points="65,18 62,6 69,15" fill="#7a5010"/>
+            <polygon points="75,16 73,5 79,14" fill="#7a5010"/>
+            {/* Нос */}
+            <ellipse cx="89" cy="34" rx="4" ry="2.5" fill="#0d0600"/>
+            <ellipse cx="88" cy="33" rx="1.2" ry="0.9" fill="rgba(255,255,255,0.35)"/>
+            {/* Глаз */}
+            <circle cx="76" cy="25" r="3" fill="#0d0600"/>
+            <circle cx="75" cy="24" r="1" fill="rgba(255,255,255,0.6)"/>
+            <circle cx="77" cy="24.5" r="0.5" fill="rgba(255,200,0,0.3)"/>
+            {/* Хвост пушистый */}
+            <path d="M18 36 Q4 22 10 12 Q14 6 18 14" stroke="#5c3d0a" strokeWidth="7" fill="none" strokeLinecap="round"/>
+            <path d="M18 36 Q2 24 8 12" stroke="#8b6914" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.5"/>
+            {/* Ноги */}
+            <line x1="32" y1="52" x2="24" y2="66" stroke="#5c3d0a" strokeWidth="6" strokeLinecap="round" style={{transformOrigin:"32px 52px", animation:"legFront 0.35s ease-in-out infinite"}}/>
+            <line x1="42" y1="54" x2="52" y2="65" stroke="#5c3d0a" strokeWidth="6" strokeLinecap="round" style={{transformOrigin:"42px 54px", animation:"legBack 0.35s ease-in-out infinite"}}/>
+            <line x1="54" y1="52" x2="46" y2="66" stroke="#6b4510" strokeWidth="5" strokeLinecap="round" style={{transformOrigin:"54px 52px", animation:"legBack 0.35s ease-in-out infinite 0.17s"}}/>
+            <line x1="64" y1="50" x2="72" y2="63" stroke="#6b4510" strokeWidth="5" strokeLinecap="round" style={{transformOrigin:"64px 50px", animation:"legFront 0.35s ease-in-out infinite 0.17s"}}/>
+          </svg>
+        </div>
+      </div>
 
-      // ── Физика мяча ──
-      bvy += 0.38;
-      bx += bvx; by += bvy;
-      if (bx < 20)      { bx = 20;    bvx = Math.abs(bvx) * 0.85; }
-      if (bx > W - 50)  { bx = W-50;  bvx = -Math.abs(bvx) * 0.85; }
-      if (by < 30)      { by = 30;    bvy = Math.abs(bvy) * 0.8; }
-      if (by > groundY) { by = groundY; bvy = -Math.abs(bvy) * 0.82; bvx *= 0.93; spawnBurst(bx, by); }
-      bvx *= 0.997;
-      if (Math.abs(bvx) < 0.8 && Math.abs(bvy) < 0.8) { bvx = (Math.random()-0.5)*12; bvy = -9-Math.random()*4; }
+      {/* ── Пылевые следы ── */}
+      {[0,1,2,3,4].map(i => (
+        <div key={i} style={{
+          position:"absolute", bottom:"25%",
+          width:6+i*2, height:6+i*2, borderRadius:"50%",
+          background:"rgba(120,80,200,0.12)",
+          filter:"blur(4px)",
+          animation:`dustPuff ${1.2+i*0.3}s ease-out infinite`,
+          animationDelay:`${i*0.25}s`,
+          left:`${15+i*14}%`
+        }}/>
+      ))}
 
-      // ── Собаки ──
-      const jTarget = bx - 25;
-      const jspd = 3.8 + Math.abs(bvx)*0.35;
-      if (jx < jTarget - 4) { jx += jspd; jackFacing = 1; }
-      else if (jx > jTarget + 4) { jx -= jspd; jackFacing = -1; }
-
-      const sTarget = bx + 35;
-      const sspd = 3.0 + Math.abs(bvx)*0.25;
-      if (sx < sTarget - 4) { sx += sspd; shepFacing = 1; }
-      else if (sx > sTarget + 4) { sx -= sspd; shepFacing = -1; }
-      if (sx < jx + 75) sx = jx + 75;
-
-      // Удары
-      const jDist = Math.hypot(bx - jx, by - groundY);
-      const sDist = Math.hypot(bx - sx, by - groundY);
-      if (jDist < 75 && frame % 38 === 0) {
-        const ang = Math.atan2(by - groundY, bx - jx);
-        bvx = Math.cos(ang) * (9+Math.random()*5);
-        bvy = Math.sin(ang) * (9+Math.random()*5) - 5;
-        spawnBurst(bx, by);
-      }
-      if (sDist < 75 && frame % 55 === 10) {
-        const ang = Math.atan2(by - groundY, bx - sx);
-        bvx = Math.cos(ang) * (8+Math.random()*5);
-        bvy = Math.sin(ang) * (8+Math.random()*5) - 4;
-        spawnBurst(bx, by);
-      }
-
-      // Следы каждые 20 кадров
-      if (frame % 20 === 0) {
-        paws.push({ x: jx, y: groundY + 8, facing: jackFacing, life: 1.0 });
-        if (Math.abs(sx - jx) > 90) paws.push({ x: sx, y: groundY + 8, facing: shepFacing, life: 1.0 });
-      }
-
-      // ── Рисуем следы ──
-      paws.forEach((p, i) => {
-        p.life -= 0.012;
-        ctx.globalAlpha = p.life * 0.4;
-        ctx.font = "14px serif";
-        ctx.save();
-        if (p.facing < 0) { ctx.scale(-1,1); ctx.fillText("🐾", -p.x - 14, p.y); }
-        else ctx.fillText("🐾", p.x, p.y);
-        ctx.restore();
-      });
-      for (let i = paws.length-1; i >= 0; i--) { if (paws[i].life <= 0) paws.splice(i,1); }
-
-      // ── Вспышки ──
-      bursts.forEach((b, i) => {
-        b.life -= 0.06;
-        ctx.globalAlpha = b.life * 0.9;
-        ctx.font = `${16 + (1-b.life)*20}px serif`;
-        const emojis = ["✨","💫","⭐"];
-        ctx.fillText(emojis[i % 3], b.x, b.y - (1-b.life)*40);
-      });
-      for (let i = bursts.length-1; i >= 0; i--) { if (bursts[i].life <= 0) bursts.splice(i,1); }
-
-      ctx.globalAlpha = 1;
-
-      // ── Мяч ──
-      ctx.save();
-      ctx.translate(bx + 20, by + 20);
-      ctx.rotate(frame * bvx * 0.04);
-      ctx.font = "36px serif";
-      ctx.fillText("⚽", -18, 14);
-      ctx.restore();
-
-      // ── Джек-рассел ──
-      ctx.save();
-      ctx.font = "clamp(36px, 8vw, 56px) serif";
-      const jBounce = Math.abs(bvx) > 2 ? Math.sin(frame * 0.35) * 5 : 0;
-      ctx.translate(jx + (jackFacing < 0 ? 52 : 0), groundY - 4 + jBounce);
-      ctx.scale(jackFacing, 1);
-      ctx.fillText("🐕", 0, 0);
-      ctx.restore();
-
-      // ── Немецкая овчарка ──
-      ctx.save();
-      ctx.font = "clamp(40px, 9vw, 62px) serif";
-      const sBounce = Math.abs(bvx) > 2 ? Math.sin(frame * 0.28 + 1) * 4 : 0;
-      ctx.translate(sx + (shepFacing < 0 ? 60 : 0), groundY + sBounce);
-      ctx.scale(shepFacing, 1);
-      ctx.fillText("🐕‍🦺", 0, 0);
-      ctx.restore();
-
-      af = requestAnimationFrame(render);
-    };
-
-    // Клик — бросить мяч
-    const onClick = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-      const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-      const dx = cx - bx, dy = cy - by;
-      const dist = Math.sqrt(dx*dx+dy*dy) || 1;
-      bvx = (dx/dist)*13; bvy = (dy/dist)*13-3;
-      spawnBurst(cx, cy);
-    };
-    canvas.addEventListener("click", onClick);
-    canvas.addEventListener("touchstart", onClick);
-
-    render();
-    return () => {
-      window.removeEventListener("resize", resize);
-      canvas.removeEventListener("click", onClick);
-      canvas.removeEventListener("touchstart", onClick);
-      cancelAnimationFrame(af);
-    };
-  }, []);
-  return <canvas ref={ref} style={{position:"absolute",inset:0,width:"100%",height:"100%",cursor:"crosshair"}} />;
+      <style>{`
+        @keyframes starTwinkle {
+          0%,100%{opacity:0.1;transform:scale(1)}
+          50%{opacity:0.5;transform:scale(1.5)}
+        }
+        @keyframes ballBounce {
+          0%,100%{transform:translateY(0) scaleX(1) scaleY(1)}
+          40%{transform:translateY(-90px) scaleX(0.95) scaleY(1.05)}
+          90%{transform:translateY(-8px) scaleX(1) scaleY(1)}
+          95%{transform:translateY(0) scaleX(1.15) scaleY(0.85)}
+        }
+        @keyframes ballTravel {
+          0%{left:20%}
+          50%{left:65%}
+          100%{left:20%}
+        }
+        @keyframes ballSpin {
+          from{transform:rotate(0deg)}
+          to{transform:rotate(360deg)}
+        }
+        @keyframes shadowScale {
+          0%,100%{transform:translateX(-50%) scaleX(1);opacity:0.5}
+          40%{transform:translateX(-50%) scaleX(0.3);opacity:0.15}
+          95%{transform:translateX(-50%) scaleX(1.3);opacity:0.6}
+        }
+        @keyframes jackRun {
+          0%{left:8%}
+          50%{left:52%}
+          100%{left:8%}
+        }
+        @keyframes shepRun {
+          0%{left:75%}
+          50%{left:30%}
+          100%{left:75%}
+        }
+        @keyframes dogBob {
+          0%,100%{transform:translateY(0) rotate(0deg)}
+          50%{transform:translateY(-5px) rotate(1deg)}
+        }
+        @keyframes legFront {
+          0%,100%{transform:rotate(-25deg)}
+          50%{transform:rotate(25deg)}
+        }
+        @keyframes legBack {
+          0%,100%{transform:rotate(25deg)}
+          50%{transform:rotate(-25deg)}
+        }
+        @keyframes dustPuff {
+          0%{transform:scale(0);opacity:0.6}
+          100%{transform:scale(3);opacity:0}
+        }
+      `}</style>
+    </div>
+  );
 };
 
 const LockedOverlay = ({ onUnlock }) => {
@@ -269,9 +336,9 @@ const LockedOverlay = ({ onUnlock }) => {
       <DemonCanvas />
       {/* Силуэт и текст */}
       <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",gap:0}}>
-        <div style={{fontSize:"clamp(70px,16vw,160px)",lineHeight:1,userSelect:"none",animation:"demonPulse 3s ease-in-out infinite",filter:"drop-shadow(0 0 30px rgba(168,85,247,0.6))"}}>🐕‍🦺🐕</div>
-        <div style={{marginTop:28,fontSize:"clamp(13px,3.5vw,20px)",fontWeight:900,letterSpacing:"0.35em",color:"rgba(168,85,247,0.9)",textTransform:"uppercase",textShadow:"0 0 24px rgba(168,85,247,0.8)",fontFamily:"monospace",animation:"demonPulse 3s ease-in-out infinite 0.5s"}}>СКОРО ОТКРОЕТСЯ</div>
-        <div style={{marginTop:10,fontSize:"clamp(9px,2vw,12px)",letterSpacing:"0.22em",color:"rgba(168,85,247,0.35)",fontFamily:"monospace"}}>NEUROCINE.ONLINE</div>
+        <div style={{fontSize:"clamp(70px,16vw,150px)",lineHeight:1,userSelect:"none",animation:"demonPulse 4s ease-in-out infinite",filter:"drop-shadow(0 0 30px rgba(168,85,247,0.5))"}}>🐕‍🦺&nbsp;🐕</div>
+        <div style={{marginTop:28,fontSize:"clamp(13px,3.5vw,20px)",fontWeight:900,letterSpacing:"0.35em",color:"rgba(168,85,247,0.9)",textTransform:"uppercase",textShadow:"0 0 24px rgba(168,85,247,0.9), 0 0 60px rgba(168,85,247,0.3)",fontFamily:"monospace",animation:"demonPulse 3s ease-in-out infinite 0.5s"}}>СКОРО ОТКРОЕТСЯ</div>
+        <div style={{marginTop:10,fontSize:"clamp(9px,2vw,12px)",letterSpacing:"0.22em",color:"rgba(168,85,247,0.3)",fontFamily:"monospace"}}>NEUROCINE.ONLINE</div>
       </div>
 
       {/* PIN-терминал */}
