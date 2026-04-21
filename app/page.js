@@ -908,10 +908,17 @@ async function callVisionAPI(base64Image, sysPrompt) {
 }
 
 function cleanJSON(rawText) {
+  if (!rawText || typeof rawText !== "string") throw new Error("Пустой ответ от сервера");
   let cleanText = rawText.replace(/```json/gi, "").replace(/```/gi, "").trim();
+  // Detect model refusal before trying to parse
+  const lower = cleanText.toLowerCase();
+  if (lower.startsWith("i'm not") || lower.startsWith("i cannot") || lower.startsWith("i can't") || lower.startsWith("i am not") || lower.startsWith("sorry,") || lower.startsWith("i apologize")) {
+    throw new Error("Модель отказала в генерации. Попробуйте ещё раз: " + cleanText.substring(0, 120));
+  }
   const startIdx = cleanText.indexOf('{'); 
   const endIdx = cleanText.lastIndexOf('}');
-  if (startIdx !== -1 && endIdx !== -1) cleanText = cleanText.substring(startIdx, endIdx + 1);
+  if (startIdx === -1 || endIdx === -1) throw new Error("Модель не вернула JSON. Ответ: " + cleanText.substring(0, 120));
+  cleanText = cleanText.substring(startIdx, endIdx + 1);
   cleanText = cleanText.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u001F]+/g, "");
   return JSON.parse(cleanText);
 }
@@ -1621,8 +1628,16 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
           ? SYS_STEP_1A
           : `${SYS_STEP_1A}\nIMPORTANT: Continuation batch ${batch+1}/${totalBatches}. Output JSON with ONLY "frames" array. Reuse existing characters_EN. Timecodes start from ${timecodeStart} sec.`;
 
-        const batchText = await callAPI(batchReq, 3500, batchSys, MODEL_FAST);
-        const batchData = cleanJSON(batchText);
+        let batchText, batchData;
+        try {
+          batchText = await callAPI(batchReq, 3500, batchSys, MODEL_FAST);
+          batchData = cleanJSON(batchText);
+        } catch(fastErr) {
+          // Fallback: MODEL_FAST отказал или вернул не-JSON — повторяем через MODEL_STD (Claude)
+          setLoadingMsg(`🔄 Батч ${batch+1}/${totalBatches}: переключаемся на резервную модель...`);
+          batchText = await callAPI(batchReq, 3500, batchSys, MODEL_STD);
+          batchData = cleanJSON(batchText);
+        }
 
         if (isFirstBatch) {
           data1A = batchData;
@@ -1729,13 +1744,21 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
           // 150 сек таймаут для тяжёлых промпт-батчей, 2 ретрая
           const batchText = await callAPI(batchReq, 6000, SYS_STEP_2, MODEL_FAST, 2, 150000);
           batchData = cleanJSON(batchText);
-        } catch(batchErr) {
+        } catch(fastErr) {
+          // Fallback: MODEL_FAST отказал или вернул не-JSON — пробуем MODEL_STD
+          let batchTextFallback;
+          try {
+            setLoadingMsg(`🔄 Батч ${batch+1}/${totalPromptBatches}: переключаемся на резервную модель...`);
+            batchTextFallback = await callAPI(batchReq, 6000, SYS_STEP_2, MODEL_STD, 1, 150000);
+            batchData = cleanJSON(batchTextFallback);
+          } catch(batchErr) {
           // Батч упал — сохраняем УЖЕ ОПЛАЧЕННЫЙ прогресс и сообщаем пользователю
           setStep2Partial({ prompts: allPrompts, fromBatch: batch, totalBatches: totalPromptBatches, thumbRaw: thumbnailPromptRaw, brolls: finalBRolls });
           setBusy(false);
           setView("result");
           alert(`⚠️ Шаг 2 прерван на батче ${batch+1}/${totalPromptBatches} (кадры ${bStart+1}–${bEnd}).\n\n✅ Кадры 1–${bStart} уже готовы и сохранены.\n❌ Кадры ${bStart+1}–${frames.length} не обработаны.\n\n💡 Нажмите кнопку "▶ ПРОДОЛЖИТЬ" чтобы дообработать оставшиеся кадры без повторной оплаты готовых.\n\nОшибка: ${batchErr.message}`);
           return;
+          }
         }
 
         allPrompts = [...allPrompts, ...(batchData.frames_prompts || [])];
