@@ -1,8 +1,68 @@
+// ─── Rate Limiter (in-memory, per IP) ────────────────────────────────────────
+const rateLimitMap = new Map();
+const RATE_LIMIT_MAX = 15;
+const RATE_LIMIT_WINDOW = 60_000;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+const MAX_FIELD_LENGTH = 500; // символов на каждое поле
+
 export async function POST(req) {
   try {
+    // 1. Rate limiting по IP
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    if (!checkRateLimit(ip)) {
+      return new Response(
+        JSON.stringify({ error: "Слишком много запросов. Подождите минуту." }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // 2. Защита от прямого вызова API извне приложения
+    const appSecret = process.env.APP_SECRET;
+    if (appSecret) {
+      const clientToken = req.headers.get("X-App-Token");
+      if (clientToken !== appSecret) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const body = await req.json();
 
-    // Обновленный промпт: сохранили твои правила генерации и упаковали их в структуру JSON
+    // 3. Валидация и обрезка входных полей
+    const sanitize = (val) =>
+      typeof val === "string" ? val.slice(0, MAX_FIELD_LENGTH) : "";
+
+    const topic    = sanitize(body.topic);
+    const context  = sanitize(body.context);
+    const genre    = sanitize(body.genre);
+    const duration = sanitize(body.duration);
+    const platform = sanitize(body.platform);
+
+    if (!topic) {
+      return new Response(
+        JSON.stringify({ error: "Поле topic обязательно." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const systemPrompt = `### **SYSTEM ROLE & VIRAL ALGORITHMS (STRICT ADHERENCE REQUIRED)**
 Ты профессиональный AI-сценарист. Твоя задача — выдать результат ИСКЛЮЧИТЕЛЬНО в формате валидного JSON. Никакого текста, маркдауна или комментариев до/после JSON.
 
@@ -38,38 +98,38 @@ export async function POST(req) {
   ]
 }`;
 
-    const userPrompt = `ТЕМА: ${body.topic}. КОНТЕКСТ: ${body.context}. ЖАНР: ${body.genre}. ДЛИТЕЛЬНОСТЬ: ${body.duration}. ПЛАТФОРМА: ${body.platform}. Генерируй сценарий и ПОЛНЫЙ набор промптов СТРОГО в формате JSON.`;
+    const userPrompt = `ТЕМА: ${topic}. КОНТЕКСТ: ${context}. ЖАНР: ${genre}. ДЛИТЕЛЬНОСТЬ: ${duration}. ПЛАТФОРМА: ${platform}. Генерируй сценарий и ПОЛНЫЙ набор промптов СТРОГО в формате JSON.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+          { role: "user", content: userPrompt },
         ],
-        // ЭТОТ ПАРАМЕТР ЖЕСТКО ЗАСТАВЛЯЕТ LLM ВЫДАВАТЬ ТОЛЬКО JSON
-        response_format: { type: "json_object" }, 
+        response_format: { type: "json_object" },
         temperature: 0.5,
-        max_tokens: 4000 
-      })
+        max_tokens: 4000,
+      }),
     });
 
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Ошибка API Groq");
 
-    // Парсим строку с ответом от нейросети в реальный JSON-объект
     const parsedData = JSON.parse(data.choices[0].message.content);
 
-    // Отправляем чистый объект на фронтенд
-    return new Response(JSON.stringify(parsedData), { 
-      headers: { "Content-Type": "application/json" } 
+    return new Response(JSON.stringify(parsedData), {
+      headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
