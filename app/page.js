@@ -75,6 +75,122 @@ const NeuralBackground = () => {
   return <canvas ref={canvasRef} style={{position:"fixed", top:0, left:0, zIndex:-2, width:"100vw", height:"100vh", background: "#05050a"}} />;
 };
 
+// --- MAINTENANCE LOCK OVERLAY ---
+// ⬇ Сменить пароль здесь (только цифры)
+const LOCK_PIN = "2025";
+
+const DemonCanvas = () => {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let af;
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    window.addEventListener("resize", resize); resize();
+    const embers = Array.from({length: 90}, () => ({
+      x: Math.random() * window.innerWidth,
+      y: window.innerHeight + Math.random() * 300,
+      r: Math.random() * 2.2 + 0.4,
+      speed: Math.random() * 1.4 + 0.4,
+      drift: (Math.random() - 0.5) * 0.7,
+      alpha: Math.random() * 0.85 + 0.15,
+      hue: Math.random() * 35 + 5,
+    }));
+    let t = 0;
+    const render = () => {
+      t++;
+      ctx.fillStyle = "#06000c"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // pulsing glow
+      const grd = ctx.createRadialGradient(canvas.width/2, canvas.height*0.75, 0, canvas.width/2, canvas.height*0.75, canvas.height*0.55);
+      const p = 0.13 + Math.sin(t*0.025)*0.05;
+      grd.addColorStop(0, `rgba(190,15,15,${p})`); grd.addColorStop(0.5, `rgba(80,0,0,${p*0.4})`); grd.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grd; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // embers
+      embers.forEach(e => {
+        e.y -= e.speed; e.x += e.drift;
+        if (e.y < -10) { e.y = canvas.height + 10; e.x = Math.random() * canvas.width; }
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+        ctx.fillStyle = `hsla(${e.hue},100%,62%,${e.alpha*(0.55+Math.sin(t*0.06+e.x)*0.45)})`; ctx.fill();
+      });
+      af = requestAnimationFrame(render);
+    };
+    render();
+    return () => { window.removeEventListener("resize", resize); cancelAnimationFrame(af); };
+  }, []);
+  return <canvas ref={ref} style={{position:"absolute",inset:0,width:"100%",height:"100%"}} />;
+};
+
+const LockedOverlay = ({ onUnlock }) => {
+  const [count, setCount] = useState(0);
+  const [showPin, setShowPin] = useState(false);
+  const [pin, setPin] = useState("");
+  const [shake, setShake] = useState(false);
+
+  const handleCorner = () => {
+    const n = count + 1; setCount(n);
+    if (n >= 7) { setShowPin(true); setCount(0); }
+  };
+
+  const handleKey = (k) => {
+    if (k === "CLR") { setPin(""); return; }
+    if (k === "OK") {
+      if (pin === LOCK_PIN) { localStorage.setItem("nc_unlocked","true"); onUnlock(); }
+      else { setShake(true); setTimeout(() => { setShake(false); setPin(""); }, 600); }
+      return;
+    }
+    if (pin.length < 6) setPin(p => p + k);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:99999,overflow:"hidden",background:"#06000c"}}>
+      <DemonCanvas />
+      {/* Силуэт и текст */}
+      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",gap:0}}>
+        <div style={{fontSize:"clamp(90px,22vw,210px)",lineHeight:1,userSelect:"none",animation:"demonPulse 3s ease-in-out infinite",filter:"drop-shadow(0 0 50px rgba(220,20,20,0.8)) drop-shadow(0 0 100px rgba(160,0,0,0.5))"}}>😈</div>
+        <div style={{marginTop:28,fontSize:"clamp(13px,3.5vw,20px)",fontWeight:900,letterSpacing:"0.35em",color:"rgba(220,45,45,0.85)",textTransform:"uppercase",textShadow:"0 0 24px rgba(220,20,20,0.9)",fontFamily:"monospace",animation:"demonPulse 3s ease-in-out infinite 0.5s"}}>СКОРО ОТКРОЕТСЯ</div>
+        <div style={{marginTop:10,fontSize:"clamp(9px,2vw,12px)",letterSpacing:"0.22em",color:"rgba(140,25,25,0.55)",fontFamily:"monospace"}}>NEUROCINE.ONLINE</div>
+      </div>
+
+      {/* PIN-терминал */}
+      {showPin && (
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.75)",backdropFilter:"blur(10px)",zIndex:2}}>
+          <div style={{background:"linear-gradient(180deg,#0e0e1c,#060610)",border:"1px solid rgba(200,30,30,0.5)",borderRadius:22,padding:28,width:"min(280px,90vw)",boxShadow:"0 0 60px rgba(200,20,20,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",animation:shake?"pinShake 0.5s ease":"none"}}>
+            <div style={{fontFamily:"monospace",fontSize:10,color:"rgba(200,50,50,0.8)",letterSpacing:"3px",textAlign:"center",marginBottom:18,textTransform:"uppercase"}}>⬛ ТЕРМИНАЛ ДОСТУПА</div>
+            {/* Дисплей */}
+            <div style={{background:"#000",border:"1px solid rgba(200,30,30,0.35)",borderRadius:12,padding:"14px 18px",marginBottom:20,textAlign:"center",fontFamily:"monospace",fontSize:28,letterSpacing:12,color:"#ef4444",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {pin ? "●".repeat(pin.length) : <span style={{opacity:0.25,fontSize:13,letterSpacing:4}}>_ _ _ _</span>}
+            </div>
+            {/* Кнопки */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+              {["1","2","3","4","5","6","7","8","9","CLR","0","OK"].map(k => (
+                <button key={k} onClick={()=>handleKey(k)} style={{background:k==="OK"?"rgba(200,30,30,0.2)":k==="CLR"?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.07)",border:k==="OK"?"1px solid rgba(200,30,30,0.55)":"1px solid rgba(255,255,255,0.09)",borderRadius:12,padding:"15px 0",fontSize:k==="OK"||k==="CLR"?10:20,fontWeight:800,color:k==="OK"?"#ef4444":k==="CLR"?"#4b5563":"#fff",cursor:"pointer",fontFamily:"monospace",letterSpacing:1,transition:"background .15s"}}>
+                  {k}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Невидимая зона 7 тапов — правый нижний угол */}
+      <div onClick={handleCorner} style={{position:"absolute",bottom:0,right:0,width:72,height:72,zIndex:3,cursor:"default"}} />
+      {/* Прогресс тапов */}
+      {count > 0 && (
+        <div style={{position:"absolute",bottom:18,right:18,display:"flex",gap:5,zIndex:3,pointerEvents:"none"}}>
+          {Array.from({length:7}).map((_,i)=>(
+            <div key={i} style={{width:6,height:6,borderRadius:"50%",background:i<count?"rgba(210,30,30,0.9)":"rgba(255,255,255,0.12)",transition:"background .2s"}}/>
+          ))}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes demonPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 50px rgba(220,20,20,0.8));}50%{transform:scale(1.05);filter:drop-shadow(0 0 90px rgba(230,20,20,1)) drop-shadow(0 0 150px rgba(180,0,0,0.6));}}
+        @keyframes pinShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+      `}</style>
+    </div>
+  );
+};
+
 // --- КОНСТАНТЫ И ПРЕСЕТЫ ---
 const GENRE_PRESETS = {
   "КРИМИНАЛ":      { icon:"🔫", col:"#ef4444", font: "'Creepster', cursive", color: "#ef4444" }, 
@@ -574,7 +690,8 @@ const InfoModal = ({ isOpen, onClose, title, content }) => {
 export default function Page() {
   const [tokens, setTokens] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [clicks, setClicks] = useState(0); 
+  const [clicks, setClicks] = useState(0);
+  const [siteUnlocked, setSiteUnlocked] = useState(false);
   
   const [topic, setTopic] = useState("");
   const [finalTwist, setFinalTwist] = useState(""); 
@@ -675,6 +792,9 @@ export default function Page() {
 
   useEffect(() => { 
     if (typeof window !== "undefined") { 
+
+      // ── ПРОВЕРКА LOCK OVERLAY ──
+      if (localStorage.getItem("nc_unlocked") === "true") setSiteUnlocked(true);
 
       // ── ПРОВЕРКА URL-ПАРАМЕТРА (?dev=пароль) — проверка на СЕРВЕРЕ ──
       const params = new URLSearchParams(window.location.search);
@@ -1355,6 +1475,7 @@ BANNED WORDS: "погрузимся", "давайте", "мало кто зна�
   return (
     <div ref={scrollRef} style={{minHeight:"100vh", color:"#e2e8f0", paddingBottom:100, position:"relative", zIndex:1, overflowY:"auto"}}>
       <NeuralBackground />
+      {!siteUnlocked && <LockedOverlay onUnlock={() => setSiteUnlocked(true)} />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700;900&family=Creepster&family=Montserrat:wght@800;900&family=Oswald:wght@700&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
