@@ -1,50 +1,44 @@
-
 // ===============================
 // 🧬 Character Engine v1
 // ===============================
 
-export const SYS_CHARACTER_ENGINE = `
-You are a character continuity designer for AI video generation.
+export function buildCharacterDNA({ name, gender, age, style }) {
+  return {
+    name,
+    gender,
+    age,
+    style,
 
-Return ONLY valid JSON.
+    look: `
+${gender}, ${age} years old,
+face consistent, cinematic details,
+skin texture realistic,
+no distortion, no variation,
+identity locked
+`,
 
-TASK:
-Extract recurring characters from the script and build stable character locks.
-
-For each character return:
-- id
-- name
-- role
-- age
-- look
-- outfit
-- dna_lock
-
-RULES:
-1. Keep descriptions realistic and concise
-2. Focus on repeatable visual traits
-3. Outfit must stay stable
-4. dna_lock must be a single compact English anchor for future prompts
-5. If no clear characters exist, return empty array
-
-OUTPUT:
-{
-  "characters": [
-    {
-      "id": "CHAR_1",
-      "name": "John",
-      "role": "main",
-      "age": "35",
-      "look": "sharp jaw, tired eyes, short dark hair",
-      "outfit": "black wool coat, dark trousers",
-      "dna_lock": "35-year-old man, sharp jaw, tired eyes, short dark hair, black wool coat, dark trousers, realistic cinematic style"
-    }
-  ]
+    outfit: `
+${style},
+same clothes across all scenes,
+no changes
+`,
+  };
 }
-`;
 
-export function buildCharacterUserPrompt({ script }) {
+export function injectCharactersIntoScript(script, characters) {
+  if (!characters.length) return script;
+
+  const desc = characters
+    .map(
+      (c) =>
+        `${c.name}: ${c.gender}, ${c.age}, ${c.style}`
+    )
+    .join("\n");
+
   return `
+Characters:
+${desc}
+
 Script:
 ${script}
 `;
