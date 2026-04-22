@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -113,6 +114,7 @@ export default function Page() {
           <p><b>{p.scene_id}</b></p>
           <p>{p.imgPrompt_EN}</p>
           <p>{p.vidPrompt_EN}</p>
+          <p><b>MODE:</b> {p.generation_mode_final}</p>
         </div>
       ))}
     </main>
