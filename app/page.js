@@ -42,6 +42,9 @@ const TEXT = {
     tabScenes: "Сцены",
     tabPrompts: "Промпты",
     tabReference: "Reference",
+    male: "Мужской",
+    female: "Женский",
+    saveCharacter: "Обновить персонажа",
   },
   en: {
     appTitle: "NeuroCine Studio",
@@ -78,6 +81,9 @@ const TEXT = {
     tabScenes: "Scenes",
     tabPrompts: "Prompts",
     tabReference: "Reference",
+    male: "Male",
+    female: "Female",
+    saveCharacter: "Update character",
   },
 };
 
@@ -95,7 +101,14 @@ export default function Page() {
   const [loadingPrompts, setLoadingPrompts] = useState(false);
   const [error, setError] = useState("");
 
-  const [characters] = useState([
+  const [characterForm, setCharacterForm] = useState({
+    name: "Alex",
+    gender: "male",
+    age: 28,
+    style: "black tactical jacket, cinematic look",
+  });
+
+  const [characters, setCharacters] = useState([
     buildCharacterDNA({
       name: "Alex",
       gender: "male",
@@ -137,6 +150,20 @@ export default function Page() {
       if (match) return JSON.parse(match[0]);
       return {};
     }
+  }
+
+  function updateCharacter() {
+    const next = buildCharacterDNA({
+      name: characterForm.name,
+      gender: characterForm.gender,
+      age: Number(characterForm.age),
+      style: characterForm.style,
+    });
+
+    setCharacters([next]);
+    setReference(null);
+    setScenes([]);
+    setPrompts([]);
   }
 
   async function generateScenes() {
@@ -313,14 +340,71 @@ export default function Page() {
 
             <div style={styles.cardSide}>
               <div style={styles.cardTitle}>{t.character}</div>
-              {characters.map((c, i) => (
-                <div key={i} style={styles.metaBlock}>
-                  <div><b>{t.name}:</b> {c.name}</div>
-                  <div><b>{t.gender}:</b> {c.gender}</div>
-                  <div><b>{t.age}:</b> {c.age}</div>
-                  <div><b>{t.style}:</b> {c.style}</div>
-                </div>
-              ))}
+
+              <div style={styles.formGrid}>
+                <label style={styles.label}>
+                  <span>{t.name}</span>
+                  <input
+                    value={characterForm.name}
+                    onChange={(e) =>
+                      setCharacterForm((p) => ({ ...p, name: e.target.value }))
+                    }
+                    style={styles.input}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.gender}</span>
+                  <select
+                    value={characterForm.gender}
+                    onChange={(e) =>
+                      setCharacterForm((p) => ({ ...p, gender: e.target.value }))
+                    }
+                    style={styles.input}
+                  >
+                    <option value="male">{t.male}</option>
+                    <option value="female">{t.female}</option>
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.age}</span>
+                  <input
+                    type="number"
+                    value={characterForm.age}
+                    onChange={(e) =>
+                      setCharacterForm((p) => ({ ...p, age: e.target.value }))
+                    }
+                    style={styles.input}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.style}</span>
+                  <textarea
+                    value={characterForm.style}
+                    onChange={(e) =>
+                      setCharacterForm((p) => ({ ...p, style: e.target.value }))
+                    }
+                    style={{ ...styles.input, minHeight: 90, resize: "vertical" }}
+                  />
+                </label>
+
+                <button onClick={updateCharacter} style={styles.secondaryBtn}>
+                  🧬 {t.saveCharacter}
+                </button>
+              </div>
+
+              <div style={styles.metaPreview}>
+                {characters.map((c, i) => (
+                  <div key={i} style={styles.metaBlock}>
+                    <div><b>{t.name}:</b> {c.name}</div>
+                    <div><b>{t.gender}:</b> {c.gender}</div>
+                    <div><b>{t.age}:</b> {c.age}</div>
+                    <div><b>{t.style}:</b> {c.style}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
         )}
@@ -567,6 +651,30 @@ const styles = {
     color: "#fff",
     fontWeight: 800,
     fontSize: 15,
+  },
+  formGrid: {
+    display: "grid",
+    gap: 12,
+  },
+  label: {
+    display: "grid",
+    gap: 6,
+    fontSize: 14,
+    color: "#d4d4d8",
+  },
+  input: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    boxSizing: "border-box",
+  },
+  metaPreview: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTop: "1px solid rgba(255,255,255,0.08)",
   },
   metaBlock: {
     display: "grid",
