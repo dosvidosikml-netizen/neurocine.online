@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { SYS_SCENE_ENGINE, buildSceneUserPrompt } from "../engine/sceneEngine";
+import { SYS_PROMPT_ENGINE, buildPromptUserPrompt } from "../engine/promptEngine";
 
 const T = {
   ru: {
     title: "NeuroCine Studio",
-    subtitle: "Генерация сцен",
+    subtitle: "Сцены и промпты",
     scriptLabel: "Сценарий",
     scriptPlaceholder: "Вставь сценарий или идею...",
     modeLabel: "Режим",
@@ -14,8 +15,12 @@ const T = {
     langLabel: "Язык",
     generate: "Сгенерировать сцены",
     generating: "Генерация...",
+    buildPrompts: "Сгенерировать промпты",
+    buildingPrompts: "Сборка промптов...",
     noScenes: "Сцены пока не сгенерированы",
+    noPrompts: "Промпты пока не сгенерированы",
     resultTitle: "Сцены",
+    promptsTitle: "Промпты",
     errorTitle: "Ошибка",
     modeShorts: "Шортс",
     modeCinematic: "Кино",
@@ -34,10 +39,13 @@ const T = {
     timing: "Тайминг",
     modeGen: "Режим генерации",
     emptyScript: "Вставь сценарий перед генерацией.",
+    imgPrompt: "Image prompt",
+    vidPrompt: "Video prompt",
+    negative: "Negative prompt",
   },
   en: {
     title: "NeuroCine Studio",
-    subtitle: "Scene Generator",
+    subtitle: "Scenes and prompts",
     scriptLabel: "Script",
     scriptPlaceholder: "Paste your script or idea...",
     modeLabel: "Mode",
@@ -45,8 +53,12 @@ const T = {
     langLabel: "Language",
     generate: "Generate scenes",
     generating: "Generating...",
+    buildPrompts: "Generate prompts",
+    buildingPrompts: "Building prompts...",
     noScenes: "No scenes generated yet",
+    noPrompts: "No prompts generated yet",
     resultTitle: "Scenes",
+    promptsTitle: "Prompts",
     errorTitle: "Error",
     modeShorts: "Shorts",
     modeCinematic: "Cinematic",
@@ -65,6 +77,9 @@ const T = {
     timing: "Timing",
     modeGen: "Generation mode",
     emptyScript: "Paste a script before generating.",
+    imgPrompt: "Image prompt",
+    vidPrompt: "Video prompt",
+    negative: "Negative prompt",
   },
 };
 
@@ -96,7 +111,9 @@ export default function Page() {
   const [projectMode, setProjectMode] = useState("shorts");
   const [durationTotal, setDurationTotal] = useState(60);
   const [scenes, setScenes] = useState([]);
+  const [prompts, setPrompts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
   const [error, setError] = useState("");
 
   const t = useMemo(() => T[uiLanguage] || T.ru, [uiLanguage]);
@@ -146,6 +163,7 @@ export default function Page() {
       setLoading(true);
       setError("");
       setScenes([]);
+      setPrompts([]);
 
       const prompt = buildSceneUserPrompt({
         script,
@@ -162,6 +180,26 @@ export default function Page() {
       setError(e?.message || "Unknown error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generatePrompts() {
+    if (!scenes.length) return;
+
+    try {
+      setLoadingPrompts(true);
+      setError("");
+      setPrompts([]);
+
+      const prompt = buildPromptUserPrompt({ scenes });
+      const raw = await callAPI(prompt, SYS_PROMPT_ENGINE);
+      const data = cleanJSON(raw);
+
+      setPrompts(Array.isArray(data?.prompts) ? data.prompts : []);
+    } catch (e) {
+      setError(e?.message || "Unknown error");
+    } finally {
+      setLoadingPrompts(false);
     }
   }
 
@@ -241,21 +279,9 @@ export default function Page() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr",
-            gap: 16,
-          }}
-        >
+        <div style={{ display: "grid", gap: 16 }}>
           <section style={{ ...cardStyle(), padding: 16 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr",
-                gap: 14,
-              }}
-            >
+            <div style={{ display: "grid", gap: 14 }}>
               <div>
                 <div
                   style={{
@@ -384,6 +410,26 @@ export default function Page() {
                 >
                   {loading ? `⏳ ${t.generating}` : `🚀 ${t.generate}`}
                 </button>
+
+                <button
+                  onClick={generatePrompts}
+                  disabled={loadingPrompts || !scenes.length}
+                  style={{
+                    padding: "14px 18px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(59,130,246,0.45)",
+                    background:
+                      loadingPrompts || !scenes.length
+                        ? "rgba(59,130,246,0.2)"
+                        : "linear-gradient(135deg, #2563eb, #3b82f6)",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: 15,
+                    cursor: loadingPrompts || !scenes.length ? "default" : "pointer",
+                  }}
+                >
+                  {loadingPrompts ? `⏳ ${t.buildingPrompts}` : `🎥 ${t.buildPrompts}`}
+                </button>
               </div>
 
               {error ? (
@@ -405,13 +451,7 @@ export default function Page() {
           </section>
 
           <section style={{ ...cardStyle(), padding: 16 }}>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 900,
-                marginBottom: 14,
-              }}
-            >
+            <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 14 }}>
               {t.resultTitle}
             </div>
 
@@ -463,32 +503,78 @@ export default function Page() {
                     </div>
 
                     <div style={{ display: "grid", gap: 8, fontSize: 14 }}>
+                      <div><b>{t.goal}:</b> {scene.scene_goal || "-"}</div>
+                      <div><b>{t.voice}:</b> {scene.voice || "-"}</div>
+                      <div><b>{t.visual}:</b> {scene.visual || "-"}</div>
+                      <div><b>{t.camera}:</b> {scene.camera || "-"}</div>
+                      <div><b>{t.motion}:</b> {scene.motion || "-"}</div>
+                      <div><b>{t.lighting}:</b> {scene.lighting || "-"}</div>
+                      <div><b>{t.environment}:</b> {scene.environment || "-"}</div>
+                      <div><b>{t.sfx}:</b> {scene.sfx || "-"}</div>
+                      <div><b>{t.modeGen}:</b> {scene.generation_mode || "-"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={{ ...cardStyle(), padding: 16 }}>
+            <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 14 }}>
+              {t.promptsTitle}
+            </div>
+
+            {!prompts.length ? (
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.03)",
+                  color: "#a1a1aa",
+                }}
+              >
+                {t.noPrompts}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 14 }}>
+                {prompts.map((item, index) => (
+                  <div
+                    key={item.scene_id || index}
+                    style={{
+                      ...cardStyle("rgba(59,130,246,0.18)"),
+                      padding: 14,
+                    }}
+                  >
+                    <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 10 }}>
+                      {item.scene_id || `prompt_${index + 1}`}
+                    </div>
+
+                    <div style={{ display: "grid", gap: 12 }}>
                       <div>
-                        <b>{t.goal}:</b> {scene.scene_goal || "-"}
+                        <div style={{ color: "#93c5fd", fontWeight: 700, marginBottom: 6 }}>
+                          {t.imgPrompt}
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                          {item.imgPrompt_EN || "-"}
+                        </div>
                       </div>
+
                       <div>
-                        <b>{t.voice}:</b> {scene.voice || "-"}
+                        <div style={{ color: "#93c5fd", fontWeight: 700, marginBottom: 6 }}>
+                          {t.vidPrompt}
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                          {item.vidPrompt_EN || "-"}
+                        </div>
                       </div>
+
                       <div>
-                        <b>{t.visual}:</b> {scene.visual || "-"}
-                      </div>
-                      <div>
-                        <b>{t.camera}:</b> {scene.camera || "-"}
-                      </div>
-                      <div>
-                        <b>{t.motion}:</b> {scene.motion || "-"}
-                      </div>
-                      <div>
-                        <b>{t.lighting}:</b> {scene.lighting || "-"}
-                      </div>
-                      <div>
-                        <b>{t.environment}:</b> {scene.environment || "-"}
-                      </div>
-                      <div>
-                        <b>{t.sfx}:</b> {scene.sfx || "-"}
-                      </div>
-                      <div>
-                        <b>{t.modeGen}:</b> {scene.generation_mode || "-"}
+                        <div style={{ color: "#93c5fd", fontWeight: 700, marginBottom: 6 }}>
+                          {t.negative}
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                          {item.negative_prompt || "-"}
+                        </div>
                       </div>
                     </div>
                   </div>
