@@ -16,6 +16,7 @@ const TEXT = {
     reference: "Reference",
     scenes: "Сцены",
     prompts: "Промпты",
+    cover: "Cover Studio",
     noReference: "Reference пока не создан",
     noScenes: "Сцен пока нет",
     noPrompts: "Промптов пока нет",
@@ -42,11 +43,19 @@ const TEXT = {
     tabScenes: "Сцены",
     tabPrompts: "Промпты",
     tabReference: "Reference",
+    tabCover: "Обложка",
     male: "Мужской",
     female: "Женский",
     saveCharacter: "Обновить персонажей",
     addCharacter: "Добавить персонажа",
     removeCharacter: "Удалить",
+    coverTitle: "Заголовок",
+    coverSubtitle: "Подзаголовок",
+    coverCta: "CTA",
+    posX: "Позиция X",
+    posY: "Позиция Y",
+    bgPrompt: "Описание фона",
+    preview: "Превью",
   },
   en: {
     appTitle: "NeuroCine Studio",
@@ -57,6 +66,7 @@ const TEXT = {
     reference: "Reference",
     scenes: "Scenes",
     prompts: "Prompts",
+    cover: "Cover Studio",
     noReference: "Reference not created yet",
     noScenes: "No scenes yet",
     noPrompts: "No prompts yet",
@@ -83,11 +93,19 @@ const TEXT = {
     tabScenes: "Scenes",
     tabPrompts: "Prompts",
     tabReference: "Reference",
+    tabCover: "Cover",
     male: "Male",
     female: "Female",
     saveCharacter: "Update characters",
     addCharacter: "Add character",
     removeCharacter: "Remove",
+    coverTitle: "Title",
+    coverSubtitle: "Subtitle",
+    coverCta: "CTA",
+    posX: "Position X",
+    posY: "Position Y",
+    bgPrompt: "Background prompt",
+    preview: "Preview",
   },
 };
 
@@ -114,6 +132,15 @@ export default function Page() {
   const [loadingReference, setLoadingReference] = useState(false);
   const [loadingPrompts, setLoadingPrompts] = useState(false);
   const [error, setError] = useState("");
+
+  const [cover, setCover] = useState({
+    title: "ТВОЯ ИСТОРИЯ",
+    subtitle: "КИНОШНЫЙ AI-РОЛИК",
+    cta: "СМОТРИ ДО КОНЦА",
+    posX: 50,
+    posY: 58,
+    backgroundPrompt: "dark cinematic background, dramatic contrast, volumetric light, high tension",
+  });
 
   const [characterForms, setCharacterForms] = useState([
     { ...makeFormCharacter(1), name: "Alex" },
@@ -262,6 +289,10 @@ export default function Page() {
     }
   }
 
+  function updateCoverField(field, value) {
+    setCover((prev) => ({ ...prev, [field]: value }));
+  }
+
   return (
     <main style={styles.page}>
       <div style={styles.bgGlowTop} />
@@ -297,41 +328,20 @@ export default function Page() {
         </header>
 
         <nav style={styles.tabs}>
-          <button
-            onClick={() => setActiveTab("studio")}
-            style={{
-              ...styles.tabBtn,
-              ...(activeTab === "studio" ? styles.tabBtnActive : {}),
-            }}
-          >
+          <button onClick={() => setActiveTab("studio")} style={{ ...styles.tabBtn, ...(activeTab === "studio" ? styles.tabBtnActive : {}) }}>
             {t.tabStudio}
           </button>
-          <button
-            onClick={() => setActiveTab("reference")}
-            style={{
-              ...styles.tabBtn,
-              ...(activeTab === "reference" ? styles.tabBtnActive : {}),
-            }}
-          >
+          <button onClick={() => setActiveTab("reference")} style={{ ...styles.tabBtn, ...(activeTab === "reference" ? styles.tabBtnActive : {}) }}>
             {t.tabReference}
           </button>
-          <button
-            onClick={() => setActiveTab("scenes")}
-            style={{
-              ...styles.tabBtn,
-              ...(activeTab === "scenes" ? styles.tabBtnActive : {}),
-            }}
-          >
+          <button onClick={() => setActiveTab("scenes")} style={{ ...styles.tabBtn, ...(activeTab === "scenes" ? styles.tabBtnActive : {}) }}>
             {t.tabScenes}
           </button>
-          <button
-            onClick={() => setActiveTab("prompts")}
-            style={{
-              ...styles.tabBtn,
-              ...(activeTab === "prompts" ? styles.tabBtnActive : {}),
-            }}
-          >
+          <button onClick={() => setActiveTab("prompts")} style={{ ...styles.tabBtn, ...(activeTab === "prompts" ? styles.tabBtnActive : {}) }}>
             {t.tabPrompts}
+          </button>
+          <button onClick={() => setActiveTab("cover")} style={{ ...styles.tabBtn, ...(activeTab === "cover" ? styles.tabBtnActive : {}) }}>
+            {t.tabCover}
           </button>
         </nav>
 
@@ -383,10 +393,7 @@ export default function Page() {
                     <div style={styles.sceneHead}>
                       <div style={styles.sceneId}>{c.name || `Character ${idx + 1}`}</div>
                       {characterForms.length > 1 ? (
-                        <button
-                          onClick={() => removeCharacter(c.id)}
-                          style={styles.removeBtn}
-                        >
+                        <button onClick={() => removeCharacter(c.id)} style={styles.removeBtn}>
                           {t.removeCharacter}
                         </button>
                       ) : null}
@@ -394,20 +401,12 @@ export default function Page() {
 
                     <label style={styles.label}>
                       <span>{t.name}</span>
-                      <input
-                        value={c.name}
-                        onChange={(e) => updateCharacterField(c.id, "name", e.target.value)}
-                        style={styles.input}
-                      />
+                      <input value={c.name} onChange={(e) => updateCharacterField(c.id, "name", e.target.value)} style={styles.input} />
                     </label>
 
                     <label style={styles.label}>
                       <span>{t.gender}</span>
-                      <select
-                        value={c.gender}
-                        onChange={(e) => updateCharacterField(c.id, "gender", e.target.value)}
-                        style={styles.input}
-                      >
+                      <select value={c.gender} onChange={(e) => updateCharacterField(c.id, "gender", e.target.value)} style={styles.input}>
                         <option value="male">{t.male}</option>
                         <option value="female">{t.female}</option>
                       </select>
@@ -415,21 +414,12 @@ export default function Page() {
 
                     <label style={styles.label}>
                       <span>{t.age}</span>
-                      <input
-                        type="number"
-                        value={c.age}
-                        onChange={(e) => updateCharacterField(c.id, "age", e.target.value)}
-                        style={styles.input}
-                      />
+                      <input type="number" value={c.age} onChange={(e) => updateCharacterField(c.id, "age", e.target.value)} style={styles.input} />
                     </label>
 
                     <label style={styles.label}>
                       <span>{t.style}</span>
-                      <textarea
-                        value={c.style}
-                        onChange={(e) => updateCharacterField(c.id, "style", e.target.value)}
-                        style={{ ...styles.input, minHeight: 90, resize: "vertical" }}
-                      />
+                      <textarea value={c.style} onChange={(e) => updateCharacterField(c.id, "style", e.target.value)} style={{ ...styles.input, minHeight: 90, resize: "vertical" }} />
                     </label>
                   </div>
                 ))}
@@ -502,6 +492,95 @@ export default function Page() {
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {activeTab === "cover" && (
+          <section style={styles.grid}>
+            <div style={styles.cardLarge}>
+              <div style={styles.cardTitle}>{t.cover}</div>
+
+              <div style={styles.formGrid}>
+                <label style={styles.label}>
+                  <span>{t.coverTitle}</span>
+                  <input
+                    value={cover.title}
+                    onChange={(e) => updateCoverField("title", e.target.value)}
+                    style={styles.input}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.coverSubtitle}</span>
+                  <input
+                    value={cover.subtitle}
+                    onChange={(e) => updateCoverField("subtitle", e.target.value)}
+                    style={styles.input}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.coverCta}</span>
+                  <input
+                    value={cover.cta}
+                    onChange={(e) => updateCoverField("cta", e.target.value)}
+                    style={styles.input}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.bgPrompt}</span>
+                  <textarea
+                    value={cover.backgroundPrompt}
+                    onChange={(e) => updateCoverField("backgroundPrompt", e.target.value)}
+                    style={{ ...styles.input, minHeight: 90, resize: "vertical" }}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.posX}: {cover.posX}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={cover.posX}
+                    onChange={(e) => updateCoverField("posX", Number(e.target.value))}
+                  />
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.posY}: {cover.posY}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={cover.posY}
+                    onChange={(e) => updateCoverField("posY", Number(e.target.value))}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div style={styles.cardSide}>
+              <div style={styles.cardTitle}>{t.preview}</div>
+
+              <div style={styles.coverPreview}>
+                <div style={styles.coverBg} />
+                <div
+                  style={{
+                    ...styles.coverTextWrap,
+                    left: `${cover.posX}%`,
+                    top: `${cover.posY}%`,
+                  }}
+                >
+                  <div style={styles.coverHook}>{cover.subtitle}</div>
+                  <div style={styles.coverTitle}>{cover.title}</div>
+                  <div style={styles.coverCta}>{cover.cta}</div>
+                </div>
+              </div>
+
+              <div style={styles.codeBlock}>{cover.backgroundPrompt}</div>
+            </div>
           </section>
         )}
       </div>
@@ -764,5 +843,55 @@ const styles = {
     background: "rgba(239,68,68,0.1)",
     color: "#fca5a5",
     fontWeight: 700,
+  },
+  coverPreview: {
+    position: "relative",
+    width: "100%",
+    aspectRatio: "9 / 16",
+    overflow: "hidden",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "#0b1120",
+    marginBottom: 14,
+  },
+  coverBg: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(circle at 30% 20%, rgba(168,85,247,0.35), transparent 30%), radial-gradient(circle at 70% 80%, rgba(59,130,246,0.22), transparent 30%), linear-gradient(180deg, #0f172a 0%, #020617 100%)",
+  },
+  coverTextWrap: {
+    position: "absolute",
+    transform: "translate(-50%, -50%)",
+    width: "82%",
+    textAlign: "center",
+  },
+  coverHook: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "#fbbf24",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    textShadow: "0 2px 10px rgba(0,0,0,0.8)",
+  },
+  coverTitle: {
+    fontSize: 34,
+    fontWeight: 900,
+    lineHeight: 1.05,
+    textTransform: "uppercase",
+    textShadow: "0 6px 20px rgba(0,0,0,0.9)",
+    marginBottom: 10,
+  },
+  coverCta: {
+    display: "inline-block",
+    fontSize: 12,
+    fontWeight: 900,
+    color: "#fff",
+    padding: "8px 14px",
+    borderRadius: 999,
+    background: "rgba(239,68,68,0.9)",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.35)",
+    letterSpacing: 1,
   },
 };
