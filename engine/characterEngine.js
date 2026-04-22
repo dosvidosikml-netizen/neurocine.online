@@ -12,14 +12,13 @@ export function buildCharacterDNA({ name, gender, age, style }) {
     look: `
 ${gender}, ${age} years old,
 face consistent, cinematic details,
-skin texture realistic,
-no distortion, no variation,
-identity locked
+skin realistic,
+no distortion, same identity across scenes
 `,
 
     outfit: `
 ${style},
-same clothes across all scenes,
+same clothes in all scenes,
 no changes
 `,
   };
