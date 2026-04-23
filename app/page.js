@@ -81,6 +81,8 @@ const TEXT = {
     preset: "Пресет",
     copy: "Копировать",
     copied: "Скопировано",
+    downloadJson: "Скачать .json",
+    importJson: "Импорт .json",
     exportScenes: "Экспорт сцен",
     exportPrompts: "Экспорт промптов",
     exportReference: "Экспорт reference",
@@ -118,6 +120,7 @@ const TEXT = {
     refImageActive: "Uploaded reference image активен",
     ttsFullScript: "Полный текст озвучки",
     ttsSegments: "Сегменты озвучки",
+    importError: "Ошибка загрузки JSON",
   },
   en: {
     appTitle: "NeuroCine Studio",
@@ -189,6 +192,8 @@ const TEXT = {
     preset: "Preset",
     copy: "Copy",
     copied: "Copied",
+    downloadJson: "Download .json",
+    importJson: "Import .json",
     exportScenes: "Export scenes",
     exportPrompts: "Export prompts",
     exportReference: "Export reference",
@@ -226,6 +231,7 @@ const TEXT = {
     refImageActive: "Uploaded reference image is active",
     ttsFullScript: "Full voiceover script",
     ttsSegments: "Voiceover segments",
+    importError: "JSON import error",
   },
 };
 
@@ -245,7 +251,9 @@ function makeFormCharacter(index = 1) {
 function SceneEditorModal({ scene, t, onClose, onSave }) {
   const [form, setForm] = useState(scene);
   if (!scene) return null;
-  function setField(field, value) { setForm((p) => ({ ...p, [field]: value })); }
+  function setField(field, value) {
+    setForm((p) => ({ ...p, [field]: value }));
+  }
   return (
     <div style={modal.backdrop}>
       <div style={modal.panel}>
@@ -257,7 +265,11 @@ function SceneEditorModal({ scene, t, onClose, onSave }) {
           {["scene_goal", "voice", "visual", "camera", "motion", "lighting", "environment", "sfx", "generation_mode"].map((field) => (
             <label key={field} style={modal.label}>
               <span>{field}</span>
-              <textarea value={form[field] ?? ""} onChange={(e) => setField(field, e.target.value)} style={modal.textarea} />
+              <textarea
+                value={form[field] ?? ""}
+                onChange={(e) => setField(field, e.target.value)}
+                style={modal.textarea}
+              />
             </label>
           ))}
         </div>
@@ -273,7 +285,9 @@ function SceneEditorModal({ scene, t, onClose, onSave }) {
 function PromptEditorModal({ prompt, t, onClose, onSave }) {
   const [form, setForm] = useState(prompt);
   if (!prompt) return null;
-  function setField(field, value) { setForm((p) => ({ ...p, [field]: value })); }
+  function setField(field, value) {
+    setForm((p) => ({ ...p, [field]: value }));
+  }
   return (
     <div style={modal.backdrop}>
       <div style={modal.panel}>
@@ -282,10 +296,22 @@ function PromptEditorModal({ prompt, t, onClose, onSave }) {
           <button onClick={onClose} style={modal.closeBtn}>{t.close}</button>
         </div>
         <div style={modal.grid}>
-          <label style={modal.label}><span>imgPrompt_EN</span><textarea value={form.imgPrompt_EN ?? ""} onChange={(e) => setField("imgPrompt_EN", e.target.value)} style={modal.textareaLg} /></label>
-          <label style={modal.label}><span>vidPrompt_EN</span><textarea value={form.vidPrompt_EN ?? ""} onChange={(e) => setField("vidPrompt_EN", e.target.value)} style={modal.textareaLg} /></label>
-          <label style={modal.label}><span>negative_prompt</span><textarea value={form.negative_prompt ?? ""} onChange={(e) => setField("negative_prompt", e.target.value)} style={modal.textarea} /></label>
-          <label style={modal.label}><span>generation_mode_final</span><input value={form.generation_mode_final ?? ""} onChange={(e) => setField("generation_mode_final", e.target.value)} style={modal.input} /></label>
+          <label style={modal.label}>
+            <span>imgPrompt_EN</span>
+            <textarea value={form.imgPrompt_EN ?? ""} onChange={(e) => setField("imgPrompt_EN", e.target.value)} style={modal.textareaLg} />
+          </label>
+          <label style={modal.label}>
+            <span>vidPrompt_EN</span>
+            <textarea value={form.vidPrompt_EN ?? ""} onChange={(e) => setField("vidPrompt_EN", e.target.value)} style={modal.textareaLg} />
+          </label>
+          <label style={modal.label}>
+            <span>negative_prompt</span>
+            <textarea value={form.negative_prompt ?? ""} onChange={(e) => setField("negative_prompt", e.target.value)} style={modal.textarea} />
+          </label>
+          <label style={modal.label}>
+            <span>generation_mode_final</span>
+            <input value={form.generation_mode_final ?? ""} onChange={(e) => setField("generation_mode_final", e.target.value)} style={modal.input} />
+          </label>
         </div>
         <div style={modal.actions}>
           <button onClick={onClose} style={modal.secondary}>{t.cancel}</button>
@@ -693,6 +719,87 @@ export default function Page() {
     } catch {}
   }
 
+  function downloadProjectJson() {
+    if (typeof window === "undefined") return;
+
+    const payload = {
+      name: projectName.trim() || "NeuroCine Project",
+      lang,
+      script,
+      scenes,
+      prompts,
+      reference,
+      refImage,
+      cover,
+      seo,
+      tts,
+      characterForms,
+      characters,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const safeName = (projectName.trim() || "neurocine-project")
+      .toLowerCase()
+      .replace(/[^a-z0-9а-яіїєґ_-]+/gi, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${safeName || "neurocine-project"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function importProjectJson(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result || "{}"));
+
+        setProjectName(data.name || "Imported Project");
+        setLang(data.lang || "ru");
+        setScript(data.script || "");
+        setScenes(data.scenes || []);
+        setPrompts(data.prompts || []);
+        setReference(data.reference || null);
+        setRefImage(data.refImage || { dataUrl: "", fileName: "", mimeType: "", useAsAnchor: true });
+        setCover(data.cover || {
+          preset: "netflix",
+          title: "ТВОЯ ИСТОРИЯ",
+          subtitle: "КИНОШНЫЙ AI-РОЛИК",
+          cta: "СМОТРИ ДО КОНЦА",
+          posX: 50,
+          posY: 58,
+          backgroundPrompt: "dark cinematic background, dramatic contrast, volumetric light, high tension",
+        });
+        setSeo(data.seo || null);
+        setTts(data.tts || null);
+        setCharacterForms(data.characterForms || [{ ...makeFormCharacter(1), name: "Alex" }]);
+        setCharacters(
+          data.characters || [
+            buildCharacterDNA({ name: "Alex", gender: "male", age: 28, style: "black tactical jacket, cinematic look" }),
+          ]
+        );
+
+        setActiveTab("studio");
+      } catch (e) {
+        alert(t.importError);
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
   function saveSceneEdits(updated) {
     setScenes((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     setEditingScene(null);
@@ -1098,6 +1205,23 @@ export default function Page() {
         {activeTab === "export" && (
           <section style={styles.cardFull}>
             <div style={styles.cardTitle}>{t.export}</div>
+
+            <div style={styles.actions}>
+              <button onClick={downloadProjectJson} style={styles.secondaryBlueBtn}>
+                ⬇️ {t.downloadJson}
+              </button>
+
+              <label style={styles.secondaryBtn}>
+                📂 {t.importJson}
+                <input
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={(e) => importProjectJson(e.target.files?.[0])}
+                />
+              </label>
+            </div>
+
             <div style={styles.stack}>
               <div style={styles.exportBlock}>
                 <div style={styles.sceneHead}>
@@ -1202,7 +1326,7 @@ const styles = {
   textarea: { width: "100%", minHeight: 180, resize: "vertical", borderRadius: 16, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "#fff", padding: 16, fontSize: 16, outline: "none", boxSizing: "border-box" },
   actions: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14, marginBottom: 14 },
   primaryBtn: { padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(168,85,247,0.45)", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "#fff", fontWeight: 800, fontSize: 15 },
-  secondaryBtn: { padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "#fff", fontWeight: 800, fontSize: 15 },
+  secondaryBtn: { padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" },
   secondaryBlueBtn: { padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(59,130,246,0.45)", background: "linear-gradient(135deg, #2563eb, #3b82f6)", color: "#fff", fontWeight: 800, fontSize: 15 },
   secondaryGreenBtn: { padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(16,185,129,0.45)", background: "linear-gradient(135deg, #059669, #10b981)", color: "#fff", fontWeight: 800, fontSize: 15 },
   secondaryOrangeBtn: { padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(249,115,22,0.45)", background: "linear-gradient(135deg, #ea580c, #f97316)", color: "#fff", fontWeight: 800, fontSize: 15 },
