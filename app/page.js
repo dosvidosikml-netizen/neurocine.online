@@ -8,7 +8,7 @@ import { SYS_SEO_ENGINE, buildSeoUserPrompt } from "../engine/seoEngine";
 import { SYS_TTS_ENGINE, buildTtsUserPrompt } from "../engine/ttsEngine";
 import { buildCharacterDNA, injectCharactersIntoScript } from "../engine/characterEngine";
 
-const STORAGE_KEY = "neurocine_projects_v3";
+const STORAGE_KEY = "neurocine_projects_v4";
 
 const TEXT = {
   ru: {
@@ -23,7 +23,7 @@ const TEXT = {
     cover: "Cover Studio",
     export: "Экспорт",
     seo: "SEO + Social",
-    tts: "Озвучка",
+    tts: "TTS Studio",
     projects: "Проекты",
     refImage: "Reference Image",
     noReference: "Reference пока не создан",
@@ -40,6 +40,7 @@ const TEXT = {
     btnTts: "Сгенерировать озвучку",
     btnSpeak: "Слушать",
     btnStop: "Стоп",
+    btnUseGenerated: "Вставить generated script",
     loading: "Генерация...",
     name: "Имя",
     gender: "Пол",
@@ -64,7 +65,7 @@ const TEXT = {
     tabCover: "Обложка",
     tabExport: "Экспорт",
     tabSeo: "SEO",
-    tabTts: "Озвучка",
+    tabTts: "TTS Studio",
     tabProjects: "Проекты",
     male: "Мужской",
     female: "Женский",
@@ -89,7 +90,7 @@ const TEXT = {
     exportRefImage: "Экспорт reference image",
     exportCover: "Экспорт cover",
     exportSeo: "Экспорт SEO",
-    exportTts: "Экспорт TTS",
+    exportTts: "Экспорт TTS Studio",
     edit: "Редактировать",
     save: "Сохранить",
     cancel: "Отмена",
@@ -118,9 +119,21 @@ const TEXT = {
     refFileName: "Имя файла",
     refImageUsed: "Использовать uploaded reference",
     refImageActive: "Uploaded reference image активен",
-    ttsFullScript: "Полный текст озвучки",
-    ttsSegments: "Сегменты озвучки",
+    ttsFullScript: "Generated full script",
+    ttsSegments: "Generated segments",
     importError: "Ошибка загрузки JSON",
+    ttsStyle: "Style",
+    ttsPace: "Pace",
+    ttsAccent: "Accent",
+    ttsVoice: "Voice",
+    ttsSampleContext: "Sample Context",
+    ttsScriptEditor: "Script",
+    ttsEmotionPreview: "Разбор эмоций",
+    ttsPackagePreview: "TTS package preview",
+    ttsRawPlaceholder: "[intrigue] Первая фраза\n[desire] Вторая фраза\n[information] Третья фраза",
+    ttsVoicePlaceholder: "Например: Orus",
+    ttsSamplePlaceholder: "Premium commercial. Dynamic pacing—starts intrigued, ends punchy. Tone is polished, persuasive, and inviting.",
+    ttsStudioReady: "TTS Studio настроен",
   },
   en: {
     appTitle: "NeuroCine Studio",
@@ -134,7 +147,7 @@ const TEXT = {
     cover: "Cover Studio",
     export: "Export",
     seo: "SEO + Social",
-    tts: "Voiceover",
+    tts: "TTS Studio",
     projects: "Projects",
     refImage: "Reference Image",
     noReference: "Reference not created yet",
@@ -151,6 +164,7 @@ const TEXT = {
     btnTts: "Generate voiceover",
     btnSpeak: "Speak",
     btnStop: "Stop",
+    btnUseGenerated: "Use generated script",
     loading: "Generating...",
     name: "Name",
     gender: "Gender",
@@ -175,7 +189,7 @@ const TEXT = {
     tabCover: "Cover",
     tabExport: "Export",
     tabSeo: "SEO",
-    tabTts: "Voiceover",
+    tabTts: "TTS Studio",
     tabProjects: "Projects",
     male: "Male",
     female: "Female",
@@ -200,7 +214,7 @@ const TEXT = {
     exportRefImage: "Export reference image",
     exportCover: "Export cover",
     exportSeo: "Export SEO",
-    exportTts: "Export TTS",
+    exportTts: "Export TTS Studio",
     edit: "Edit",
     save: "Save",
     cancel: "Cancel",
@@ -229,9 +243,21 @@ const TEXT = {
     refFileName: "File name",
     refImageUsed: "Use uploaded reference",
     refImageActive: "Uploaded reference image is active",
-    ttsFullScript: "Full voiceover script",
-    ttsSegments: "Voiceover segments",
+    ttsFullScript: "Generated full script",
+    ttsSegments: "Generated segments",
     importError: "JSON import error",
+    ttsStyle: "Style",
+    ttsPace: "Pace",
+    ttsAccent: "Accent",
+    ttsVoice: "Voice",
+    ttsSampleContext: "Sample Context",
+    ttsScriptEditor: "Script",
+    ttsEmotionPreview: "Emotion preview",
+    ttsPackagePreview: "TTS package preview",
+    ttsRawPlaceholder: "[intrigue] First line\n[desire] Second line\n[information] Third line",
+    ttsVoicePlaceholder: "For example: Orus",
+    ttsSamplePlaceholder: "Premium commercial. Dynamic pacing—starts intrigued, ends punchy. Tone is polished, persuasive, and inviting.",
+    ttsStudioReady: "TTS Studio configured",
   },
 };
 
@@ -244,8 +270,23 @@ const COVER_PRESETS = {
   minimal: { label: "Minimal", hookColor: "#cbd5e1", titleColor: "#ffffff", ctaBg: "rgba(51,65,85,0.9)", titleSize: 26, hookSize: 11, align: "center", transform: "translate(-50%, -50%)", titleWeight: 400, titleFont: "Inter, sans-serif", titleStroke: "none", titleShadow: "0 4px 10px rgba(0,0,0,0.7)" },
 };
 
+const TTS_STYLE_OPTIONS = ["Promo/Hype", "Cinematic", "Documentary", "Trailer", "Horror", "Calm", "Energetic", "Storytelling", "News"];
+const TTS_PACE_OPTIONS = ["Slow", "Natural", "Fast", "Dynamic"];
+const TTS_ACCENT_OPTIONS = ["American (Gen)", "British", "Neutral", "Russian", "Ukrainian"];
+
 function makeFormCharacter(index = 1) {
   return { id: `char_${index}`, name: `Character ${index}`, gender: "male", age: 28, style: "black tactical jacket, cinematic look" };
+}
+
+function defaultTtsSettings() {
+  return {
+    style: "Promo/Hype",
+    pace: "Natural",
+    accent: "American (Gen)",
+    voice: "Orus",
+    sampleContext:
+      "Premium commercial. Dynamic pacing—starts intrigued, ends punchy. Tone is polished, persuasive, and inviting.",
+  };
 }
 
 function SceneEditorModal({ scene, t, onClose, onSave }) {
@@ -331,6 +372,8 @@ export default function Page() {
   const [reference, setReference] = useState(null);
   const [seo, setSeo] = useState(null);
   const [tts, setTts] = useState(null);
+  const [ttsSettings, setTtsSettings] = useState(defaultTtsSettings());
+  const [ttsScriptRaw, setTtsScriptRaw] = useState("");
   const [loadingScenes, setLoadingScenes] = useState(false);
   const [loadingReference, setLoadingReference] = useState(false);
   const [loadingPrompts, setLoadingPrompts] = useState(false);
@@ -368,6 +411,34 @@ export default function Page() {
   const t = useMemo(() => TEXT[lang], [lang]);
   const preset = COVER_PRESETS[cover.preset] || COVER_PRESETS.netflix;
 
+  function parseTtsScript(text) {
+    return String(text || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const match = line.match(/^\[(.*?)\]\s*(.*)$/);
+        if (!match) {
+          return { emotion: "neutral", text: line };
+        }
+        return {
+          emotion: match[1] || "neutral",
+          text: match[2] || "",
+        };
+      });
+  }
+
+  const parsedTtsScript = useMemo(() => parseTtsScript(ttsScriptRaw), [ttsScriptRaw]);
+
+  const ttsPackage = useMemo(
+    () => ({
+      tts_settings: ttsSettings,
+      script: parsedTtsScript,
+      generated: tts || null,
+    }),
+    [ttsSettings, parsedTtsScript, tts]
+  );
+
   function readProjects() {
     if (typeof window === "undefined") return [];
     try {
@@ -394,6 +465,8 @@ export default function Page() {
       reference,
       seo,
       tts,
+      ttsSettings,
+      ttsScriptRaw,
       cover,
       refImage,
       characterForms,
@@ -417,6 +490,8 @@ export default function Page() {
         reference,
         seo,
         tts,
+        ttsSettings,
+        ttsScriptRaw,
         cover,
         refImage,
         characterForms,
@@ -443,6 +518,8 @@ export default function Page() {
     setReference(project.reference || null);
     setSeo(project.seo || null);
     setTts(project.tts || null);
+    setTtsSettings(project.ttsSettings || defaultTtsSettings());
+    setTtsScriptRaw(project.ttsScriptRaw || "");
     setCover(project.cover || cover);
     setRefImage(project.refImage || { dataUrl: "", fileName: "", mimeType: "", useAsAnchor: true });
     setCharacterForms(project.characterForms || [{ ...makeFormCharacter(1), name: "Alex" }]);
@@ -472,19 +549,21 @@ export default function Page() {
       reference,
       seo,
       tts,
+      ttsSettings,
+      ttsScriptRaw,
       cover,
       refImage,
       characterForms,
       characters,
       updatedAt: new Date().toISOString(),
     };
-    localStorage.setItem("neurocine_draft_v3", JSON.stringify(draft));
-  }, [projectName, lang, script, scenes, prompts, reference, seo, tts, cover, refImage, characterForms, characters]);
+    localStorage.setItem("neurocine_draft_v4", JSON.stringify(draft));
+  }, [projectName, lang, script, scenes, prompts, reference, seo, tts, ttsSettings, ttsScriptRaw, cover, refImage, characterForms, characters]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const draft = JSON.parse(localStorage.getItem("neurocine_draft_v3") || "null");
+      const draft = JSON.parse(localStorage.getItem("neurocine_draft_v4") || "null");
       if (draft) {
         setProjectName(draft.projectName || "NeuroCine Project");
         setLang(draft.lang || "ru");
@@ -494,6 +573,8 @@ export default function Page() {
         setReference(draft.reference || null);
         setSeo(draft.seo || null);
         setTts(draft.tts || null);
+        setTtsSettings(draft.ttsSettings || defaultTtsSettings());
+        setTtsScriptRaw(draft.ttsScriptRaw || "");
         setCover(draft.cover || {
           preset: "netflix",
           title: "ТВОЯ ИСТОРИЯ",
@@ -685,7 +766,11 @@ export default function Page() {
       const prompt = buildTtsUserPrompt({ scenes, language: lang });
       const raw = await callAPI(prompt, SYS_TTS_ENGINE);
       const data = cleanJSON(raw);
-      setTts(data.tts || null);
+      const nextTts = data.tts || null;
+      setTts(nextTts);
+      if (nextTts?.full_script) {
+        setTtsScriptRaw(nextTts.full_script);
+      }
       setActiveTab("tts");
     } catch (e) {
       setError(e?.message || "Unknown error");
@@ -733,6 +818,9 @@ export default function Page() {
       cover,
       seo,
       tts,
+      ttsSettings,
+      ttsScriptRaw,
+      ttsPackage,
       characterForms,
       characters,
       exportedAt: new Date().toISOString(),
@@ -784,6 +872,8 @@ export default function Page() {
         });
         setSeo(data.seo || null);
         setTts(data.tts || null);
+        setTtsSettings(data.ttsSettings || defaultTtsSettings());
+        setTtsScriptRaw(data.ttsScriptRaw || "");
         setCharacterForms(data.characterForms || [{ ...makeFormCharacter(1), name: "Alex" }]);
         setCharacters(
           data.characters || [
@@ -815,7 +905,7 @@ export default function Page() {
   const exportReference = JSON.stringify(reference || {}, null, 2);
   const exportCover = JSON.stringify(cover, null, 2);
   const exportSeo = JSON.stringify(seo || {}, null, 2);
-  const exportTts = JSON.stringify(tts || {}, null, 2);
+  const exportTts = JSON.stringify(ttsPackage || {}, null, 2);
   const exportRefImage = JSON.stringify(
     {
       fileName: refImage.fileName,
@@ -977,38 +1067,145 @@ export default function Page() {
         )}
 
         {activeTab === "tts" && (
-          <section style={styles.cardFull}>
-            <div style={styles.cardTitle}>{t.tts}</div>
-            {!tts ? (
-              <div style={styles.empty}>{t.noTts}</div>
-            ) : (
-              <div style={styles.stack}>
-                <div style={styles.actions}>
-                  <button onClick={() => speakText(tts.full_script || "")} style={styles.secondaryOrangeBtn}>{t.btnSpeak}</button>
-                  <button onClick={stopSpeech} style={styles.secondaryBtn}>{t.btnStop}</button>
-                </div>
+          <section style={styles.gridTts}>
+            <div style={styles.cardLarge}>
+              <div style={styles.cardTitle}>{t.tts}</div>
 
-                <div style={styles.sceneBox}>
-                  <div><b>{t.ttsFullScript}:</b></div>
-                  <div style={styles.codeBlock}>{tts.full_script || ""}</div>
-                </div>
-
-                <div style={styles.sceneBox}>
-                  <div><b>{t.ttsSegments}:</b></div>
-                  <div style={styles.stack}>
-                    {(tts.segments || []).map((seg, idx) => (
-                      <div key={idx} style={styles.segmentBox}>
-                        <div style={styles.sceneHead}>
-                          <div style={styles.sceneId}>{seg.scene_id || `segment_${idx + 1}`}</div>
-                          <button onClick={() => speakText(seg.text || "")} style={styles.secondaryBtnSmall}>{t.btnSpeak}</button>
-                        </div>
-                        <div style={styles.codeBlock}>{seg.text || ""}</div>
-                      </div>
+              <div style={styles.formGrid2}>
+                <label style={styles.label}>
+                  <span>{t.ttsStyle}</span>
+                  <select
+                    value={ttsSettings.style}
+                    onChange={(e) => setTtsSettings((p) => ({ ...p, style: e.target.value }))}
+                    style={styles.input}
+                  >
+                    {TTS_STYLE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
                     ))}
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.ttsPace}</span>
+                  <select
+                    value={ttsSettings.pace}
+                    onChange={(e) => setTtsSettings((p) => ({ ...p, pace: e.target.value }))}
+                    style={styles.input}
+                  >
+                    {TTS_PACE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.ttsAccent}</span>
+                  <select
+                    value={ttsSettings.accent}
+                    onChange={(e) => setTtsSettings((p) => ({ ...p, accent: e.target.value }))}
+                    style={styles.input}
+                  >
+                    {TTS_ACCENT_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  <span>{t.ttsVoice}</span>
+                  <input
+                    value={ttsSettings.voice}
+                    onChange={(e) => setTtsSettings((p) => ({ ...p, voice: e.target.value }))}
+                    placeholder={t.ttsVoicePlaceholder}
+                    style={styles.input}
+                  />
+                </label>
+              </div>
+
+              <label style={styles.label}>
+                <span>{t.ttsSampleContext}</span>
+                <textarea
+                  value={ttsSettings.sampleContext}
+                  onChange={(e) => setTtsSettings((p) => ({ ...p, sampleContext: e.target.value }))}
+                  placeholder={t.ttsSamplePlaceholder}
+                  style={{ ...styles.textarea, minHeight: 120 }}
+                />
+              </label>
+
+              <div style={styles.actions}>
+                <button onClick={generateTts} style={styles.secondaryOrangeBtn}>
+                  {loadingTts ? `⏳ ${t.loading}` : `🔊 ${t.btnTts}`}
+                </button>
+                <button
+                  onClick={() => tts?.full_script && setTtsScriptRaw(tts.full_script)}
+                  style={styles.secondaryBtn}
+                >
+                  {t.btnUseGenerated}
+                </button>
+                <div style={styles.statusPill}>{t.ttsStudioReady}</div>
+              </div>
+
+              <label style={styles.label}>
+                <span>{t.ttsScriptEditor}</span>
+                <textarea
+                  value={ttsScriptRaw}
+                  onChange={(e) => setTtsScriptRaw(e.target.value)}
+                  placeholder={t.ttsRawPlaceholder}
+                  style={{ ...styles.textarea, minHeight: 260 }}
+                />
+              </label>
+
+              <div style={styles.actions}>
+                <button onClick={() => speakText(ttsScriptRaw)} style={styles.secondaryOrangeBtn}>{t.btnSpeak}</button>
+                <button onClick={stopSpeech} style={styles.secondaryBtn}>{t.btnStop}</button>
+              </div>
+            </div>
+
+            <div style={styles.cardSide}>
+              <div style={styles.cardTitle}>{t.ttsEmotionPreview}</div>
+              <div style={styles.stack}>
+                {parsedTtsScript.length ? (
+                  parsedTtsScript.map((seg, idx) => (
+                    <div key={idx} style={styles.segmentBox}>
+                      <div style={styles.badgeEmotion}>[{seg.emotion}]</div>
+                      <div style={styles.codeBlock}>{seg.text}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={styles.empty}>{t.noTts}</div>
+                )}
+              </div>
+            </div>
+
+            <div style={styles.cardFull}>
+              <div style={styles.cardTitle}>{t.ttsPackagePreview}</div>
+
+              {tts ? (
+                <div style={styles.stack}>
+                  <div style={styles.sceneBox}>
+                    <div><b>{t.ttsFullScript}:</b></div>
+                    <div style={styles.codeBlock}>{tts.full_script || ""}</div>
+                  </div>
+
+                  <div style={styles.sceneBox}>
+                    <div><b>{t.ttsSegments}:</b></div>
+                    <div style={styles.stack}>
+                      {(tts.segments || []).map((seg, idx) => (
+                        <div key={idx} style={styles.segmentBox}>
+                          <div style={styles.sceneHead}>
+                            <div style={styles.sceneId}>{seg.scene_id || `segment_${idx + 1}`}</div>
+                            <button onClick={() => speakText(seg.text || "")} style={styles.secondaryBtnSmall}>{t.btnSpeak}</button>
+                          </div>
+                          <div style={styles.codeBlock}>{seg.text || ""}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : null}
+
+              <div style={styles.codeBlock}>{JSON.stringify(ttsPackage, null, 2)}</div>
+            </div>
           </section>
         )}
 
@@ -1304,9 +1501,34 @@ export default function Page() {
 }
 
 const styles = {
-  page: { minHeight: "100vh", background: "#06070d", color: "#fff", position: "relative", overflow: "hidden", fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', padding: "20px 14px 50px" },
-  bgGlowTop: { position: "absolute", top: -120, left: "50%", transform: "translateX(-50%)", width: 500, height: 500, background: "radial-gradient(circle, rgba(124,58,237,0.22), transparent 65%)", pointerEvents: "none" },
-  bgGlowBottom: { position: "absolute", bottom: -180, right: -80, width: 420, height: 420, background: "radial-gradient(circle, rgba(59,130,246,0.16), transparent 65%)", pointerEvents: "none" },
+  page: {
+    minHeight: "100vh",
+    background: "#06070d",
+    color: "#fff",
+    position: "relative",
+    overflow: "hidden",
+    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    padding: "20px 14px 50px",
+  },
+  bgGlowTop: {
+    position: "absolute",
+    top: -120,
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: 500,
+    height: 500,
+    background: "radial-gradient(circle, rgba(124,58,237,0.22), transparent 65%)",
+    pointerEvents: "none",
+  },
+  bgGlowBottom: {
+    position: "absolute",
+    bottom: -180,
+    right: -80,
+    width: 420,
+    height: 420,
+    background: "radial-gradient(circle, rgba(59,130,246,0.16), transparent 65%)",
+    pointerEvents: "none",
+  },
   shell: { maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 2 },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 18 },
   title: { fontSize: 40, fontWeight: 900, letterSpacing: "-0.05em" },
@@ -1319,9 +1541,10 @@ const styles = {
   tabBtnActive: { background: "rgba(124,58,237,0.18)", border: "1px solid rgba(168,85,247,0.45)" },
   errorBox: { marginBottom: 14, padding: 12, borderRadius: 12, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)", color: "#fca5a5" },
   grid: { display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 },
+  gridTts: { display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 },
   cardLarge: { background: "rgba(14,14,24,0.92)", border: "1px solid rgba(168,85,247,0.22)", borderRadius: 18, padding: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.25)" },
   cardSide: { background: "rgba(14,14,24,0.92)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.25)" },
-  cardFull: { background: "rgba(14,14,24,0.92)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.25)" },
+  cardFull: { background: "rgba(14,14,24,0.92)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.25)", gridColumn: "1 / -1" },
   cardTitle: { fontSize: 22, fontWeight: 900, marginBottom: 14 },
   textarea: { width: "100%", minHeight: 180, resize: "vertical", borderRadius: 16, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "#fff", padding: 16, fontSize: 16, outline: "none", boxSizing: "border-box" },
   actions: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14, marginBottom: 14 },
@@ -1333,6 +1556,7 @@ const styles = {
   secondaryBlueBtnLabel: { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "14px 18px", borderRadius: 14, border: "1px solid rgba(59,130,246,0.45)", background: "linear-gradient(135deg, #2563eb, #3b82f6)", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" },
   secondaryBtnSmall: { padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "#fff", fontWeight: 700, fontSize: 12 },
   formGrid: { display: "grid", gap: 12 },
+  formGrid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
   exportBlock: { display: "grid", gap: 8 },
   characterCard: { padding: 12, borderRadius: 14, background: "#0f172a", border: "1px solid #334155", display: "grid", gap: 10 },
   label: { display: "grid", gap: 6, fontSize: 14, color: "#d4d4d8" },
@@ -1344,6 +1568,7 @@ const styles = {
   sceneHead: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 2 },
   sceneId: { fontSize: 18, fontWeight: 900 },
   badge: { fontSize: 12, color: "#c4b5fd", background: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.35)", padding: "6px 10px", borderRadius: 999 },
+  badgeEmotion: { display: "inline-block", fontSize: 12, color: "#fed7aa", background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.35)", padding: "6px 10px", borderRadius: 999, marginBottom: 10, fontWeight: 700 },
   codeBlock: { marginTop: 6, padding: 12, borderRadius: 10, background: "#020617", border: "1px solid #334155", whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#e4e4e7", overflowX: "auto" },
   removeBtn: { padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.1)", color: "#fca5a5", fontWeight: 700 },
   coverPreview: { position: "relative", width: "100%", aspectRatio: "9 / 16", overflow: "hidden", borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "#0b1120", marginBottom: 14 },
