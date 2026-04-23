@@ -3,54 +3,54 @@
 import { useEffect, useMemo, useState } from "react";
 
 const NAV_ITEMS = [
-  { id: "studio", label: "Studio", icon: SparklesIcon },
-  { id: "scenes", label: "Scenes", icon: ClapperboardIcon },
-  { id: "prompts", label: "Prompts", icon: WandIcon },
-  { id: "references", label: "Character DNA", icon: UsersIcon },
+  { id: "studio", label: "Студия", icon: SparklesIcon },
+  { id: "scenes", label: "Сцены", icon: ClapperboardIcon },
+  { id: "prompts", label: "Промпты", icon: WandIcon },
+  { id: "references", label: "DNA персонажей", icon: UsersIcon },
   { id: "tts", label: "TTS Studio", icon: MicIcon },
-  { id: "cover", label: "Cover Studio", icon: ImageIcon },
-  { id: "projects", label: "Projects", icon: FolderIcon },
-  { id: "data", label: "Export / Import", icon: FileJsonIcon },
+  { id: "cover", label: "Обложки", icon: ImageIcon },
+  { id: "projects", label: "Проекты", icon: FolderIcon },
+  { id: "data", label: "Экспорт / Импорт", icon: FileJsonIcon },
 ];
 
 const STUDIO_TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "pipeline", label: "Pipeline" },
+  { id: "overview", label: "Обзор" },
+  { id: "visual", label: "Визуал" },
   { id: "mobile", label: "Mobile UX" },
 ];
 
-const RECENT_ITEMS = [
-  { label: "Scenes", value: "12", meta: "active set" },
-  { label: "Prompts", value: "28", meta: "saved presets" },
-  { label: "Characters", value: "3", meta: "DNA locked" },
-  { label: "Draft", value: "Live", meta: "autosave" },
+const METRICS = [
+  { label: "Сцены", value: "12", meta: "активный набор" },
+  { label: "Промпты", value: "28", meta: "сохранённые пресеты" },
+  { label: "Персонажи", value: "3", meta: "DNA зафиксирован" },
+  { label: "Черновик", value: "Live", meta: "автосохранение" },
 ];
 
 const SCENES = [
   {
-    title: "Cold Open",
-    time: "0–3 sec",
-    status: "Ready",
-    text: "Minimal cinematic opener with strong focal object and soft ambient movement.",
+    title: "Хук / Открытие",
+    time: "0–3 сек",
+    status: "Готово",
+    text: "Крупный визуальный акцент, мягкое движение камеры, ощущение дорогого короткого тизера.",
   },
   {
-    title: "Workflow Shot",
-    time: "3–6 sec",
-    status: "Draft",
-    text: "Clean product explanation block with reduced UI clutter and clear hierarchy.",
+    title: "Основной блок",
+    time: "3–6 сек",
+    status: "Черновик",
+    text: "Показываем механику продукта через более чистую композицию и спокойную иерархию интерфейса.",
   },
   {
-    title: "CTA End Card",
-    time: "6–9 sec",
-    status: "Refine",
-    text: "Simple brand close with elegant spacing, concise message and premium finish.",
+    title: "Финальный CTA",
+    time: "6–9 сек",
+    status: "Правка",
+    text: "Финальная сцена с брендингом, чистой типографикой и сильной точкой фокуса.",
   },
 ];
 
 const PROJECTS = [
-  { name: "NeuroCine Studio", updated: "2 min ago", state: "Active" },
-  { name: "Trailer Batch System", updated: "Yesterday", state: "Draft" },
-  { name: "AI Ad Shorts", updated: "3 days ago", state: "Review" },
+  { name: "NeuroCine Studio", updated: "2 минуты назад", state: "Активный" },
+  { name: "Shorts Trailer Batch", updated: "Вчера", state: "Черновик" },
+  { name: "Promo Reel System", updated: "3 дня назад", state: "Ревью" },
 ];
 
 export default function Page() {
@@ -62,21 +62,21 @@ export default function Page() {
   const [projectName, setProjectName] = useState("NeuroCine Studio");
   const [searchValue, setSearchValue] = useState("");
   const [script, setScript] = useState(
-    `Design a lighter premium studio shell for NeuroCine Studio.
-Focus on calm hierarchy, cleaner spacing, one clear primary workspace, and mobile-first usability.
-The interface should feel closer to AI Studio, Linear, and Notion than to a heavy dashboard.`
+    `Создать более премиальный cinematic-интерфейс для NeuroCine Studio.
+Нужны мягкие световые поверхности, ощущение дорогого продукта, меньше визуального шума и сильный центральный фокус.
+Интерфейс должен выглядеть как продукт, который хочется показывать и использовать каждый день.`
   );
   const [notes, setNotes] = useState(
-    `Direction:
-- reduce density
-- fewer equal-weight blocks
-- cleaner navigation
-- premium typography rhythm
-- better mobile reachability`
+    `Арт-направление:
+- cinematic premium
+- мягкие градиенты
+- крупные hero-блоки
+- меньше ощущения dashboard
+- mobile-first без перегруза`
   );
 
   useEffect(() => {
-    const saved = localStorage.getItem("neurocine-page-v2-draft");
+    const saved = localStorage.getItem("neurocine-cinematic-v3");
     if (!saved) return;
 
     try {
@@ -87,13 +87,13 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
       if (data.activeNav) setActiveNav(data.activeNav);
       if (data.activeTab) setActiveTab(data.activeTab);
     } catch (error) {
-      console.error("Failed to load draft:", error);
+      console.error("Failed to load cinematic draft:", error);
     }
   }, []);
 
   useEffect(() => {
     localStorage.setItem(
-      "neurocine-page-v2-draft",
+      "neurocine-cinematic-v3",
       JSON.stringify({
         projectName,
         script,
@@ -105,7 +105,7 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   }, [projectName, script, notes, activeNav, activeTab]);
 
   const activeNavLabel = useMemo(() => {
-    return NAV_ITEMS.find((item) => item.id === activeNav)?.label || "Studio";
+    return NAV_ITEMS.find((item) => item.id === activeNav)?.label || "Студия";
   }, [activeNav]);
 
   function exportProjectJson() {
@@ -116,7 +116,7 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
       script,
       notes,
       exportedAt: new Date().toISOString(),
-      version: "page-v2-ultra-clean-no-lucide",
+      version: "cinematic-v3-ru",
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -139,14 +139,14 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
-        setProjectName(data.name || "Imported Project");
+        setProjectName(data.name || "Импортированный проект");
         setActiveNav(data.activeNav || "studio");
         setActiveTab(data.activeTab || "overview");
         setScript(data.script || "");
         setNotes(data.notes || "");
       } catch (error) {
         console.error("Import error:", error);
-        alert("Invalid project JSON");
+        alert("Некорректный JSON проекта");
       }
     };
 
@@ -156,14 +156,14 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   function renderStudio() {
     return (
       <div className="space-y-5 md:space-y-6">
-        <HeroBlock
-          title="A cleaner production shell for modern AI video workflow"
-          description="This layout removes dashboard heaviness, reduces equal-weight cards, and gives the workspace a calmer premium rhythm. The main task gets priority. Secondary modules stay quieter."
-          badge="UI Refresh v2"
+        <CinematicHero
+          title="NeuroCine Studio — более дорогой и кинематографичный слой интерфейса"
+          description="Этот вариант делает продукт визуально сильнее: крупные световые поверхности, чище композиция, меньше ощущения тяжёлой панели и больше ощущения премиального AI-инструмента."
+          badge="Cinematic UI v3"
         />
 
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {RECENT_ITEMS.map((item) => (
+          {METRICS.map((item) => (
             <MetricCard
               key={item.label}
               label={item.label}
@@ -173,7 +173,7 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
           ))}
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_340px]">
           <MainWorkspace
             projectName={projectName}
             setProjectName={setProjectName}
@@ -191,9 +191,9 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
     return (
       <div className="space-y-4">
         <SimpleHeader
-          title="Scenes"
-          subtitle="Single-column priority, easier scan, less visual competition."
-          actionLabel="New Scene"
+          title="Сцены"
+          subtitle="Более эффектная, но всё ещё удобная подача сцен и структуры ролика."
+          actionLabel="Новая сцена"
         />
 
         <div className="space-y-3">
@@ -207,47 +207,46 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
 
   function renderPrompts() {
     return (
-      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <CleanPanel
-          title="Library"
-          subtitle="Smaller reusable prompt modules"
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <GlowPanel
+          title="Библиотека"
+          subtitle="Премиальные модульные пресеты"
           bodyClassName="space-y-2"
         >
           {[
-            "Character consistency",
-            "Negative prompt system",
-            "Camera movement preset",
-            "Lighting preset",
+            "Consistency system",
+            "Negative prompt library",
+            "Camera motion preset",
+            "Lighting mood pack",
             "Short-form pacing",
-            "Editorial CTA",
+            "Cinematic CTA",
           ].map((item) => (
             <button
               key={item}
-              className="flex w-full items-center justify-between rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3 text-left text-sm text-white/76 transition hover:bg-white/[0.05] hover:text-white"
+              className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.07]"
             >
               <span>{item}</span>
-              <ChevronRightIcon size={15} className="text-white/28" />
+              <ChevronRightIcon size={15} className="text-white/35" />
             </button>
           ))}
-        </CleanPanel>
+        </GlowPanel>
 
-        <CleanPanel
-          title="Prompt Editor"
-          subtitle="The main writing surface should dominate"
-          bodyClassName="space-y-3"
+        <GlowPanel
+          title="Редактор промпта"
+          subtitle="Основная поверхность под генерацию"
           action={
-            <button className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
+            <button className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-medium text-black transition hover:opacity-90">
               <PlayIcon size={15} />
-              Generate
+              Генерировать
             </button>
           }
         >
           <textarea
             rows={18}
-            defaultValue={`Create a premium cinematic short-form scene with reduced interface clutter, elegant layout logic, strong negative space, soft ambient motion, and a refined AI-native product aesthetic.`}
-            className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/12"
+            defaultValue={`Создать премиальную cinematic-сцену с мягким светом, сильной глубиной, дорогой визуальной подачей, чистой композицией и ощущением современного AI-продукта.`}
+            className="w-full resize-none rounded-3xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/20"
           />
-        </CleanPanel>
+        </GlowPanel>
       </div>
     );
   }
@@ -255,47 +254,47 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   function renderReferences() {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CleanPanel title="Character DNA" subtitle="Identity lock">
-          <p className="text-sm leading-6 text-white/62">
-            Store appearance rules, consistency logic, wardrobe, face details and
-            shot behavior without duplicating prompt noise.
+        <GlowPanel title="DNA персонажей" subtitle="Фиксация идентичности">
+          <p className="text-sm leading-6 text-white/68">
+            Закрепляй лицо, стиль, одежду, визуальный характер и поведение камеры
+            без хаоса из повторяющихся промптов.
           </p>
-        </CleanPanel>
+        </GlowPanel>
 
-        <CleanPanel title="Reference Image" subtitle="I2V anchor">
-          <p className="text-sm leading-6 text-white/62">
-            Keep one stable visual anchor for stronger continuity across scenes,
-            motion tests and regenerated outputs.
+        <GlowPanel title="Reference Image" subtitle="Якорь для I2V">
+          <p className="text-sm leading-6 text-white/68">
+            Держи стабильный визуальный anchor для лучшей согласованности между
+            сценами, движением и регенерацией кадров.
           </p>
-        </CleanPanel>
+        </GlowPanel>
 
-        <CleanPanel title="Style Rules" subtitle="Reusable look system">
-          <p className="text-sm leading-6 text-white/62">
-            Save visual signatures once and apply them across cover, scenes,
-            prompts and motion pipelines.
+        <GlowPanel title="Style System" subtitle="Повторяемый визуальный язык">
+          <p className="text-sm leading-6 text-white/68">
+            Сохраняй визуальные сигнатуры один раз и применяй их к сценам,
+            обложкам, персонажам и motion-пайплайну.
           </p>
-        </CleanPanel>
+        </GlowPanel>
       </div>
     );
   }
 
   function renderTts() {
     return (
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <CleanPanel title="Voice Package" subtitle="Clear, compact settings">
+      <div className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
+        <GlowPanel title="Voice Package" subtitle="Настройки озвучки">
           <div className="space-y-2">
-            <InfoLine label="Voice" value="Narrator / Deep Calm" />
-            <InfoLine label="Language" value="RU / EN" />
-            <InfoLine label="Speed" value="1.0x" />
-            <InfoLine label="Tone" value="Controlled cinematic" />
+            <InfoLine label="Голос" value="Narrator / Deep Calm" />
+            <InfoLine label="Язык" value="RU / EN" />
+            <InfoLine label="Скорость" value="1.0x" />
+            <InfoLine label="Эмоция" value="Контролируемая cinematic" />
           </div>
-        </CleanPanel>
+        </GlowPanel>
 
-        <CleanPanel
+        <GlowPanel
           title="Script Editor"
-          subtitle="Primary TTS surface"
+          subtitle="Главная TTS-поверхность"
           action={
-            <button className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
+            <button className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-medium text-black transition hover:opacity-90">
               <PlayIcon size={15} />
               Preview
             </button>
@@ -303,10 +302,10 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
         >
           <textarea
             rows={16}
-            defaultValue={`NeuroCine Studio helps you create cinematic short-form content with a cleaner workflow, stronger consistency, and premium visual direction from one focused workspace.`}
-            className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/12"
+            defaultValue={`NeuroCine Studio помогает собирать cinematic short-form контент из более чистого workflow, фиксированного визуального языка и сильной production-логики.`}
+            className="w-full resize-none rounded-3xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/20"
           />
-        </CleanPanel>
+        </GlowPanel>
       </div>
     );
   }
@@ -314,17 +313,17 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   function renderCover() {
     return (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {["Minimal Editorial", "AI Studio Clean", "High Contrast CTA"].map(
+        {["Cinematic Glow", "Apple-style Promo", "Premium Contrast"].map(
           (item) => (
             <div
               key={item}
-              className="overflow-hidden rounded-3xl border border-white/6 bg-white/[0.02]"
+              className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_25px_80px_rgba(0,0,0,0.45)]"
             >
-              <div className="aspect-[16/10] bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]" />
+              <div className="aspect-[16/10] bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_20%),radial-gradient(circle_at_80%_25%,rgba(105,138,255,0.22),transparent_24%),radial-gradient(circle_at_50%_80%,rgba(173,255,223,0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.01))]" />
               <div className="p-4">
                 <div className="text-sm font-medium text-white">{item}</div>
-                <div className="mt-1 text-sm text-white/48">
-                  Cleaner cover preset with less decorative noise
+                <div className="mt-1 text-sm text-white/52">
+                  Более выразительный и дорогой пресет обложки
                 </div>
               </div>
             </div>
@@ -347,20 +346,20 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   function renderData() {
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        <CleanPanel title="Export" subtitle="Save project snapshot">
+        <GlowPanel title="Экспорт" subtitle="Снимок проекта">
           <button
             onClick={exportProjectJson}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white transition hover:bg-white/[0.07]"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:opacity-90"
           >
             <DownloadIcon size={16} />
-            Export .json
+            Экспорт .json
           </button>
-        </CleanPanel>
+        </GlowPanel>
 
-        <CleanPanel title="Import" subtitle="Restore from file">
-          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-4 py-3 text-sm font-medium text-white/82 transition hover:bg-white/[0.05]">
+        <GlowPanel title="Импорт" subtitle="Восстановить из файла">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white/86 transition hover:bg-white/[0.07]">
             <UploadIcon size={16} />
-            Import .json
+            Импорт .json
             <input
               type="file"
               accept=".json,application/json"
@@ -368,7 +367,7 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
               onChange={(e) => importProjectJson(e.target.files?.[0])}
             />
           </label>
-        </CleanPanel>
+        </GlowPanel>
       </div>
     );
   }
@@ -397,29 +396,30 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   }
 
   return (
-    <div className="min-h-screen bg-[#090b10] text-white antialiased">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.04),transparent_28%)]" />
+    <div className="min-h-screen bg-[#050816] text-white antialiased">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(120,139,255,0.18),transparent_24%),radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.10),transparent_22%),radial-gradient(circle_at_80%_30%,rgba(104,255,210,0.10),transparent_22%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.05),transparent_30%)]" />
+      <div className="pointer-events-none fixed inset-0 opacity-60 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent_18%,transparent_80%,rgba(255,255,255,0.02))]" />
 
       <div className="relative flex min-h-screen">
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
 
         <aside
           className={[
-            "fixed left-0 top-0 z-50 h-full border-r border-white/6 bg-[#0b0d12]/96 backdrop-blur-xl transition-all duration-300 lg:sticky lg:z-20",
+            "fixed left-0 top-0 z-50 h-full border-r border-white/10 bg-[rgba(6,10,24,0.78)] backdrop-blur-2xl transition-all duration-300 lg:sticky lg:z-20",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-            sidebarCollapsed ? "w-[84px]" : "w-[248px]",
+            sidebarCollapsed ? "w-[86px]" : "w-[260px]",
           ].join(" ")}
         >
           <div className="flex h-full flex-col">
-            <div className="border-b border-white/6 px-3 py-3">
+            <div className="border-b border-white/10 px-3 py-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-black">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-white text-black shadow-[0_10px_40px_rgba(255,255,255,0.18)]">
                     <SparklesIcon size={18} />
                   </div>
 
@@ -428,34 +428,34 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
                       <div className="truncate text-sm font-semibold text-white">
                         NeuroCine
                       </div>
-                      <div className="text-xs text-white/40">Studio</div>
+                      <div className="text-xs text-white/45">Cinematic Studio</div>
                     </div>
                   )}
                 </div>
 
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/70 lg:hidden"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-white/75 lg:hidden"
                 >
                   <XIcon size={16} />
                 </button>
               </div>
 
               {!sidebarCollapsed && (
-                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-white/6 bg-white/[0.025] px-3 py-2.5">
-                  <SearchIcon size={15} className="text-white/28" />
+                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5">
+                  <SearchIcon size={15} className="text-white/35" />
                   <input
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    placeholder="Search"
-                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/22"
+                    placeholder="Поиск"
+                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/26"
                   />
                 </div>
               )}
             </div>
 
             <nav className="px-2 py-3">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const active = activeNav === item.id;
@@ -470,8 +470,8 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
                       className={[
                         "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition",
                         active
-                          ? "bg-white text-black"
-                          : "text-white/62 hover:bg-white/[0.04] hover:text-white",
+                          ? "bg-white text-black shadow-[0_10px_35px_rgba(255,255,255,0.14)]"
+                          : "text-white/68 hover:bg-white/[0.06] hover:text-white",
                         sidebarCollapsed ? "justify-center px-0" : "",
                       ].join(" ")}
                     >
@@ -483,30 +483,30 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
               </div>
             </nav>
 
-            <div className="mt-auto border-t border-white/6 p-3">
+            <div className="mt-auto border-t border-white/10 p-3">
               <button
                 onClick={() => setSidebarCollapsed((v) => !v)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-white/70 transition hover:bg-white/[0.06]"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/76 transition hover:bg-white/[0.08]"
               >
                 {sidebarCollapsed ? (
                   <PanelLeftOpenIcon size={16} />
                 ) : (
                   <PanelLeftCloseIcon size={16} />
                 )}
-                {!sidebarCollapsed && <span>Collapse</span>}
+                {!sidebarCollapsed && <span>Свернуть</span>}
               </button>
             </div>
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">
-          <header className="sticky top-0 z-10 border-b border-white/6 bg-[#090b10]/82 backdrop-blur-xl">
+          <header className="sticky top-0 z-10 border-b border-white/10 bg-[rgba(5,8,22,0.74)] backdrop-blur-2xl">
             <div className="flex flex-col gap-3 px-4 py-3 md:px-6 md:py-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <button
                     onClick={() => setMobileMenuOpen(true)}
-                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-white/72 lg:hidden"
+                    className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.06] text-white/78 lg:hidden"
                   >
                     <MenuIcon size={18} />
                   </button>
@@ -515,22 +515,22 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
                     <div className="truncate text-base font-semibold tracking-tight text-white md:text-lg">
                       {activeNavLabel}
                     </div>
-                    <div className="text-xs text-white/40">
-                      Clean production workspace
+                    <div className="text-xs text-white/44">
+                      Premium cinematic workspace
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.07] md:flex">
+                  <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-white/74 transition hover:bg-white/[0.08] md:flex">
                     <BellIcon size={16} />
                   </button>
-                  <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.07] md:flex">
+                  <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-white/74 transition hover:bg-white/[0.08] md:flex">
                     <SettingsIcon size={16} />
                   </button>
-                  <button className="inline-flex h-10 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:opacity-90">
+                  <button className="inline-flex h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-black shadow-[0_10px_35px_rgba(255,255,255,0.16)] transition hover:opacity-90">
                     <CheckIcon size={16} />
-                    Save
+                    Сохранить
                   </button>
                 </div>
               </div>
@@ -544,10 +544,10 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={[
-                          "rounded-full px-3 py-1.5 text-sm transition",
+                          "rounded-full px-4 py-2 text-sm transition",
                           active
-                            ? "bg-white text-black"
-                            : "bg-white/[0.035] text-white/62 hover:bg-white/[0.07] hover:text-white",
+                            ? "bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.14)]"
+                            : "bg-white/[0.05] text-white/68 hover:bg-white/[0.08] hover:text-white",
                         ].join(" ")}
                       >
                         {tab.label}
@@ -556,8 +556,8 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
                   })}
 
                   <div className="ml-auto hidden items-center gap-2 lg:flex">
-                    <TopMeta icon={ClockIcon} text="Autosave on" />
-                    <TopMeta icon={LayersIcon} text="Compact shell" />
+                    <TopMeta icon={ClockIcon} text="Автосохранение" />
+                    <TopMeta icon={LayersIcon} text="Cinematic shell" />
                   </div>
                 </div>
               )}
@@ -565,19 +565,19 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
           </header>
 
           <div className="px-4 py-5 md:px-6 md:py-6">
-            {activeNav === "studio" && activeTab === "pipeline" && (
+            {activeNav === "studio" && activeTab === "visual" && (
               <div className="mb-5 grid gap-3 md:grid-cols-3">
                 <MiniNotice
-                  title="Primary workspace"
-                  text="One dominant task area instead of many equal panels."
+                  title="Больше вау-эффекта"
+                  text="Крупнее hero-поверхности, мягче свет, дороже подача."
                 />
                 <MiniNotice
-                  title="Reduced density"
-                  text="Less chrome, less blur, fewer competing containers."
+                  title="Меньше dashboard-чувства"
+                  text="Интерфейс ближе к продукту-витрине, а не к панели администрирования."
                 />
                 <MiniNotice
-                  title="Better rhythm"
-                  text="Typography and spacing now carry more hierarchy."
+                  title="Премиальный акцент"
+                  text="Свет, глубина и типографика стали сильнее работать на бренд."
                 />
               </div>
             )}
@@ -585,16 +585,16 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
             {activeNav === "studio" && activeTab === "mobile" && (
               <div className="mb-5 grid gap-3 md:grid-cols-3">
                 <MiniNotice
-                  title="Thumb-first zones"
-                  text="Important actions stay reachable on narrow screens."
+                  title="Mobile-first"
+                  text="Большие зоны касания, спокойный скролл и меньше визуальной каши."
                 />
                 <MiniNotice
-                  title="Single-column logic"
-                  text="The screen flows top-to-bottom without clutter jumps."
+                  title="Крупные акценты"
+                  text="На телефоне интерфейс выглядит богаче за счёт hero-композиции."
                 />
                 <MiniNotice
-                  title="Cleaner scan"
-                  text="Lower noise makes each section easier to parse quickly."
+                  title="Чище сценарий"
+                  text="Важные действия видны сразу, вторичное уходит на второй план."
                 />
               </div>
             )}
@@ -607,24 +607,26 @@ The interface should feel closer to AI Studio, Linear, and Notion than to a heav
   );
 }
 
-function HeroBlock({ title, description, badge }) {
+function CinematicHero({ title, description, badge }) {
   return (
-    <section className="rounded-[28px] border border-white/6 bg-white/[0.025] p-5 md:p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section className="relative overflow-hidden rounded-[34px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_30px_120px_rgba(0,0,0,0.55)] md:p-7">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.16),transparent_20%),radial-gradient(circle_at_85%_20%,rgba(115,135,255,0.22),transparent_24%),radial-gradient(circle_at_50%_100%,rgba(109,255,215,0.10),transparent_25%)]" />
+
+      <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="max-w-3xl">
-          <div className="inline-flex rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white/48">
+          <div className="inline-flex rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/66">
             {badge}
           </div>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white md:text-[32px] md:leading-[1.1]">
+          <h1 className="mt-4 text-[34px] font-semibold tracking-tight text-white md:max-w-4xl md:text-[54px] md:leading-[1.02]">
             {title}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62 md:text-[15px]">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/68 md:text-[15px]">
             {description}
           </p>
         </div>
 
-        <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white/78 transition hover:bg-white/[0.07]">
-          Open roadmap
+        <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/12 bg-white/[0.07] px-4 py-2.5 text-sm text-white transition hover:bg-white/[0.10]">
+          Открыть roadmap
           <ArrowUpRightIcon size={15} />
         </button>
       </div>
@@ -634,63 +636,63 @@ function HeroBlock({ title, description, badge }) {
 
 function MetricCard({ label, value, meta }) {
   return (
-    <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-4">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-white/36">
+    <div className="rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-4 shadow-[0_20px_70px_rgba(0,0,0,0.30)]">
+      <div className="text-[11px] uppercase tracking-[0.20em] text-white/42">
         {label}
       </div>
-      <div className="mt-2 text-xl font-semibold text-white md:text-2xl">
+      <div className="mt-3 text-[32px] font-semibold tracking-tight text-white">
         {value}
       </div>
-      <div className="mt-1 text-xs text-white/42">{meta}</div>
+      <div className="mt-1 text-sm text-white/52">{meta}</div>
     </div>
   );
 }
 
 function MainWorkspace({ projectName, setProjectName, script, setScript }) {
   return (
-    <section className="rounded-[28px] border border-white/6 bg-white/[0.022] p-4 md:p-5">
+    <section className="rounded-[32px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_30px_100px_rgba(0,0,0,0.45)] md:p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white md:text-base">
             Main Workspace
           </h2>
-          <p className="mt-1 text-sm text-white/45">
-            The core task surface gets most of the screen
+          <p className="mt-1 text-sm text-white/48">
+            Основная cinematic-поверхность проекта
           </p>
         </div>
 
-        <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-white/62 transition hover:bg-white/[0.06]">
+        <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-white/72 transition hover:bg-white/[0.08]">
           <MoreHorizontalIcon size={16} />
         </button>
       </div>
 
       <div className="space-y-3">
-        <div className="rounded-2xl border border-white/6 bg-black/20 p-3">
-          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/38">
-            Project
+        <div className="rounded-[24px] border border-white/10 bg-black/20 p-3">
+          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/40">
+            Проект
           </label>
           <input
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
-            placeholder="Project name"
-            className="w-full rounded-xl border border-white/6 bg-white/[0.03] px-3 py-3 text-sm text-white outline-none placeholder:text-white/22 focus:border-white/12"
+            placeholder="Название проекта"
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none placeholder:text-white/24 focus:border-white/20"
           />
         </div>
 
-        <div className="rounded-2xl border border-white/6 bg-black/20 p-3">
+        <div className="rounded-[24px] border border-white/10 bg-black/20 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <label className="block text-[11px] uppercase tracking-[0.16em] text-white/38">
+            <label className="block text-[11px] uppercase tracking-[0.16em] text-white/40">
               Master Script
             </label>
-            <div className="text-xs text-white/34">Primary editor</div>
+            <div className="text-xs text-white/36">Primary surface</div>
           </div>
 
           <textarea
             value={script}
             onChange={(e) => setScript(e.target.value)}
             rows={15}
-            placeholder="Write your main script..."
-            className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/22 focus:border-white/12"
+            placeholder="Напиши главный сценарий..."
+            className="w-full resize-none rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm leading-7 text-white outline-none placeholder:text-white/24 focus:border-white/20"
           />
         </div>
       </div>
@@ -701,41 +703,41 @@ function MainWorkspace({ projectName, setProjectName, script, setScript }) {
 function RightRail({ notes, setNotes }) {
   return (
     <div className="space-y-4">
-      <CleanPanel title="Direction" subtitle="Locked product goals">
+      <GlowPanel title="Art Direction" subtitle="Зафиксированные цели UI">
         <div className="space-y-2">
           {[
-            "Reduce visual density",
-            "Make mobile flow simpler",
-            "Use fewer heavy panels",
-            "Push premium SaaS feeling",
+            "Усилить ощущение premium",
+            "Уменьшить шум и дробность",
+            "Сделать интерфейс визуально богаче",
+            "Сохранить удобство на мобильном",
           ].map((item) => (
             <div
               key={item}
-              className="flex items-center gap-3 rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3"
+              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3"
             >
               <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-black">
                 <CheckIcon size={12} />
               </div>
-              <span className="text-sm text-white/78">{item}</span>
+              <span className="text-sm text-white/82">{item}</span>
             </div>
           ))}
         </div>
-      </CleanPanel>
+      </GlowPanel>
 
-      <CleanPanel title="Notes" subtitle="Secondary thinking area">
+      <GlowPanel title="Заметки" subtitle="Вторичная рабочая зона">
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={10}
-          placeholder="Write notes..."
-          className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/22 focus:border-white/12"
+          placeholder="Напиши заметки..."
+          className="w-full resize-none rounded-[24px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-white outline-none placeholder:text-white/24 focus:border-white/20"
         />
-      </CleanPanel>
+      </GlowPanel>
     </div>
   );
 }
 
-function CleanPanel({
+function GlowPanel({
   title,
   subtitle,
   children,
@@ -743,11 +745,11 @@ function CleanPanel({
   bodyClassName = "",
 }) {
   return (
-    <section className="rounded-[28px] border border-white/6 bg-white/[0.022] p-4 md:p-5">
+    <section className="rounded-[30px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_24px_90px_rgba(0,0,0,0.42)] md:p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-white md:text-base">{title}</h3>
-          {subtitle && <p className="mt-1 text-sm text-white/45">{subtitle}</p>}
+          {subtitle && <p className="mt-1 text-sm text-white/48">{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -758,26 +760,26 @@ function CleanPanel({
 
 function SceneRow({ scene }) {
   return (
-    <div className="rounded-[24px] border border-white/6 bg-white/[0.022] p-4 transition hover:bg-white/[0.04]">
+    <div className="rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_20px_70px_rgba(0,0,0,0.32)] transition hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04))]">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold text-white md:text-base">
               {scene.title}
             </h3>
-            <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/50">
+            <span className="rounded-full border border-white/12 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/58">
               {scene.status}
             </span>
-            <span className="text-xs text-white/34">{scene.time}</span>
+            <span className="text-xs text-white/36">{scene.time}</span>
           </div>
 
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/66">
             {scene.text}
           </p>
         </div>
 
-        <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
-          Open
+        <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm text-white/80 transition hover:bg-white/[0.10]">
+          Открыть
           <ChevronRightIcon size={15} />
         </button>
       </div>
@@ -787,23 +789,23 @@ function SceneRow({ scene }) {
 
 function ProjectRow({ project }) {
   return (
-    <div className="rounded-[24px] border border-white/6 bg-white/[0.022] p-4 transition hover:bg-white/[0.04]">
+    <div className="rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_20px_70px_rgba(0,0,0,0.32)] transition hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04))]">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="text-sm font-semibold text-white md:text-base">
             {project.name}
           </div>
-          <div className="mt-1 text-sm text-white/44">
-            Updated {project.updated}
+          <div className="mt-1 text-sm text-white/46">
+            Обновлён {project.updated}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/50">
+          <span className="rounded-full border border-white/12 bg-white/[0.06] px-2.5 py-1 text-[11px] text-white/56">
             {project.state}
           </span>
-          <button className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
-            Open
+          <button className="rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm text-white/80 transition hover:bg-white/[0.10]">
+            Открыть
           </button>
         </div>
       </div>
@@ -816,10 +818,10 @@ function SimpleHeader({ title, subtitle, actionLabel }) {
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
       <div>
         <h2 className="text-lg font-semibold tracking-tight text-white">{title}</h2>
-        <p className="mt-1 text-sm text-white/46">{subtitle}</p>
+        <p className="mt-1 text-sm text-white/48">{subtitle}</p>
       </div>
 
-      <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white/76 transition hover:bg-white/[0.07]">
+      <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-sm text-white/82 transition hover:bg-white/[0.10]">
         {actionLabel}
       </button>
     </div>
@@ -828,18 +830,18 @@ function SimpleHeader({ title, subtitle, actionLabel }) {
 
 function InfoLine({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-white/34">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-white/36">
         {label}
       </div>
-      <div className="mt-1.5 text-sm text-white/82">{value}</div>
+      <div className="mt-1.5 text-sm text-white/86">{value}</div>
     </div>
   );
 }
 
 function TopMeta({ icon: Icon, text }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-white/[0.03] px-3 py-1.5 text-xs text-white/50">
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-3 py-1.5 text-xs text-white/56">
       <Icon size={13} />
       <span>{text}</span>
     </div>
@@ -848,9 +850,9 @@ function TopMeta({ icon: Icon, text }) {
 
 function MiniNotice({ title, text }) {
   return (
-    <div className="rounded-2xl border border-white/6 bg-white/[0.022] p-4">
+    <div className="rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.28)]">
       <div className="text-sm font-medium text-white">{title}</div>
-      <div className="mt-1.5 text-sm leading-6 text-white/56">{text}</div>
+      <div className="mt-1.5 text-sm leading-6 text-white/60">{text}</div>
     </div>
   );
 }
@@ -877,14 +879,33 @@ function IconBase({ size = 18, className = "", children, viewBox = "0 0 24 24" }
 }
 
 function MenuIcon(props) {
-  return <IconBase {...props}><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </IconBase>
+  );
 }
+
 function XIcon(props) {
-  return <IconBase {...props}><path d="M6 6l12 12" /><path d="M18 6L6 18" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </IconBase>
+  );
 }
+
 function SearchIcon(props) {
-  return <IconBase {...props}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4 4" />
+    </IconBase>
+  );
 }
+
 function SparklesIcon(props) {
   return (
     <IconBase {...props}>
@@ -894,12 +915,30 @@ function SparklesIcon(props) {
     </IconBase>
   );
 }
+
 function ClapperboardIcon(props) {
-  return <IconBase {...props}><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8l3-5" /><path d="M13 8l3-5" /><path d="M3 12h18" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="8" width="18" height="12" rx="2" />
+      <path d="M7 8l3-5" />
+      <path d="M13 8l3-5" />
+      <path d="M3 12h18" />
+    </IconBase>
+  );
 }
+
 function WandIcon(props) {
-  return <IconBase {...props}><path d="M4 20L20 4" /><path d="M14 4l1 2" /><path d="M18 8l2 1" /><path d="M4 14l2 1" /><path d="M8 18l1 2" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M4 20L20 4" />
+      <path d="M14 4l1 2" />
+      <path d="M18 8l2 1" />
+      <path d="M4 14l2 1" />
+      <path d="M8 18l1 2" />
+    </IconBase>
+  );
 }
+
 function UsersIcon(props) {
   return (
     <IconBase {...props}>
@@ -910,15 +949,36 @@ function UsersIcon(props) {
     </IconBase>
   );
 }
+
 function MicIcon(props) {
-  return <IconBase {...props}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0012 0" /><path d="M12 17v4" /><path d="M8 21h8" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M6 11a6 6 0 0012 0" />
+      <path d="M12 17v4" />
+      <path d="M8 21h8" />
+    </IconBase>
+  );
 }
+
 function ImageIcon(props) {
-  return <IconBase {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="M21 16l-5-5-6 6-2-2-5 5" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path d="M21 16l-5-5-6 6-2-2-5 5" />
+    </IconBase>
+  );
 }
+
 function FolderIcon(props) {
-  return <IconBase {...props}><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+    </IconBase>
+  );
 }
+
 function FileJsonIcon(props) {
   return (
     <IconBase {...props}>
@@ -930,9 +990,17 @@ function FileJsonIcon(props) {
     </IconBase>
   );
 }
+
 function BellIcon(props) {
-  return <IconBase {...props}><path d="M6 17h12" /><path d="M8 17V11a4 4 0 118 0v6" /><path d="M10 20a2 2 0 004 0" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M6 17h12" />
+      <path d="M8 17V11a4 4 0 118 0v6" />
+      <path d="M10 20a2 2 0 004 0" />
+    </IconBase>
+  );
 }
+
 function SettingsIcon(props) {
   return (
     <IconBase {...props}>
@@ -948,27 +1016,71 @@ function SettingsIcon(props) {
     </IconBase>
   );
 }
+
 function PlayIcon(props) {
-  return <IconBase {...props}><path d="M8 6l10 6-10 6V6z" fill="currentColor" stroke="none" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M8 6l10 6-10 6V6z" fill="currentColor" stroke="none" />
+    </IconBase>
+  );
 }
+
 function DownloadIcon(props) {
-  return <IconBase {...props}><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 20h14" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M12 4v10" />
+      <path d="M8 10l4 4 4-4" />
+      <path d="M5 20h14" />
+    </IconBase>
+  );
 }
+
 function UploadIcon(props) {
-  return <IconBase {...props}><path d="M12 20V10" /><path d="M8 14l4-4 4 4" /><path d="M5 4h14" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M12 20V10" />
+      <path d="M8 14l4-4 4 4" />
+      <path d="M5 4h14" />
+    </IconBase>
+  );
 }
+
 function ChevronRightIcon(props) {
-  return <IconBase {...props}><path d="M9 6l6 6-6 6" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M9 6l6 6-6 6" />
+    </IconBase>
+  );
 }
+
 function CheckIcon(props) {
-  return <IconBase {...props}><path d="M5 12l4 4L19 6" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M5 12l4 4L19 6" />
+    </IconBase>
+  );
 }
+
 function PanelLeftCloseIcon(props) {
-  return <IconBase {...props}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M15 9l-3 3 3 3" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M15 9l-3 3 3 3" />
+    </IconBase>
+  );
 }
+
 function PanelLeftOpenIcon(props) {
-  return <IconBase {...props}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M12 9l3 3-3 3" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M12 9l3 3-3 3" />
+    </IconBase>
+  );
 }
+
 function MoreHorizontalIcon(props) {
   return (
     <IconBase {...props}>
@@ -978,12 +1090,31 @@ function MoreHorizontalIcon(props) {
     </IconBase>
   );
 }
+
 function ArrowUpRightIcon(props) {
-  return <IconBase {...props}><path d="M7 17L17 7" /><path d="M9 7h8v8" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M7 17L17 7" />
+      <path d="M9 7h8v8" />
+    </IconBase>
+  );
 }
+
 function ClockIcon(props) {
-  return <IconBase {...props}><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v5l3 2" />
+    </IconBase>
+  );
 }
+
 function LayersIcon(props) {
-  return <IconBase {...props}><path d="M12 4l8 4-8 4-8-4 8-4z" /><path d="M4 12l8 4 8-4" /><path d="M4 16l8 4 8-4" /></IconBase>;
+  return (
+    <IconBase {...props}>
+      <path d="M12 4l8 4-8 4-8-4 8-4z" />
+      <path d="M4 12l8 4 8-4" />
+      <path d="M4 16l8 4 8-4" />
+    </IconBase>
+  );
 }
