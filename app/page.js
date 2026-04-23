@@ -855,9 +855,7 @@ function MiniNotice({ title, text }) {
   );
 }
 
-/* =========================
-   ICONS
-========================= */
+/* icons */
 
 function IconBase({ size = 18, className = "", children, viewBox = "0 0 24 24" }) {
   return (
@@ -879,33 +877,14 @@ function IconBase({ size = 18, className = "", children, viewBox = "0 0 24 24" }
 }
 
 function MenuIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M4 7h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17h16" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></IconBase>;
 }
-
 function XIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M6 6l12 12" />
-      <path d="M18 6L6 18" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M6 6l12 12" /><path d="M18 6L6 18" /></IconBase>;
 }
-
 function SearchIcon(props) {
-  return (
-    <IconBase {...props}>
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="M16 16l4 4" />
-    </IconBase>
-  );
+  return <IconBase {...props}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></IconBase>;
 }
-
 function SparklesIcon(props) {
   return (
     <IconBase {...props}>
@@ -915,30 +894,12 @@ function SparklesIcon(props) {
     </IconBase>
   );
 }
-
 function ClapperboardIcon(props) {
-  return (
-    <IconBase {...props}>
-      <rect x="3" y="8" width="18" height="12" rx="2" />
-      <path d="M7 8l3-5" />
-      <path d="M13 8l3-5" />
-      <path d="M3 12h18" />
-    </IconBase>
-  );
+  return <IconBase {...props}><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8l3-5" /><path d="M13 8l3-5" /><path d="M3 12h18" /></IconBase>;
 }
-
 function WandIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M4 20L20 4" />
-      <path d="M14 4l1 2" />
-      <path d="M18 8l2 1" />
-      <path d="M4 14l2 1" />
-      <path d="M8 18l1 2" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M4 20L20 4" /><path d="M14 4l1 2" /><path d="M18 8l2 1" /><path d="M4 14l2 1" /><path d="M8 18l1 2" /></IconBase>;
 }
-
 function UsersIcon(props) {
   return (
     <IconBase {...props}>
@@ -949,36 +910,15 @@ function UsersIcon(props) {
     </IconBase>
   );
 }
-
 function MicIcon(props) {
-  return (
-    <IconBase {...props}>
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M6 11a6 6 0 0012 0" />
-      <path d="M12 17v4" />
-      <path d="M8 21h8" />
-    </IconBase>
-  );
+  return <IconBase {...props}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0012 0" /><path d="M12 17v4" /><path d="M8 21h8" /></IconBase>;
 }
-
 function ImageIcon(props) {
-  return (
-    <IconBase {...props}>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <circle cx="9" cy="10" r="1.5" />
-      <path d="M21 16l-5-5-6 6-2-2-5 5" />
-    </IconBase>
-  );
+  return <IconBase {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="M21 16l-5-5-6 6-2-2-5 5" /></IconBase>;
 }
-
 function FolderIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></IconBase>;
 }
-
 function FileJsonIcon(props) {
   return (
     <IconBase {...props}>
@@ -990,17 +930,9 @@ function FileJsonIcon(props) {
     </IconBase>
   );
 }
-
 function BellIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M6 17h12" />
-      <path d="M8 17V11a4 4 0 118 0v6" />
-      <path d="M10 20a2 2 0 004 0" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M6 17h12" /><path d="M8 17V11a4 4 0 118 0v6" /><path d="M10 20a2 2 0 004 0" /></IconBase>;
 }
-
 function SettingsIcon(props) {
   return (
     <IconBase {...props}>
@@ -1016,71 +948,27 @@ function SettingsIcon(props) {
     </IconBase>
   );
 }
-
 function PlayIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M8 6l10 6-10 6V6z" fill="currentColor" stroke="none" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M8 6l10 6-10 6V6z" fill="currentColor" stroke="none" /></IconBase>;
 }
-
 function DownloadIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M12 4v10" />
-      <path d="M8 10l4 4 4-4" />
-      <path d="M5 20h14" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 20h14" /></IconBase>;
 }
-
 function UploadIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M12 20V10" />
-      <path d="M8 14l4-4 4 4" />
-      <path d="M5 4h14" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M12 20V10" /><path d="M8 14l4-4 4 4" /><path d="M5 4h14" /></IconBase>;
 }
-
 function ChevronRightIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M9 6l6 6-6 6" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M9 6l6 6-6 6" /></IconBase>;
 }
-
 function CheckIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M5 12l4 4L19 6" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M5 12l4 4L19 6" /></IconBase>;
 }
-
 function PanelLeftCloseIcon(props) {
-  return (
-    <IconBase {...props}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-      <path d="M15 9l-3 3 3 3" />
-    </IconBase>
-  );
+  return <IconBase {...props}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M15 9l-3 3 3 3" /></IconBase>;
 }
-
 function PanelLeftOpenIcon(props) {
-  return (
-    <IconBase {...props}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-      <path d="M12 9l3 3-3 3" />
-    </IconBase>
-  );
+  return <IconBase {...props}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M12 9l3 3-3 3" /></IconBase>;
 }
-
 function MoreHorizontalIcon(props) {
   return (
     <IconBase {...props}>
@@ -1090,31 +978,12 @@ function MoreHorizontalIcon(props) {
     </IconBase>
   );
 }
-
 function ArrowUpRightIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M7 17L17 7" />
-      <path d="M9 7h8v8" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M7 17L17 7" /><path d="M9 7h8v8" /></IconBase>;
 }
-
 function ClockIcon(props) {
-  return (
-    <IconBase {...props}>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v5l3 2" />
-    </IconBase>
-  );
+  return <IconBase {...props}><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></IconBase>;
 }
-
 function LayersIcon(props) {
-  return (
-    <IconBase {...props}>
-      <path d="M12 4l8 4-8 4-8-4 8-4z" />
-      <path d="M4 12l8 4 8-4" />
-      <path d="M4 16l8 4 8-4" />
-    </IconBase>
-  );
+  return <IconBase {...props}><path d="M12 4l8 4-8 4-8-4 8-4z" /><path d="M4 12l8 4 8-4" /><path d="M4 16l8 4 8-4" /></IconBase>;
 }
