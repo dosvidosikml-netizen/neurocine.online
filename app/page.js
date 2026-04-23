@@ -4,30 +4,28 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Menu,
   X,
-  Search,
   Sparkles,
-  FolderKanban,
   Clapperboard,
   Wand2,
+  Users,
   Mic2,
   ImageIcon,
-  Users,
+  FolderKanban,
   FileJson,
-  Save,
+  Search,
+  Bell,
+  Settings2,
+  Play,
   Download,
   Upload,
   ChevronRight,
-  Play,
-  LayoutGrid,
-  Settings2,
-  Bell,
+  Check,
+  PanelLeftClose,
+  PanelLeftOpen,
   MoreHorizontal,
-  PanelLeft,
   ArrowUpRight,
-  CheckCircle2,
   Clock3,
   Layers3,
-  Bookmark,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -38,47 +36,47 @@ const NAV_ITEMS = [
   { id: "tts", label: "TTS Studio", icon: Mic2 },
   { id: "cover", label: "Cover Studio", icon: ImageIcon },
   { id: "projects", label: "Projects", icon: FolderKanban },
-  { id: "export", label: "Export / Import", icon: FileJson },
+  { id: "data", label: "Export / Import", icon: FileJson },
 ];
 
-const QUICK_STATS = [
-  { label: "Scenes", value: "12", hint: "ready to refine" },
-  { label: "Prompts", value: "28", hint: "system + scene prompts" },
-  { label: "Voices", value: "4", hint: "TTS packages saved" },
-  { label: "Draft", value: "Live", hint: "autosave enabled" },
+const STUDIO_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "pipeline", label: "Pipeline" },
+  { id: "mobile", label: "Mobile UX" },
 ];
 
-const PROJECTS = [
-  { name: "NeuroCine Studio v2", updated: "2 min ago", status: "Active" },
-  { name: "Product Teaser Pipeline", updated: "Yesterday", status: "Draft" },
-  { name: "Trailer Shorts Batch", updated: "3 days ago", status: "Review" },
+const RECENT_ITEMS = [
+  { label: "Scenes", value: "12", meta: "active set" },
+  { label: "Prompts", value: "28", meta: "saved presets" },
+  { label: "Characters", value: "3", meta: "DNA locked" },
+  { label: "Draft", value: "Live", meta: "autosave" },
 ];
 
 const SCENES = [
   {
-    title: "Hook Scene",
-    subtitle: "Cold open / 0–3 sec",
+    title: "Cold Open",
+    time: "0–3 sec",
     status: "Ready",
-    prompt: "Dark cinematic opener with subtle motion, strong focal subject, premium SaaS visual language.",
+    text: "Minimal cinematic opener with strong focal object and soft ambient movement.",
   },
   {
-    title: "Explainer Mid",
-    subtitle: "Workflow showcase",
+    title: "Workflow Shot",
+    time: "3–6 sec",
     status: "Draft",
-    prompt: "Minimal UI motion, soft contrast, layered panels, product-first composition.",
+    text: "Clean product explanation block with reduced UI clutter and clear hierarchy.",
   },
   {
     title: "CTA End Card",
-    subtitle: "Final scene / branding",
+    time: "6–9 sec",
     status: "Refine",
-    prompt: "Clean typography, high contrast CTA, minimal clutter, calm premium tech aesthetic.",
+    text: "Simple brand close with elegant spacing, concise message and premium finish.",
   },
 ];
 
-const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "workspace", label: "Workspace" },
-  { id: "mobile", label: "Mobile UX" },
+const PROJECTS = [
+  { name: "NeuroCine Studio", updated: "2 min ago", state: "Active" },
+  { name: "Trailer Batch System", updated: "Yesterday", state: "Draft" },
+  { name: "AI Ad Shorts", updated: "3 days ago", state: "Review" },
 ];
 
 export default function Page() {
@@ -86,50 +84,53 @@ export default function Page() {
   const [activeTab, setActiveTab] = useState("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   const [projectName, setProjectName] = useState("NeuroCine Studio");
   const [searchValue, setSearchValue] = useState("");
   const [script, setScript] = useState(
-    `Create a lightweight premium interface for NeuroCine Studio.
-Focus on clarity, spacing, mobile-first hierarchy, and reduced visual noise.
-Make the product feel closer to Linear / Notion / AI Studio.`
+    `Design a lighter premium studio shell for NeuroCine Studio.
+Focus on calm hierarchy, cleaner spacing, one clear primary workspace, and mobile-first usability.
+The interface should feel closer to AI Studio, Linear, and Notion than to a heavy dashboard.`
   );
   const [notes, setNotes] = useState(
-    `UI goals:
-- lighter shell
-- fewer heavy cards
-- cleaner hierarchy
-- easier thumb navigation on mobile
-- premium SaaS feel`
+    `Direction:
+- reduce density
+- fewer equal-weight blocks
+- cleaner navigation
+- premium typography rhythm
+- better mobile reachability`
   );
 
   useEffect(() => {
-    const saved = localStorage.getItem("neurocine-ui-lite-draft");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.projectName) setProjectName(parsed.projectName);
-        if (parsed.script) setScript(parsed.script);
-        if (parsed.notes) setNotes(parsed.notes);
-        if (parsed.activeNav) setActiveNav(parsed.activeNav);
-      } catch (e) {
-        console.error("Draft parse error:", e);
-      }
+    const saved = localStorage.getItem("neurocine-page-v2-draft");
+    if (!saved) return;
+
+    try {
+      const data = JSON.parse(saved);
+      if (data.projectName) setProjectName(data.projectName);
+      if (data.script) setScript(data.script);
+      if (data.notes) setNotes(data.notes);
+      if (data.activeNav) setActiveNav(data.activeNav);
+      if (data.activeTab) setActiveTab(data.activeTab);
+    } catch (error) {
+      console.error("Failed to load draft:", error);
     }
   }, []);
 
   useEffect(() => {
     localStorage.setItem(
-      "neurocine-ui-lite-draft",
+      "neurocine-page-v2-draft",
       JSON.stringify({
         projectName,
         script,
         notes,
         activeNav,
+        activeTab,
       })
     );
-  }, [projectName, script, notes, activeNav]);
+  }, [projectName, script, notes, activeNav, activeTab]);
 
-  const activeTitle = useMemo(() => {
+  const activeNavLabel = useMemo(() => {
     return NAV_ITEMS.find((item) => item.id === activeNav)?.label || "Studio";
   }, [activeNav]);
 
@@ -137,10 +138,11 @@ Make the product feel closer to Linear / Notion / AI Studio.`
     const data = {
       name: projectName,
       activeNav,
+      activeTab,
       script,
       notes,
       exportedAt: new Date().toISOString(),
-      version: "ui-lite-layout-v1",
+      version: "page-v2-ultra-clean",
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -165,6 +167,7 @@ Make the product feel closer to Linear / Notion / AI Studio.`
         const data = JSON.parse(reader.result);
         setProjectName(data.name || "Imported Project");
         setActiveNav(data.activeNav || "studio");
+        setActiveTab(data.activeTab || "overview");
         setScript(data.script || "");
         setNotes(data.notes || "");
       } catch (error) {
@@ -176,328 +179,252 @@ Make the product feel closer to Linear / Notion / AI Studio.`
     reader.readAsText(file);
   }
 
-  const renderContent = () => {
+  function renderStudio() {
+    return (
+      <div className="space-y-5 md:space-y-6">
+        <HeroBlock
+          title="A cleaner production shell for modern AI video workflow"
+          description="This layout removes dashboard heaviness, reduces equal-weight cards, and gives the workspace a calmer premium rhythm. The main task gets priority. Secondary modules stay quieter."
+          badge="UI Refresh v2"
+        />
+
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {RECENT_ITEMS.map((item) => (
+            <MetricCard
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              meta={item.meta}
+            />
+          ))}
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
+          <MainWorkspace
+            projectName={projectName}
+            setProjectName={setProjectName}
+            script={script}
+            setScript={setScript}
+          />
+
+          <RightRail notes={notes} setNotes={setNotes} />
+        </section>
+      </div>
+    );
+  }
+
+  function renderScenes() {
+    return (
+      <div className="space-y-4">
+        <SimpleHeader
+          title="Scenes"
+          subtitle="Single-column priority, easier scan, less visual competition."
+          actionLabel="New Scene"
+        />
+
+        <div className="space-y-3">
+          {SCENES.map((scene) => (
+            <SceneRow key={scene.title} scene={scene} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPrompts() {
+    return (
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <CleanPanel
+          title="Library"
+          subtitle="Smaller reusable prompt modules"
+          bodyClassName="space-y-2"
+        >
+          {[
+            "Character consistency",
+            "Negative prompt system",
+            "Camera movement preset",
+            "Lighting preset",
+            "Short-form pacing",
+            "Editorial CTA",
+          ].map((item) => (
+            <button
+              key={item}
+              className="flex w-full items-center justify-between rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3 text-left text-sm text-white/76 transition hover:bg-white/[0.05] hover:text-white"
+            >
+              <span>{item}</span>
+              <ChevronRight size={15} className="text-white/28" />
+            </button>
+          ))}
+        </CleanPanel>
+
+        <CleanPanel
+          title="Prompt Editor"
+          subtitle="The main writing surface should dominate"
+          bodyClassName="space-y-3"
+          action={
+            <button className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
+              <Play size={15} />
+              Generate
+            </button>
+          }
+        >
+          <textarea
+            rows={18}
+            defaultValue={`Create a premium cinematic short-form scene with reduced interface clutter, elegant layout logic, strong negative space, soft ambient motion, and a refined AI-native product aesthetic.`}
+            className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/12"
+          />
+        </CleanPanel>
+      </div>
+    );
+  }
+
+  function renderReferences() {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <CleanPanel title="Character DNA" subtitle="Identity lock">
+          <p className="text-sm leading-6 text-white/62">
+            Store appearance rules, consistency logic, wardrobe, face details and
+            shot behavior without duplicating prompt noise.
+          </p>
+        </CleanPanel>
+
+        <CleanPanel title="Reference Image" subtitle="I2V anchor">
+          <p className="text-sm leading-6 text-white/62">
+            Keep one stable visual anchor for stronger continuity across scenes,
+            motion tests and regenerated outputs.
+          </p>
+        </CleanPanel>
+
+        <CleanPanel title="Style Rules" subtitle="Reusable look system">
+          <p className="text-sm leading-6 text-white/62">
+            Save visual signatures once and apply them across cover, scenes,
+            prompts and motion pipelines.
+          </p>
+        </CleanPanel>
+      </div>
+    );
+  }
+
+  function renderTts() {
+    return (
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <CleanPanel title="Voice Package" subtitle="Clear, compact settings">
+          <div className="space-y-2">
+            <InfoLine label="Voice" value="Narrator / Deep Calm" />
+            <InfoLine label="Language" value="RU / EN" />
+            <InfoLine label="Speed" value="1.0x" />
+            <InfoLine label="Tone" value="Controlled cinematic" />
+          </div>
+        </CleanPanel>
+
+        <CleanPanel
+          title="Script Editor"
+          subtitle="Primary TTS surface"
+          action={
+            <button className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
+              <Play size={15} />
+              Preview
+            </button>
+          }
+        >
+          <textarea
+            rows={16}
+            defaultValue={`NeuroCine Studio helps you create cinematic short-form content with a cleaner workflow, stronger consistency, and premium visual direction from one focused workspace.`}
+            className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/12"
+          />
+        </CleanPanel>
+      </div>
+    );
+  }
+
+  function renderCover() {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {["Minimal Editorial", "AI Studio Clean", "High Contrast CTA"].map(
+          (item) => (
+            <div
+              key={item}
+              className="overflow-hidden rounded-3xl border border-white/6 bg-white/[0.02]"
+            >
+              <div className="aspect-[16/10] bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]" />
+              <div className="p-4">
+                <div className="text-sm font-medium text-white">{item}</div>
+                <div className="mt-1 text-sm text-white/48">
+                  Cleaner cover preset with less decorative noise
+                </div>
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    );
+  }
+
+  function renderProjects() {
+    return (
+      <div className="space-y-3">
+        {PROJECTS.map((project) => (
+          <ProjectRow key={project.name} project={project} />
+        ))}
+      </div>
+    );
+  }
+
+  function renderData() {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <CleanPanel title="Export" subtitle="Save project snapshot">
+          <button
+            onClick={exportProjectJson}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white transition hover:bg-white/[0.07]"
+          >
+            <Download size={16} />
+            Export .json
+          </button>
+        </CleanPanel>
+
+        <CleanPanel title="Import" subtitle="Restore from file">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-4 py-3 text-sm font-medium text-white/82 transition hover:bg-white/[0.05]">
+            <Upload size={16} />
+            Import .json
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => importProjectJson(e.target.files?.[0])}
+            />
+          </label>
+        </CleanPanel>
+      </div>
+    );
+  }
+
+  function renderContent() {
     switch (activeNav) {
       case "studio":
-        return (
-          <div className="space-y-4 md:space-y-5">
-            <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {QUICK_STATS.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 backdrop-blur-sm"
-                >
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                    {item.label}
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white md:text-2xl">
-                    {item.value}
-                  </div>
-                  <div className="mt-1 text-xs text-white/45">{item.hint}</div>
-                </div>
-              ))}
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <PanelCard
-                title="Creative Direction"
-                subtitle="A lighter, calmer workspace with clearer hierarchy"
-                rightSlot={
-                  <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 transition hover:bg-white/[0.07]">
-                    <Play size={15} />
-                    Run Pipeline
-                  </button>
-                }
-              >
-                <div className="space-y-3">
-                  <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
-                    <label className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-white/45">
-                      Project
-                    </label>
-                    <input
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                      className="w-full rounded-xl border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-white/15"
-                      placeholder="Project name"
-                    />
-                  </div>
-
-                  <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
-                    <label className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-white/45">
-                      Script / Master Prompt
-                    </label>
-                    <textarea
-                      value={script}
-                      onChange={(e) => setScript(e.target.value)}
-                      rows={9}
-                      className="w-full resize-none rounded-xl border border-white/8 bg-white/[0.04] px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/15"
-                      placeholder="Write your master script here..."
-                    />
-                  </div>
-                </div>
-              </PanelCard>
-
-              <div className="space-y-4">
-                <PanelCard
-                  title="Product Goals"
-                  subtitle="UI direction locked for the next iteration"
-                >
-                  <div className="grid gap-2">
-                    {[
-                      "Reduce visual density",
-                      "Strengthen mobile usability",
-                      "Remove unnecessary glass effects",
-                      "Make typography and spacing do the work",
-                    ].map((item) => (
-                      <div
-                        key={item}
-                        className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3"
-                      >
-                        <CheckCircle2 size={16} className="text-white/70" />
-                        <span className="text-sm text-white/82">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                </PanelCard>
-
-                <PanelCard title="Notes" subtitle="Compact product thinking area">
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={7}
-                    className="w-full resize-none rounded-xl border border-white/8 bg-white/[0.04] px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-white/15"
-                    placeholder="Add product notes..."
-                  />
-                </PanelCard>
-              </div>
-            </section>
-          </div>
-        );
-
+        return renderStudio();
       case "scenes":
-        return (
-          <div className="space-y-4">
-            <SectionHeader
-              title="Scenes"
-              subtitle="Fewer blocks, stronger hierarchy, easier scanning"
-              actionLabel="New Scene"
-            />
-            <div className="grid gap-3">
-              {SCENES.map((scene) => (
-                <div
-                  key={scene.title}
-                  className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition hover:bg-white/[0.05]"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold text-white md:text-base">
-                          {scene.title}
-                        </h3>
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/55">
-                          {scene.status}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-white/45">{scene.subtitle}</p>
-                    </div>
-
-                    <button className="inline-flex items-center gap-2 self-start rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 hover:bg-white/[0.07]">
-                      Open
-                      <ChevronRight size={15} />
-                    </button>
-                  </div>
-
-                  <p className="mt-4 text-sm leading-6 text-white/72">{scene.prompt}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-
+        return renderScenes();
       case "prompts":
-        return (
-          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <PanelCard
-              title="Prompt Library"
-              subtitle="Small, readable units instead of heavy cards"
-            >
-              <div className="space-y-2">
-                {[
-                  "Character consistency",
-                  "Camera motion style",
-                  "Lighting system prompt",
-                  "Short-form pacing preset",
-                  "Negative prompt library",
-                ].map((item) => (
-                  <button
-                    key={item}
-                    className="flex w-full items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
-                  >
-                    <span>{item}</span>
-                    <ChevronRight size={15} className="text-white/35" />
-                  </button>
-                ))}
-              </div>
-            </PanelCard>
-
-            <PanelCard
-              title="Editor"
-              subtitle="Cleaner writing surface with less distraction"
-            >
-              <textarea
-                defaultValue={`Create a premium cinematic UI sequence with minimal clutter.
-Focus on breathing room, elegant spacing, crisp typography, and high-end product feeling.
-Avoid overcrowded compositions and excessive visual effects.`}
-                rows={16}
-                className="w-full resize-none rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4 text-sm leading-6 text-white outline-none focus:border-white/15"
-              />
-            </PanelCard>
-          </div>
-        );
-
+        return renderPrompts();
       case "references":
-        return (
-          <div className="grid gap-4 lg:grid-cols-3">
-            {[
-              {
-                title: "Character DNA",
-                text: "Lock identity, style behavior, face logic, wardrobe and consistency rules.",
-              },
-              {
-                title: "Reference Image",
-                text: "Use anchor image for I2V stability and visual continuity across scenes.",
-              },
-              {
-                title: "Style System",
-                text: "Store reusable visual signatures with less duplicate prompt noise.",
-              },
-            ].map((item) => (
-              <PanelCard key={item.title} title={item.title} subtitle="Compact module">
-                <p className="text-sm leading-6 text-white/70">{item.text}</p>
-              </PanelCard>
-            ))}
-          </div>
-        );
-
+        return renderReferences();
       case "tts":
-        return (
-          <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-            <PanelCard
-              title="Voice Package"
-              subtitle="Simplified controls with better mobile readability"
-            >
-              <div className="space-y-3">
-                <MiniField label="Voice" value="Narrator / Deep Calm" />
-                <MiniField label="Language" value="RU / EN" />
-                <MiniField label="Pacing" value="Balanced / 1.0x" />
-                <MiniField label="Emotion" value="Controlled cinematic" />
-              </div>
-            </PanelCard>
-
-            <PanelCard
-              title="Script Editor"
-              subtitle="Primary task gets the most space"
-              rightSlot={
-                <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 hover:bg-white/[0.07]">
-                  <Play size={15} />
-                  Preview
-                </button>
-              }
-            >
-              <textarea
-                defaultValue={`This is NeuroCine Studio.
-A faster way to build cinematic short-form content with cleaner workflow, stronger consistency, and premium output control.`}
-                rows={14}
-                className="w-full resize-none rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4 text-sm leading-6 text-white outline-none focus:border-white/15"
-              />
-            </PanelCard>
-          </div>
-        );
-
+        return renderTts();
       case "cover":
-        return (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {["Minimal Tech", "High Contrast Promo", "Clean Editorial"].map((preset) => (
-              <div
-                key={preset}
-                className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03]"
-              >
-                <div className="aspect-[16/10] bg-gradient-to-br from-white/[0.08] to-white/[0.02]" />
-                <div className="p-4">
-                  <div className="text-sm font-medium text-white">{preset}</div>
-                  <div className="mt-1 text-xs text-white/45">
-                    Cover preset with reduced clutter and stronger focus
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-
+        return renderCover();
       case "projects":
-        return (
-          <div className="space-y-3">
-            {PROJECTS.map((project) => (
-              <div
-                key={project.name}
-                className="flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition hover:bg-white/[0.05] md:flex-row md:items-center md:justify-between"
-              >
-                <div>
-                  <div className="text-sm font-semibold text-white">{project.name}</div>
-                  <div className="mt-1 text-xs text-white/45">
-                    Updated {project.updated}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/55">
-                    {project.status}
-                  </span>
-                  <button className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 hover:bg-white/[0.07]">
-                    Open
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-
-      case "export":
-        return (
-          <div className="grid gap-4 md:grid-cols-2">
-            <PanelCard title="Export Project" subtitle="Clean utility actions">
-              <button
-                onClick={exportProjectJson}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-medium text-white transition hover:bg-white/[0.08]"
-              >
-                <Download size={16} />
-                Export .json
-              </button>
-            </PanelCard>
-
-            <PanelCard title="Import Project" subtitle="Replace draft instantly">
-              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/85 transition hover:bg-white/[0.05]">
-                <Upload size={16} />
-                Import .json
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  className="hidden"
-                  onChange={(e) => importProjectJson(e.target.files?.[0])}
-                />
-              </label>
-            </PanelCard>
-          </div>
-        );
-
+        return renderProjects();
+      case "data":
+        return renderData();
       default:
-        return null;
+        return renderStudio();
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0c10] text-white">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.03),transparent_28%)] pointer-events-none" />
+    <div className="min-h-screen bg-[#090b10] text-white antialiased">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.04),transparent_28%)]" />
 
       <div className="relative flex min-h-screen">
         {mobileMenuOpen && (
@@ -509,51 +436,52 @@ A faster way to build cinematic short-form content with cleaner workflow, strong
 
         <aside
           className={[
-            "fixed left-0 top-0 z-50 h-full border-r border-white/8 bg-[#0b0d11]/95 backdrop-blur-xl transition-all duration-300 lg:sticky lg:z-20",
+            "fixed left-0 top-0 z-50 h-full border-r border-white/6 bg-[#0b0d12]/96 backdrop-blur-xl transition-all duration-300 lg:sticky lg:z-20",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-            sidebarCollapsed ? "w-[84px]" : "w-[272px]",
+            sidebarCollapsed ? "w-[84px]" : "w-[248px]",
           ].join(" ")}
         >
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-white/8 px-4 py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-black">
-                  <Sparkles size={18} />
-                </div>
-                {!sidebarCollapsed && (
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white">
-                      NeuroCine
-                    </div>
-                    <div className="text-xs text-white/45">Studio Shell</div>
+            <div className="border-b border-white/6 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-black">
+                    <Sparkles size={18} />
                   </div>
-                )}
+
+                  {!sidebarCollapsed && (
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">
+                        NeuroCine
+                      </div>
+                      <div className="text-xs text-white/40">Studio</div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/70 lg:hidden"
+                >
+                  <X size={16} />
+                </button>
               </div>
 
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 lg:hidden"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-3 py-3">
               {!sidebarCollapsed && (
-                <div className="mb-3 rounded-2xl border border-white/8 bg-white/[0.03] p-2">
-                  <div className="flex items-center gap-2 rounded-xl px-2 py-2">
-                    <Search size={15} className="text-white/35" />
-                    <input
-                      value={searchValue}
-                      onChange={(e) => setSearchValue(e.target.value)}
-                      placeholder="Search"
-                      className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/25"
-                    />
-                  </div>
+                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-white/6 bg-white/[0.025] px-3 py-2.5">
+                  <Search size={15} className="text-white/28" />
+                  <input
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    placeholder="Search"
+                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/22"
+                  />
                 </div>
               )}
+            </div>
 
-              <nav className="space-y-1.5">
+            <nav className="px-2 py-3">
+              <div className="space-y-1">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const active = activeNav === item.id;
@@ -568,8 +496,8 @@ A faster way to build cinematic short-form content with cleaner workflow, strong
                       className={[
                         "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition",
                         active
-                          ? "border border-white/10 bg-white text-black"
-                          : "border border-transparent text-white/68 hover:bg-white/[0.04] hover:text-white",
+                          ? "bg-white text-black"
+                          : "text-white/62 hover:bg-white/[0.04] hover:text-white",
                         sidebarCollapsed ? "justify-center px-0" : "",
                       ].join(" ")}
                     >
@@ -578,15 +506,19 @@ A faster way to build cinematic short-form content with cleaner workflow, strong
                     </button>
                   );
                 })}
-              </nav>
-            </div>
+              </div>
+            </nav>
 
-            <div className="mt-auto border-t border-white/8 p-3">
+            <div className="mt-auto border-t border-white/6 p-3">
               <button
                 onClick={() => setSidebarCollapsed((v) => !v)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white/75 transition hover:bg-white/[0.07]"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-white/70 transition hover:bg-white/[0.06]"
               >
-                <PanelLeft size={16} />
+                {sidebarCollapsed ? (
+                  <PanelLeftOpen size={16} />
+                ) : (
+                  <PanelLeftClose size={16} />
+                )}
                 {!sidebarCollapsed && <span>Collapse</span>}
               </button>
             </div>
@@ -594,125 +526,101 @@ A faster way to build cinematic short-form content with cleaner workflow, strong
         </aside>
 
         <main className="min-w-0 flex-1">
-          <header className="sticky top-0 z-10 border-b border-white/8 bg-[#0a0c10]/80 backdrop-blur-xl">
+          <header className="sticky top-0 z-10 border-b border-white/6 bg-[#090b10]/82 backdrop-blur-xl">
             <div className="flex flex-col gap-3 px-4 py-3 md:px-6 md:py-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <button
                     onClick={() => setMobileMenuOpen(true)}
-                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/75 lg:hidden"
+                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-white/72 lg:hidden"
                   >
                     <Menu size={18} />
                   </button>
 
                   <div className="min-w-0">
                     <div className="truncate text-base font-semibold tracking-tight text-white md:text-lg">
-                      {activeTitle}
+                      {activeNavLabel}
                     </div>
-                    <div className="text-xs text-white/42">
-                      Lightweight production workspace
+                    <div className="text-xs text-white/40">
+                      Clean production workspace
                     </div>
                   </div>
                 </div>
 
-                <div className="hidden items-center gap-2 md:flex">
-                  <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]">
+                <div className="flex items-center gap-2">
+                  <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.07] md:flex">
                     <Bell size={16} />
                   </button>
-                  <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]">
+                  <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.07] md:flex">
                     <Settings2 size={16} />
                   </button>
-                  <button className="flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white text-black px-4 text-sm font-medium">
-                    <Save size={16} />
+                  <button className="inline-flex h-10 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:opacity-90">
+                    <Check size={16} />
                     Save
                   </button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {TABS.map((tab) => {
-                  const active = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={[
-                        "rounded-full px-3 py-1.5 text-sm transition",
-                        active
-                          ? "bg-white text-black"
-                          : "bg-white/[0.04] text-white/65 hover:bg-white/[0.07] hover:text-white",
-                      ].join(" ")}
-                    >
-                      {tab.label}
-                    </button>
-                  );
-                })}
+              {activeNav === "studio" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {STUDIO_TABS.map((tab) => {
+                    const active = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={[
+                          "rounded-full px-3 py-1.5 text-sm transition",
+                          active
+                            ? "bg-white text-black"
+                            : "bg-white/[0.035] text-white/62 hover:bg-white/[0.07] hover:text-white",
+                        ].join(" ")}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
 
-                <div className="ml-auto hidden items-center gap-2 md:flex">
-                  <InlineMeta icon={Clock3} text="Autosave on" />
-                  <InlineMeta icon={Layers3} text="Compact mode" />
-                  <InlineMeta icon={Bookmark} text="UI refresh" />
+                  <div className="ml-auto hidden items-center gap-2 lg:flex">
+                    <TopMeta icon={Clock3} text="Autosave on" />
+                    <TopMeta icon={Layers3} text="Compact shell" />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </header>
 
-          <div className="px-4 py-4 md:px-6 md:py-6">
-            {activeTab === "overview" && (
-              <div className="mb-4 rounded-2xl border border-white/8 bg-white/[0.03] p-4 md:mb-5 md:p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="max-w-2xl">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Design direction
-                    </div>
-                    <h2 className="mt-2 text-lg font-semibold tracking-tight text-white md:text-2xl">
-                      Clean production shell with less weight and more focus
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-white/62 md:text-[15px]">
-                      This layout reduces heavy glass panels, makes primary actions
-                      clearer, improves spacing rhythm, and prioritizes mobile
-                      usability without losing the premium dark SaaS feel.
-                    </p>
-                  </div>
-
-                  <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white/80 transition hover:bg-white/[0.07]">
-                    Open roadmap
-                    <ArrowUpRight size={15} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "workspace" && (
-              <div className="mb-4 grid gap-3 md:mb-5 md:grid-cols-3">
-                <SmallInfoCard
-                  title="Primary surface"
-                  text="One dominant work area, fewer equal-weight panels."
+          <div className="px-4 py-5 md:px-6 md:py-6">
+            {activeNav === "studio" && activeTab === "pipeline" && (
+              <div className="mb-5 grid gap-3 md:grid-cols-3">
+                <MiniNotice
+                  title="Primary workspace"
+                  text="One dominant task area instead of many equal panels."
                 />
-                <SmallInfoCard
-                  title="Reduced chrome"
-                  text="Borders and blur kept subtle, typography does the hierarchy."
+                <MiniNotice
+                  title="Reduced density"
+                  text="Less chrome, less blur, fewer competing containers."
                 />
-                <SmallInfoCard
-                  title="Calmer rhythm"
-                  text="More spacing, lower contrast noise, cleaner interaction zones."
+                <MiniNotice
+                  title="Better rhythm"
+                  text="Typography and spacing now carry more hierarchy."
                 />
               </div>
             )}
 
-            {activeTab === "mobile" && (
-              <div className="mb-4 grid gap-3 md:mb-5 md:grid-cols-3">
-                <SmallInfoCard
-                  title="Thumb-first"
-                  text="Core actions stay reachable and readable on narrow screens."
+            {activeNav === "studio" && activeTab === "mobile" && (
+              <div className="mb-5 grid gap-3 md:grid-cols-3">
+                <MiniNotice
+                  title="Thumb-first zones"
+                  text="Important actions stay reachable on narrow screens."
                 />
-                <SmallInfoCard
-                  title="Single-column priority"
-                  text="Important tasks stack naturally before secondary controls."
+                <MiniNotice
+                  title="Single-column logic"
+                  text="The screen flows top-to-bottom without clutter jumps."
                 />
-                <SmallInfoCard
-                  title="Cleaner scan paths"
-                  text="Less card clutter, stronger sections, easier focus."
+                <MiniNotice
+                  title="Cleaner scan"
+                  text="Lower noise makes each section easier to parse quickly."
                 />
               </div>
             )}
@@ -725,61 +633,250 @@ A faster way to build cinematic short-form content with cleaner workflow, strong
   );
 }
 
-function PanelCard({ title, subtitle, children, rightSlot }) {
+function HeroBlock({ title, description, badge }) {
   return (
-    <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:p-5">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-white md:text-base">{title}</h3>
-          {subtitle && <p className="mt-1 text-xs text-white/45 md:text-sm">{subtitle}</p>}
+    <section className="rounded-[28px] border border-white/6 bg-white/[0.025] p-5 md:p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="max-w-3xl">
+          <div className="inline-flex rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white/48">
+            {badge}
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white md:text-[32px] md:leading-[1.1]">
+            {title}
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62 md:text-[15px]">
+            {description}
+          </p>
         </div>
-        {rightSlot}
+
+        <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white/78 transition hover:bg-white/[0.07]">
+          Open roadmap
+          <ArrowUpRight size={15} />
+        </button>
       </div>
-      {children}
     </section>
   );
 }
 
-function SectionHeader({ title, subtitle, actionLabel }) {
+function MetricCard({ label, value, meta }) {
+  return (
+    <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-4">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-white/36">
+        {label}
+      </div>
+      <div className="mt-2 text-xl font-semibold text-white md:text-2xl">
+        {value}
+      </div>
+      <div className="mt-1 text-xs text-white/42">{meta}</div>
+    </div>
+  );
+}
+
+function MainWorkspace({ projectName, setProjectName, script, setScript }) {
+  return (
+    <section className="rounded-[28px] border border-white/6 bg-white/[0.022] p-4 md:p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-white md:text-base">
+            Main Workspace
+          </h2>
+          <p className="mt-1 text-sm text-white/45">
+            The core task surface gets most of the screen
+          </p>
+        </div>
+
+        <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-white/62 transition hover:bg-white/[0.06]">
+          <MoreHorizontal size={16} />
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-white/6 bg-black/20 p-3">
+          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/38">
+            Project
+          </label>
+          <input
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="Project name"
+            className="w-full rounded-xl border border-white/6 bg-white/[0.03] px-3 py-3 text-sm text-white outline-none placeholder:text-white/22 focus:border-white/12"
+          />
+        </div>
+
+        <div className="rounded-2xl border border-white/6 bg-black/20 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <label className="block text-[11px] uppercase tracking-[0.16em] text-white/38">
+              Master Script
+            </label>
+            <div className="text-xs text-white/34">Primary editor</div>
+          </div>
+
+          <textarea
+            value={script}
+            onChange={(e) => setScript(e.target.value)}
+            rows={15}
+            placeholder="Write your main script..."
+            className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/22 focus:border-white/12"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RightRail({ notes, setNotes }) {
+  return (
+    <div className="space-y-4">
+      <CleanPanel title="Direction" subtitle="Locked product goals">
+        <div className="space-y-2">
+          {[
+            "Reduce visual density",
+            "Make mobile flow simpler",
+            "Use fewer heavy panels",
+            "Push premium SaaS feeling",
+          ].map((item) => (
+            <div
+              key={item}
+              className="flex items-center gap-3 rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3"
+            >
+              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-black">
+                <Check size={12} />
+              </div>
+              <span className="text-sm text-white/78">{item}</span>
+            </div>
+          ))}
+        </div>
+      </CleanPanel>
+
+      <CleanPanel title="Notes" subtitle="Secondary thinking area">
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={10}
+          placeholder="Write notes..."
+          className="w-full resize-none rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/22 focus:border-white/12"
+        />
+      </CleanPanel>
+    </div>
+  );
+}
+
+function CleanPanel({
+  title,
+  subtitle,
+  children,
+  action,
+  bodyClassName = "",
+}) {
+  return (
+    <section className="rounded-[28px] border border-white/6 bg-white/[0.022] p-4 md:p-5">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-white md:text-base">{title}</h3>
+          {subtitle && <p className="mt-1 text-sm text-white/45">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      <div className={bodyClassName}>{children}</div>
+    </section>
+  );
+}
+
+function SceneRow({ scene }) {
+  return (
+    <div className="rounded-[24px] border border-white/6 bg-white/[0.022] p-4 transition hover:bg-white/[0.04]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-white md:text-base">
+              {scene.title}
+            </h3>
+            <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/50">
+              {scene.status}
+            </span>
+            <span className="text-xs text-white/34">{scene.time}</span>
+          </div>
+
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
+            {scene.text}
+          </p>
+        </div>
+
+        <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
+          Open
+          <ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectRow({ project }) {
+  return (
+    <div className="rounded-[24px] border border-white/6 bg-white/[0.022] p-4 transition hover:bg-white/[0.04]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-white md:text-base">
+            {project.name}
+          </div>
+          <div className="mt-1 text-sm text-white/44">
+            Updated {project.updated}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/50">
+            {project.state}
+          </span>
+          <button className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/76 transition hover:bg-white/[0.07]">
+            Open
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SimpleHeader({ title, subtitle, actionLabel }) {
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
       <div>
         <h2 className="text-lg font-semibold tracking-tight text-white">{title}</h2>
-        <p className="mt-1 text-sm text-white/50">{subtitle}</p>
+        <p className="mt-1 text-sm text-white/46">{subtitle}</p>
       </div>
-      <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white/80 transition hover:bg-white/[0.07]">
-        <LayoutGrid size={15} />
+
+      <button className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white/76 transition hover:bg-white/[0.07]">
         {actionLabel}
       </button>
     </div>
   );
 }
 
-function SmallInfoCard({ title, text }) {
+function InfoLine({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-      <div className="text-sm font-medium text-white">{title}</div>
-      <div className="mt-1.5 text-sm leading-6 text-white/58">{text}</div>
+    <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-white/34">
+        {label}
+      </div>
+      <div className="mt-1.5 text-sm text-white/82">{value}</div>
     </div>
   );
 }
 
-function InlineMeta({ icon: Icon, text }) {
+function TopMeta({ icon: Icon, text }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-xs text-white/55">
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-white/[0.03] px-3 py-1.5 text-xs text-white/50">
       <Icon size={13} />
       <span>{text}</span>
     </div>
   );
 }
 
-function MiniField({ label, value }) {
+function MiniNotice({ title, text }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-white/38">
-        {label}
-      </div>
-      <div className="mt-2 text-sm text-white/84">{value}</div>
+    <div className="rounded-2xl border border-white/6 bg-white/[0.022] p-4">
+      <div className="text-sm font-medium text-white">{title}</div>
+      <div className="mt-1.5 text-sm leading-6 text-white/56">{text}</div>
     </div>
   );
 }
