@@ -1,147 +1,149 @@
-// ─── Rate Limiter (in-memory, per IP) ────────────────────────────────────────
-const rateLimitMap = new Map();
-const RATE_LIMIT_MAX = 15;
-const RATE_LIMIT_WINDOW = 60_000;
+// app/api/pipeline/route.js
+// NeuroCine Pipeline — fully self-contained, no external imports
 
-function cleanupRateLimit(now = Date.now()) {
-  for (const [ip, entry] of rateLimitMap.entries()) {
-    if (!entry || now > entry.resetAt) rateLimitMap.delete(ip);
-  }
+const DEFAULT_NEGATIVE_PROMPT = [
+  "blur", "bad anatomy", "extra fingers", "duplicate people",
+  "deformed face", "plastic skin", "low detail", "watermark",
+  "text artifacts", "flat lighting", "oversaturated CGI",
+  "inconsistent face", "changed outfit", "identity drift"
+].join(", ");
+
+function normalizeText(value = "", max = 260) {
+  const s = String(value || "").replace(/\s+/g, " ").trim();
+  return s.length > max ? s.slice(0, max).trim() : s;
 }
 
-// В serverless окружении модуль может жить долго; периодически чистим Map, чтобы IP-записи не копились бесконечно.
-const RATE_LIMIT_CLEANUP_INTERVAL = 60_000;
-if (!globalThis.__neurocineRateLimitCleanupStarted) {
-  globalThis.__neurocineRateLimitCleanupStarted = true;
-  setInterval(() => cleanupRateLimit(), RATE_LIMIT_CLEANUP_INTERVAL).unref?.();
+function buildIdentityLock({ characterDNA = {}, seed = "777777", referenceImage = "" } = {}) {
+  const dna = {
+    name:     characterDNA.name     || "",
+    gender:   characterDNA.gender   || "",
+    age:      characterDNA.age      || "",
+    face:     characterDNA.face     || characterDNA.dna || "",
+    hair:     characterDNA.hair     || "",
+    outfit:   characterDNA.outfit   || "",
+    style:    characterDNA.style    || "cinematic realism",
+    lighting: characterDNA.lighting || "high contrast shadows",
+    camera:   characterDNA.camera   || "35mm",
+  };
+
+  const parts = [
+    dna.name, dna.gender,
+    dna.age ? `${dna.age} years old` : "",
+    dna.face, dna.hair,
+    dna.outfit ? `wearing ${dna.outfit}` : "",
+    dna.style, dna.lighting, dna.camera,
+  ].filter(Boolean);
+
+  return {
+    dna, seed, referenceImage,
+    identity: parts.join(", "),
+    lockPhrase: "same character, consistent face, same hairstyle, same outfit, same lighting style, no identity drift",
+  };
 }
 
-function checkRateLimit(ip) {
-  const now = Date.now();
-  cleanupRateLimit(now);
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count++;
-  return true;
+function enrichFrames({ frames = [], identityLock, styleLock = "" } = {}) {
+  const style = styleLock || "cinematic, high contrast, consistent color grading, trailer-like continuity";
+
+  return frames.map((frame, index) => {
+    const continuity = index === 0
+      ? "opening shot, establish identity and world"
+      : "continue previous shot world, preserve identity, preserve lighting continuity";
+
+    const refNote  = identityLock.referenceImage ? "use reference image as identity anchor" : "";
+    const seedNote = identityLock.seed && identityLock.seed !== "777777" ? `seed ${identityLock.seed}` : "";
+    const hasIdentity = identityLock.identity && identityLock.identity.length > 4;
+
+    const image_prompt = hasIdentity
+      ? normalizeText([
+          identityLock.identity,
+          frame.imgPrompt_EN || frame.visual || "",
+          continuity, style, identityLock.lockPhrase, refNote, seedNote,
+        ].filter(Boolean).join(", "), 260)
+      : frame.imgPrompt_EN || frame.visual || "";
+
+    const video_prompt = normalizeText([
+      frame.vidPrompt_EN || "",
+      hasIdentity ? "preserve same face and outfit" : "",
+      "smooth camera motion, subject motion, environment motion",
+      continuity, style, refNote, seedNote,
+    ].filter(Boolean).join(", "), 260);
+
+    return {
+      ...frame,
+      id: frame.id || `frame_${String(index + 1).padStart(2, "0")}`,
+      time: frame.time || frame.timecode || `${index * 3}-${index * 3 + 3}s`,
+      image_prompt,
+      video_prompt,
+      negative_prompt: frame.negative_prompt || DEFAULT_NEGATIVE_PROMPT,
+      seed: identityLock.seed,
+      reference_image: identityLock.referenceImage,
+      continuity_note: continuity,
+      duration: frame.duration || 3,
+      image: { type: "image", url: "", prompt: image_prompt, note: "Connect real image API here" },
+      video: { type: "video", url: "", prompt: video_prompt, note: "Connect real video API here" },
+    };
+  });
 }
 
-// ─── Whitelist разрешённых моделей ───────────────────────────────────────────
-const ALLOWED_MODELS = new Set([
-  "anthropic/claude-sonnet-4-6",
-  "openai/gpt-4o-mini",
-]);
-
-const MAX_MESSAGE_LENGTH = 32_000;
+function buildTimeline(frames = []) {
+  let cursor = 0;
+  return frames.map((frame, index) => {
+    const duration = Number(frame.duration || 3);
+    const item = {
+      id: frame.id || `clip_${index + 1}`,
+      start: cursor, duration,
+      video: frame.video,
+      image: frame.image,
+      vo:  frame.vo || frame.voice || "",
+      sfx: frame.sfx || "",
+      transition:
+        index === 0     ? "cold_open" :
+        index % 4 === 0 ? "pattern_interrupt" :
+        index % 3 === 0 ? "reveal_cut" : "hard_cut",
+      continuity_note: frame.continuity_note || "",
+    };
+    cursor += duration;
+    return item;
+  });
+}
 
 export async function POST(req) {
   try {
-    // 1. Rate limiting по IP
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
-
-    if (!checkRateLimit(ip)) {
-      return new Response(
-        JSON.stringify({ error: "Слишком много запросов. Подождите минуту." }),
-        { status: 429, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // 2. Optional server-to-server token.
-    // Browser requests from the app do not carry secrets; never expose APP_SECRET in client JS.
-    const appSecret = process.env.APP_SECRET;
-    const clientToken = req.headers.get("x-internal-app-token");
-    if (appSecret && clientToken && clientToken !== appSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
     const body = await req.json();
-    const messages = body.messages || [];
+    const scriptPackage = body.scriptPackage || body;
 
-    // 3. Валидация длины входных данных
-    if (JSON.stringify(messages).length > MAX_MESSAGE_LENGTH) {
-      return new Response(
-        JSON.stringify({ error: "Входные данные слишком большие." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+    if (!scriptPackage?.frames?.length) {
+      return Response.json({ error: "scriptPackage.frames is required" }, { status: 400 });
     }
 
-    // 4. Whitelist моделей
-    const requestedModel = body.model || "anthropic/claude-sonnet-4-6";
-    const model = ALLOWED_MODELS.has(requestedModel)
-      ? requestedModel
-      : "anthropic/claude-sonnet-4-6";
-
-    const maxTokens = Math.min(body.max_tokens || 4000, 8000);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55_000);
-
-    let response;
-    try {
-      response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://neurocine.online",
-          "X-Title": "NeuroCine",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          max_tokens: maxTokens,
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-        }),
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch (e) {
-      throw new Error(
-        `OpenRouter вернул не-JSON ответ. Статус: ${response.status}. Попробуйте снова.`
-      );
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data.error?.message || `Ошибка API OpenRouter (${response.status})`
-      );
-    }
-
-    const text = data.choices?.[0]?.message?.content;
-    if (!text) {
-      throw new Error("OpenRouter вернул пустой ответ. Попробуйте снова.");
-    }
-
-    return new Response(JSON.stringify({ text }), {
-      headers: { "Content-Type": "application/json" },
+    const identityLock = buildIdentityLock({
+      characterDNA: body.characterDNA || scriptPackage.character_dna_used || {},
+      seed: body.seed || "777777",
+      referenceImage: body.referenceImage || "",
     });
+
+    const preparedFrames = enrichFrames({
+      frames: scriptPackage.frames,
+      identityLock,
+      styleLock: body.styleLock || "cinematic, high contrast, same color grading, trailer-like continuity",
+    });
+
+    const timeline = buildTimeline(preparedFrames);
+
+    return Response.json({
+      status: "timeline_ready",
+      videoUrl: "",
+      identityLock,
+      frames: preparedFrames,
+      timeline,
+      scriptPackage,
+      note: "Timeline ready. Connect real Grok/Veo providers to generate actual video.",
+    });
+
   } catch (error) {
-    console.error("API Error:", error);
-    const message =
-      error.name === "AbortError"
-        ? "Сервер не успел ответить за 55 сек. Попробуйте уменьшить длительность видео или повторите."
-        : error.message || "Внутренняя ошибка сервера";
-
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json(
+      { error: error?.message || "Pipeline error" },
+      { status: 500 }
+    );
   }
 }
