@@ -11,14 +11,14 @@ function today() {
 function readBilling() {
   try {
     const raw = localStorage.getItem(BILLING_KEY);
-    if (!raw) return { tokens: 25, date: today() };
+    if (!raw) return { tokens: 10, date: today() };
     const data = JSON.parse(raw);
     return {
-      tokens: Number.isFinite(Number(data.tokens)) ? Number(data.tokens) : 25,
+      tokens: Number.isFinite(Number(data.tokens)) ? Number(data.tokens) : 10,
       date: data.date || today(),
     };
   } catch {
-    return { tokens: 25, date: today() };
+    return { tokens: 10, date: today() };
   }
 }
 
@@ -28,7 +28,7 @@ function writeBilling(next) {
 }
 
 export default function AdminPage() {
-  const [billing, setBilling] = useState({ tokens: 25, date: today() });
+  const [billing, setBilling] = useState({ tokens: 10, date: today() });
   const [amount, setAmount] = useState(100);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,11 +55,11 @@ export default function AdminPage() {
       if (action === "set") nextTokens = value;
       if (action === "add") nextTokens = current.tokens + value;
       if (action === "subtract") nextTokens = Math.max(0, current.tokens - value);
-      if (action === "reset") nextTokens = 25;
+      if (action === "reset") nextTokens = 3;
 
       const next = writeBilling({ tokens: nextTokens, date: today() });
       setBilling(next);
-      setStatus(`Готово: ${action}. Баланс: ${next.tokens} Синем`);
+      setStatus(`Готово: ${action}. Баланс: ${next.tokens}`);
     } catch (err) {
       setStatus(`Ошибка: ${err?.message || "попробуй ещё раз"}`);
     } finally {
@@ -78,19 +78,19 @@ export default function AdminPage() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           <div>
             <div style={{ color: "#a78bfa", fontWeight: 900, fontSize: 12, letterSpacing: 2, textTransform: "uppercase" }}>NeuroCine Admin</div>
-            <h1 style={{ margin: "10px 0 8px", fontSize: 254, lineHeight: 1.05 }}>Управление Синемами</h1>
-            <p style={{ margin: 0, color: "#94a3b8", fontSize: 14 }}>Текущая версия управляет балансом Синем этого браузера через защищённую админ-сессию.</p>
+            <h1 style={{ margin: "10px 0 8px", fontSize: 34, lineHeight: 1.05 }}>Управление звёздами</h1>
+            <p style={{ margin: 0, color: "#94a3b8", fontSize: 14 }}>Текущая версия управляет балансом этого браузера через защищённую админ-сессию.</p>
           </div>
           <button onClick={logout} style={{ border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.06)", color: "#fff", borderRadius: 12, padding: "10px 14px", fontWeight: 850, cursor: "pointer" }}>Выйти</button>
         </div>
 
         <div style={{ marginTop: 24, padding: 22, borderRadius: 20, background: "rgba(124,58,237,.14)", border: "1px solid rgba(167,139,250,.25)" }}>
           <div style={{ color: "#c4b5fd", fontSize: 13, fontWeight: 900 }}>Баланс</div>
-          <div style={{ fontSize: 54, fontWeight: 950, lineHeight: 1, marginTop: 8 }}>🎬 {billing.tokens}</div>
+          <div style={{ fontSize: 54, fontWeight: 950, lineHeight: 1, marginTop: 8 }}>⭐ {billing.tokens}</div>
           <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 8 }}>Дата записи: {billing.date}</div>
         </div>
 
-        <label style={{ display: "block", marginTop: 24, color: "#cbd5e1", fontSize: 13, fontWeight: 850 }}>Количество Синем</label>
+        <label style={{ display: "block", marginTop: 24, color: "#cbd5e1", fontSize: 13, fontWeight: 850 }}>Количество</label>
         <input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" style={{ width: "100%", marginTop: 8, boxSizing: "border-box", background: "#0f1020", border: "1px solid rgba(255,255,255,.12)", color: "#fff", borderRadius: 14, padding: "14px 16px", fontSize: 16, outline: "none" }} />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginTop: 16 }}>
