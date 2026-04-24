@@ -411,7 +411,8 @@ const VISUAL_ENGINES = {
 };
 
 const CURRENCY_SYMBOL = "⭐";
-const DAILY_START_BALANCE = 10;
+const START_BALANCE = 25;
+const DAILY_MIN_BALANCE = 10;
 const COSTS = { boost: 1, referencePrompts: 1, casting: 1, step1: 1, step2: 1, tts: 1, preview: 1 };
 const formatStars = (amount = 0) => `${CURRENCY_SYMBOL} ${Number(amount) || 0}`;
 
@@ -1274,7 +1275,7 @@ function ncEnrichFrames({ frames = [], identityLock, styleLock = "" } = {}) {
   });
 }
 export default function Page() {
-  const [tokens, setTokens] = useState(3);
+  const [tokens, setTokens] = useState(START_BALANCE);
   const [showPaywall, setShowPaywall] = useState(false);
   const [clicks, setClicks] = useState(0);
   const [siteUnlocked, setSiteUnlocked] = useState(false);
@@ -1476,10 +1477,22 @@ export default function Page() {
         if (savedBilling) {
           try {
             const b = JSON.parse(savedBilling);
-            if (b.date !== today) { setTokens(DAILY_START_BALANCE); localStorage.setItem("ds_billing", JSON.stringify({ tokens: DAILY_START_BALANCE, date: today })); } 
-            else { setTokens(b.tokens); }
-          } catch(e) { setTokens(DAILY_START_BALANCE); }
-        } else { localStorage.setItem("ds_billing", JSON.stringify({ tokens: DAILY_START_BALANCE, date: today })); setTokens(DAILY_START_BALANCE); }
+            const currentTokens = Number.isFinite(Number(b.tokens)) ? Number(b.tokens) : START_BALANCE;
+            if (b.date !== today) {
+              const nextTokens = Math.max(currentTokens, DAILY_MIN_BALANCE);
+              setTokens(nextTokens);
+              localStorage.setItem("ds_billing", JSON.stringify({ tokens: nextTokens, date: today }));
+            } else {
+              setTokens(currentTokens);
+            }
+          } catch(e) {
+            setTokens(START_BALANCE);
+            try { localStorage.setItem("ds_billing", JSON.stringify({ tokens: START_BALANCE, date: today })); } catch {}
+          }
+        } else {
+          localStorage.setItem("ds_billing", JSON.stringify({ tokens: START_BALANCE, date: today }));
+          setTokens(START_BALANCE);
+        }
       }
     } 
   }, []);
