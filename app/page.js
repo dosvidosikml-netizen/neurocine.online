@@ -941,7 +941,6 @@ async function callAPI(content, maxTokens = 4000, sysPrompt, model = MODEL_STD, 
         signal: controller.signal,
         headers: { 
           "Content-Type": "application/json",
-          "X-App-Token": process.env.NEXT_PUBLIC_APP_SECRET || ""
         }, 
         body: JSON.stringify({ 
           model: model,
@@ -982,7 +981,6 @@ async function warmupServer(onWaking) {
     const t = setTimeout(() => ctrl.abort(), 10000);
     const res = await fetch("/api/chat", {
       method: "POST", signal: ctrl.signal,
-      headers: { "Content-Type": "application/json", "X-App-Token": process.env.NEXT_PUBLIC_APP_SECRET || "" },
       body: JSON.stringify({ model: MODEL_STD, messages: [{ role: "user", content: "hi" }], max_tokens: 5 })
     });
     clearTimeout(t);
@@ -1000,7 +998,6 @@ async function callVisionAPI(base64Image, sysPrompt) {
       method: "POST", 
       headers: { 
         "Content-Type": "application/json",
-        "X-App-Token": process.env.NEXT_PUBLIC_APP_SECRET || ""
       }, 
       body: JSON.stringify({ 
         model: "openai/gpt-4o-mini", // Дешевая и быстрая модель для зрения
@@ -2054,7 +2051,6 @@ BANNED: "incredible", "amazing", "legendary", "heroic", "unique", "fascinating",
 
       const res = await fetch("/api/pipeline", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-App-Token": process.env.NEXT_PUBLIC_APP_SECRET || "" },
         body: JSON.stringify({ scriptPackage, characterDNA, seed, referenceImage: "", styleLock: styleLockStr }),
       });
 
