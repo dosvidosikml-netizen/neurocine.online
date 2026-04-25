@@ -38,16 +38,15 @@ export async function POST(req) {
       );
     }
 
-    // 2. Защита от прямого вызова API извне приложения
+    // 2. Optional server-to-server token.
+    // Browser requests from the app do not carry secrets; never expose APP_SECRET in client JS.
     const appSecret = process.env.APP_SECRET;
-    if (appSecret) {
-      const clientToken = req.headers.get("X-App-Token");
-      if (clientToken !== appSecret) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+    const clientToken = req.headers.get("x-internal-app-token");
+    if (appSecret && clientToken && clientToken !== appSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const body = await req.json();
