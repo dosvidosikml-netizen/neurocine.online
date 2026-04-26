@@ -20,8 +20,9 @@ const MAX_MESSAGE_LENGTH = 10 * 1024 * 1024;
 const SYSTEM_PROMPT = `
 Cinematic NeuroCine vFinal.
 
-Default SAFE mode.
-If user writes "grok" → RAW mode.
+Mode system:
+Default = SAFE
+If user says "grok" → RAW mode
 
 SAFE:
 - no explicit gore
@@ -29,17 +30,17 @@ SAFE:
 - focus on reaction, camera, tension
 
 RAW:
-- stronger motion
-- stronger camera
-- higher intensity
+- stronger motion, camera, intensity
+- still non-erotic
 
 Rules:
-- cinematic realism
+- 1 main character per frame
 - strict continuity
+- cinematic realism
 - no subtitles/UI
-- structured scenes
+- output structured scenes
 
-If user writes "json" → return JSON only
+If "json" → return strict JSON only
 `;
 
 export async function POST(req) {
@@ -63,6 +64,7 @@ export async function POST(req) {
       });
     }
 
+    // 🔥 ВСЕГДА GPT-5.4
     const model = "openai/gpt-5.4";
 
     const controller = new AbortController();
@@ -74,8 +76,7 @@ export async function POST(req) {
         method: "POST",
         signal: controller.signal,
         headers: {
-          // 🔥 ВСТАВЬ СЮДА СВОЙ КЛЮЧ
-          Authorization: `Bearer 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`,
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -99,12 +100,7 @@ export async function POST(req) {
       throw new Error(data.error?.message || "API error");
     }
 
-    let text = data.choices?.[0]?.message?.content;
-
-    // 🔥 защита от ```json
-    if (text?.startsWith("```")) {
-      text = text.replace(/```json|```/g, "").trim();
-    }
+    const text = data.choices?.[0]?.message?.content;
 
     return new Response(JSON.stringify({ text }), {
       headers: { "Content-Type": "application/json" },
