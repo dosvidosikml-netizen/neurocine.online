@@ -34,7 +34,7 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
   const normalizedMode = normalizeMode(mode);
   const modeConfig = STORYBOARD_MODES[normalizedMode];
 
-  return `Generate a production storyboard JSON for NeuroCine Storyboard Engine v2.\n\nMODE: ${normalizedMode}\nMODE INSTRUCTION: ${modeConfig.instruction}\n\nTarget duration: ${d} seconds.\nTarget scenes: ${preset.targetScenes}.\nTarget VO length: ${preset.wordsMin}-${preset.wordsMax} Russian words.\nAverage shot duration: 3 seconds.\nStrictly make total_duration equal ${d}.\n\nRequired v2 fields:\n- global_video_lock\n- postprocess\n- cut_energy in every scene: low | medium | high\n\nImage prompt rule: keep image prompts clean. Use only compact optics/quality tags: ARRI Alexa 65, Zeiss Master Prime, T2.8, cinematic sharp focus, film-level detail, Kodak Vision3 500T grain. Do not spam negative prompts or 8k/no blur/no plastic skin style lists.\n\nVideo prompt rule: include grounded physical realism, camera behavior, sensory detail, fabric/breath/particles/weight/contact physics.\n\nScene quality rule: internally score every scene from 1 to 10. If any scene is below 8, rewrite it until it reaches 8+. Do NOT output the score unless the JSON schema explicitly includes it.\n\nSCRIPT:\n${script}\n\njson`;
+  return `Generate a production storyboard JSON for NeuroCine Storyboard Engine v2.\n\nMODE: ${normalizedMode}\nMODE INSTRUCTION: ${modeConfig.instruction}\n\nTarget duration: ${d} seconds.\nTarget scenes: ${preset.targetScenes} (MANDATORY — generate EXACTLY this many scenes, not fewer).\nTarget VO length: ${preset.wordsMin}-${preset.wordsMax} Russian words.\nAverage shot duration: 3 seconds.\nStrictly make total_duration equal ${d}.\n\n⚠️ STRICT SHOT DURATION LAW — NON-NEGOTIABLE:\nEvery single scene "duration" field MUST be 2, 3, or 4 seconds. NEVER 5, 6, 7, 8 or more.\nFORBIDDEN: duration 5, 6, 7, 8, 9, 10 — these BREAK Shorts/Reels format.\nIf you run out of story content: add detail shots, B-roll inserts, reaction cutaways, object close-ups. Never stretch a single scene beyond 4 seconds.\nFor ${d}s video → generate exactly ${preset.targetScenes} scenes × ~3 seconds each = ${d}s total.\n\nRequired v2 fields:\n- global_video_lock\n- postprocess\n- cut_energy in every scene: low | medium | high\n\nImage prompt rule: keep image prompts clean. Use only compact optics/quality tags: ARRI Alexa 65, Zeiss Master Prime, T2.8, cinematic sharp focus, film-level detail, Kodak Vision3 500T grain. Do not spam negative prompts or 8k/no blur/no plastic skin style lists.\n\nVideo prompt rule: include grounded physical realism, camera behavior, sensory detail, fabric/breath/particles/weight/contact physics.\n\nScene quality rule: internally score every scene from 1 to 10. If any scene is below 8, rewrite it until it reaches 8+. Do NOT output the score unless the JSON schema explicitly includes it.\n\nSCRIPT:\n${script}\n\njson`;
 }
 
 const CLEAN_IMAGE_BOOST = "shot on ARRI Alexa 65, Zeiss Master Prime lens, T2.8, cinematic sharp focus, film-level detail, Kodak Vision3 500T grain";
@@ -127,6 +127,29 @@ function clampDuration(value) {
   return Math.min(4, Math.max(2, Math.round(n)));
 }
 
+// Safety net: if AI returned scenes with duration > 4s, split them into 3s chunks.
+// This mirrors the splitLongFrames() fix on the main page.
+function splitLongScenes(scenes = []) {
+  const MAX_DUR = 4;
+  const result = [];
+  for (const s of scenes) {
+    const dur = Number(s.duration || 3);
+    if (dur <= MAX_DUR) {
+      result.push(s);
+    } else {
+      // How many chunks of ~3s fit?
+      const numChunks = Math.ceil(dur / 3);
+      const baseDur = Math.floor(dur / numChunks);
+      for (let i = 0; i < numChunks; i++) {
+        const remainder = dur - baseDur * numChunks;
+        const thisDur = Math.min(MAX_DUR, Math.max(2, baseDur + (i < remainder ? 1 : 0)));
+        result.push({ ...s, duration: thisDur });
+      }
+    }
+  }
+  return result;
+}
+
 function ensurePromptPrefixes(scene) {
   const image = String(scene.image_prompt_en || "").trim();
   const video = String(scene.video_prompt_en || "").trim();
@@ -144,9 +167,12 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
   const engineTarget = mode === "raw" ? "grok_raw" : "gpt_safe";
   const target = Number(requestedDuration) || Number(raw.total_duration) || 60;
   const inputScenes = Array.isArray(raw.scenes) ? raw.scenes : Array.isArray(raw.shots) ? raw.shots : [];
-  const sceneCount = Math.max(1, inputScenes.length);
 
-  let durations = inputScenes.map((s) => clampDuration(s.duration || 3));
+  // Safety net: split any scene with duration > 4s before normalizing
+  const splitScenes = splitLongScenes(inputScenes);
+  const sceneCount = Math.max(1, splitScenes.length);
+
+  let durations = splitScenes.map((s) => clampDuration(s.duration || 3));
   let sum = durations.reduce((a, b) => a + b, 0);
 
   let guard = 0;
@@ -166,7 +192,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
   }
 
   let start = 0;
-  const scenes = inputScenes.map((s, i) => {
+  const scenes = splitScenes.map((s, i) => {
     const duration = durations[i] || 3;
     const normalized = ensurePromptPrefixes({
       id: padFrame(i + 1),
