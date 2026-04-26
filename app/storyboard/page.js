@@ -7,6 +7,21 @@ const LS_KEY = "neurocine_storyboard_result";
 const LS_SCRIPT = "neurocine_storyboard_script";
 const sample = `Восемьсот лет люди платили за билеты. Смотреть, как умирает человек. Казнь называлась лин чи — тысяча порезов. Палач работал методично: сначала пальцы, потом плечи, потом грудь. Каждый надрез — отдельная цена в прейскуранте. Богатые семьи платили БОЛЬШЕ — чтобы смерть пришла быстрее. Бедные платили меньше — и человек умирал часами. Последняя публичная казнь зафиксирована в 1905 году. Фотограф стоял в трёх метрах. Снимки попали в Европу — шок был не от крови, а от детей на заднем плане, которые смеялись. Китай запретил лин чи в том же году. Эти фотографии существуют до сих пор. Вопрос один: вы хотите их видеть — или уже боитесь ответа?`;
 
+const GOOGLE_VOICES = [
+  { id: "Algenib",  desc: "Gravelly · Lower pitch",         best: ["ИСТОРИЯ","ВОЙНА","КРИМИНАЛ"] },
+  { id: "Algieba",  desc: "Smooth · Lower pitch",           best: ["ТАЙНА","ПСИХОЛОГИЯ"] },
+  { id: "Alnilam",  desc: "Firm · Lower middle pitch",      best: ["НАУКА","ИСТОРИЯ"] },
+  { id: "Charon",   desc: "Informative · Lower pitch",      best: ["НАУКА","ВОЙНА","ИСТОРИЯ"] },
+  { id: "Iapetus",  desc: "Calm · Lower middle pitch",      best: ["ПСИХОЛОГИЯ","ТАЙНА"] },
+  { id: "Orus",     desc: "Firm · Lower middle pitch",      best: ["КРИМИНАЛ"] },
+  { id: "Kore",     desc: "Firm · Middle pitch",            best: ["ПСИХОЛОГИЯ","ТАЙНА"] },
+  { id: "Fenrir",   desc: "Excitable · Lower middle pitch", best: ["КРИМИНАЛ"] },
+  { id: "Aoede",    desc: "Breezy · Middle pitch",          best: ["ПРИРОДА"] },
+  { id: "Sulafat",  desc: "Warm · Higher middle pitch",     best: ["ПСИХОЛОГИЯ"] },
+  { id: "Autonoe",  desc: "Bright · Middle pitch",          best: ["НАУКА"] },
+  { id: "Puck",     desc: "Upbeat · Middle pitch",          best: [] },
+];
+
 function CopyButton({ text, label = "Copy" }) {
   return (
     <button
@@ -49,6 +64,13 @@ export default function StoryboardPage() {
   const [upscaleLoading, setUpscaleLoading] = useState(false);
   const [upscaleError, setUpscaleError] = useState("");
   const [upscaleResult, setUpscaleResult] = useState(null);
+
+  // ── TTS STUDIO STATE ──────────────────────────────────────────────────────
+  const [ttsData, setTtsData] = useState(null);
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsError, setTtsError] = useState("");
+  const [activeTTSTab, setActiveTTSTab] = useState("google");
+  const [ttsCopied, setTtsCopied] = useState("");
 
   // Загружаем сохранённые данные при монтировании
   useEffect(() => {
@@ -109,6 +131,63 @@ export default function StoryboardPage() {
     a.download = `${result.project_name || "neurocine_storyboard"}.json`.replace(/\s+/g, "_");
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ── TTS STUDIO ────────────────────────────────────────────────────────────
+  // Собираем VO из всех сцен раскадровки
+  const voScript = useMemo(
+    () => (result?.scenes || []).map(s => s.vo_ru).filter(Boolean).join(" "),
+    [result]
+  );
+
+  async function generateTTS() {
+    if (!voScript.trim()) return;
+    setTtsLoading(true);
+    setTtsError("");
+    setTtsData(null);
+    const voiceList = GOOGLE_VOICES.map(v => `${v.id} (${v.desc})`).join(", ");
+    const sys = `You are a PRO TTS Director for multi-platform voice production. Analyze the script and output ONLY valid JSON (no markdown, no text outside JSON):
+{
+  "scene": "Short location/atmosphere for TTS booth — 5-8 words, English.",
+  "context": "Directing note — pacing and emotional arc in English, 1-2 sentences.",
+  "voice_id": "Pick the single best voice from: ${voiceList}. Match to mood.",
+  "voice_reason": "1 sentence in Russian why this voice fits.",
+  "script_google": "Rewrite the FULL script with Google AI Studio emotion tags. Available: [intrigue] [desire] [shock] [information] [inspiration] [confident] [sad] [whisper] [aggressive] [calm]. Tag every 1-3 sentences. Preserve EXACT original language. Do NOT cut or summarize.",
+  "script_elevenlabs": "Rewrite the FULL script with ElevenLabs SSML-style tags: <break time='0.5s'/>, <prosody rate='slow'>, <emphasis level='strong'>. Preserve ALL original text.",
+  "script_clean": "The FULL script completely clean — no tags, no markdown. Ready to paste into any TTS.",
+  "pacing_tips": "3 short Russian tips for recording this specific script."
+}`;
+    try {
+      const res = await fetch("/api/check-lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "anthropic/claude-sonnet-4-6",
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: `Сценарий:\n${voScript}` },
+          ],
+          max_tokens: 2000,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Ошибка TTS");
+      const raw = String(data.text || "").replace(/```json/gi, "").replace(/```/gi, "").trim();
+      const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
+      const parsed = JSON.parse(raw.slice(start, end + 1));
+      setTtsData(parsed);
+      setActiveTTSTab("google");
+    } catch (e) {
+      setTtsError(e.message || "Ошибка TTS Studio");
+    } finally {
+      setTtsLoading(false);
+    }
+  }
+
+  function copyTTS(text, key) {
+    try { navigator.clipboard?.writeText(text || ""); } catch {}
+    setTtsCopied(key);
+    setTimeout(() => setTtsCopied(""), 2000);
   }
 
   async function upscaleImage(imageOverride = "") {
@@ -352,6 +431,112 @@ export default function StoryboardPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* ── TTS STUDIO ──────────────────────────────────────────────── */}
+            {result && (
+              <div style={{ marginTop: 18, border: "1px solid rgba(14,165,233,.3)", borderRadius: 24, background: "rgba(2,6,23,.84)", overflow: "hidden" }}>
+                {/* Header */}
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(14,165,233,.15)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 950, letterSpacing: 1.5, color: "#38bdf8", textTransform: "uppercase", marginBottom: 4 }}>🎙 TTS Studio · Google AI</div>
+                    <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.5 }}>
+                      {voScript ? `VO собран из ${result.scenes?.length || 0} сцен · ${voScript.split(/\s+/).filter(Boolean).length} слов` : "Сначала сгенерируйте раскадровку"}
+                    </div>
+                  </div>
+                  {ttsData && (
+                    <button onClick={() => setTtsData(null)} style={{ background: "none", border: "none", color: "#475569", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+                  )}
+                </div>
+
+                <div style={{ padding: 18 }}>
+                  {/* Generate button */}
+                  {!ttsData && (
+                    <button
+                      onClick={generateTTS}
+                      disabled={ttsLoading || !voScript.trim()}
+                      style={{ width: "100%", padding: "14px", border: 0, borderRadius: 14, background: ttsLoading || !voScript.trim() ? "#1e293b" : "linear-gradient(135deg,#0ea5e9,#0284c7)", color: ttsLoading || !voScript.trim() ? "#475569" : "#fff", fontWeight: 950, cursor: ttsLoading || !voScript.trim() ? "not-allowed" : "pointer", fontSize: 14, letterSpacing: 0.5, boxShadow: voScript.trim() && !ttsLoading ? "0 4px 20px rgba(14,165,233,.3)" : "none", transition: "all .2s" }}
+                    >
+                      {ttsLoading ? "⏳ Анализируем диктора..." : "🎙 СГЕНЕРИРОВАТЬ TTS НАСТРОЙКИ"}
+                    </button>
+                  )}
+                  {ttsError && <div style={{ marginTop: 10, color: "#fca5a5", fontSize: 12, padding: "10px 14px", background: "rgba(239,68,68,.1)", borderRadius: 10 }}>{ttsError}</div>}
+
+                  {/* Results */}
+                  {ttsData && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {/* Scene + Context */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div style={{ background: "rgba(14,165,233,.07)", border: "1px solid rgba(14,165,233,.25)", borderRadius: 12, padding: 12 }}>
+                          <div style={{ fontSize: 9, fontWeight: 950, color: "#38bdf8", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>🎬 SCENE</div>
+                          <div style={{ fontSize: 12, color: "#e0f2fe", fontWeight: 700, lineHeight: 1.4, fontFamily: "monospace" }}>{ttsData.scene}</div>
+                        </div>
+                        <div style={{ background: "rgba(168,85,247,.07)", border: "1px solid rgba(168,85,247,.25)", borderRadius: 12, padding: 12 }}>
+                          <div style={{ fontSize: 9, fontWeight: 950, color: "#c084fc", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>📋 CONTEXT</div>
+                          <div style={{ fontSize: 11, color: "#e9d5ff", lineHeight: 1.5 }}>{ttsData.context}</div>
+                        </div>
+                      </div>
+
+                      {/* Voice */}
+                      <div style={{ background: "rgba(16,185,129,.06)", border: "1px solid rgba(16,185,129,.3)", borderRadius: 12, padding: 12 }}>
+                        <div style={{ fontSize: 9, fontWeight: 950, color: "#34d399", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>🎤 ГОЛОС</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                          <div style={{ fontSize: 20, fontWeight: 950, color: "#fff", fontFamily: "monospace" }}>{ttsData.voice_id}</div>
+                          <div style={{ fontSize: 10, color: "#6ee7b7", background: "rgba(16,185,129,.12)", border: "1px solid rgba(16,185,129,.25)", padding: "2px 8px", borderRadius: 20 }}>
+                            {GOOGLE_VOICES.find(v => v.id === ttsData.voice_id)?.desc || ""}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#a7f3d0" }}>{ttsData.voice_reason}</div>
+                      </div>
+
+                      {/* Pacing tips */}
+                      {ttsData.pacing_tips && (
+                        <div style={{ background: "rgba(251,191,36,.05)", border: "1px solid rgba(251,191,36,.2)", borderRadius: 12, padding: 12 }}>
+                          <div style={{ fontSize: 9, fontWeight: 950, color: "#fbbf24", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>🎯 СОВЕТЫ ПО ТЕМПУ</div>
+                          <div style={{ fontSize: 12, color: "#fef3c7", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{ttsData.pacing_tips}</div>
+                        </div>
+                      )}
+
+                      {/* Script tabs */}
+                      {(() => {
+                        const tabs = {
+                          google:     { label: "🔵 Google AI",  color: "#38bdf8", text: ttsData.script_google     || "" },
+                          elevenlabs: { label: "🟣 ElevenLabs", color: "#a78bfa", text: ttsData.script_elevenlabs || "" },
+                          clean:      { label: "⚪ Чистый",     color: "#94a3b8", text: ttsData.script_clean       || "" },
+                        };
+                        const active = tabs[activeTTSTab];
+                        return (
+                          <div style={{ background: "rgba(0,0,0,.3)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 14, overflow: "hidden" }}>
+                            <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+                              {Object.entries(tabs).map(([k, v]) => (
+                                <button key={k} onClick={() => setActiveTTSTab(k)} style={{ flex: 1, padding: "10px 4px", background: activeTTSTab === k ? "rgba(255,255,255,.06)" : "transparent", border: "none", color: activeTTSTab === k ? v.color : "#475569", fontSize: 10, fontWeight: 950, cursor: "pointer", transition: "all .2s", letterSpacing: 0.5 }}>
+                                  {v.label}
+                                </button>
+                              ))}
+                            </div>
+                            <div style={{ padding: 14 }}>
+                              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#fef3c7", lineHeight: 1.8, background: "rgba(0,0,0,.4)", padding: 12, borderRadius: 10, whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto" }}>
+                                {active.text || <span style={{ color: "#475569", fontStyle: "italic" }}>Нет данных</span>}
+                              </div>
+                              <button
+                                onClick={() => copyTTS(active.text, activeTTSTab)}
+                                style={{ marginTop: 10, width: "100%", background: ttsCopied === activeTTSTab ? "rgba(34,197,94,.2)" : "rgba(255,255,255,.05)", border: `1px solid ${ttsCopied === activeTTSTab ? "#4ade80" : "rgba(255,255,255,.1)"}`, borderRadius: 8, padding: "8px 0", fontSize: 11, color: ttsCopied === activeTTSTab ? "#4ade80" : "rgba(255,255,255,.7)", cursor: "pointer", fontWeight: 800, transition: "all .2s" }}
+                              >
+                                {ttsCopied === activeTTSTab ? "✓ СКОПИРОВАНО" : `📋 СКОПИРОВАТЬ — ${active.label}`}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Reset */}
+                      <button onClick={() => setTtsData(null)} style={{ width: "100%", padding: "9px", background: "transparent", border: "1px dashed rgba(255,255,255,.1)", borderRadius: 10, color: "#475569", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                        🔄 Сгенерировать заново
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
