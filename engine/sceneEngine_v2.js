@@ -37,6 +37,39 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
   return `Generate a production storyboard JSON for NeuroCine.\n\nMODE: ${normalizedMode}\nMODE INSTRUCTION: ${modeConfig.instruction}\n\nTarget duration: ${d} seconds.\nTarget scenes: ${preset.targetScenes}.\nTarget VO length: ${preset.wordsMin}-${preset.wordsMax} Russian words.\nAverage shot duration: 3 seconds.\nStrictly make total_duration equal ${d}.\n\nScene quality rule: internally score every scene from 1 to 10. If any scene is below 8, rewrite it until it reaches 8+. Do NOT output the score unless the JSON schema explicitly includes it.\n\nSCRIPT:\n${script}\n\njson`;
 }
 
+const QUALITY_IMAGE_BOOST = "shot on ARRI Alexa 65, Zeiss Master Prime lens, T2.8, cinematic sharp focus, stabilized subject focus, ultra high detail, realistic skin texture, visible fabric weave, micro contrast, high frequency details, 8k texture fidelity, film-level clarity, realistic imperfections, high dynamic range";
+const QUALITY_IMAGE_NEGATIVE = "no blur, no soft focus, no smudged faces, no plastic skin, no low detail, no muddy textures, no waxy skin";
+const GROK_RAW_BOOST = "GROK RAW ENHANCEMENT: stronger cinematic tension, more aggressive camera energy, sharper subject lock, stronger atmosphere, heavier crowd pressure, more tactile physics, film-grade contrast, high-detail texture clarity, no explicit gore, non-erotic documentary framing";
+
+function appendUniqueText(base = "", addition = "") {
+  const b = String(base || "").trim();
+  const a = String(addition || "").trim();
+  if (!a) return b;
+  if (b.toLowerCase().includes(a.toLowerCase().slice(0, 48))) return b;
+  return `${b}${b ? ", " : ""}${a}`.trim();
+}
+
+function qualityBoostImagePrompt(prompt = "") {
+  let out = String(prompt || "").trim();
+  out = appendUniqueText(out, QUALITY_IMAGE_BOOST);
+  out = appendUniqueText(out, QUALITY_IMAGE_NEGATIVE);
+  return out;
+}
+
+function buildGrokPromptFromSafe(scene = {}) {
+  const image = qualityBoostImagePrompt(scene.image_prompt_en || "");
+  const videoBase = String(scene.video_prompt_en || "").trim();
+  const video = appendUniqueText(videoBase, `${GROK_RAW_BOOST}. Keep the same scene order, timing, VO, character identity, and continuity. Amplify camera motion, atmosphere, crowd pressure, fabric movement, breathing, impact through reaction only. SFX: ${scene.sfx || "cinematic rumble, cloth movement, crowd pressure"}`);
+  return {
+    ...scene,
+    image_prompt_grok_en: image,
+    video_prompt_grok_en: video,
+    grok_sfx: scene.sfx || "cinematic rumble, cloth movement, crowd pressure",
+    grok_camera: appendUniqueText(scene.camera || "", "stabilized subject focus, cinematic raw motion"),
+  };
+}
+
+
 function padFrame(n) {
   return `frame_${String(n).padStart(2, "0")}`;
 }
@@ -106,8 +139,13 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
         ? "GPT SAFE: documentary framing, non-erotic, non-fetishized, non-graphic wording"
         : "GROK RAW: cinematic intensity, non-erotic, non-fetishized, non-instructional"),
     });
+    const withQuality = {
+      ...normalized,
+      image_prompt_en: qualityBoostImagePrompt(normalized.image_prompt_en),
+    };
+    const finalScene = mode === "safe" ? buildGrokPromptFromSafe(withQuality) : withQuality;
     start += duration;
-    return normalized;
+    return finalScene;
   });
 
   return {
@@ -125,6 +163,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       mode,
       model: modelUsed,
       version: "neurocine_vFinal_plus_site",
+      auto_safe_to_grok: mode === "safe",
     },
   };
 }
