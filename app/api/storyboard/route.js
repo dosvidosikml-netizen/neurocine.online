@@ -285,10 +285,17 @@ Forbidden in safe mode:
 
 If user specifies duration 30 / 60 / 90 / 120 / 180 seconds:
 - STRICTLY match total_duration
-- target_scenes = duration / 3
+- target_scenes = duration / 3  (MANDATORY scene count — do not generate fewer)
 - average scene duration = 3 seconds
-- each duration must be 2–4 seconds
+- each duration MUST be 2, 3, or 4 seconds — NEVER 5, 6, 7, 8 or more
 - total_duration MUST equal requested duration exactly
+
+FORBIDDEN shot durations: 5s, 6s, 7s, 8s, 9s, 10s — these BREAK Shorts/Reels format.
+If you run out of story content before time is up:
+→ add B-roll detail shots (hand on object, crowd reaction, environmental texture, close-up of prop)
+→ add reaction cutaways
+→ add atmospheric inserts
+NEVER stretch a single scene beyond 4 seconds to fill time.
 
 # PRODUCTION LOCK
 
