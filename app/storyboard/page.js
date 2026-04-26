@@ -44,6 +44,11 @@ export default function StoryboardPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [upscaleInput, setUpscaleInput] = useState("");
+  const [upscaleFactor, setUpscaleFactor] = useState("x2");
+  const [upscaleLoading, setUpscaleLoading] = useState(false);
+  const [upscaleError, setUpscaleError] = useState("");
+  const [upscaleResult, setUpscaleResult] = useState(null);
 
   // Загружаем сохранённые данные при монтировании
   useEffect(() => {
@@ -104,6 +109,46 @@ export default function StoryboardPage() {
     a.download = `${result.project_name || "neurocine_storyboard"}.json`.replace(/\s+/g, "_");
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function upscaleImage(imageOverride = "") {
+    const image = String(imageOverride || upscaleInput || "").trim();
+    if (!image) {
+      setUpscaleError("Вставь URL картинки или загрузи файл.");
+      return;
+    }
+    setUpscaleLoading(true);
+    setUpscaleError("");
+    setUpscaleResult(null);
+    try {
+      const res = await fetch("/api/upscale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image, upscale_factor: upscaleFactor, compression_quality: 95 }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Ошибка upscale");
+      setUpscaleResult(data);
+    } catch (e) {
+      setUpscaleError(e.message || "Ошибка upscale");
+    } finally {
+      setUpscaleLoading(false);
+    }
+  }
+
+  function handleUpscaleFile(file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setUpscaleError("Файл больше 10MB. Для Replicate google/upscaler нужен файл до 10MB или URL.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUpscaleInput(String(reader.result || ""));
+      setUpscaleError("");
+    };
+    reader.onerror = () => setUpscaleError("Не удалось прочитать файл.");
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -178,6 +223,56 @@ export default function StoryboardPage() {
               <div style={{ color: "#64748b", fontSize: 11, marginTop: 9 }}>
                 {mode === "safe" ? "Для сайта и GPT API: безопасные формулировки, стабильный JSON, меньше блокировок." : "Для усиленных video prompts: больше камеры, движения и напряжения, но без эротизации и инструкционного насилия."}
               </div>
+            </Field>
+
+            <div style={{ height: 18 }} />
+            <Field title="Upscale Pipeline · Replicate">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                {["x2", "x4"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setUpscaleFactor(f)}
+                    style={{
+                      padding: "10px 8px",
+                      borderRadius: 12,
+                      border: upscaleFactor === f ? "1px solid #38bdf8" : "1px solid rgba(148,163,184,.2)",
+                      background: upscaleFactor === f ? "rgba(14,165,233,.16)" : "rgba(2,6,23,.75)",
+                      color: upscaleFactor === f ? "#bae6fd" : "#94a3b8",
+                      fontWeight: 950,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={upscaleInput.startsWith("data:") ? "Файл загружен как data URL" : upscaleInput}
+                onChange={(e) => setUpscaleInput(e.target.value)}
+                placeholder="URL картинки для upscale..."
+                style={{ width: "100%", borderRadius: 12, border: "1px solid rgba(148,163,184,.18)", background: "rgba(2,6,23,.78)", color: "#e5e7eb", padding: 10, outline: "none", fontSize: 12, boxSizing: "border-box" }}
+              />
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => handleUpscaleFile(e.target.files?.[0])}
+                style={{ width: "100%", marginTop: 8, fontSize: 11, color: "#94a3b8" }}
+              />
+              <button
+                onClick={() => upscaleImage()}
+                disabled={upscaleLoading || !upscaleInput}
+                style={{ width: "100%", marginTop: 9, padding: "12px 14px", border: 0, borderRadius: 14, background: upscaleLoading || !upscaleInput ? "#334155" : "linear-gradient(135deg,#0284c7,#22c55e)", color: "white", fontWeight: 950, cursor: upscaleLoading || !upscaleInput ? "not-allowed" : "pointer" }}
+              >
+                {upscaleLoading ? "Upscale…" : `Upscale ${upscaleFactor.toUpperCase()}`}
+              </button>
+              {upscaleError && <div style={{ marginTop: 9, color: "#fecaca", fontSize: 11 }}>{upscaleError}</div>}
+              {upscaleResult?.output && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <a href={upscaleResult.output} target="_blank" rel="noreferrer" style={{ color: "#86efac", fontSize: 12, fontWeight: 900 }}>Открыть улучшенное изображение ↗</a>
+                  <CopyButton text={upscaleResult.output} label="Копировать URL upscale" />
+                </div>
+              )}
+              <div style={{ color: "#64748b", fontSize: 11, marginTop: 9 }}>Replicate google/upscaler: x2/x4, compression 95. Ключ хранится на сервере как REPLICATE_API_TOKEN.</div>
             </Field>
 
             <div style={{ height: 18 }} />
