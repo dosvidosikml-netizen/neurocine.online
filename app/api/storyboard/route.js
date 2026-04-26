@@ -193,6 +193,43 @@ Increase through:
 
 Do NOT escalate through explicit gore in safe mode.
 
+# STORYBOARD ENGINE V2 QUALITY CONTROL
+
+Image prompts must be CLEAN and not overloaded.
+Use only compact optics and quality signal:
+- ARRI Alexa 65
+- Zeiss Master Prime
+- T2.8
+- cinematic sharp focus
+- film-level detail
+- Kodak Vision3 500T grain
+
+Do NOT spam negative lists such as no blur / no plastic skin / no smudged faces / 8k texture fidelity / high frequency details. Those are treated as prompt noise.
+
+Every video_prompt_en and video_prompt_grok_en must include grounded physical realism:
+- inertia and weight in movement
+- resistance and contact with surfaces
+- visible breath in cold air when appropriate
+- cloth reacting to wind and pressure
+- environmental particles moving with motion
+- organic handheld operator drift
+- slight focus breathing
+- natural exposure shifts
+
+Every scene must include:
+"cut_energy": "low" | "medium" | "high"
+
+Use cut_energy for Shorts/Reels rhythm:
+- hook/reaction = medium
+- aggression/escalation/climax = high
+- pause/evidence/archive = low
+
+The JSON must include:
+"global_video_lock": "grounded physical realism, no floaty motion, realistic inertia, organic camera operator behavior, documentary authenticity"
+
+The JSON must include:
+"postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" }
+
 # SCENE SCORING SYSTEM
 
 Before final output, internally rate every scene 1–10 by:
@@ -278,7 +315,9 @@ JSON STRUCTURE:
   "aspect_ratio": "9:16",
   "total_duration": 0,
   "global_style_lock": "",
+  "global_video_lock": "",
   "character_lock": [],
+  "postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" },
   "scenes": [
     {
       "id": "frame_01",
@@ -292,6 +331,7 @@ JSON STRUCTURE:
       "sfx": "",
       "camera": "",
       "transition": "",
+      "cut_energy": "medium",
       "continuity_note": "",
       "safety_note": ""
     }
@@ -299,7 +339,8 @@ JSON STRUCTURE:
   "export_meta": {
     "engine_target": "",
     "mode": "",
-    "version": "neurocine_vFinal_plus"
+    "version": "neurocine_storyboard_v2",
+    "postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" }
   }
 }
 
