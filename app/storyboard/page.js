@@ -328,7 +328,7 @@ export default function StoryboardPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1240 }}>
                     <thead>
                       <tr style={{ background: "rgba(15,23,42,.92)" }}>
-                        {['ID / TIME','BEAT','DESCRIPTION (RU)','IMAGE PROMPT (EN)','VIDEO PROMPT (EN)','VO (RU)','SFX','CAMERA','CONTINUITY / SAFETY'].map((h) => <th key={h} style={{ padding: 12, borderBottom: "1px solid rgba(148,163,184,.16)", borderRight: "1px solid rgba(148,163,184,.1)", textAlign: "left", fontSize: 10, color: "#c4b5fd", letterSpacing: 1, whiteSpace: "nowrap" }}>{h}</th>)}
+                        {['ID / TIME','BEAT','DESCRIPTION (RU)','IMAGE PROMPT (EN)','VIDEO PROMPT (EN)','GROK IMAGE (AUTO)','GROK VIDEO (AUTO)','VO (RU)','SFX','CAMERA','CONTINUITY / SAFETY'].map((h) => <th key={h} style={{ padding: 12, borderBottom: "1px solid rgba(148,163,184,.16)", borderRight: "1px solid rgba(148,163,184,.1)", textAlign: "left", fontSize: 10, color: "#c4b5fd", letterSpacing: 1, whiteSpace: "nowrap" }}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -339,6 +339,8 @@ export default function StoryboardPage() {
                           <td style={tdStyle}>{s.description_ru}</td>
                           <td style={{ ...tdStyle, width: 280 }}><div style={mono}>{s.image_prompt_en}</div><CopyButton text={s.image_prompt_en} label="IMG" /></td>
                           <td style={{ ...tdStyle, width: 320 }}><div style={mono}>{s.video_prompt_en}</div><CopyButton text={s.video_prompt_en} label="VID" /></td>
+                          <td style={{ ...tdStyle, width: 300 }}><div style={mono}>{s.image_prompt_grok_en || s.image_prompt_en}</div><CopyButton text={s.image_prompt_grok_en || s.image_prompt_en} label="G-IMG" /></td>
+                          <td style={{ ...tdStyle, width: 340 }}><div style={mono}>{s.video_prompt_grok_en || s.video_prompt_en}</div><CopyButton text={s.video_prompt_grok_en || s.video_prompt_en} label="G-VID" /></td>
                           <td style={tdStyle}>{s.vo_ru}</td>
                           <td style={tdStyle}>{s.sfx}</td>
                           <td style={tdStyle}>{s.camera}</td>
