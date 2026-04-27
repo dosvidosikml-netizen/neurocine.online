@@ -429,35 +429,57 @@ function extractJson(text = "") {
     .replace(/```$/i, "")
     .trim();
 
-  try {
-    return JSON.parse(cleaned);
-  } catch (_) {}
+  // Attempt 1: clean parse
+  try { return JSON.parse(cleaned); } catch (_) {}
 
-  // Пробуем найти полный объект между { и }
+  // Attempt 2: find outermost { }
   const first = cleaned.indexOf("{");
   const last = cleaned.lastIndexOf("}");
   if (first >= 0 && last > first) {
     try { return JSON.parse(cleaned.slice(first, last + 1)); } catch (_) {}
   }
 
-  // Ответ обрезан (max_tokens) — пробуем восстановить частичный JSON.
-  // Закрываем незакрытые массивы/объекты в конце строки.
+  // Attempt 3: aggressive partial recovery (обрезан по max_tokens)
   if (first >= 0) {
     let partial = cleaned.slice(first);
-    // Убираем хвост начиная с последней запятой (незавершённый элемент)
+
+    // Strip trailing incomplete string value (unclosed quote)
+    partial = partial.replace(/,?\s*"[^"]*$/, "");
+
+    // Strip trailing incomplete key (e.g. "key": )
+    partial = partial.replace(/,?\s*"[^"]+"\s*:\s*$/, "");
+
+    // Strip trailing comma before we close brackets
     partial = partial.replace(/,\s*$/, "");
-    // Считаем незакрытые [ и {
-    let opens = 0;
+
+    // Count unclosed brackets using a stack
     const stack = [];
     for (const ch of partial) {
-      if (ch === "{" || ch === "[") { stack.push(ch); opens++; }
-      else if (ch === "}" || ch === "]") { stack.pop(); opens--; }
+      if (ch === "{" || ch === "[") stack.push(ch);
+      else if (ch === "}" || ch === "]") stack.pop();
     }
-    // Закрываем в обратном порядке
+    // Close them in reverse order
     for (let i = stack.length - 1; i >= 0; i--) {
       partial += stack[i] === "[" ? "]" : "}";
     }
     try { return JSON.parse(partial); } catch (_) {}
+
+    // Attempt 4: walk back char by char to last valid scene close
+    // Find last complete scene object ending with }
+    const lastCompleteScene = partial.lastIndexOf('"}');
+    if (lastCompleteScene > 0) {
+      let trimmed = partial.slice(0, lastCompleteScene + 2);
+      trimmed = trimmed.replace(/,\s*$/, "");
+      const stack2 = [];
+      for (const ch of trimmed) {
+        if (ch === "{" || ch === "[") stack2.push(ch);
+        else if (ch === "}" || ch === "]") stack2.pop();
+      }
+      for (let i = stack2.length - 1; i >= 0; i--) {
+        trimmed += stack2[i] === "[" ? "]" : "}";
+      }
+      try { return JSON.parse(trimmed); } catch (_) {}
+    }
   }
 
   throw new Error("Модель вернула неполный JSON — попробуйте ещё раз или уменьшите длительность видео");
@@ -495,7 +517,7 @@ export async function POST(req) {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userInput },
         ],
-        max_tokens: 12000,
+        max_tokens: 32000,
         temperature: mode === "raw" ? 0.55 : 0.3,
         top_p: 0.9,
         response_format: { type: "json_object" },
