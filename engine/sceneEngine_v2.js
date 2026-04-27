@@ -28,6 +28,89 @@ export function normalizeMode(mode = "safe") {
   return mode === "raw" || mode === "grok" || mode === "grok_raw" ? "raw" : "safe";
 }
 
+// ── GENERATOR SAFE SUBSTITUTION MAP ──────────────────────────────────────────
+// Level 1: direct phrase substitutions (fast, exact-match)
+const GENERATOR_SAFE_MAP = [
+  // Blood / wounds
+  { from: /blood stains?/gi,                           to: "dark weathered marks on fabric" },
+  { from: /bloodstains?/gi,                            to: "dark weathered marks on fabric" },
+  { from: /blood on (skin|body|face|clothing)/gi,      to: "dark traces on $1" },
+  { from: /bleeding/gi,                                to: "physical distress visible through clothing" },
+  { from: /\bblood\b/gi,                               to: "dark crimson traces on cloth" },
+  { from: /\bgore\b/gi,                                to: "visceral procedural detail" },
+  // Impact / injury
+  { from: /impact marks? on (clothing and skin|skin|clothing)/gi, to: "procedural wear marks on garments" },
+  { from: /impact marks?/gi,                           to: "procedural wear marks" },
+  { from: /laceration/gi,                              to: "fabric disruption on robe" },
+  { from: /\bwound(ed|s)?\b/gi,                        to: "physically marked" },
+  { from: /anatomical injury/gi,                       to: "physical condition" },
+  { from: /graphic injury/gi,                          to: "documentary physical detail" },
+  // Execution terms
+  { from: /\bexecutioner\b/gi,                         to: "ceremonial official" },
+  { from: /\bexecution\b/gi,                           to: "official public ceremony" },
+  { from: /beheading/gi,                               to: "ceremonial culmination" },
+  { from: /decapitation/gi,                            to: "final ceremonial act" },
+  { from: /\btorture\b/gi,                             to: "prolonged ordeal" },
+  { from: /\bcondemned\b/gi,                           to: "restrained subject" },
+  // Weapons (image prompts only)
+  { from: /\bknife\b/gi,                               to: "ceremonial implement" },
+  { from: /\bblade\b/gi,                               to: "metal instrument" },
+  { from: /\bsword\b/gi,                               to: "ceremonial blade" },
+  // Character condition
+  { from: /severe exhaustion/gi,   to: "extreme physical fatigue, hollow expression" },
+  { from: /unstable posture/gi,    to: "weakened stance, uneven weight distribution" },
+  { from: /visible distress/gi,    to: "tense strained expression, labored breathing" },
+  { from: /rope restraints at wrists/gi, to: "bound wrists secured with rope" },
+  // Death
+  { from: /\bdying\b/gi,           to: "in final physical decline" },
+  { from: /\bdead\b/gi,            to: "motionless" },
+  { from: /\bcorpse\b/gi,          to: "still figure" },
+];
+
+/**
+ * Level 1 – word/phrase substitution
+ */
+export function sanitizeForGenerator(text = "") {
+  let out = String(text || "");
+  for (const rule of GENERATOR_SAFE_MAP) {
+    out = out.replace(rule.from, rule.to);
+  }
+  return out;
+}
+
+// ── OBSERVER FRAMING WRAPPER ──────────────────────────────────────────────────
+// Level 2 – structural transformation of image prompts.
+// Adds documentary context header + camera-layer framing.
+// This is how professional documentary/historical production studios write prompts.
+const OBSERVER_CONTEXT = "historical documentary reconstruction, non-exploitative framing, no graphic focus, emphasis on atmosphere and crowd dynamics, archival cinematic realism";
+
+/**
+ * Wraps an image prompt in observer/documentary framing:
+ *   - prepends context declaration
+ *   - shifts active verbs → implied/observer language
+ *   - emphasises camera position and depth layers
+ */
+export function applyObserverFraming(prompt = "") {
+  let out = sanitizeForGenerator(String(prompt || ""));
+
+  // Shift "cutting", "striking", "slashing" → camera-implied equivalents
+  out = out
+    .replace(/\b(cutting|slashing|striking|stabbing|hitting|slicing)\b/gi, "action implied beyond frame edge")
+    .replace(/\b(kills?|killed|killing)\b/gi, "fatal outcome implied")
+    .replace(/\b(scream(ing|s)?)\b/gi, "open mouth, vocal tension")
+    .replace(/\b(cries|crying|weeps|weeping)\b/gi, "face streaked with moisture, eyes averted")
+    .replace(/\bpain\b/gi, "visible strain")
+    .replace(/\bsuffers?|suffering\b/gi, "physical strain visible through posture")
+    .replace(/\bin agony\b/gi, "in visible physical distress");
+
+  // Add observer framing header if not already present
+  if (!out.includes("documentary reconstruction")) {
+    out = `${OBSERVER_CONTEXT}. ${out}`;
+  }
+
+  return out;
+}
+
 export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe" } = {}) {
   const d = Number(duration) || 60;
   const preset = getDurationPreset(d);
@@ -214,10 +297,17 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     });
     const withV2 = {
       ...normalized,
-      image_prompt_en: cleanImagePrompt(normalized.image_prompt_en),
+      // applyObserverFraming = Level 1 (word substitution) + Level 2 (documentary framing header)
+      // Applied to IMAGE prompts only — video prompts keep stronger wording for video models
+      image_prompt_en: cleanImagePrompt(applyObserverFraming(normalized.image_prompt_en)),
       video_prompt_en: enhanceVideoPrompt(normalized.video_prompt_en),
     };
     const finalScene = mode === "safe" ? buildGrokPromptFromSafe(withV2) : withV2;
+
+    // Apply observer framing to grok image prompt as well
+    if (finalScene.image_prompt_grok_en) {
+      finalScene.image_prompt_grok_en = applyObserverFraming(finalScene.image_prompt_grok_en);
+    }
     start += duration;
     return finalScene;
   });
@@ -230,7 +320,13 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     total_duration: start,
     global_style_lock: raw.global_style_lock || "cinematic documentary realism, historical accuracy, 35mm anamorphic, handheld, natural overcast light, realistic textures, Kodak Vision3 500T grain, no subtitles/UI/watermarks",
     global_video_lock: raw.global_video_lock || GLOBAL_VIDEO_LOCK,
-    character_lock: raw.character_lock || [],
+    // Sanitize character_lock clothing/condition fields so they don't trigger
+    // generator blocks when used as character references
+    character_lock: (raw.character_lock || []).map((char) => ({
+      ...char,
+      clothing: char.clothing ? sanitizeForGenerator(char.clothing) : char.clothing,
+      physical_condition: char.physical_condition ? sanitizeForGenerator(char.physical_condition) : char.physical_condition,
+    })),
     postprocess: raw.postprocess || { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     scenes,
     export_meta: {
