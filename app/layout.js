@@ -1,2 +1,12 @@
-export const metadata = { title: 'NeuroCine Director v4', description: 'AI video production studio' };
-export default function RootLayout({ children }) { return <html lang="ru"><body>{children}</body></html>; }
+export const metadata = {
+  title: "NeuroCine Director Studio v4",
+  description: "AI video production studio with director controlled storyboard pipeline"
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="ru">
+      <body>{children}</body>
+    </html>
+  );
+}

@@ -1,259 +1,292 @@
 "use client";
+
 import { useMemo, useState } from "react";
 
-const projectTypes = {
-  film: ["Cinematic realism", "Netflix documentary", "Historical reconstruction", "Dark thriller", "Gritty handheld realism", "True crime", "War documentary"],
-  animation: ["2D animation", "2.5D animation", "3D cartoon", "Dark adult animation", "Stop motion", "Watercolor animation", "Paper cutout"],
-  anime: ["Cinematic anime", "Dark anime realism", "Historical anime", "Painterly anime"],
-  comic: ["Graphic novel", "Dark comic book", "Ink wash comic"],
-  commercial: ["Premium ad", "Music video", "Fashion film"]
+const PROJECT_TYPES = {
+  film: { label: "Фильм", styles: [
+    ["cinematic_realism", "Cinematic Realism"],
+    ["historical_doc", "Historical Documentary"],
+    ["dark_thriller", "Dark Thriller"],
+    ["true_crime", "True Crime"],
+    ["war_doc", "War Documentary"]
+  ]},
+  animation: { label: "Мультфильм", styles: [
+    ["two_d", "2D"],
+    ["two_point_five_d", "2.5D"],
+    ["three_d_cartoon", "3D Cartoon"],
+    ["dark_adult_animation", "Dark Adult"],
+    ["stop_motion", "Stop Motion"]
+  ]},
+  anime: { label: "Аниме", styles: [
+    ["cinematic_anime", "Cinematic Anime"],
+    ["dark_anime", "Dark Anime"]
+  ]},
+  comic: { label: "Комикс", styles: [
+    ["graphic_novel", "Graphic Novel"],
+    ["european_comic", "European Comic"]
+  ]}
 };
 
-const typeLabels = { film: "Фильм", animation: "Мультфильм", anime: "Аниме", comic: "Комикс", commercial: "Реклама / клип" };
+function cls(active, busy) {
+  if (busy) return "btn busy";
+  return active ? "btn active" : "btn";
+}
 
-function classNames(...items) { return items.filter(Boolean).join(" "); }
+function toDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function Page() {
   const [script, setScript] = useState("");
   const [projectType, setProjectType] = useState("film");
-  const [stylePreset, setStylePreset] = useState("Cinematic realism");
+  const [stylePreset, setStylePreset] = useState("cinematic_realism");
   const [duration, setDuration] = useState(60);
-  const [storyboard, setStoryboard] = useState(null);
+  const [project, setProject] = useState(null);
   const [selectedFrameId, setSelectedFrameId] = useState(null);
+  const [selectedVariant, setSelectedVariant] = useState("A");
   const [explorePrompt, setExplorePrompt] = useState("");
-  const [exploreGrid, setExploreGrid] = useState(null);
-  const [selectedVariant, setSelectedVariant] = useState(null);
+  const [gridImage, setGridImage] = useState("");
   const [lockedPrompt, setLockedPrompt] = useState("");
-  const [lockedImage, setLockedImage] = useState(null);
-  const [analysis, setAnalysis] = useState("");
+  const [lockedImage, setLockedImage] = useState("");
+  const [analysis, setAnalysis] = useState(null);
   const [videoPrompt, setVideoPrompt] = useState("");
-  const [activeAction, setActiveAction] = useState("");
+  const [busy, setBusy] = useState("");
   const [status, setStatus] = useState("Готов к работе");
   const [error, setError] = useState("");
 
-  const frames = storyboard?.scenes || [];
+  const frames = project?.scenes || [];
   const selectedFrame = useMemo(() => frames.find((f) => f.id === selectedFrameId) || frames[0] || null, [frames, selectedFrameId]);
 
-  function setType(type) {
-    setProjectType(type);
-    setStylePreset(projectTypes[type][0]);
-  }
-
-  async function copy(text) {
+  function copy(text) {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(typeof text === "string" ? text : JSON.stringify(text, null, 2));
     setStatus("Скопировано");
-    setTimeout(() => setStatus("Готов к работе"), 1200);
   }
 
-  function clearValue(setter) { setter(""); }
+  function clearSetter(setter) {
+    setter("");
+    setStatus("Блок очищен");
+  }
 
-  function fileToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Ошибка API");
+    return data;
   }
 
-  async function loadProjectFile(file) {
+  async function generateStoryboard() {
+    try {
+      setError("");
+      setBusy("storyboard");
+      setStatus("Генерирую storyboard через Director Core...");
+      const data = await api("/api/storyboard", { script, projectType, stylePreset, duration });
+      setProject(data);
+      setSelectedFrameId(data?.scenes?.[0]?.id || null);
+      setExplorePrompt("");
+      setGridImage("");
+      setLockedPrompt("");
+      setLockedImage("");
+      setAnalysis(null);
+      setVideoPrompt("");
+      setStatus("Storyboard готов. Выбери кадр и нажми Explore.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function importProjectJson(file) {
     if (!file) return;
-    setActiveAction("import");
-    setError("");
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      const scenes = Array.isArray(data.scenes) ? data.scenes : [];
-      const normalized = { ...data, scenes };
-      setStoryboard(normalized);
-      setSelectedFrameId(scenes[0]?.id || null);
-      setStatus("JSON проекта загружен");
+      setProject(data);
+      setScript(data.script || script);
+      setProjectType(data.project_type || "film");
+      setStylePreset(data.style_preset || "cinematic_realism");
+      setSelectedFrameId(data?.scenes?.[0]?.id || null);
+      setStatus("JSON storyboard загружен");
     } catch (e) {
-      setError("Не удалось прочитать JSON. Проверь файл.");
-    } finally {
-      setActiveAction("");
+      setError("Не удалось прочитать JSON: " + e.message);
     }
   }
 
-  async function createStoryboard() {
-    if (!script.trim()) { setError("Сначала вставь сценарий или JSON."); return; }
-    setActiveAction("storyboard");
-    setError("");
-    setStatus("Генерирую storyboard через Director Core...");
+  async function exploreFrame() {
+    if (!selectedFrame) return setError("Сначала выбери кадр");
     try {
-      let body;
-      try {
-        const parsed = JSON.parse(script);
-        body = { script: JSON.stringify(parsed, null, 2), projectType, stylePreset, duration };
-      } catch (_) {
-        body = { script, projectType, stylePreset, duration };
-      }
-      const res = await fetch("/api/storyboard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Storyboard error");
-      setStoryboard(data.storyboard);
-      setSelectedFrameId(data.storyboard?.scenes?.[0]?.id || null);
-      setExplorePrompt(""); setExploreGrid(null); setSelectedVariant(null); setLockedPrompt(""); setLockedImage(null); setAnalysis(""); setVideoPrompt("");
-      setStatus("Storyboard готов");
+      setError("");
+      setBusy("explore");
+      setStatus("Создаю промт для сетки 2x2 выбранного кадра...");
+      const data = await api("/api/explore", { frame: selectedFrame, projectType, stylePreset });
+      setExplorePrompt(data.prompt || "");
+      setStatus("Explore prompt готов. Скопируй его и сгенерируй сетку в Nano Banana Pro.");
     } catch (e) {
-      setError(e.message || "Ошибка storyboard");
+      setError(e.message);
     } finally {
-      setActiveAction("");
+      setBusy("");
     }
   }
 
-  async function createExplorePrompt() {
-    if (!selectedFrame) { setError("Выбери кадр."); return; }
-    setActiveAction("explore"); setError(""); setStatus("Собираю промт сетки 2×2...");
-    try {
-      const res = await fetch("/api/explore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ frame: selectedFrame, project: storyboard }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Explore error");
-      setExplorePrompt(data.prompt);
-      setStatus("Explore промт готов");
-    } catch (e) { setError(e.message || "Ошибка Explore"); }
-    finally { setActiveAction(""); }
+  async function uploadGrid(file) {
+    if (!file) return;
+    setGridImage(await toDataUrl(file));
+    setStatus("Сетка загружена. Выбери лучший вариант A/B/C/D.");
   }
 
-  async function create2KPrompt() {
-    if (!selectedFrame) { setError("Выбери кадр."); return; }
-    if (!selectedVariant) { setError("Выбери вариант A/B/C/D."); return; }
-    setActiveAction("lock"); setError(""); setStatus("Фиксирую выбранный вариант...");
+  async function lockVariant() {
+    if (!selectedFrame) return setError("Сначала выбери кадр");
     try {
-      const res = await fetch("/api/explore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "2k", frame: selectedFrame, variant: selectedVariant, project: storyboard }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "2K prompt error");
-      setLockedPrompt(data.prompt);
-      setStatus("2K image prompt готов");
-    } catch (e) { setError(e.message || "Ошибка LOCK"); }
-    finally { setActiveAction(""); }
+      setError("");
+      setBusy("lock");
+      setStatus("Фиксирую выбранный вариант и готовлю 2K prompt...");
+      const data = await api("/api/explore", { mode: "2k", frame: selectedFrame, selectedVariant, projectType, stylePreset });
+      setLockedPrompt(data.prompt || "");
+      setStatus("2K prompt готов. Сгенерируй финальный кадр и загрузи его ниже.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
   }
 
-  async function analyzeLockedImage() {
-    if (!lockedImage?.dataUrl) { setError("Загрузи финальный 2K кадр для анализа."); return; }
-    if (!selectedFrame) { setError("Выбери кадр."); return; }
-    setActiveAction("analyze"); setError(""); setStatus("Сканирую изображение через Vision...");
-    try {
-      const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: lockedImage.dataUrl, frame: selectedFrame, project: storyboard }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analyze error");
-      setAnalysis(data.analysis);
-      setStatus("Анализ готов");
-    } catch (e) { setError(e.message || "Ошибка анализа"); }
-    finally { setActiveAction(""); }
+  async function uploadLocked(file) {
+    if (!file) return;
+    setLockedImage(await toDataUrl(file));
+    setStatus("Финальный кадр загружен. Теперь можно сканировать для video prompt.");
   }
 
-  async function createVideoPrompt() {
-    if (!selectedFrame) { setError("Выбери кадр."); return; }
-    setActiveAction("video"); setError(""); setStatus("Собираю video prompt строго по сценарию...");
+  async function analyzeImage() {
+    if (!lockedImage) return setError("Сначала загрузи финальный 2K кадр");
     try {
-      const res = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ frame: selectedFrame, analysis, project: storyboard }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Video prompt error");
-      setVideoPrompt(data.prompt);
+      setError("");
+      setBusy("analyze");
+      setStatus("Сканирую кадр через Vision и вытаскиваю Visual DNA...");
+      const data = await api("/api/analyze", { imageDataUrl: lockedImage, frame: selectedFrame, selectedVariant });
+      setAnalysis(data);
+      setStatus("Анализ готов. Можно сгенерировать финальный video prompt.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function generateVideo() {
+    if (!selectedFrame) return setError("Сначала выбери кадр");
+    try {
+      setError("");
+      setBusy("video");
+      setStatus("Генерирую video prompt строго по сценарию и выбранному кадру...");
+      const data = await api("/api/video", { frame: selectedFrame, selectedVariant, visualDna: analysis?.visual_dna || null });
+      setVideoPrompt(data.video_prompt_en || "");
       setStatus("Video prompt готов");
-    } catch (e) { setError(e.message || "Ошибка video prompt"); }
-    finally { setActiveAction(""); }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
   }
 
   function exportProject() {
-    const payload = { ...storyboard, director_v4: { projectType, stylePreset, selectedFrameId, selectedVariant, explorePrompt, lockedPrompt, analysis, videoPrompt } };
+    const payload = { ...project, script, selectedFrameId, selectedVariant, explorePrompt, lockedPrompt, analysis, videoPrompt };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "neurocine_director_project.json"; a.click(); URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "neurocine-director-project.json";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
-  function exportTxt() {
-    const text = [`PROJECT: ${storyboard?.project_name || "NeuroCine"}`, `STYLE: ${stylePreset}`, "", "EXPLORE PROMPT:", explorePrompt, "", "2K IMAGE PROMPT:", lockedPrompt, "", "ANALYSIS:", analysis, "", "VIDEO PROMPT:", videoPrompt].join("\n");
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "neurocine_prompts.txt"; a.click(); URL.revokeObjectURL(url);
-  }
+  return (
+    <main className="page">
+      <section className="hero">
+        <div>
+          <p className="eyebrow">NeuroCine Director Studio v4</p>
+          <h1>Режиссёрский пайплайн кадр за кадром</h1>
+          <p className="sub">Сценарий фиксируется как закон. Меняются только ракурс, линза, композиция и движение камеры.</p>
+        </div>
+        <div className="statusBox">
+          <span className={busy ? "dot pulse" : "dot"}></span>
+          <b>{busy ? "Работает" : "Готово"}</b>
+          <p>{status}</p>
+          {error && <p className="err">{error}</p>}
+        </div>
+      </section>
 
-  async function handleExploreGrid(file) {
-    if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    setExploreGrid({ name: file.name, dataUrl });
-    setStatus("Сетка вариантов загружена");
-  }
-  async function handleLockedImage(file) {
-    if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    setLockedImage({ name: file.name, dataUrl });
-    setStatus("Финальный кадр загружен");
-  }
-
-  const isBusy = Boolean(activeAction);
-
-  return <main className="page">
-    <style jsx global>{`
-      *{box-sizing:border-box} body{margin:0;background:#090a0f;color:#f5f7fb;font-family:Inter,Arial,sans-serif} button,input,textarea,select{font:inherit} textarea{resize:vertical}
-      .page{min-height:100vh;padding:24px;background:radial-gradient(circle at 10% 0%,#222048 0,#090a0f 34%,#07080c 100%)}
-      .top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.brand h1{margin:0;font-size:28px}.brand p{margin:6px 0 0;color:#a8afc0}.status{padding:10px 14px;border:1px solid #2b3145;border-radius:14px;background:#111522;color:#cfd6e8}.error{padding:10px 14px;border:1px solid #6b2631;border-radius:14px;background:#2b1117;color:#ffbac5;margin-bottom:14px}
-      .grid{display:grid;grid-template-columns:minmax(320px,0.95fr) minmax(360px,1.15fr) minmax(320px,0.95fr);gap:16px}.card{background:rgba(17,20,31,.88);border:1px solid #283045;border-radius:22px;padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22)}.card h2{font-size:16px;margin:0 0 12px}.label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#8f98ad;margin:12px 0 8px}.textarea{width:100%;min-height:170px;border:1px solid #30384f;border-radius:16px;padding:12px;background:#0b0e16;color:#f5f7fb;outline:none}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.btn{border:1px solid #3b4563;background:#151a28;color:#e8ecf7;border-radius:12px;padding:10px 12px;cursor:pointer;transition:.15s}.btn:hover{background:#20283a}.btn.primary{background:#6d4cff;border-color:#8066ff;color:white}.btn.active,.btn.busy{background:#ff9f2d;border-color:#ffc06d;color:#160e04;box-shadow:0 0 0 3px rgba(255,159,45,.16)}.btn.selected{background:#4cdb8f;border-color:#8ef0b8;color:#07130d}.btn.danger{background:#2a151a;border-color:#6d2635;color:#ffbdc7}.pill{padding:9px 11px;border:1px solid #323a54;border-radius:999px;background:#0d111b;color:#cfd6e8;cursor:pointer}.pill.active{background:#6d4cff;color:white;border-color:#8a74ff}.input{width:100%;border:1px solid #30384f;border-radius:13px;padding:10px;background:#0b0e16;color:#f5f7fb}.frames{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:540px;overflow:auto;padding-right:4px}.frame{border:1px solid #2b334b;background:#0d111b;border-radius:14px;padding:10px;text-align:left;cursor:pointer;min-height:92px}.frame.active{border-color:#8a74ff;background:#1d1741}.frame b{display:block;color:#fff;margin-bottom:5px}.frame span{display:block;color:#aab2c4;font-size:12px;line-height:1.35}.tool{border:1px solid #283045;background:#0c101a;border-radius:18px;padding:12px;margin-bottom:12px}.toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px;align-items:center}.toolbar small{color:#8f98ad}.output{white-space:pre-wrap;background:#080a10;border:1px solid #242b3d;border-radius:14px;padding:12px;min-height:92px;color:#dce3f4;font-size:12px;line-height:1.45;overflow:auto;max-height:300px}.preview{width:100%;border-radius:14px;border:1px solid #30384f;margin-top:10px;display:block}.variants{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.variant{height:48px;border-radius:14px;border:1px solid #30384f;background:#111827;color:#fff;cursor:pointer}.variant.active{background:#4cdb8f;color:#07130d;border-color:#8ef0b8}.hint{color:#9aa3b8;font-size:12px;line-height:1.45}.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:1100px){.grid{grid-template-columns:1fr}.top{display:block}.status{margin-top:12px}.frames{grid-template-columns:1fr}.split{grid-template-columns:1fr}}
-    `}</style>
-
-    <section className="top">
-      <div className="brand"><h1>🎬 NeuroCine Director v4</h1><p>Ручной режиссёрский pipeline: сценарий → кадр → 4 варианта → лучший кадр → Vision анализ → video prompt.</p></div>
-      <div className="status">{isBusy ? `В процессе: ${activeAction}` : status}</div>
-    </section>
-    {error && <div className="error">{error}</div>}
-
-    <section className="grid">
-      <div className="card">
-        <h2>1. Сценарий и стиль</h2>
-        <div className="toolbar"><small>Сценарий / JSON</small><div><button className="btn" onClick={() => copy(script)}>Копировать</button><button className="btn danger" onClick={() => setScript("")}>Удалить</button></div></div>
-        <textarea className="textarea" value={script} onChange={(e)=>setScript(e.target.value)} placeholder="Вставь сценарий или storyboard JSON..." />
-        <div className="label">Или загрузить JSON</div><input className="input" type="file" accept="application/json,.json" onChange={(e)=>loadProjectFile(e.target.files?.[0])}/>
-        <div className="label">Тип проекта</div><div className="row">{Object.keys(projectTypes).map(t=><button key={t} onClick={()=>setType(t)} className={classNames("pill", projectType===t&&"active")}>{typeLabels[t]}</button>)}</div>
-        <div className="label">Стиль</div><div className="row">{projectTypes[projectType].map(s=><button key={s} onClick={()=>setStylePreset(s)} className={classNames("pill", stylePreset===s&&"active")}>{s}</button>)}</div>
-        <div className="split"><div><div className="label">Длительность</div><input className="input" type="number" min="15" max="600" value={duration} onChange={(e)=>setDuration(e.target.value)}/></div><div><div className="label">Scenario Lock</div><div className="hint">Сюжет, персонажи, локации, таймлайн и эмоция заблокированы. Меняются только ракурс/камера/композиция.</div></div></div>
-        <div className="row" style={{marginTop:14}}><button className={classNames("btn primary",activeAction==="storyboard"&&"busy")} disabled={isBusy} onClick={createStoryboard}>Создать Storyboard</button>{storyboard&&<><button className="btn" onClick={exportProject}>Экспорт JSON</button><button className="btn" onClick={exportTxt}>Экспорт TXT</button></>}</div>
-      </div>
-
-      <div className="card">
-        <h2>2. Storyboard Grid</h2>
-        {!frames.length && <p className="hint">После генерации здесь появятся кадры. Клик по кадру выбирает его для Explore.</p>}
-        <div className="frames">{frames.map((f)=><button key={f.id} onClick={()=>{setSelectedFrameId(f.id); setSelectedVariant(null);}} className={classNames("frame", selectedFrame?.id===f.id&&"active")}><b>{f.id} · {f.start ?? 0}s</b><span>{f.description_ru || f.locked_story_action}</span></button>)}</div>
-      </div>
-
-      <div className="card">
-        <h2>3. Frame Control</h2>
-        {selectedFrame ? <div className="tool"><b>{selectedFrame.id}</b><p className="hint">{selectedFrame.description_ru}</p><p className="hint"><b>VO:</b> {selectedFrame.vo_ru || "—"}</p><p className="hint"><b>SFX:</b> {selectedFrame.sfx || "—"}</p></div> : <p className="hint">Выбери кадр.</p>}
-
-        <div className="tool">
-          <div className="toolbar"><small>Explore 2×2 prompt</small><div><button className="btn" onClick={()=>copy(explorePrompt)}>Копировать</button><button className="btn danger" onClick={()=>clearValue(setExplorePrompt)}>Удалить</button></div></div>
-          <button className={classNames("btn primary",activeAction==="explore"&&"busy")} disabled={isBusy||!selectedFrame} onClick={createExplorePrompt}>Получить сетку 4 вариантов</button>
-          <div className="output">{explorePrompt || "Здесь появится промт для NanoBanana / image model: 2×2 сетка одного кадра."}</div>
+      <section className="grid two">
+        <div className="card">
+          <div className="cardHead"><h2>1. Сценарий</h2><div><button onClick={() => copy(script)}>Копировать</button><button onClick={() => clearSetter(setScript)}>Удалить</button></div></div>
+          <textarea value={script} onChange={(e) => setScript(e.target.value)} placeholder="Вставь сценарий или описание ролика..." />
+          <div className="row">
+            <label className="upload">Импорт JSON<input type="file" accept=".json" onChange={(e) => importProjectJson(e.target.files?.[0])} /></label>
+            <button className={cls(false, busy === "storyboard")} onClick={generateStoryboard}>{busy === "storyboard" ? "Генерирую..." : "Создать storyboard"}</button>
+          </div>
         </div>
 
-        <div className="tool">
-          <div className="toolbar"><small>Загрузка сетки вариантов</small><button className="btn danger" onClick={()=>setExploreGrid(null)}>Удалить</button></div>
-          <input className="input" type="file" accept="image/*" onChange={(e)=>handleExploreGrid(e.target.files?.[0])}/>
-          {exploreGrid?.dataUrl && <img className="preview" src={exploreGrid.dataUrl} alt="Explore grid"/>}
-          <div className="label">Выбери лучший вариант</div><div className="variants">{["A","B","C","D"].map(v=><button key={v} onClick={()=>setSelectedVariant(v)} className={classNames("variant", selectedVariant===v&&"active")}>{v}</button>)}</div>
+        <div className="card">
+          <h2>2. Стиль проекта</h2>
+          <div className="chips">{Object.entries(PROJECT_TYPES).map(([key, val]) => <button key={key} className={projectType === key ? "chip on" : "chip"} onClick={() => { setProjectType(key); setStylePreset(val.styles[0][0]); }}>{val.label}</button>)}</div>
+          <div className="chips">{PROJECT_TYPES[projectType].styles.map(([key, label]) => <button key={key} className={stylePreset === key ? "chip on" : "chip"} onClick={() => setStylePreset(key)}>{label}</button>)}</div>
+          <label className="smallLabel">Длительность, сек.</label>
+          <input className="number" type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value || 60))} />
+          <div className="lockBox">SCENARIO LOCK: включён. Сюжет, персонажи, локации, VO и хронология не меняются.</div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section className="grid" style={{marginTop:16}}>
-      <div className="card">
-        <h2>4. Lock → 2K Image Prompt</h2>
-        <div className="toolbar"><small>Промт финального кадра</small><div><button className="btn" onClick={()=>copy(lockedPrompt)}>Копировать</button><button className="btn danger" onClick={()=>clearValue(setLockedPrompt)}>Удалить</button></div></div>
-        <button className={classNames("btn primary",activeAction==="lock"&&"busy")} disabled={isBusy||!selectedVariant} onClick={create2KPrompt}>Зафиксировать выбранный кадр</button>
-        <div className="output">{lockedPrompt || "После выбора A/B/C/D здесь появится точный image prompt для генерации кадра в 2K."}</div>
-      </div>
-      <div className="card">
-        <h2>5. Загрузка финального 2K кадра</h2>
-        <div className="toolbar"><small>Кадр для Vision анализа</small><button className="btn danger" onClick={()=>setLockedImage(null)}>Удалить</button></div>
-        <input className="input" type="file" accept="image/*" onChange={(e)=>handleLockedImage(e.target.files?.[0])}/>
-        {lockedImage?.dataUrl && <img className="preview" src={lockedImage.dataUrl} alt="Locked frame"/>}
-        <button style={{marginTop:12}} className={classNames("btn primary",activeAction==="analyze"&&"busy")} disabled={isBusy||!lockedImage} onClick={analyzeLockedImage}>Сканировать кадр</button>
-      </div>
-      <div className="card">
-        <h2>6. Анализ + Video Prompt</h2>
-        <div className="tool"><div className="toolbar"><small>Анализ кадра</small><div><button className="btn" onClick={()=>copy(analysis)}>Копировать</button><button className="btn danger" onClick={()=>clearValue(setAnalysis)}>Удалить</button></div></div><div className="output">{analysis || "Здесь появится точечный разбор: камера, композиция, свет, движение, атмосфера."}</div></div>
-        <div className="tool"><div className="toolbar"><small>Video prompt</small><div><button className="btn" onClick={()=>copy(videoPrompt)}>Копировать</button><button className="btn danger" onClick={()=>clearValue(setVideoPrompt)}>Удалить</button></div></div><button className={classNames("btn primary",activeAction==="video"&&"busy")} disabled={isBusy||!selectedFrame} onClick={createVideoPrompt}>Собрать video prompt</button><div className="output">{videoPrompt || "Video prompt будет строго по выбранному кадру и сценарию."}</div></div>
-      </div>
-    </section>
-  </main>;
+      <section className="grid layout">
+        <div className="card storyboard">
+          <div className="cardHead"><h2>3. Storyboard Grid</h2><button onClick={exportProject} disabled={!project}>Export JSON</button></div>
+          {!frames.length && <div className="empty">Пока нет кадров. Создай storyboard или загрузи JSON.</div>}
+          <div className="frames">{frames.map((frame, i) => <button key={frame.id || i} className={selectedFrame?.id === frame.id ? "frame selected" : "frame"} onClick={() => setSelectedFrameId(frame.id)}><b>{frame.id || `frame_${i + 1}`}</b><span>{frame.description_ru || frame.locked_story_action || "Кадр"}</span></button>)}</div>
+        </div>
+
+        <aside className="card side">
+          <h2>4. Контроль кадра</h2>
+          <div className="selectedInfo"><b>{selectedFrame?.id || "Кадр не выбран"}</b><p>{selectedFrame?.description_ru || "Выбери кадр из storyboard."}</p></div>
+          <button className={cls(false, busy === "explore")} onClick={exploreFrame}>{busy === "explore" ? "Генерирую..." : "Explore 2×2 variants"}</button>
+          <button className={cls(false, busy === "lock")} onClick={lockVariant}>{busy === "lock" ? "Фиксирую..." : "Lock variant → 2K prompt"}</button>
+          <button className={cls(false, busy === "analyze")} onClick={analyzeImage}>{busy === "analyze" ? "Сканирую..." : "Analyze image → video options"}</button>
+          <button className={cls(false, busy === "video")} onClick={generateVideo}>{busy === "video" ? "Генерирую..." : "Generate video prompt"}</button>
+          <div className="variants"><span>Вариант:</span>{["A", "B", "C", "D"].map((v) => <button key={v} className={selectedVariant === v ? "var on" : "var"} onClick={() => setSelectedVariant(v)}>{v}</button>)}</div>
+        </aside>
+      </section>
+
+      <section className="grid two">
+        <TextBlock title="5. Prompt для сетки 2×2" value={explorePrompt} onCopy={copy} onClear={() => clearSetter(setExplorePrompt)} />
+        <ImageBlock title="6. Загрузка сетки вариантов" image={gridImage} onUpload={uploadGrid} />
+        <TextBlock title="7. 2K prompt выбранного варианта" value={lockedPrompt} onCopy={copy} onClear={() => clearSetter(setLockedPrompt)} />
+        <ImageBlock title="8. Загрузка финального кадра" image={lockedImage} onUpload={uploadLocked} />
+        <JsonBlock title="9. Скан кадра / Visual DNA" value={analysis} onCopy={copy} onClear={() => setAnalysis(null)} />
+        <TextBlock title="10. Финальный video prompt" value={videoPrompt} onCopy={copy} onClear={() => clearSetter(setVideoPrompt)} />
+      </section>
+
+      <style jsx global>{`
+        *{box-sizing:border-box} body{margin:0;background:#070912;color:#f7f1ff;font-family:Inter,Arial,sans-serif} button{font:inherit} .page{min-height:100vh;padding:22px;background:radial-gradient(circle at top left,#45206e 0,#101526 34%,#06191b 100%)} .hero{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:end;margin-bottom:18px}.eyebrow{color:#b68cff;font-weight:800;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(30px,6vw,62px);line-height:.95;margin:8px 0}.sub{color:#c9bddb;max-width:820px}.statusBox,.card{border:1px solid rgba(255,255,255,.14);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03));box-shadow:0 20px 60px rgba(0,0,0,.35);border-radius:28px;padding:20px;backdrop-filter:blur(14px)}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#35f7b2;margin-right:8px}.pulse{background:#ffb44d;box-shadow:0 0 20px #ffb44d}.err{color:#ff9ba8;font-weight:800}.grid{display:grid;gap:18px;margin-bottom:18px}.two{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr 340px}.cardHead{display:flex;justify-content:space-between;gap:12px;align-items:center}.cardHead div{display:flex;gap:8px}h2{margin:0 0 14px}textarea{width:100%;min-height:220px;border:1px solid rgba(255,255,255,.16);background:#0b0e18;color:#fff;border-radius:20px;padding:16px;resize:vertical}.row{display:flex;gap:12px;align-items:center;margin-top:12px}.btn,.card button,.upload{border:none;border-radius:18px;padding:13px 16px;background:rgba(255,255,255,.09);color:#fff;font-weight:850;cursor:pointer;border:1px solid rgba(255,255,255,.1);transition:.18s}.btn.active,.card button:hover,.upload:hover,.chip.on,.var.on{background:linear-gradient(135deg,#b94cff,#6e35ff);box-shadow:0 0 24px rgba(185,76,255,.4)}.btn.busy{background:linear-gradient(135deg,#ffb84d,#ff4dcc);box-shadow:0 0 28px rgba(255,184,77,.5)}.upload input{display:none}.chips{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}.chip{padding:10px 13px}.smallLabel{color:#bcb2cc;font-size:13px}.number{width:120px;padding:12px;border-radius:14px;background:#0b0e18;color:#fff;border:1px solid rgba(255,255,255,.16);display:block;margin:8px 0 12px}.lockBox{padding:14px;border-radius:18px;background:rgba(53,247,178,.09);border:1px solid rgba(53,247,178,.22);color:#bfffe8}.frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;max-height:680px;overflow:auto}.frame{text-align:left;min-height:120px;display:flex;flex-direction:column;gap:8px}.frame span{font-size:13px;color:#d3c8dd}.frame.selected{background:linear-gradient(135deg,#923cff,#244cff);box-shadow:0 0 25px rgba(146,60,255,.45)}.empty{color:#bcb2cc;padding:30px;border:1px dashed rgba(255,255,255,.18);border-radius:22px}.side{position:sticky;top:18px;align-self:start}.side .btn,.side>button{width:100%;margin:7px 0}.selectedInfo{background:rgba(0,0,0,.26);padding:14px;border-radius:18px;margin-bottom:10px}.selectedInfo p{color:#d7cce2}.variants{display:flex;align-items:center;gap:10px;margin-top:10px}.var{width:48px;height:48px;border-radius:50%}.textOut{white-space:pre-wrap;min-height:240px;max-height:460px;overflow:auto;background:#080b13;border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.12);color:#e9def5}.imagePreview{width:100%;border-radius:22px;border:1px solid rgba(255,255,255,.14);display:block;margin-top:14px}.imageEmpty{height:260px;border-radius:22px;border:1px dashed rgba(255,255,255,.18);display:grid;place-items:center;color:#bcb2cc;margin-top:14px}@media(max-width:900px){.hero,.two,.layout{grid-template-columns:1fr}.side{position:relative;top:0}.page{padding:14px}h1{font-size:38px}}
+      `}</style>
+    </main>
+  );
+}
+
+function TextBlock({ title, value, onCopy, onClear }) {
+  return <div className="card"><div className="cardHead"><h2>{title}</h2><div><button onClick={() => onCopy(value)}>Копировать</button><button onClick={onClear}>Удалить</button></div></div><div className="textOut">{value || "Пока пусто"}</div></div>;
+}
+
+function JsonBlock({ title, value, onCopy, onClear }) {
+  return <div className="card"><div className="cardHead"><h2>{title}</h2><div><button onClick={() => onCopy(value)}>Копировать</button><button onClick={onClear}>Удалить</button></div></div><div className="textOut">{value ? JSON.stringify(value, null, 2) : "Пока пусто"}</div></div>;
+}
+
+function ImageBlock({ title, image, onUpload }) {
+  return <div className="card"><div className="cardHead"><h2>{title}</h2><label className="upload">Загрузить<input type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif" onChange={(e) => onUpload(e.target.files?.[0])} /></label></div>{image ? <img className="imagePreview" src={image} alt="uploaded" /> : <div className="imageEmpty">Загрузи изображение</div>}</div>;
 }
