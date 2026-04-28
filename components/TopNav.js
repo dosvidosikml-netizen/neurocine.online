@@ -4,13 +4,12 @@ export default function TopNav({ active = "home" }) {
   const items = [
     ["home", "/", "Главная"],
     ["chat", "/chat", "Chat"],
-    ["storyboard", "/storyboard", "Storyboard"]
+    ["storyboard", "/storyboard", "Studio"]
   ];
-
   return (
-    <div className="nav">
+    <div className="nav-links">
       {items.map(([id, href, label]) => (
-        <Link key={id} href={href} className={`btn ${active === id ? "active" : ""}`}>
+        <Link key={id} href={href} className={`nav-btn${active === id ? " active" : ""}`}>
           {label}
         </Link>
       ))}
