@@ -1,85 +1,107 @@
 "use client";
 
 import { useState } from "react";
-import TopNav from "../../components/TopNav";
-import CopyBlock from "../../components/CopyBlock";
+import Link from "next/link";
 
 export default function ChatPage() {
-  const [topic, setTopic] = useState("");
-  const [tone, setTone] = useState("cinematic documentary thriller");
-  const [duration, setDuration] = useState("60");
+  const [topic, setTopic]   = useState("");
+  const [tone, setTone]     = useState("cinematic documentary thriller");
+  const [duration, setDur]  = useState("60");
   const [result, setResult] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy]     = useState(false);
 
   async function generate() {
-    setBusy(true);
-    setResult("");
+    if (!topic.trim()) return;
+    setBusy(true); setResult("");
     try {
-      const res = await fetch("/api/chat", {
+      const r = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, tone, duration })
+        body: JSON.stringify({ topic, tone, duration: Number(duration) })
       });
-      const data = await res.json();
-      setResult(data.text || data.error || "");
+      const d = await r.json();
+      setResult(d.text || d.error || "");
     } catch (e) {
       setResult("Ошибка: " + e.message);
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
   return (
-    <main className="page">
-      <div className="wrap">
-        <header className="header">
-          <div className="brand">
-            <div>
-              <div className="kicker">NeuroCine Chat</div>
-              <h1>Сценарии и хуки</h1>
-              <p className="subtitle">Генерируй сценарий, потом отправляй его в Storyboard Studio.</p>
-            </div>
-            <button className="btn red" onClick={generate} disabled={busy}>
-              {busy ? "ГЕНЕРАЦИЯ..." : "СГЕНЕРИРОВАТЬ"}
-            </button>
+    <div className="studio">
+      <nav className="studio-nav">
+        <div className="nav-brand">
+          <div className="nav-kicker">NeuroCine Online</div>
+          <div className="nav-title">Chat Generator</div>
+        </div>
+        <div className="nav-links">
+          <Link href="/" className="nav-btn">Главная</Link>
+          <Link href="/chat" className="nav-btn active">Chat</Link>
+          <Link href="/storyboard" className="nav-btn">Studio</Link>
+        </div>
+      </nav>
+
+      <section className="step-section">
+        <div className="step-header">
+          <div className="step-num">✍</div>
+          <div className="step-info">
+            <div className="step-title">Быстрый генератор сценария</div>
+            <div className="step-desc">Тема → текст диктора · Полный пайплайн — в Studio</div>
           </div>
-          <TopNav active="chat" />
-        </header>
-
-        <section className="grid two mt">
-          <div className="card">
-            <h2>Задача</h2>
-            <label className="label">Тема</label>
-            <textarea
-              className="big"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="Например: Ты бы не выжил в средневековье — вот почему"
-            />
-
-            <div className="grid two mt">
-              <div>
-                <label className="label">Тон</label>
-                <input value={tone} onChange={(e) => setTone(e.target.value)} />
+        </div>
+        <div className="step-body">
+          <div className="two-col">
+            <div className="col">
+              <div className="field">
+                <label className="field-label">Тема</label>
+                <textarea className="inp tall" value={topic} onChange={e => setTopic(e.target.value)}
+                  placeholder="Ты бы не выжил в Средневековье — вот почему" />
               </div>
-              <div>
-                <label className="label">Длительность</label>
-                <select value={duration} onChange={(e) => setDuration(e.target.value)}>
-                  <option value="30">30 сек</option>
-                  <option value="60">60 сек</option>
-                  <option value="90">90 сек</option>
-                  <option value="180">3 минуты</option>
-                </select>
+              <div className="frow frow2">
+                <div className="field">
+                  <label className="field-label">Тон</label>
+                  <input className="inp" value={tone} onChange={e => setTone(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Длительность</label>
+                  <select className="inp" value={duration} onChange={e => setDur(e.target.value)}>
+                    <option value="30">30 сек</option>
+                    <option value="60">60 сек</option>
+                    <option value="90">90 сек</option>
+                    <option value="180">3 мин</option>
+                  </select>
+                </div>
+              </div>
+              <button className="btn btn-red btn-full" onClick={generate} disabled={busy || !topic.trim()}>
+                {busy ? "⏳ Генерация..." : "▶ СГЕНЕРИРОВАТЬ"}
+              </button>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                Нужен полный пайплайн?{" "}
+                <Link href="/storyboard" style={{ color: "var(--red)" }}>Открыть Studio →</Link>
               </div>
             </div>
+            <div className="col">
+              {result ? (
+                <div className="out-box">
+                  <div className="out-head">
+                    <span className="out-label">Сценарий</span>
+                    <button className="btn btn-sm btn-ghost" onClick={async () => {
+                      await navigator.clipboard.writeText(result);
+                    }}>Копировать</button>
+                  </div>
+                  <div className="out-body">
+                    <pre className="out-pre">{result}</pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="upload-zone" style={{ pointerEvents: "none", cursor: "default" }}>
+                  <div className="upload-icon">📝</div>
+                  <div className="upload-text">Сценарий появится здесь</div>
+                </div>
+              )}
+            </div>
           </div>
-
-          <div className="card">
-            <h2>Результат</h2>
-            {result ? <CopyBlock title="Сценарий" text={result} /> : <div className="drop">Здесь появится готовый сценарий.</div>}
-          </div>
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+    </div>
   );
 }
