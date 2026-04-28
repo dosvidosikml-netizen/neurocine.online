@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
-import { buildExplorePrompt, build2KPrompt } from "../../../engine/directorEngine_v4.js";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { generateExplorePrompt, build2KPrompt } from "../../../engine/directorEngine_v4";
 
 export async function POST(req) {
   try {
-    const { mode, frame, variant, project } = await req.json();
-    if (!frame) return NextResponse.json({ error: "frame is required" }, { status: 400 });
-    const prompt = mode === "2k" ? build2KPrompt(frame, variant, project || {}) : buildExplorePrompt(frame, project || {});
-    return NextResponse.json({ ok: true, prompt });
-  } catch (e) {
-    return NextResponse.json({ error: e.message || "explore failed" }, { status: 500 });
+    const body = await req.json();
+    if (body.mode === "2k") {
+      return NextResponse.json({ prompt: build2KPrompt(body) });
+    }
+    const result = await generateExplorePrompt(body);
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: error.message || "Explore failed" }, { status: 500 });
   }
 }
