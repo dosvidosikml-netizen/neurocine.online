@@ -84,16 +84,18 @@ export function sanitizeForGenerator(text = "") {
 // This is how professional documentary/historical production studios write prompts.
 const OBSERVER_CONTEXT = "historical documentary reconstruction, non-exploitative framing, no graphic focus, emphasis on atmosphere and crowd dynamics, archival cinematic realism";
 
+// Words that signal violent/sensitive content requiring the observer header
+const VIOLENT_TRIGGER_WORDS = /\b(execution|executioner|torture|beheading|blood|gore|wound|dying|corpse|condemned|restrained subject|ceremonial culmination|official public ceremony|physical decline)\b/i;
+
 /**
  * Wraps an image prompt in observer/documentary framing:
- *   - prepends context declaration
- *   - shifts active verbs → implied/observer language
- *   - emphasises camera position and depth layers
+ *   - shifts active verbs → implied/observer language (always)
+ *   - prepends documentary context ONLY when violent content is detected
  */
 export function applyObserverFraming(prompt = "") {
   let out = sanitizeForGenerator(String(prompt || ""));
 
-  // Shift "cutting", "striking", "slashing" → camera-implied equivalents
+  // Shift active verbs → camera-implied equivalents (always applied)
   out = out
     .replace(/\b(cutting|slashing|striking|stabbing|hitting|slicing)\b/gi, "action implied beyond frame edge")
     .replace(/\b(kills?|killed|killing)\b/gi, "fatal outcome implied")
@@ -103,8 +105,8 @@ export function applyObserverFraming(prompt = "") {
     .replace(/\bsuffers?|suffering\b/gi, "physical strain visible through posture")
     .replace(/\bin agony\b/gi, "in visible physical distress");
 
-  // Add observer framing header if not already present
-  if (!out.includes("documentary reconstruction")) {
+  // Add observer framing header ONLY when the prompt contains sensitive content
+  if (VIOLENT_TRIGGER_WORDS.test(out) && !out.includes("documentary reconstruction")) {
     out = `${OBSERVER_CONTEXT}. ${out}`;
   }
 
@@ -120,12 +122,23 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
   return `Generate a production storyboard JSON for NeuroCine Storyboard Engine v2.\n\nMODE: ${normalizedMode}\nMODE INSTRUCTION: ${modeConfig.instruction}\n\nTarget duration: ${d} seconds.\nTarget scenes: ${preset.targetScenes} (MANDATORY — generate EXACTLY this many scenes, not fewer).\nTarget VO length: ${preset.wordsMin}-${preset.wordsMax} Russian words.\nAverage shot duration: 3 seconds.\nStrictly make total_duration equal ${d}.\n\n⚠️ STRICT SHOT DURATION LAW — NON-NEGOTIABLE:\nEvery single scene "duration" field MUST be 2, 3, or 4 seconds. NEVER 5, 6, 7, 8 or more.\nFORBIDDEN: duration 5, 6, 7, 8, 9, 10 — these BREAK Shorts/Reels format.\nIf you run out of story content: add detail shots, B-roll inserts, reaction cutaways, object close-ups. Never stretch a single scene beyond 4 seconds.\nFor ${d}s video → generate exactly ${preset.targetScenes} scenes × ~3 seconds each = ${d}s total.\n\nRequired v2 fields:\n- global_video_lock\n- postprocess\n- cut_energy in every scene: low | medium | high\n\nImage prompt rule: keep image prompts clean. Use only compact optics/quality tags: ARRI Alexa 65, Zeiss Master Prime, T2.8, cinematic sharp focus, film-level detail, Kodak Vision3 500T grain. Do not spam negative prompts or 8k/no blur/no plastic skin style lists.\n\nVideo prompt rule: include grounded physical realism, camera behavior, sensory detail, fabric/breath/particles/weight/contact physics.\n\nScene quality rule: internally score every scene from 1 to 10. If any scene is below 8, rewrite it until it reaches 8+. Do NOT output the score unless the JSON schema explicitly includes it.\n\nSCRIPT:\n${script}\n\njson`;
 }
 
-const CLEAN_IMAGE_BOOST = "shot on ARRI Alexa 65, Zeiss Master Prime lens, T2.8, cinematic sharp focus, film-level detail, Kodak Vision3 500T grain";
-const GLOBAL_VIDEO_LOCK = "grounded physical realism, no floaty motion, realistic inertia, organic camera operator behavior, documentary authenticity, visible environmental reaction";
-const PHYSICAL_REALISM_BLOCK = "PHYSICAL REALISM BOOST: increase inertia in movement, preserve weight and resistance in body motion, avoid floaty motion, enforce grounded contact with surfaces, emphasize micro-delays in reactions. CAMERA BEHAVIOR: imperfect handheld micro-shake, organic operator drift, slight focus breathing, natural exposure shifts. SENSORY DETAIL: visible breath in cold air, cloth reacting to wind, subtle skin imperfections, environmental particles moving with motion";
-const GROK_RAW_BOOST = "GROK RAW MASTER: stronger cinematic tension, more aggressive camera energy, sharper subject lock, stronger atmosphere, heavier crowd pressure, tactile physics, film-grade contrast. PHYSICAL REALISM BOOST: increase inertia in movement, preserve weight and resistance in body motion, avoid floaty motion, enforce grounded contact with surfaces, emphasize micro-delays in reactions. CAMERA BEHAVIOR: imperfect handheld micro-shake, organic operator drift, slight focus breathing, natural exposure shifts. SENSORY DETAIL: visible breath in cold air, cloth reacting to wind, subtle skin imperfections, environmental particles moving with motion. Keep no explicit gore, non-erotic documentary framing";
+// Appended only if GPT didn't already include camera tags
+const CLEAN_IMAGE_BOOST = "ARRI Alexa 65, Zeiss Master Prime, T2.8, Kodak Vision3 500T grain";
+const GLOBAL_VIDEO_LOCK = "grounded physical realism, no floaty motion, realistic inertia, organic camera operator behavior, documentary authenticity";
+// Short reminder — GPT already writes full physics, this is a compact anchor
+const PHYSICAL_REALISM_BLOCK = "grounded inertia, handheld micro-shake, organic focus breathing, cloth/breath/particle reaction";
+const GROK_RAW_BOOST = "GROK RAW: stronger camera aggression, heavier crowd pressure, sharper atmosphere, tactile physics, film-grade contrast, non-erotic documentary framing";
 
 const IMAGE_NOISE_PHRASES = [
+  // Negative-prompt spam (never useful in positive prompt)
+  "no blur",
+  "no soft focus",
+  "no smudged faces",
+  "no plastic skin",
+  "no low detail",
+  "no muddy textures",
+  "no waxy skin",
+  // Quality-spam phrases GPT tends to over-insert
   "stabilized subject focus",
   "ultra high detail",
   "realistic skin texture",
@@ -136,20 +149,34 @@ const IMAGE_NOISE_PHRASES = [
   "film-level clarity",
   "realistic imperfections",
   "high dynamic range",
-  "no blur",
-  "no soft focus",
-  "no smudged faces",
-  "no plastic skin",
-  "no low detail",
-  "no muddy textures",
-  "no waxy skin",
+  // Duplicate camera tag variants — engine adds the canonical version, remove GPT copies
+  "shot on ARRI Alexa 65,",
+  "shot on ARRI Alexa 65",
+  "ARRI Alexa 65,",
+  "ARRI Alexa 65",
+  "Zeiss Master Prime lens,",
+  "Zeiss Master Prime lens",
+  "Zeiss Master Prime,",
+  "Zeiss Master Prime",
+  "T2.8,",
+  "T2.8",
+  "film-level detail,",
+  "film-level detail",
+  "cinematic sharp focus,",
+  "cinematic sharp focus",
+  "Kodak Vision3 500T grain.,",
+  "Kodak Vision3 500T grain.",
+  "Kodak Vision3 500T grain,",
+  "Kodak Vision3 500T grain",
 ];
 
 function appendUniqueText(base = "", addition = "") {
   const b = String(base || "").trim();
   const a = String(addition || "").trim();
   if (!a) return b;
-  if (b.toLowerCase().includes(a.toLowerCase().slice(0, 48))) return b;
+  // Check if any meaningful word from addition is already in base (prevents duplicate camera tags)
+  const firstWord = a.split(/[\s,]/)[0].toLowerCase();
+  if (firstWord.length > 3 && b.toLowerCase().includes(firstWord)) return b;
   return `${b}${b ? ", " : ""}${a}`.trim();
 }
 
@@ -167,11 +194,21 @@ function removePromptNoise(prompt = "") {
 }
 
 function cleanImagePrompt(prompt = "") {
-  return appendUniqueText(removePromptNoise(prompt), CLEAN_IMAGE_BOOST);
+  // Strip all GPT-inserted camera/quality tags (they're all in IMAGE_NOISE_PHRASES)
+  // then append our single canonical version
+  const out = removePromptNoise(prompt).replace(/,\s*$/, "").trim();
+  return appendUniqueText(out, CLEAN_IMAGE_BOOST);
 }
 
 function enhanceVideoPrompt(prompt = "") {
-  return appendUniqueText(String(prompt || "").trim(), PHYSICAL_REALISM_BLOCK);
+  // Strip the old verbose PHYSICAL REALISM BOOST block if GPT included it
+  let out = String(prompt || "")
+    .replace(/[,.]?\s*PHYSICAL REALISM BOOST:.*$/s, "")
+    .replace(/[,.]?\s*CAMERA BEHAVIOR:.*$/s, "")
+    .replace(/[,.]?\s*SENSORY DETAIL:.*$/s, "")
+    .replace(/,\s*$/, "")
+    .trim();
+  return appendUniqueText(out, PHYSICAL_REALISM_BLOCK);
 }
 
 function getCutEnergy(scene = {}, index = 0) {
