@@ -128,6 +128,20 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
   const cols = n <= 8 ? 2 : 3;
   const rows = Math.ceil(n / cols);
   const aspect = storyboard?.aspect_ratio || "9:16";
+
+  // Calculate overall image orientation
+  // Cell aspect ratio: 9:16 = 0.5625 (tall), 16:9 = 1.777 (wide)
+  const [aw, ah] = aspect.split(":").map(Number);
+  const cellRatio = aw / ah;
+  const gridRatio = (cols * cellRatio) / rows;
+  // gridRatio < 1 = overall image is taller than wide (vertical)
+  // gridRatio > 1 = overall image is wider than tall (horizontal)
+  const overallOrientation = gridRatio < 1
+    ? `tall vertical image (${cols} wide × ${rows} tall grid of ${aspect} cells)`
+    : gridRatio < 1.3
+    ? `near-square image (${cols}×${rows} grid of ${aspect} cells)`
+    : `wide horizontal image (${cols} wide × ${rows} tall grid of ${aspect} cells)`;
+
   const charLock = (storyboard?.character_lock || [])
     .map(c => `${c.name} — ${c.description}`)
     .join("\n");
@@ -140,15 +154,21 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
   }).join("\n");
 
   return `STORYBOARD GRID — ${storyboard.project_name || "NeuroCine Project"}
-FORMAT: Vertical ${aspect}
+
+OVERALL IMAGE FORMAT: ${overallOrientation}
 TOTAL FRAMES: ${n}
-GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells, no more, no less
+GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells
+
+IMPORTANT — TWO SEPARATE FORMAT RULES:
+1. EACH CELL format: ${aspect} — every individual frame must be ${aspect === "9:16" ? "tall vertical (portrait)" : aspect === "16:9" ? "wide horizontal (landscape)" : aspect}
+2. OVERALL IMAGE format: the full canvas is a ${cols}×${rows} grid — its total dimensions are determined by the grid layout, NOT forced to ${aspect}
+Do NOT stretch or crop cells to make the whole image ${aspect}. Let the grid be its natural size.
 
 CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Not ${n - 1}, not ${n + 1}. Exactly ${n}.
-- Arrange them in a strict ${cols}×${rows} grid with equal-size cells
-- Every cell must show a different scene from the story
-- Each cell must be in ${aspect} aspect ratio
+- Arrange in strict ${cols}×${rows} grid, equal-size cells, left-to-right top-to-bottom
+- Every cell shows a different scene from the story in order
+- Each cell is ${aspect} — ${aspect === "9:16" ? "portrait/vertical" : "landscape/horizontal"}
 - No text, no numbers, no frame labels, no subtitles, no UI, no watermark anywhere
 
 STYLE LOCK:
@@ -226,6 +246,133 @@ export function buildLocalImageAnalysis(frame = {}, variant = "A", styleProfile 
 export function buildVideoPrompt(frame = {}, analysis = {}, storyboard = {}, styleProfile = {}) {
   const sfx = analysis.sfx || frame.sfx || "subtle realistic ambience";
   return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked action."}\n${analysis.environment_motion || "Add subtle environmental motion: air, cloth, particles, smoke, weather or light shift where relevant."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`;
+}
+
+/**
+ * buildChunkGridPrompt — builds a story grid prompt for a CHUNK of scenes (e.g. frames 1–5 of 20)
+ * Used when splitting 20 frames into 4 grids of 5.
+ */
+export function buildChunkGridPrompt(scenes = [], storyboard = {}, styleProfile = {}, chunkIndex = 0) {
+  const n = scenes.length;
+  const cols = n <= 4 ? 2 : n <= 6 ? 2 : 3;
+  const rows = Math.ceil(n / cols);
+  const aspect = storyboard?.aspect_ratio || "9:16";
+  const totalScenes = storyboard?.scenes?.length || n;
+  const globalOffset = chunkIndex * n;
+
+  const [aw, ah] = aspect.split(":").map(Number);
+  const cellRatio = aw / ah;
+  const gridRatio = (cols * cellRatio) / rows;
+  const overallOrientation = gridRatio < 1
+    ? `tall vertical image (${cols}×${rows} grid of ${aspect} cells)`
+    : `wide image (${cols}×${rows} grid of ${aspect} cells)`;
+
+  const charLock = (storyboard?.character_lock || [])
+    .map(c => `${c.name} — ${c.description}`)
+    .join("\n");
+
+  const framesEN = scenes.map((s, i) => {
+    const en = (s.image_prompt_en || "")
+      .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
+      .trim();
+    return `${globalOffset + i + 1}. [${s.id}] ${en || s.vo_ru || ""}`;
+  }).join("\n");
+
+  return `STORYBOARD GRID PART ${chunkIndex + 1} — ${storyboard.project_name || "NeuroCine Project"}
+FRAMES: ${globalOffset + 1}–${globalOffset + n} of ${totalScenes} total
+
+OVERALL IMAGE FORMAT: ${overallOrientation}
+GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells
+
+IMPORTANT — TWO SEPARATE FORMAT RULES:
+1. EACH CELL format: ${aspect} — every individual frame must be ${aspect === "9:16" ? "tall vertical (portrait)" : aspect}
+2. OVERALL IMAGE: a ${cols}×${rows} grid — natural canvas size, do NOT force overall image to ${aspect}
+
+CRITICAL: This is PART ${chunkIndex + 1} of a multi-part storyboard. Visual style, characters, and world must be IDENTICAL to all other parts.
+
+CRITICAL LAYOUT RULES:
+- Generate EXACTLY ${n} frames. Exactly ${n}.
+- Strict ${cols}×${rows} grid, equal-size cells, each cell ${aspect}
+- No text, no numbers, no frame labels, no subtitles, no UI, no watermark
+
+STYLE LOCK (must match ALL other grid parts exactly):
+${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
+
+${charLock ? `CHARACTER LOCK (identical in all parts — mandatory):\n${charLock}\n` : ""}SCENARIO LOCK:
+Continuous story — preserve character identity, location logic, emotional arc and visual continuity across ALL grid parts.
+
+FRAMES IN THIS PART (in order, left-to-right, top-to-bottom):
+${framesEN}`;
+}
+
+/**
+ * buildContinuationPrompt — CHAIN CONTINUATION
+ * Takes the last 1–3 anchor frames from the previous grid and generates
+ * a continuation prompt for the next grid chunk.
+ * anchorFrames = array of { scene, croppedDataUrl } from the previous grid
+ */
+export function buildContinuationPrompt(anchorFrames = [], nextScenes = [], storyboard = {}, styleProfile = {}, chunkIndex = 1) {
+  const n = nextScenes.length;
+  const cols = n <= 4 ? 2 : n <= 6 ? 2 : 3;
+  const rows = Math.ceil(n / cols);
+  const aspect = storyboard?.aspect_ratio || "9:16";
+  const totalScenes = storyboard?.scenes?.length || n;
+  const globalOffset = chunkIndex * (totalScenes / Math.ceil(totalScenes / n) || n);
+
+  const charLock = (storyboard?.character_lock || [])
+    .map(c => `${c.name} — ${c.description}`)
+    .join("\n");
+
+  const anchorDesc = anchorFrames.map((a, i) =>
+    `Anchor ${i + 1} — ${a.scene?.id || `frame`}: ${
+      (a.scene?.image_prompt_en || "").replace(/^SCENE PRIMARY FOCUS:\s*/i, "").trim().slice(0, 120)
+    }`
+  ).join("\n");
+
+  const framesEN = nextScenes.map((s, i) => {
+    const en = (s.image_prompt_en || "")
+      .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
+      .trim();
+    return `${i + 1}. [${s.id}] ${en || s.vo_ru || ""}`;
+  }).join("\n");
+
+  return `CHAIN CONTINUATION — STORYBOARD GRID PART ${chunkIndex + 1}
+PROJECT: ${storyboard.project_name || "NeuroCine Project"}
+FRAMES: next ${n} frames of ${totalScenes} total
+FORMAT: Vertical ${aspect}
+GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells
+
+⚠️ THIS IS A DIRECT CONTINUATION — NOT A NEW SCENE, NOT A NEW STORY.
+
+ANCHOR REFERENCE (the images attached are your visual anchor — the last frames of the previous grid):
+${anchorDesc || "Use the attached reference images as your visual anchor."}
+
+CONTINUATION RULES — NON-NEGOTIABLE:
+- Use the provided anchor images as the PRIMARY visual reference
+- PRESERVE exactly: character identity, faces, clothing, hair, age, body build
+- PRESERVE exactly: lighting direction, color temperature, film grain, lens character
+- PRESERVE exactly: location logic, time of day, environmental atmosphere
+- PRESERVE exactly: cinematic style and mood
+- This is frame ${Math.round(globalOffset) + 1} onward — the story continues from where the anchor left off
+- No new characters unless logically introduced in the script
+- No style reset, no new world, no new visual language
+
+STYLE LOCK (must be identical to previous grid):
+${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
+
+${charLock ? `CHARACTER LOCK (same as previous grid — mandatory):\n${charLock}\n` : ""}CRITICAL LAYOUT RULES:
+- Generate EXACTLY ${n} frames. Exactly ${n}.
+- Arrange in strict ${cols}×${rows} grid, equal-size cells, each cell ${aspect}
+- No text, no numbers, no subtitles, no UI, no watermark
+
+NEXT FRAMES TO GENERATE (in order):
+${framesEN}
+
+FORBIDDEN:
+- New visual style or new color grade
+- New character design or face
+- Scene that contradicts the attached anchor images
+- Any reset of lighting, environment or mood`;
 }
 
 export function compactFrameForModel(frame = {}) {
