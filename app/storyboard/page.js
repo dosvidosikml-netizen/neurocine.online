@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   PROJECT_TYPES, STYLE_PRESETS,
-  build2KPrompt, buildStoryGridPrompt, buildExplorePrompt, getStyleProfile
+  build2KPrompt, buildStoryGridPrompt, buildChunkGridPrompt,
+  buildContinuationPrompt, buildExplorePrompt, getStyleProfile
 } from "../../engine/directorEngine_v4";
 import {
   storyboardToProjectJson
@@ -180,9 +181,34 @@ export default function StudioPage() {
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
 
+  // Chunk / continuation state
+  const [chunkSize, setChunkSize]       = useState(5);
+  const [activeChunk, setActiveChunk]   = useState(0);
+  const [contAnchorImgs, setContAnchor] = useState([]); // [{scene, croppedDataUrl}]
+  const [contAnchorGrid, setContAnchorGrid] = useState(null); // uploaded prev grid img
+  const [contPrompt, setContPrompt]     = useState("");
+  const [showCont, setShowCont]         = useState(false);
+
   const styleProfile = useMemo(() => getStyleProfile(projectType, stylePreset), [projectType, stylePreset]);
   const scenes       = storyboard?.scenes || [];
   const curFrame     = frameIdx !== null ? scenes[frameIdx] : null;
+
+  // Chunk logic — split scenes into pages
+  const chunks = useMemo(() => {
+    if (!scenes.length) return [];
+    const result = [];
+    for (let i = 0; i < scenes.length; i += chunkSize) {
+      result.push(scenes.slice(i, i + chunkSize));
+    }
+    return result;
+  }, [scenes, chunkSize]);
+
+  const activeChunkScenes = chunks[activeChunk] || [];
+
+  const chunkGridPrompt = useMemo(() => {
+    if (!activeChunkScenes.length) return "";
+    return buildChunkGridPrompt(activeChunkScenes, storyboard, styleProfile, activeChunk);
+  }, [activeChunkScenes, storyboard, styleProfile, activeChunk]);
 
   // Story grid prompt with English frame descriptions (for AI generators)
   const storyGridPrompt = useMemo(() => {
@@ -663,9 +689,103 @@ export default function StudioPage() {
               )}
             </div>
             <div className="col">
-              {storyGridPrompt ? (
+              {storyGridPrompt || chunkGridPrompt ? (
                 <>
-                  <OutBox label="Story Grid Prompt EN (Flux / Midjourney)" text={storyGridPrompt} />
+                  {/* Chunk controls — only when storyboard has scenes */}
+                  {scenes.length > 0 && (
+                    <div className="out-box">
+                      <div className="out-head">
+                        <span className="out-label">Режим сетки</span>
+                        <div className="brow">
+                          <button
+                            className={`btn btn-xs${chunkSize >= scenes.length ? " btn-red" : ""}`}
+                            onClick={() => { setChunkSize(scenes.length); setActiveChunk(0); }}
+                          >Всё ({scenes.length})</button>
+                          {[5, 4, 6].filter(s => s < scenes.length).map(s => (
+                            <button key={s}
+                              className={`btn btn-xs${chunkSize === s && chunkSize < scenes.length ? " btn-red" : ""}`}
+                              onClick={() => { setChunkSize(s); setActiveChunk(0); }}
+                            >по {s}</button>
+                          ))}
+                        </div>
+                      </div>
+                      {chunkSize < scenes.length && (
+                        <div className="out-body" style={{ paddingTop: 8, paddingBottom: 8 }}>
+                          <div className="brow">
+                            {chunks.map((ch, i) => (
+                              <button key={i}
+                                className={`btn btn-xs${activeChunk === i ? " btn-red" : ""}`}
+                                onClick={() => setActiveChunk(i)}
+                              >
+                                Лист {i + 1} · {ch[0]?.id}–{ch[ch.length - 1]?.id}
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
+                            Лист {activeChunk + 1} из {chunks.length} · {activeChunkScenes.length} кадров
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Grid prompt for active chunk or full */}
+                  <OutBox
+                    label={chunkSize < scenes.length
+                      ? `Story Grid Prompt — Лист ${activeChunk + 1}/${chunks.length} (EN)`
+                      : "Story Grid Prompt EN (Flux / Midjourney)"}
+                    text={chunkSize < scenes.length ? chunkGridPrompt : storyGridPrompt}
+                  />
+
+                  {/* CHAIN CONTINUATION block */}
+                  {chunkSize < scenes.length && activeChunk > 0 && (
+                    <div className="out-box">
+                      <div
+                        className="out-head"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setShowCont(v => !v)}
+                      >
+                        <span className="out-label">🔗 Chain Continuation — Лист {activeChunk + 1}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{showCont ? "▲ скрыть" : "▼ показать"}</span>
+                      </div>
+                      {showCont && (
+                        <div className="out-body">
+                          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>
+                            Загрузи последний лист сетки (Лист {activeChunk}) как anchor — система сгенерирует промт продолжения с привязкой к твоим кадрам.
+                          </div>
+                          {contAnchorGrid ? (
+                            <div>
+                              <div className="img-viewer" style={{ marginBottom: 8 }}>
+                                <img src={contAnchorGrid} alt="Anchor grid" />
+                              </div>
+                              <div className="brow" style={{ marginBottom: 10 }}>
+                                <button className="btn btn-sm" onClick={() => { setContAnchorGrid(null); setContPrompt(""); }}>
+                                  Заменить
+                                </button>
+                                <button className="btn btn-sm btn-red" onClick={() => {
+                                  const anchors = (chunks[activeChunk - 1] || []).slice(-2).map(s => ({ scene: s }));
+                                  const p = buildContinuationPrompt(anchors, activeChunkScenes, storyboard, styleProfile, activeChunk);
+                                  setContPrompt(p);
+                                }}>
+                                  ▶ СОЗДАТЬ CONTINUATION PROMPT
+                                </button>
+                              </div>
+                              {contPrompt && (
+                                <OutBox label={`Continuation Prompt — Лист ${activeChunk + 1} (EN)`} text={contPrompt} />
+                              )}
+                            </div>
+                          ) : (
+                            <UploadZone
+                              label={`Загрузи Лист ${activeChunk} (anchor)`}
+                              hint="Последний сгенерированный лист сетки"
+                              onFile={setContAnchorGrid}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Russian descriptions — collapsible */}
                   <div className="out-box">
                     <div className="out-head" style={{ cursor: "pointer" }} onClick={() => setShowRu(v => !v)}>
