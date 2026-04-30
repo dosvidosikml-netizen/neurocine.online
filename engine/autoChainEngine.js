@@ -1,7 +1,7 @@
-// NeuroCine Auto-Chain Strict Engine v2.2 — Legacy Live-Action Lock
+// NeuroCine Auto-Chain Strict Engine v2.5 — Reference Flow / Strict Grid Prompts
 // Separate optional engine: does not replace storyboard/director engines.
 // Purpose: build chained storyboard PART prompts and video prompt packs strictly from existing storyboard scenes.
-// V2.2 fix: the visual core is forced back to the old successful live-action / camera-photographed style.
+// V2.5 fix: PART 1 never asks for a previous grid; PART 2+ uses previous PART only as external uploaded reference. This engine creates Flow/VEO grid prompts, not images inside the site.
 
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -123,11 +123,16 @@ export function buildAutoChainPartPrompt({ storyboard, styleProfile, partScenes 
   const start = frameNumber(partScenes[0], partIndex * partSize);
   const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
   const rows = Math.ceil(partScenes.length / 2);
-  const refText = referenceMode === "heroAndPrevious"
-    ? "Use the uploaded HERO ANCHOR image and the uploaded PREVIOUS PART image as references. Hero anchor fixes recurring hero identity; previous PART fixes world/style continuity. Do not copy their compositions."
-    : referenceMode === "heroOnly"
-      ? "Use the uploaded HERO ANCHOR image only for recurring hero identity and style DNA. Do not force the hero into frames where the scenario does not include him/her."
-      : "Use the uploaded PREVIOUS PART image as visual reference for world/style continuity. Do not copy the same composition.";
+  const isFirstPart = partIndex === 0;
+  const refText = isFirstPart
+    ? (referenceMode === "previousPart"
+        ? "PART 1 has no previous PART. Use ONLY the uploaded STYLE / WORLD reference if the user provided one; otherwise follow the scenario and style lock. Do not invent a previous scene."
+        : "PART 1 uses the uploaded HERO ANCHOR / STYLE REFERENCE as visual DNA. It fixes recurring hero identity and the old NeuroCine live-action look. There is no previous PART yet. Do not copy the reference composition into every cell.")
+    : (referenceMode === "heroAndPrevious"
+        ? "Use TWO uploaded references: HERO ANCHOR for recurring hero identity, and PREVIOUS PART for world/style continuity. Do not copy their compositions."
+        : referenceMode === "heroOnly"
+          ? "Use the uploaded HERO ANCHOR image only for recurring hero identity and style DNA. Do not force the hero into frames where the scenario does not include him/her."
+          : "Use the uploaded PREVIOUS PART image as visual reference for world/style continuity. Do not copy the same composition.");
 
   const frameBlocks = partScenes.map((s, localIdx) => {
     const globalIdx = partIndex * partSize + localIdx;
@@ -237,7 +242,7 @@ export function buildAutoChainJson({ storyboard, styleProfile, partSize = 4, cha
   const parts = splitScenesIntoParts(scenes, partSize);
   return {
     engine: "NeuroCine Auto-Chain Strict Engine",
-    version: "2.2-legacy-live-action-lock",
+    version: "2.5-reference-flow-strict-grid",
     project_name: storyboard?.project_name || "NeuroCine Project",
     mode: chainMode,
     strict_level: strictLevel,
