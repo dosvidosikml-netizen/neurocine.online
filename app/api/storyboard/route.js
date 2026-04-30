@@ -330,63 +330,81 @@ export async function POST(req) {
       return NextResponse.json({ storyboard, mode: "local_fallback" });
     }
 
-    const model = process.env.OPENROUTER_MODEL || "openai/gpt-5.4";
+    const model         = process.env.OPENROUTER_MODEL         || "openai/gpt-5.4";
+    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "anthropic/claude-sonnet-4-5";
 
     // buildStoryboardUserPrompt from v2 — includes strict duration/scene count rules
     const userInput = buildStoryboardUserPrompt({ script, duration, mode });
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://neurocine.online",
-        "X-Title": "NeuroCine Storyboard Engine",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userInput },
-        ],
-        max_tokens: 32000,
-        temperature: mode === "raw" ? 0.55 : 0.3,
-        top_p: 0.9,
-        response_format: { type: "json_object" },
-      }),
-    });
+    // ── helper: один запрос к OpenRouter ──────────────────────────────────────
+    async function callOpenRouter(modelId) {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://neurocine.online",
+          "X-Title": "NeuroCine Storyboard Engine",
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user",   content: userInput },
+          ],
+          max_tokens: 32000,
+          temperature: mode === "raw" ? 0.55 : 0.3,
+          top_p: 0.9,
+          response_format: { type: "json_object" },
+        }),
+      });
+      const payload = await res.json();
+      return { res, payload };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
-    const payload = await response.json();
+    // Попытка 1 — основная модель
+    let { res: response, payload } = await callOpenRouter(model);
+    let usedModel = model;
 
-    if (!response.ok) {
-      const orError = payload?.error?.message || payload?.message || JSON.stringify(payload);
-      const status = response.status;
-      let hint = "";
-      if (status === 401) hint = " (Неверный OPENROUTER_API_KEY)";
-      else if (status === 402) hint = " (Недостаточно средств на OpenRouter)";
-      else if (status === 429) hint = " (Rate limit — подождите минуту)";
-      else if (status === 503 || status === 502) hint = " (Модель временно недоступна)";
-      else if (status === 404) hint = ` (Модель не найдена: ${model})`;
+    // Попытка 2 — fallback модель, если основная вернула ошибку
+    if (!response.ok && fallbackModel && fallbackModel !== model) {
+      const fb = await callOpenRouter(fallbackModel);
+      if (fb.res.ok) {
+        response  = fb.res;
+        payload   = fb.payload;
+        usedModel = fallbackModel;
+      } else {
+        // Обе модели упали — отдаём ошибку основной
+        const orError = payload?.error?.message || payload?.message || JSON.stringify(payload);
+        const status  = response.status;
+        let hint = "";
+        if (status === 401) hint = " (Неверный OPENROUTER_API_KEY)";
+        else if (status === 402) hint = " (Недостаточно средств на OpenRouter)";
+        else if (status === 429) hint = " (Rate limit — подождите минуту)";
+        else if (status === 503 || status === 502) hint = " (Модель временно недоступна)";
+        else if (status === 404) hint = ` (Модель не найдена: ${model})`;
 
-      // fallback to local on API error
-      const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
-      const storyboard = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
-      return NextResponse.json({ storyboard, mode: `api_error_fallback|${status}${hint}: ${orError}` });
+        const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
+        const storyboard = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
+        return NextResponse.json({ storyboard, mode: `api_error_fallback|${status}${hint}: ${orError}` });
+      }
     }
 
     const content = payload?.choices?.[0]?.message?.content || "";
-    const parsed = extractJson(content);
+    const parsed  = extractJson(content);
 
     // normalizeStoryboard from v2 — handles splitLongScenes, observer framing, cut_energy, validation
-    const storyboard = normalizeStoryboard(parsed, duration, mode, model);
+    const storyboard = normalizeStoryboard(parsed, duration, mode, usedModel);
 
     // Inject project metadata from request
     storyboard.project_name = projectName;
     storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
 
     const validation = validateStoryboard(storyboard, mode);
+    const modeLabel  = usedModel === model ? "api" : `api_fallback:${usedModel}`;
 
-    return NextResponse.json({ storyboard, mode: "api", validation, model_used: model });
+    return NextResponse.json({ storyboard, mode: modeLabel, validation, model_used: usedModel });
 
   } catch (error) {
     try {
