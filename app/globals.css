@@ -293,3 +293,32 @@ table.sb-t { width: 100%; min-width: 800px; border-collapse: separate; border-sp
 @media (max-width: 480px) {
   .frow2, .frow3 { grid-template-columns: 1fr; }
 }
+
+/* Auto-Chain Strict Engine V2 */
+.chunk-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chunk-tab {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.chunk-tab:hover {
+  color: #fff;
+  border-color: rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.08);
+}
+.chunk-tab.active {
+  color: #fff;
+  border-color: rgba(229,53,53,0.65);
+  background: rgba(229,53,53,0.18);
+  box-shadow: 0 0 0 1px rgba(229,53,53,0.15) inset;
+}
