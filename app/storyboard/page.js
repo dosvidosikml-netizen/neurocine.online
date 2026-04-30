@@ -1020,56 +1020,29 @@ export default function StudioPage() {
 
                 <div className="frame-card" style={{ marginTop: 10 }}>
                   <div className="frame-card-lbl" style={{ marginBottom: 8 }}>🧬 Anchors</div>
-
-                  {/* Hero anchor status */}
-                  <div className="frame-card-row">
-                    <div className="frame-card-lbl">Hero anchor</div>
-                    {autoHeroAnchor ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                        <img src={autoHeroAnchor} alt="Hero anchor"
-                          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} />
-                        <span style={{ fontSize: 11, color: "#22c55e" }}>✓ Загружен</span>
-                        <button className="btn btn-xs btn-ghost" onClick={() => setAutoHeroAnchor(null)}>✕</button>
-                      </div>
-                    ) : (
-                      <div style={{ position: "relative", marginTop: 4 }}>
-                        <input type="file" accept="image/*"
-                          style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
-                          onChange={async e => {
-                            const f = e.target.files?.[0];
-                            if (f) { const url = await readAsDataUrl(f); setAutoHeroAnchor(url); e.target.value = ""; }
-                          }}
-                        />
-                        <button className="btn btn-sm" style={{ pointerEvents: "none" }}>📎 Загрузить hero anchor</button>
-                      </div>
-                    )}
+                  <div className="two-col">
+                    <div className="col">
+                      {autoHeroAnchor ? (
+                        <>
+                          <div className="img-viewer"><img src={autoHeroAnchor} alt="Hero anchor" /></div>
+                          <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setAutoHeroAnchor(null)}>Заменить</button>
+                        </>
+                      ) : (
+                        <UploadZone label="Hero anchor" hint="Reference card героя" onFile={setAutoHeroAnchor} />
+                      )}
+                    </div>
+                    <div className="col">
+                      {autoPrevPartAnchor ? (
+                        <>
+                          <div className="img-viewer"><img src={autoPrevPartAnchor} alt="Previous PART" /></div>
+                          <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setAutoPrevPartAnchor(null)}>Заменить</button>
+                        </>
+                      ) : (
+                        <UploadZone label="Previous PART" hint="Для Part 2+ загрузи предыдущую сетку" onFile={setAutoPrevPartAnchor} />
+                      )}
+                    </div>
                   </div>
-
-                  {/* Previous PART anchor status */}
-                  <div className="frame-card-row" style={{ marginTop: 10 }}>
-                    <div className="frame-card-lbl">Previous PART</div>
-                    {autoPrevPartAnchor ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                        <img src={autoPrevPartAnchor} alt="Prev PART"
-                          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} />
-                        <span style={{ fontSize: 11, color: "#22c55e" }}>✓ Загружен</span>
-                        <button className="btn btn-xs btn-ghost" onClick={() => setAutoPrevPartAnchor(null)}>✕</button>
-                      </div>
-                    ) : (
-                      <div style={{ position: "relative", marginTop: 4 }}>
-                        <input type="file" accept="image/*"
-                          style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
-                          onChange={async e => {
-                            const f = e.target.files?.[0];
-                            if (f) { const url = await readAsDataUrl(f); setAutoPrevPartAnchor(url); e.target.value = ""; }
-                          }}
-                        />
-                        <button className="btn btn-sm" style={{ pointerEvents: "none" }}>📎 Загрузить предыдущий PART</button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
                     После генерации промта — прикрепи эти изображения в Flow / Midjourney вручную.
                   </div>
                 </div>
