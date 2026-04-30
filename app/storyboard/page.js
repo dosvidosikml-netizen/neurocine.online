@@ -527,8 +527,35 @@ export default function StudioPage() {
     downloadTextFile(JSON.stringify(obj, null, 2), safeFileName(projectName) + "-auto-chain-v2.json", "application/json;charset=utf-8");
   }
 
+  function buildAutoChainFlowPackage(partOnly = true) {
+    const prompt = autoPartPrompt || buildAutoChainPartPrompt({ storyboard, styleProfile, partScenes: autoPartScenes, partIndex: autoPartIndex, totalScenes: scenes.length, partSize: autoPartSize, chainMode: autoChainMode, strictLevel: autoStrictLevel, referenceMode: autoReferenceMode });
+    const setup = [
+      "FLOW / VEO SETUP — AUTO-CHAIN V2.3",
+      "IMPORTANT: Flow/VEO cannot see anchor images from NeuroCine automatically.",
+      autoReferenceMode === "heroAndPrevious" ? "UPLOAD IMAGE 1: HERO ANCHOR. UPLOAD IMAGE 2: PREVIOUS PART GRID." : autoReferenceMode === "heroOnly" ? "UPLOAD IMAGE 1: HERO ANCHOR." : "UPLOAD IMAGE 1: PREVIOUS PART GRID.",
+      "Do NOT use the Classic Flow/VEO export from Step 02 for Auto-Chain.",
+      "Upload the required reference image(s) in Flow/VEO first, then paste the prompt below.",
+      "",
+      `Selected PART: `,
+      `Reference mode: `,
+      `Chain mode: `,
+      `Strictness: `,
+      "",
+      "PASTE THIS PROMPT AFTER UPLOADING THE REQUIRED REFERENCE IMAGE(S):",
+      ""
+    ].join("\n");
+    if (partOnly) return setup + prompt;
+    const all = autoAllPrompts.map((p, i) => `===== AUTO-CHAIN V2 PART  =====\n\n`).join("\n\n");
+    return setup + all;
+  }
+
+  function exportAutoChainFlowPart() {
+    const txt = buildAutoChainFlowPackage(true);
+    downloadTextFile(txt, safeFileName(projectName) + `-auto-chain-v2-part--flow-veo.txt`);
+  }
+
   function exportAutoChainTxt() {
-    const txt = autoAllPrompts.map((p, i) => `===== AUTO-CHAIN PART ${i + 1} =====\n\n${p}`).join("\n\n");
+    const txt = autoAllPrompts.map((p, i) => `===== AUTO-CHAIN PART  =====\n\n`).join("\n\n");
     downloadTextFile(txt, safeFileName(projectName) + "-auto-chain-v2.txt");
   }
 
@@ -580,7 +607,7 @@ export default function StudioPage() {
           {storyboard && <>
             <button className="nav-btn" onClick={exportJson}>⬇ JSON</button>
             <button className="nav-btn" onClick={exportTxt}>⬇ TXT</button>
-            <button className="nav-btn" onClick={exportFlow}>⬇ Flow/VEO</button>
+            <button className="nav-btn" onClick={exportFlow}>⬇ Classic Flow/VEO</button>
           </>}
           <button className="nav-btn danger" onClick={clearAll}>Очистить</button>
         </div>
@@ -716,6 +743,57 @@ export default function StudioPage() {
               </div>
 
               <div className="field">
+
+              {/* AUTO-CHAIN V2.4 SETUP — ДО ГЕНЕРАЦИИ STORYBOARD */}
+              <div className="frame-card" style={{ marginBottom: 12, border: "1px solid rgba(229,53,53,0.35)", background: "rgba(229,53,53,0.05)" }}>
+                <div className="frame-card-lbl" style={{ marginBottom: 8 }}>🧬 Auto-Chain V2.4 setup ДО генерации</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, marginBottom: 10 }}>
+                  Это исправляет баг порядка: reference/anchor задаётся до создания storyboard/grid-промта. Старый Classic режим остаётся ниже и не удаляется.
+                </div>
+                <div className="frow frow2">
+                  <div className="field">
+                    <label className="field-label">V2 логика</label>
+                    <select className="inp" value={autoChainMode} onChange={e => { setAutoChainMode(e.target.value); setAutoPartPrompt(""); setAutoVideoPack(""); }}>
+                      <option value="worldHero">World + Hero — мир + главный герой</option>
+                      <option value="worldOnly">World Only — разные персонажи, один мир</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Reference mode</label>
+                    <select className="inp" value={autoReferenceMode} onChange={e => { setAutoReferenceMode(e.target.value); setAutoPartPrompt(""); setAutoVideoPack(""); }}>
+                      <option value="heroAndPrevious">Hero anchor + previous PART</option>
+                      <option value="previousPart">Previous PART only</option>
+                      <option value="heroOnly">Hero anchor only</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="two-col">
+                  <div className="col">
+                    {autoHeroAnchor ? (
+                      <>
+                        <div className="img-viewer"><img src={autoHeroAnchor} alt="Hero anchor" /></div>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setAutoHeroAnchor(null)}>Заменить hero anchor</button>
+                      </>
+                    ) : (
+                      <UploadZone label="Hero anchor ДО storyboard" hint="Загрузи до генерации: главный герой / ДНК персонажа" onFile={setAutoHeroAnchor} />
+                    )}
+                  </div>
+                  <div className="col">
+                    {autoPrevPartAnchor ? (
+                      <>
+                        <div className="img-viewer"><img src={autoPrevPartAnchor} alt="Previous PART anchor" /></div>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setAutoPrevPartAnchor(null)}>Заменить previous PART</button>
+                      </>
+                    ) : (
+                      <UploadZone label="Previous PART ДО storyboard" hint="Для Part 2+ загрузи предыдущую сетку" onFile={setAutoPrevPartAnchor} />
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.45, marginTop: 8 }}>
+                  Важно: сайт не может сам передать эти картинки в Google Flow. Он формирует правильный V2 prompt и явно пишет, какие anchor-картинки нужно загрузить в Flow вручную.
+                </div>
+              </div>
+
                 <label className="field-label">Вставить JSON вручную (необязательно)</label>
                 <textarea className="inp mono" style={{ minHeight: 90 }} value={jsonIn}
                   onChange={e => setJsonIn(e.target.value)}
@@ -765,7 +843,7 @@ export default function StudioPage() {
                 <div className="brow">
                   <button className="btn btn-sm" onClick={exportJson}>⬇ .json</button>
                   <button className="btn btn-sm" onClick={exportTxt}>⬇ .txt</button>
-                  <button className="btn btn-sm btn-red" onClick={exportFlow}>⬇ Flow/VEO</button>
+                  <button className="btn btn-sm btn-red" onClick={exportFlow}>⬇ Classic Flow/VEO</button>
                   <button className="btn btn-sm" onClick={copyAllVo} title="Копировать все VO для TTS">📋 Все VO</button>
                 </div>
               )}
@@ -945,7 +1023,7 @@ export default function StudioPage() {
           <div className="step-header">
             <div className="step-num">02B</div>
             <div className="step-info">
-              <div className="step-title">Auto-Chain Strict Engine · Вариант 2.2</div>
+              <div className="step-title">Auto-Chain Strict Engine · Вариант 2.4</div>
               <div className="step-desc">Новый режим рядом со старым: берёт сценарий из 01/02, но держит старый live-action стиль и строит PART-промты строго по кадрам без выдумывания</div>
             </div>
             <span className="step-badge">V2 · {autoParts.length} PART</span>
@@ -1020,7 +1098,7 @@ export default function StudioPage() {
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-                    Картинки нужны как visual DNA. V2.2 запрещает пергамент/иллюстрацию и не копирует один и тот же кадр в каждую ячейку.
+                    Картинки нужны как visual DNA. V2.4 запрещает пергамент/иллюстрацию и не копирует один и тот же кадр в каждую ячейку.<br />Важно: Flow/VEO не видит эти картинки автоматически. Перед вставкой V2-промта загрузи в Flow те же anchor-изображения вручную. Кнопка Classic Flow/VEO выше относится к старому режиму.
                   </div>
                 </div>
               </div>
@@ -1045,6 +1123,7 @@ export default function StudioPage() {
                 </div>
 
                 <div className="brow" style={{ marginBottom: 10 }}>
+                  <button className="btn btn-sm btn-red" onClick={exportAutoChainFlowPart}>⬇ V2 Flow/VEO PART</button>
                   <button className="btn btn-sm" onClick={exportAutoChainTxt}>⬇ Все PART .txt</button>
                   <button className="btn btn-sm" onClick={exportAutoChainJson}>⬇ V2 .json</button>
                 </div>
@@ -1063,6 +1142,7 @@ export default function StudioPage() {
 
                 {autoPartPrompt ? (
                   <>
+                    <OutBox label={`FLOW/VEO SETUP — AUTO-CHAIN V2.4 PART ${autoPartIndex + 1}`} text={buildAutoChainFlowPackage(true)} />
                     <OutBox label={`AUTO-CHAIN IMAGE PROMPT — PART ${autoPartIndex + 1}`} text={autoPartPrompt} />
                     <OutBox label={`VIDEO PACK — PART ${autoPartIndex + 1}`} text={autoVideoPack} />
                   </>
