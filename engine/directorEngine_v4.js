@@ -150,8 +150,17 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
     const en = (s.image_prompt_en || "")
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
-    return `${i + 1}. ${en || s.vo_ru || ""}`;
+    // Inject anti-2D style into every frame description
+    const styleEnforce = "camera-photographed live-action image, NOT illustration, NOT 2D art, NOT cartoon, NOT anime, NOT painting —";
+    return `${i + 1}. [F${String(i + 1).padStart(2, "0")}] ${styleEnforce} ${en || s.vo_ru || ""}`;
   }).join("\n");
+
+  // Frame label instruction
+  const labelInstruction = `
+FRAME LABELS (mandatory):
+- Each cell must have a small label in the corner: F01, F02, F03... up to F${String(n).padStart(2, "0")}
+- Label style: small white text, top-left corner of each cell, subtle but readable
+- Use the same numbering as in the FRAMES list above`;
 
   return `STORYBOARD GRID — ${storyboard.project_name || "NeuroCine Project"}
 
@@ -169,7 +178,12 @@ CRITICAL LAYOUT RULES:
 - Arrange in strict ${cols}×${rows} grid, equal-size cells, left-to-right top-to-bottom
 - Every cell shows a different scene from the story in order
 - Each cell is ${aspect} — ${aspect === "9:16" ? "portrait/vertical" : "landscape/horizontal"}
-- No text, no numbers, no frame labels, no subtitles, no UI, no watermark anywhere
+- No subtitles, no UI, no watermark anywhere (frame labels F01–F${String(n).padStart(2, "0")} are the only allowed text)
+${labelInstruction}
+
+CRITICAL STYLE RULE — APPLY TO EVERY SINGLE CELL:
+Every frame must be: camera-photographed live-action image, cinematic realism, film photography, NOT illustration, NOT 2D art, NOT cartoon, NOT anime, NOT painting, NOT sketch, NOT digital art style.
+If any cell looks like illustration or 2D — the whole generation is REJECTED.
 
 STYLE LOCK:
 ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
@@ -275,7 +289,9 @@ export function buildChunkGridPrompt(scenes = [], storyboard = {}, styleProfile 
     const en = (s.image_prompt_en || "")
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
-    return `${globalOffset + i + 1}. [${s.id}] ${en || s.vo_ru || ""}`;
+    const globalNum = globalOffset + i + 1;
+    const styleEnforce = "camera-photographed live-action image, NOT illustration, NOT 2D art, NOT cartoon —";
+    return `${globalNum}. [F${String(globalNum).padStart(2, "0")}] ${styleEnforce} ${en || s.vo_ru || ""}`;
   }).join("\n");
 
   return `STORYBOARD GRID PART ${chunkIndex + 1} — ${storyboard.project_name || "NeuroCine Project"}
@@ -293,7 +309,14 @@ CRITICAL: This is PART ${chunkIndex + 1} of a multi-part storyboard. Visual styl
 CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Exactly ${n}.
 - Strict ${cols}×${rows} grid, equal-size cells, each cell ${aspect}
-- No text, no numbers, no frame labels, no subtitles, no UI, no watermark
+- No subtitles, no UI, no watermark (frame labels F${String(globalOffset + 1).padStart(2, "0")}–F${String(globalOffset + n).padStart(2, "0")} are the only allowed text)
+
+FRAME LABELS (mandatory):
+- Each cell must show its frame number: F${String(globalOffset + 1).padStart(2, "0")}, F${String(globalOffset + 2).padStart(2, "0")}... up to F${String(globalOffset + n).padStart(2, "0")}
+- Small white text, top-left corner of each cell, subtle but readable
+
+CRITICAL STYLE RULE — EVERY CELL:
+Every frame must be: camera-photographed live-action image, cinematic realism, NOT illustration, NOT 2D art, NOT cartoon, NOT anime, NOT painting. Any cell that looks like illustration = REJECTED.
 
 STYLE LOCK (must match ALL other grid parts exactly):
 ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
