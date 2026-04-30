@@ -945,8 +945,8 @@ export default function StudioPage() {
           <div className="step-header">
             <div className="step-num">02B</div>
             <div className="step-info">
-              <div className="step-title">Auto-Chain Strict Engine · Вариант 2</div>
-              <div className="step-desc">Новый режим рядом со старым: берёт сценарий из 01/02, но строит PART-промты строго по кадрам без выдумывания</div>
+              <div className="step-title">Auto-Chain Strict Engine · Вариант 2.2</div>
+              <div className="step-desc">Новый режим рядом со старым: берёт сценарий из 01/02, но держит старый live-action стиль и строит PART-промты строго по кадрам без выдумывания</div>
             </div>
             <span className="step-badge">V2 · {autoParts.length} PART</span>
           </div>
@@ -1020,7 +1020,7 @@ export default function StudioPage() {
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-                    Картинки нужны как visual DNA. Промт специально запрещает копировать один и тот же кадр в каждую ячейку.
+                    Картинки нужны как visual DNA. V2.2 запрещает пергамент/иллюстрацию и не копирует один и тот же кадр в каждую ячейку.
                   </div>
                 </div>
               </div>
