@@ -1564,7 +1564,18 @@ SFX: ${curFrame.sfx}` : ""
                     {croppedVariant && (
                       <div>
                         <div className="field-label" style={{ marginBottom: 6 }}>Выбранный вариант {selVariant}</div>
-                        <div className="img-viewer"><img src={croppedVariant} alt={`Variant ${selVariant}`} /></div>
+                        <div className="img-viewer" style={{ marginBottom: 8 }}><img src={croppedVariant} alt={`Variant ${selVariant}`} /></div>
+                        <button
+                          className="btn btn-sm btn-red btn-full"
+                          onClick={() => {
+                            const a = document.createElement("a");
+                            a.href = croppedVariant;
+                            a.download = `${curFrame?.id || "frame"}_variant_${selVariant}.jpg`;
+                            a.click();
+                          }}
+                        >
+                          ⬇ Скачать вариант {selVariant}
+                        </button>
                       </div>
                     )}
                     {p2kBusy ? (
