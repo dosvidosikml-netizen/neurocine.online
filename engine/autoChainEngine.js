@@ -324,7 +324,7 @@ export function buildAutoChainAllParts({
   }));
 }
 
-export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero" } = {}) {
+export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero", includeVo = true } = {}) {
   const label  = frameLabel(scene, 0);
   const visual = sceneText(scene);
   const motion = sceneMotion(scene);
@@ -349,7 +349,7 @@ Subtle cinematic motion, realistic handheld micro-movement, physical lens behavi
 
 CINEMATOGRAPHY:
 camera-photographed live-action cinematic realism, documentary physical reality, natural imperfections, 35mm anamorphic, Kodak Vision3 500T grain. ${style}
-
+${includeVo && scene.vo_ru ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}` : ""}
 SFX:
 ${cleanText(scene.sfx || "subtle environmental ambience")}
 
@@ -357,13 +357,13 @@ RESTRICTIONS:
 No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.`;
 }
 
-export function buildAutoVideoPack({ storyboard, styleProfile, partScenes = [], chainMode = "worldHero" } = {}) {
-  return partScenes.map((s) => buildAutoVideoPrompt(s, { storyboard, styleProfile, chainMode })).join("\n\n---\n\n");
+export function buildAutoVideoPack({ storyboard, styleProfile, partScenes = [], chainMode = "worldHero", includeVo = true } = {}) {
+  return partScenes.map((s) => buildAutoVideoPrompt(s, { storyboard, styleProfile, chainMode, includeVo })).join("\n\n---\n\n");
 }
 
 export function buildAutoChainJson({
   storyboard, styleProfile, partSize = 4, chainMode = "worldHero",
-  strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full"
+  strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full", includeVo = true
 } = {}) {
   const scenes = storyboard?.scenes || [];
   const parts  = splitScenesIntoParts(scenes, partSize);
@@ -384,7 +384,7 @@ export function buildAutoChainJson({
         storyboard, styleProfile, partScenes, partIndex: i, totalScenes: scenes.length,
         partSize, chainMode, strictLevel, referenceMode, appearanceMode
       }),
-      video_pack: buildAutoVideoPack({ storyboard, styleProfile, partScenes, chainMode }),
+      video_pack: buildAutoVideoPack({ storyboard, styleProfile, partScenes, chainMode, includeVo }),
       frames: partScenes.map((s, localIdx) => ({
         id: s.id || frameLabel(s, i * partSize + localIdx),
         label: frameLabel(s, i * partSize + localIdx),
