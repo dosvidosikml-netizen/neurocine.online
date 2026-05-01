@@ -53,7 +53,16 @@ mode: "raw"
 
 # GLOBAL STYLE LOCK
 
-cinematic documentary realism, historical accuracy, 35mm anamorphic, handheld, natural overcast light, realistic textures, Kodak Vision3 500T grain, no subtitles, no UI, no watermark
+RAW unretouched photograph — NOT CGI, NOT rendered, NOT illustrated.
+Shot on Canon EOS R5, 85mm f/1.4 prime, 1/320s, ISO 1600, natural available light only.
+Optical realism: chromatic aberration on high-contrast edges, natural lens vignette, real bokeh from f/1.4 — background blurred by optics not post-processing.
+Sensor noise: ISO 1600 luminance grain, color noise in shadows, micro-motion blur on fast edges.
+Surface detail: skin pores visible, fabric weave, mud cracking patterns, wet stone mineral deposits.
+Lighting: single natural key light with defined angle, soft ground bounce fill, realistic shadow penumbra, subsurface scattering on skin.
+Subject physicality: unposed candid posture, clothes obeying gravity, fabric drape and tension, micro-expressions.
+Color science: Kodak Portra 400 response — warm highlights, desaturated shadows, lifted blacks, natural skin tones.
+FORBIDDEN: plastic skin, specular blobs, perfect symmetry, smooth organic gradients, HDR tonemapping, oversaturation, game engine materials.
+No subtitles, no UI, no watermark.
 
 # CHARACTER SYSTEM
 
@@ -162,7 +171,7 @@ Do NOT escalate through explicit gore in safe mode.
 # IMAGE PROMPT QUALITY
 
 Keep image prompts CLEAN. Use only compact optics/quality signal:
-- ARRI Alexa 65, Zeiss Master Prime, T2.8, cinematic sharp focus, film-level detail, Kodak Vision3 500T grain
+- Canon EOS R5, 85mm f/1.4, ISO 1600, natural light, chromatic aberration, real sensor grain, physical bokeh
 
 Do NOT spam: no blur / no plastic skin / no smudged faces / 8k texture fidelity / high frequency details.
 
