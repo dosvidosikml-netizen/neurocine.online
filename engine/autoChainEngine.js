@@ -47,16 +47,50 @@ const ACTION_TRIGGERS = [
   "mid-step", "mid-stride", "mid-motion", "in position",
 ];
 
+// Простая транслитерация кириллицы → латиница для поиска имён в промтах
+function translitName(str) {
+  const map = {
+    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z",
+    "и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
+    "с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh",
+    "щ":"shch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya",
+    "А":"A","Б":"B","В":"V","Г":"G","Д":"D","Е":"E","Ё":"Yo","Ж":"Zh","З":"Z",
+    "И":"I","Й":"Y","К":"K","Л":"L","М":"M","Н":"N","О":"O","П":"P","Р":"R",
+    "С":"S","Т":"T","У":"U","Ф":"F","Х":"Kh","Ц":"Ts","Ч":"Ch","Ш":"Sh",
+    "Щ":"Shch","Ъ":"","Ы":"Y","Ь":"","Э":"E","Ю":"Yu","Я":"Ya"
+  };
+  return str.split("").map(c => map[c] !== undefined ? map[c] : c).join("");
+}
+
 function stripCharacterAppearance(text, characterLock = []) {
   if (!characterLock.length || !text) return text;
   let result = text;
   for (const char of characterLock) {
     const name = cleanText(char.name || "");
     if (!name) continue;
-    const nameIdx = result.indexOf(name);
+
+    // Ищем имя и его транслит-вариант (для кириллических имён в латинских промтах)
+    const nameTranslit = translitName(name);
+    const candidates = [name];
+    if (nameTranslit !== name) candidates.push(nameTranslit);
+    // Также пробуем только первое слово (имя без фамилии) на случай частичного совпадения
+    const firstName = name.split(" ")[0];
+    const firstNameTranslit = translitName(firstName);
+    if (!candidates.includes(firstName)) candidates.push(firstName);
+    if (!candidates.includes(firstNameTranslit)) candidates.push(firstNameTranslit);
+
+    let nameIdx = -1;
+    let foundName = "";
+    for (const candidate of candidates) {
+      const idx = result.indexOf(candidate);
+      if (idx !== -1 && (nameIdx === -1 || idx < nameIdx)) {
+        nameIdx = idx;
+        foundName = candidate;
+      }
+    }
     if (nameIdx === -1) continue;
 
-    const afterName = result.slice(nameIdx + name.length);
+    const afterName = result.slice(nameIdx + foundName.length);
 
     // Если сразу после имени нет запятой — внешность уже убрана, пропускаем
     const trimmedAfter = afterName.trimStart();
@@ -74,16 +108,15 @@ function stripCharacterAppearance(text, characterLock = []) {
     if (actionStart > 0 && actionStart < 600) {
       // Нашли триггер — отрезаем описание внешности
       result =
-        result.slice(0, nameIdx + name.length) +
+        result.slice(0, nameIdx + foundName.length) +
         " " +
         afterName.slice(actionStart).trim();
     } else {
       // Fallback: триггер не найден, но есть запятые — берём от первой точки
-      // (т.е. оставляем только предложение целиком без имени-описания)
       const dotIdx = afterName.indexOf(". ");
       if (dotIdx > 0 && dotIdx < 600) {
         result =
-          result.slice(0, nameIdx + name.length) +
+          result.slice(0, nameIdx + foundName.length) +
           afterName.slice(dotIdx).trim();
       }
     }
