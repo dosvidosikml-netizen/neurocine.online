@@ -183,6 +183,7 @@ export default function StudioPage() {
   /* STEP 3 — Pipeline */
   const [gridImg, setGridImg]           = useState(null);
   const [gridColsOverride, setGridColsOverride] = useState(null);
+  const [gridManualFrames, setGridManualFrames] = useState(null); // кол-во кадров когда нет storyboard
   const [croppedFrame, setCroppedFrame] = useState(null); // cropped single frame from grid
   const [frameIdx, setFrameIdx]         = useState(null);
   const [exploreP, setExploreP]         = useState("");
@@ -347,7 +348,7 @@ export default function StudioPage() {
   }, [gridColsOverride]);
   function resetStoryboardOutputs({ keepAnchors = true } = {}) {
     setSB(null); setValidation(null); setSbStat(""); setFrameIdx(null);
-    setGridImg(null); setGridColsOverride(null); setCroppedFrame(null);
+    setGridImg(null); setGridColsOverride(null); setGridManualFrames(null); setCroppedFrame(null);
     setExploreP(""); setVariantImg(null); setSelVariant(null); setCropped(null);
     setP2k(""); setFinalImg(null); setVideoP(""); setAnalysis(null);
     setActiveChunk(0); setContAnchor([]); setContAnchorGrid(null); setContPrompt(""); setShowCont(false);
@@ -1230,10 +1231,10 @@ export default function StudioPage() {
                 <div className="col">
                   {gridImg ? (
                     <>
-                      {/* Columns selector — user tells us how many cols the image actually has */}
+                      {/* Columns + frames selector */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 10, fontWeight: 900, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.15em" }}>
-                          Колонок в сетке:
+                          Колонок:
                         </span>
                         {[2, 3, 4].map(c => {
                           const active = (gridColsOverride ?? gridCols(scenes.length)) === c;
@@ -1247,12 +1248,42 @@ export default function StudioPage() {
                             </button>
                           );
                         })}
+                        <span style={{ fontSize: 10, fontWeight: 900, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.15em", marginLeft: 6 }}>
+                          Кадров:
+                        </span>
+                        {[4, 6, 8, 12, 20].map(n => (
+                          <button key={n}
+                            className={`btn btn-xs${gridManualFrames === n ? " btn-red" : (gridManualFrames === null && scenes.length === n) ? " btn-red" : ""}`}
+                            onClick={() => setGridManualFrames(gridManualFrames === n ? null : n)}
+                          >
+                            {n}{gridManualFrames === null && scenes.length === n ? " (авто)" : ""}
+                          </button>
+                        ))}
                       </div>
 
                       {/* Clickable grid overlay */}
-                      {scenes.length > 0 ? (() => {
-                        const cols = gridColsOverride ?? gridCols(scenes.length);
-                        const rows = Math.ceil(scenes.length / cols);
+                      {(() => {
+                        const totalFrames = gridManualFrames || (scenes.length > 0 ? scenes.length : 0);
+                        const cols = gridColsOverride ?? (totalFrames > 0 ? gridCols(totalFrames) : 2);
+                        const rows = totalFrames > 0 ? Math.ceil(totalFrames / cols) : 0;
+
+                        // Нет storyboard и не задано кол-во кадров — показываем только картинку с подсказкой
+                        if (totalFrames === 0) return (
+                          <div>
+                            <div className="img-viewer" style={{ marginBottom: 10 }}>
+                              <img src={gridImg} alt="Storyboard grid" style={{ width: "100%", display: "block" }} />
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 11, color: "var(--muted)" }}>Кадров в сетке:</span>
+                              {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                <button key={n} className="btn btn-xs" onClick={() => setGridManualFrames(n)}>{n}</button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+
+                        // Кликабельный оверлей — работает и с storyboard и без
+                        const cellCount = Array.from({ length: totalFrames }, (_, i) => i);
                         return (
                           <div style={{ position: "relative", borderRadius: 12, overflow: "hidden" }}>
                             <img src={gridImg} alt="Storyboard grid" style={{ width: "100%", display: "block" }} />
@@ -1262,47 +1293,60 @@ export default function StudioPage() {
                               gridTemplateColumns: `repeat(${cols}, 1fr)`,
                               gridTemplateRows: `repeat(${rows}, 1fr)`
                             }}>
-                              {scenes.map((s, i) => (
-                                <div key={s.id}
-                                  onClick={() => selectFrame(i)}
-                                  title={`${s.id} — нажми для выбора`}
-                                  style={{
-                                    cursor: "pointer",
-                                    border: frameIdx === i
-                                      ? "2px solid var(--red)"
-                                      : "1px solid rgba(255,255,255,0.08)",
-                                    background: frameIdx === i
-                                      ? "rgba(229,53,53,0.15)"
-                                      : "transparent",
-                                    display: "flex",
-                                    alignItems: "flex-start",
-                                    justifyContent: "flex-start",
-                                    padding: 4,
-                                    transition: "all 0.1s",
-                                    boxSizing: "border-box"
-                                  }}
-                                  onMouseEnter={e => { if (frameIdx !== i) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
-                                  onMouseLeave={e => { if (frameIdx !== i) e.currentTarget.style.background = "transparent"; }}
-                                >
-                                  <span style={{
-                                    fontSize: 9, fontWeight: 900,
-                                    background: frameIdx === i ? "var(--red)" : "rgba(0,0,0,0.7)",
-                                    color: "#fff", borderRadius: 4,
-                                    padding: "2px 5px", lineHeight: 1.3,
-                                    pointerEvents: "none", flexShrink: 0
-                                  }}>
-                                    {String(i + 1).padStart(2, "0")}
-                                  </span>
-                                </div>
-                              ))}
+                              {cellCount.map(i => {
+                                const s = scenes[i];
+                                return (
+                                  <div key={s?.id || i}
+                                    onClick={() => {
+                                      if (scenes.length > 0) {
+                                        selectFrame(i);
+                                      } else {
+                                        // Режим без storyboard — только кроп
+                                        setFrameIdx(i);
+                                        setCroppedFrame(null);
+                                        const totalF = gridManualFrames || totalFrames;
+                                        cropGridFrame(gridImg, i, totalF, cols)
+                                          .then(url => setCroppedFrame(url))
+                                          .catch(() => {});
+                                      }
+                                    }}
+                                    title={s ? `${s.id} — нажми для выбора` : `Кадр ${i + 1}`}
+                                    style={{
+                                      cursor: "pointer",
+                                      border: frameIdx === i
+                                        ? "2px solid var(--red)"
+                                        : "1px solid rgba(255,255,255,0.08)",
+                                      background: frameIdx === i
+                                        ? "rgba(229,53,53,0.15)"
+                                        : "transparent",
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      justifyContent: "flex-start",
+                                      padding: 4,
+                                      transition: "all 0.1s",
+                                      boxSizing: "border-box"
+                                    }}
+                                    onMouseEnter={e => { if (frameIdx !== i) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
+                                    onMouseLeave={e => { if (frameIdx !== i) e.currentTarget.style.background = "transparent"; }}
+                                  >
+                                    <span style={{
+                                      fontSize: 9, fontWeight: 900,
+                                      background: frameIdx === i ? "var(--red)" : "rgba(0,0,0,0.7)",
+                                      color: "#fff", borderRadius: 4,
+                                      padding: "2px 5px", lineHeight: 1.3,
+                                      pointerEvents: "none", flexShrink: 0
+                                    }}>
+                                      {String(i + 1).padStart(2, "0")}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
-                      })() : (
-                        <div className="img-viewer"><img src={gridImg} alt="Storyboard grid" /></div>
-                      )}
+                      })()}
                       <button className="btn btn-sm" style={{ marginTop: 8 }}
-                        onClick={() => { setGridImg(null); setFrameIdx(null); setGridColsOverride(null); }}>Заменить</button>
+                        onClick={() => { setGridImg(null); setFrameIdx(null); setGridColsOverride(null); setGridManualFrames(null); setCroppedFrame(null); }}>Заменить</button>
                     </>
                   ) : (
                     <UploadZone label="Загрузи storyboard сетку" hint="Сетка кадров всего сценария" onFile={setGridImg} />
@@ -1380,7 +1424,7 @@ export default function StudioPage() {
                     </div>
                   )}
 
-                  {/* Cropped frame preview + download */}
+                  {/* Cropped frame preview + download + video prompt */}
                   {croppedFrame && (
                     <div style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 900, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 6 }}>
@@ -1400,6 +1444,35 @@ export default function StudioPage() {
                       >
                         ⬇ Скачать для апскейла
                       </button>
+
+                      {/* Видеопромт прямо из сценария — без доп. шагов */}
+                      {curFrame?.video_prompt_en && (
+                        <div className="out-box" style={{ marginTop: 12 }}>
+                          <div className="out-head">
+                            <span className="out-label">🎬 Video Prompt — {curFrame.id}</span>
+                            <CopyBtn text={[
+                              curFrame.video_prompt_en,
+                              curFrame.sfx ? `
+SFX: ${curFrame.sfx}` : ""
+                            ].join("")} />
+                          </div>
+                          <div className="out-body">
+                            <pre className="out-pre" style={{ fontSize: 12 }}>
+                              {curFrame.video_prompt_en
+                                .replace(/^ANIMATE CURRENT FRAME:\s*/i, "")
+                                .replace(/\s*SFX:.*$/is, "")
+                                .trim()}
+                            </pre>
+                            {curFrame.sfx && (
+                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                                <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)", marginBottom: 4 }}>SFX / ASMR</div>
+                                <pre className="out-pre" style={{ fontSize: 12, color: "#a5b4fc" }}>{curFrame.sfx}</pre>
+                              </div>
+                            )}
+
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
