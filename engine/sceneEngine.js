@@ -14,6 +14,27 @@ const ULTRA_REALISM =
   "Sensor characteristics: ISO 1600 luminance noise, color noise in shadows, micro-motion blur on fast edges. " +
   "Lighting physics: single natural key light source with defined angle, soft fill from ground bounce, " +
   "realistic shadow falloff with penumbra, subsurface scattering on skin and thin fabric. " +
+
+  // ── SKIN MICRO-DETAIL ──
+  "SKIN REALISM (mandatory): visible open pores on nose bridge, cheeks and forehead, " +
+  "individual pore shadows under raking light, fine facial hair follicle dots on jaw and upper lip, " +
+  "dry cracked lip texture with vertical micro-fissures and desaturated lip edges, " +
+  "visible capillaries and slight redness in eye whites (sclera), natural tear film gloss on cornea, " +
+  "under-eye darkness with faint blue-gray vascular tone, nasolabial fold shadow with skin texture preserved, " +
+  "cheekbone subsurface flush, forehead sebum micro-sheen in key light zone, " +
+  "ear cartilage fine detail with translucent rim lighting, " +
+  "neck skin with horizontal compression creases when head is down, " +
+  "eyebrow individual hair shafts visible, eyelid crease skin texture, " +
+  "NO smooth airbrushed skin, NO plastic surface, NO porcelain finish. " +
+
+  // ── FABRIC MICRO-DETAIL ──
+  "FABRIC REALISM (mandatory): individual thread weave visible on all fabric surfaces in focus zone, " +
+  "tension wrinkles radiating from stress points (elbows, shoulders, belt line), " +
+  "worn fabric edges with loose thread fray, fabric color variation from soil and wear, " +
+  "natural gravity drape on sleeves and collar, micro-lint and fiber on dark surfaces, " +
+  "button hole stress marks, seam ridge casting micro-shadow, " +
+  "fabric breathing — subtle compression where body presses against it. " +
+
   "Subject physicality: realistic body weight distribution, clothes obeying gravity, fabric drape and tension, " +
   "unposed candid posture, micro-expressions, hair responding to environment. " +
   "Color science: Kodak Portra 400 color response — slightly warm highlights, desaturated shadows, " +
@@ -22,8 +43,10 @@ const ULTRA_REALISM =
   "NO clean edges, NO game engine materials, NO smooth gradients on organic surfaces.";
 
 const PHOTO_NEGATIVE =
-  "plastic skin, specular blob highlights, CGI render, 3D game engine look, Unreal Engine, " +
-  "oversmoothed skin, perfect symmetry, artificial bokeh blur, fake depth of field, " +
+  "plastic skin, porcelain skin finish, airbrushed skin, oversmoothed skin, beauty retouching, " +
+  "smooth featureless lips, perfect lip symmetry, glass-smooth eye whites, " +
+  "specular blob highlights, CGI render, 3D game engine look, Unreal Engine, " +
+  "perfect symmetry, artificial bokeh blur, fake depth of field, " +
   "HDR tonemapping, oversaturated colors, lens flare abuse, post-processed glow, " +
   "illustration, painting, concept art, anime, cartoon, comic style, " +
   "watermark, subtitle, UI overlay, text, modern objects out of context";
