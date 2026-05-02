@@ -143,7 +143,17 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
     : `wide horizontal image (${cols} wide × ${rows} tall grid of ${aspect} cells)`;
 
   const charLock = (storyboard?.character_lock || [])
-    .map(c => `${c.name} — ${c.description}`)
+    .map(c => {
+      const parts = [
+        c.name,
+        c.age ? `${c.age}y` : null,
+        c.description || c.face_features || null,
+        c.hair || null,
+        c.clothing || null,
+        c.physical_condition || null,
+      ].filter(Boolean);
+      return parts.join(", ");
+    })
     .join("\n");
 
   const framesEN = scenes.map((s, i) => {
@@ -284,7 +294,17 @@ export function buildChunkGridPrompt(scenes = [], storyboard = {}, styleProfile 
     : `wide image (${cols}×${rows} grid of ${aspect} cells)`;
 
   const charLock = (storyboard?.character_lock || [])
-    .map(c => `${c.name} — ${c.description}`)
+    .map(c => {
+      const parts = [
+        c.name,
+        c.age ? `${c.age}y` : null,
+        c.description || c.face_features || null,
+        c.hair || null,
+        c.clothing || null,
+        c.physical_condition || null,
+      ].filter(Boolean);
+      return parts.join(", ");
+    })
     .join("\n");
 
   const framesEN = scenes.map((s, i) => {
@@ -347,7 +367,17 @@ export function buildContinuationPrompt(anchorFrames = [], nextScenes = [], stor
   const globalOffset = chunkIndex * (totalScenes / Math.ceil(totalScenes / n) || n);
 
   const charLock = (storyboard?.character_lock || [])
-    .map(c => `${c.name} — ${c.description}`)
+    .map(c => {
+      const parts = [
+        c.name,
+        c.age ? `${c.age}y` : null,
+        c.description || c.face_features || null,
+        c.hair || null,
+        c.clothing || null,
+        c.physical_condition || null,
+      ].filter(Boolean);
+      return parts.join(", ");
+    })
     .join("\n");
 
   const anchorDesc = anchorFrames.map((a, i) =>
