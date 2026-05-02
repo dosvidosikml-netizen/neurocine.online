@@ -158,8 +158,10 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
   // Frame label instruction
   const labelInstruction = `
 FRAME LABELS (mandatory):
-- Each cell must have a small label in the corner: F01, F02, F03... up to F${String(n).padStart(2, "0")}
-- Label style: small white text, top-left corner of each cell, subtle but readable
+- Each cell must have a label: F01, F02, F03... up to F${String(n).padStart(2, "0")}
+- Label placement: OUTSIDE the photographic image content — place each label in a thin solid black border strip at the TOP of each cell, ABOVE the photo frame, not overlapping any part of the image itself
+- Label style: small white sans-serif text centered in the black top border strip, clean and readable
+- The black label strip height: approximately 20–24px, sitting above the photo content
 - Use the same numbering as in the FRAMES list above`;
 
   return `STORYBOARD GRID — ${storyboard.project_name || "NeuroCine Project"}
@@ -313,7 +315,9 @@ CRITICAL LAYOUT RULES:
 
 FRAME LABELS (mandatory):
 - Each cell must show its frame number: F${String(globalOffset + 1).padStart(2, "0")}, F${String(globalOffset + 2).padStart(2, "0")}... up to F${String(globalOffset + n).padStart(2, "0")}
-- Small white text, top-left corner of each cell, subtle but readable
+- Label placement: place each label in a thin solid BLACK border strip ABOVE the photo content — NOT overlapping the image itself, NOT over faces, NOT over backgrounds
+- The black strip sits on top of each cell, approximately 20px tall, with white sans-serif text centered inside it
+- The photographic frame starts BELOW the label strip — label never touches the scene content
 
 CRITICAL STYLE RULE — EVERY CELL:
 Every frame must be: camera-photographed live-action image, cinematic realism, NOT illustration, NOT 2D art, NOT cartoon, NOT anime, NOT painting. Any cell that looks like illustration = REJECTED.
