@@ -371,7 +371,7 @@ export function validateStoryboard(data = {}, requestedMode = "safe") {
       if (!String(s.video_prompt_en || "").includes("Maintain EXACT same character appearance")) errors.push(`${expectedId}: video prompt missing exact character continuity line`);
       if (!String(s.video_prompt_en || "").includes("PHYSICAL REALISM BOOST")) errors.push(`${expectedId}: video prompt missing physical realism block`);
       if (!String(s.video_prompt_en || "").toLowerCase().includes("sfx")) errors.push(`${expectedId}: video_prompt_en must include SFX`);
-      if (!s.vo_ru) errors.push(`${expectedId}: vo_ru is empty`);
+      // vo_ru validation removed — user handles voiceover separately
       if (!["low", "medium", "high"].includes(String(s.cut_energy || "").toLowerCase())) errors.push(`${expectedId}: cut_energy must be low, medium, or high`);
       if (mode === "safe") {
         const risky = `${s.image_prompt_en || ""} ${s.video_prompt_en || ""}`.toLowerCase();
