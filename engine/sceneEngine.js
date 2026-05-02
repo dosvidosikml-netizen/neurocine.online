@@ -276,7 +276,14 @@ export function normalizeStoryboard(input = {}, fallback = {}) {
       emotion: s.emotion || emotionTag(vo, i),
       description_ru: s.description_ru || s.visual || "",
       image_prompt_en: image.startsWith("SCENE PRIMARY FOCUS:") ? image : `SCENE PRIMARY FOCUS: ${image}`,
-      video_prompt_en: video.startsWith("ANIMATE CURRENT FRAME:") ? video : `ANIMATE CURRENT FRAME: ${video}\n\nSFX: ${s.sfx || ""}`,
+      video_prompt_en: (() => {
+        const sfxLine = s.sfx ? `\n\nSFX: ${s.sfx}` : "";
+        if (video.startsWith("ANIMATE CURRENT FRAME:")) {
+          // Already has prefix — append SFX only if missing
+          return video.includes("SFX:") ? video : video + sfxLine;
+        }
+        return `ANIMATE CURRENT FRAME: ${video}${sfxLine}`;
+      })(),
       vo_ru: vo,
       sfx: s.sfx || s.sound || "",
       camera: s.camera || cameraMove(i),
