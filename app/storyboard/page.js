@@ -69,18 +69,50 @@ function readAsDataUrl(file) {
 }
 
 /* crop one frame from a storyboard grid by index */
-function cropGridFrame(dataUrl, frameIndex, totalFrames, cols) {
+function cropGridFrame(dataUrl, frameIndex, totalFrames, cols, topTrimPx = 0) {
   return new Promise((res, rej) => {
     const img = new Image();
     img.onload = () => {
-      const rows = Math.ceil(totalFrames / cols);
-      const cellW = Math.floor(img.width / cols);
-      const cellH = Math.floor(img.height / rows);
-      const col = frameIndex % cols;
-      const row = Math.floor(frameIndex / cols);
-      const cv = document.createElement("canvas");
-      cv.width = cellW; cv.height = cellH;
-      cv.getContext("2d").drawImage(img, col * cellW, row * cellH, cellW, cellH, 0, 0, cellW, cellH);
+      const rows  = Math.ceil(totalFrames / cols);
+
+      // Auto-detect header: scan top pixels for a solid dark/light header bar
+      // If topTrimPx not provided, try to auto-detect by finding first row
+      // where image content starts (non-uniform color row)
+      let autoTrim = topTrimPx;
+      if (autoTrim === 0) {
+        const probe = document.createElement("canvas");
+        probe.width = img.width; probe.height = Math.min(80, img.height);
+        const pctx = probe.getContext("2d");
+        pctx.drawImage(img, 0, 0, img.width, 80, 0, 0, img.width, 80);
+        const pd = pctx.getImageData(0, 0, img.width, 80).data;
+        // Scan rows top-down, find first row with high variance (real content)
+        for (let y = 0; y < 80; y++) {
+          let min = 255, max = 0;
+          for (let x = 0; x < img.width; x++) {
+            const idx = (y * img.width + x) * 4;
+            const lum = (pd[idx] + pd[idx+1] + pd[idx+2]) / 3;
+            if (lum < min) min = lum;
+            if (lum > max) max = lum;
+          }
+          // High variance row = real image content
+          if (max - min > 60) { autoTrim = y; break; }
+        }
+      }
+
+      const usableH = img.height - autoTrim;
+      const cellW   = Math.floor(img.width / cols);
+      const cellH   = Math.floor(usableH / rows);
+      const col     = frameIndex % cols;
+      const row     = Math.floor(frameIndex / cols);
+      const sx      = col * cellW;
+      const sy      = autoTrim + row * cellH;
+
+      // Also trim label strip inside cell (top ~3% of cell)
+      const labelH  = Math.floor(cellH * 0.03);
+      const cv      = document.createElement("canvas");
+      cv.width      = cellW;
+      cv.height     = cellH - labelH;
+      cv.getContext("2d").drawImage(img, sx, sy + labelH, cellW, cellH - labelH, 0, 0, cellW, cellH - labelH);
       res(cv.toDataURL("image/jpeg", 0.95));
     };
     img.onerror = rej;
