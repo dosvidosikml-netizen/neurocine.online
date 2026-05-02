@@ -355,7 +355,7 @@ export async function POST(req) {
     const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "anthropic/claude-sonnet-4-5";
 
     // buildStoryboardUserPrompt from v2 — includes strict duration/scene count rules
-    const userInput = buildStoryboardUserPrompt({ script, duration, mode });
+    const userInput = buildStoryboardUserPrompt({ script, duration, mode, aspectRatio });
 
     // ── helper: один запрос к OpenRouter ──────────────────────────────────────
     async function callOpenRouter(modelId) {
