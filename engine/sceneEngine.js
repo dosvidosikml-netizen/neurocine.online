@@ -7,10 +7,10 @@
 
 const ULTRA_REALISM =
   "RAW unretouched photograph, NOT CGI, NOT rendering, NOT illustration — " +
-  "shot on Canon EOS R5 mirrorless, 85mm f/1.4 prime lens, 1/320s shutter, ISO 1600, natural available light only. " +
+  "shot on ARRI Alexa 65, Zeiss Master Prime 85mm T1.5, natural available light only. " +
   "Optical imperfections: chromatic aberration on high-contrast edges, slight barrel distortion, natural lens vignette, " +
   "real bokeh from f/1.4 aperture — background physically blurred by optics not post-processing, " +
-  "foreground subject in sharp critical focus with micro-texture visible: skin pores, fabric weave, surface grain. " +
+  "foreground subject in sharp critical focus with micro-texture visible: skin pores, fabric weave, surface grain. Lens: ARRI Alexa 65 Zeiss Master Prime — anamorphic bokeh, oval lens flares in specular highlights, horizontal lens breathing. " +
   "Sensor characteristics: ISO 1600 luminance noise, color noise in shadows, micro-motion blur on fast edges. " +
   "Lighting physics: single natural key light source with defined angle, soft fill from ground bounce, " +
   "realistic shadow falloff with penumbra, subsurface scattering on skin and thin fabric. " +

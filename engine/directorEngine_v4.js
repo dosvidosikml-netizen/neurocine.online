@@ -161,7 +161,7 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
     // Inject anti-2D style into every frame description
-    const styleEnforce = "RAW unretouched photograph, shot on Canon EOS R5 85mm f/1.4 ISO 1600, NOT CGI, NOT rendered, NOT illustrated, NOT cartoon, NOT anime, NOT painting — real camera, real location, real physics —";
+    const styleEnforce = "camera-photographed live-action image, shot on ARRI Alexa 65 Zeiss Master Prime T2.8, NOT CGI, NOT rendered, NOT illustrated, NOT cartoon, NOT anime, NOT painting — real camera, real location, real physics —";
     return `${i + 1}. [F${String(i + 1).padStart(2, "0")}] ${styleEnforce} ${en || s.vo_ru || ""}`;
   }).join("\n");
 
@@ -180,10 +180,13 @@ OVERALL IMAGE FORMAT: ${overallOrientation}
 TOTAL FRAMES: ${n}
 GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells
 
-IMPORTANT — TWO SEPARATE FORMAT RULES:
-1. EACH CELL format: ${aspect} — every individual frame must be ${aspect === "9:16" ? "tall vertical (portrait)" : aspect === "16:9" ? "wide horizontal (landscape)" : aspect}
-2. OVERALL IMAGE format: the full canvas is a ${cols}×${rows} grid — its total dimensions are determined by the grid layout, NOT forced to ${aspect}
-Do NOT stretch or crop cells to make the whole image ${aspect}. Let the grid be its natural size.
+GRID GEOMETRY LOCK (CRITICAL — NON-NEGOTIABLE):
+- Each cell MUST be a true ${aspect} frame — ${aspect === "9:16" ? "tall vertical portrait, NOT square, NOT landscape" : aspect === "16:9" ? "wide horizontal cinematic, NOT square, NOT portrait" : aspect}
+- The overall canvas MUST ${aspect === "9:16" ? "be vertically oriented (portrait) — 4 tall vertical frames in 2×2 = overall tall canvas" : aspect === "16:9" ? "be horizontally oriented — 4 wide frames in 2×2 = overall wide canvas" : "preserve cell aspect ratio"}
+- DO NOT crop, compress or approximate frames to fit a square layout
+- DO NOT make the overall canvas square when cells are portrait
+- FAIL CONDITION: if any frame appears square or landscape when 9:16 is required — REJECT and regenerate
+- Final canvas = ${cols} columns × ${rows} rows of true ${aspect} cells placed edge-to-edge with thin black separators
 
 CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Not ${n - 1}, not ${n + 1}. Exactly ${n}.
@@ -200,7 +203,7 @@ If any cell looks like illustration or 2D — the whole generation is REJECTED.
 STYLE LOCK:
 ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
 
-${charLock ? `CHARACTER LOCK (maintain across all frames):\n${charLock}\n` : ""}SCENARIO LOCK:
+${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK)\nIDENTITY CONSISTENCY: EXACT MATCH REQUIRED — not approximated, not averaged.\nThe uploaded reference is a mandatory identity template, NOT a style suggestion.\n${charLock}\n` : ""}SCENARIO LOCK:
 Do not change story order. Preserve same characters, locations, chronology, emotional logic and visual continuity across all ${n} cells.
 
 FRAMES (in order, left-to-right, top-to-bottom):
@@ -226,7 +229,7 @@ TIME: ${frame.start ?? "?"}–${frame.end ?? "?"}s
 BASE SCENE (reproduce this exact visual in all 4 cells — only camera changes):
 ${base}
 
-${charLock ? `CHARACTER LOCK — MANDATORY IN ALL 4 CELLS:\n${charLock}\n` : ""}STYLE LOCK: ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
+${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK) — MANDATORY IN ALL 4 CELLS\nIDENTITY: EXACT MATCH REQUIRED — reproduce exact face, bone structure, skin tone in every cell.\n${charLock}\n` : ""}STYLE LOCK: ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
 
 SCENARIO LOCK — NON-NEGOTIABLE:
 - same story event and props
@@ -345,7 +348,7 @@ Every frame must be: camera-photographed live-action image, cinematic realism, N
 STYLE LOCK (must match ALL other grid parts exactly):
 ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
 
-${charLock ? `CHARACTER LOCK (identical in all parts — mandatory):\n${charLock}\n` : ""}SCENARIO LOCK:
+${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK) — IDENTICAL IN ALL PARTS\nIDENTITY CONSISTENCY: EXACT MATCH REQUIRED — same face bone structure skin tone distinguishing features in every part.\n${charLock}\n` : ""}SCENARIO LOCK:
 Continuous story — preserve character identity, location logic, emotional arc and visual continuity across ALL grid parts.
 
 FRAMES IN THIS PART (in order, left-to-right, top-to-bottom):
@@ -417,7 +420,7 @@ CONTINUATION RULES — NON-NEGOTIABLE:
 STYLE LOCK (must be identical to previous grid):
 ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
 
-${charLock ? `CHARACTER LOCK (same as previous grid — mandatory):\n${charLock}\n` : ""}CRITICAL LAYOUT RULES:
+${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK) — MUST MATCH PREVIOUS GRID EXACTLY\nIDENTITY CONSISTENCY: EXACT MATCH REQUIRED — reference image is law, not suggestion.\n${charLock}\n` : ""}CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Exactly ${n}.
 - Arrange in strict ${cols}×${rows} grid, equal-size cells, each cell ${aspect}
 - No text, no numbers, no subtitles, no UI, no watermark
