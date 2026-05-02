@@ -223,6 +223,50 @@ export default function StudioPage() {
   const [autoAppearanceMode, setAutoAppearanceMode] = useState("full");
   const [autoIncludeVo, setAutoIncludeVo] = useState(true);
   const [autoHeroAnchor, setAutoHeroAnchor] = useState(null);
+
+  /* CHARACTER OVERRIDE — лицо из anchor + костюм/модификаторы из роли */
+  const [charOverrideEnabled, setCharOverrideEnabled] = useState(false);
+  const [charFaceLock, setCharFaceLock]   = useState(""); // описание лица из reference card
+  const [charModifiers, setCharModifiers] = useState({
+    beard:      false,
+    scar:       false,
+    dirt:       false,
+    bruises:    false,
+    sweat:      false,
+    exhaustion: false,
+    pale:       false,
+    blood:      false,
+  });
+
+  // Авто-предложение модификаторов по теме/стилю
+  const suggestedMods = (() => {
+    const t = (topic + " " + tone + " " + stylePreset).toLowerCase();
+    const s = [];
+    if (/средневеков|медиев|medieval|раб|prison|тюрьм|узник|slave|serf/.test(t))
+      s.push({ key: "dirt", label: "Грязь", reason: "историческая достоверность" },
+              { key: "exhaustion", label: "Истощение", reason: "тяжёлый труд/заключение" },
+              { key: "beard", label: "Щетина", reason: "нет бритья" });
+    if (/war|войн|combat|battle|солдат|soldier/.test(t))
+      s.push({ key: "dirt", label: "Грязь", reason: "боевые условия" },
+              { key: "scar", label: "Шрам", reason: "боевое ранение" },
+              { key: "bruises", label: "Синяки", reason: "контактный бой" });
+    if (/prison|тюрьм|jail|заключ|камера/.test(t))
+      s.push({ key: "pale", label: "Бледность", reason: "отсутствие солнца" },
+              { key: "bruises", label: "Синяки", reason: "тюремная жизнь" },
+              { key: "exhaustion", label: "Истощение", reason: "плохое питание" });
+    if (/surviv|выживан|wild|jungle|джунгли|дикий/.test(t))
+      s.push({ key: "dirt", label: "Грязь", reason: "дикая природа" },
+              { key: "sweat", label: "Пот", reason: "физическая нагрузка" },
+              { key: "scar", label: "Царапины", reason: "ветки/камни" });
+    if (/космос|space|sci.fi|фантаст/.test(t))
+      s.push({ key: "pale", label: "Бледность", reason: "космический стресс" },
+              { key: "exhaustion", label: "Истощение", reason: "длительный полёт" });
+    // Дефолт если ничего не подошло
+    if (s.length === 0)
+      s.push({ key: "sweat", label: "Пот", reason: "физическое напряжение" },
+              { key: "exhaustion", label: "Истощение", reason: "эмоциональная нагрузка" });
+    return s;
+  })();
   const [autoPrevPartAnchor, setAutoPrevPartAnchor] = useState(null);
   const [autoPartPrompt, setAutoPartPrompt] = useState("");
   const [autoVideoPack, setAutoVideoPack] = useState("");
@@ -246,6 +290,26 @@ export default function StudioPage() {
 
   const autoParts = useMemo(() => splitScenesIntoParts(scenes, autoPartSize), [scenes, autoPartSize]);
   const autoPartScenes = autoParts[autoPartIndex] || [];
+  // Собираем CHARACTER OVERRIDE блок для движка
+  const charOverrideBlock = charOverrideEnabled ? (() => {
+    const mods = Object.entries(charModifiers).filter(([,v])=>v).map(([k]) => {
+      const labels = { beard:"beard/stubble", scar:"visible scar tissue", dirt:"mud and dirt on skin and clothing",
+        bruises:"visible bruising", sweat:"sweat-soaked skin and fabric", exhaustion:"extreme exhaustion — hollow eyes, slack posture",
+        pale:"abnormal pallor — pale skin, dark under-eyes", blood:"restrained blood traces (safe framing)" };
+      return labels[k] || k;
+    });
+    const lines = [];
+    if (charFaceLock.trim()) {
+      lines.push(`FACE IDENTITY LOCK (from hero anchor — do NOT change): ${charFaceLock.trim()}`);
+    }
+    if (mods.length) {
+      lines.push(`CHARACTER APPEARANCE MODIFIERS (apply to all frames): ${mods.join(", ")}`);
+    }
+    return lines.length ? `
+
+${lines.join("\n")}` : "";
+  })() : "";
+
   const autoAllPrompts = useMemo(() => buildAutoChainAllParts({ storyboard, styleProfile, partSize: autoPartSize, chainMode: autoChainMode, strictLevel: autoStrictLevel, referenceMode: autoReferenceMode, appearanceMode: autoAppearanceMode }), [storyboard, styleProfile, autoPartSize, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode]);
 
   const chunkGridPrompt = useMemo(() => {
@@ -571,7 +635,7 @@ export default function StudioPage() {
       : "";
 
     const video = buildAutoVideoPack({ storyboard, styleProfile, partScenes: autoPartScenes, chainMode: autoChainMode });
-    setAutoPartPrompt(prompt + anchorNote);
+    setAutoPartPrompt(prompt + charOverrideBlock + anchorNote);
     setAutoVideoPack(video);
   }
 
@@ -581,7 +645,7 @@ export default function StudioPage() {
       storyboard, styleProfile, partSize: autoPartSize,
       chainMode: autoChainMode, strictLevel: autoStrictLevel,
       referenceMode: autoReferenceMode, appearanceMode: autoAppearanceMode
-    }).map((p, i) => `===== AUTO-CHAIN PART ${i + 1} =====\n\n${p}`).join("\n\n");
+    }).map((p, i) => `===== AUTO-CHAIN PART ${i + 1} =====\n\n${p}${charOverrideBlock}`).join("\n\n");
     setAutoAllPromptText(all);
     setAutoPartPrompt("");
     setAutoVideoPack("");
@@ -781,6 +845,100 @@ export default function StudioPage() {
           <span className="step-badge">V2.6 · {autoParts.length || 0} PART</span>
         </div>
         <div className="step-body">
+          {/* CHARACTER OVERRIDE BLOCK */}
+          <div className="frame-card" style={{ marginBottom: 14 }}>
+            <div className="frame-card-lbl" style={{ marginBottom: 10 }}>
+              🎭 Character Override — лицо из anchor, образ из роли
+            </div>
+
+            {/* Toggle */}
+            <div className="brow" style={{ marginBottom: 10 }}>
+              <button
+                className={"btn btn-sm" + (charOverrideEnabled ? " btn-red" : "")}
+                onClick={() => setCharOverrideEnabled(v => !v)}
+              >
+                {charOverrideEnabled ? "✓ Включён" : "Включить"}
+              </button>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                {charOverrideEnabled
+                  ? "Лицо из anchor — одежда и модификаторы из роли"
+                  : "Отключён — character_lock целиком из стории"}
+              </span>
+            </div>
+
+            {charOverrideEnabled && (
+              <div>
+                {/* Face lock */}
+                <div className="field" style={{ marginBottom: 12 }}>
+                  <label className="field-label">Описание лица (из reference card)</label>
+                  <textarea className="inp" rows={2} style={{ minHeight: 60 }}
+                    value={charFaceLock}
+                    onChange={e => setCharFaceLock(e.target.value)}
+                    placeholder="round face shape, brown eyes, light olive skin, buzz cut dark hair, calm expression, slight under-eye shadows, Eastern European features"
+                  />
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+                    Скопируй из reference card или опиши вручную — это лицо будет заблокировано во всех кадрах
+                  </div>
+                </div>
+
+                {/* Suggested modifiers */}
+                {suggestedMods.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+                      ✦ Рекомендуется для этой темы
+                    </div>
+                    <div className="brow" style={{ flexWrap: "wrap", gap: 6 }}>
+                      {suggestedMods.map(mod => (
+                        <button key={mod.key}
+                          className={"btn btn-xs" + (charModifiers[mod.key] ? " btn-red" : "")}
+                          onClick={() => setCharModifiers(prev => ({ ...prev, [mod.key]: !prev[mod.key] }))}
+                          title={mod.reason}
+                        >
+                          {charModifiers[mod.key] ? "✓ " : ""}{mod.label}
+                          <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>— {mod.reason}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* All modifiers */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+                    Все модификаторы
+                  </div>
+                  <div className="brow" style={{ flexWrap: "wrap", gap: 5 }}>
+                    {[
+                      { key: "beard",      label: "🧔 Борода / щетина" },
+                      { key: "scar",       label: "⚔️ Шрамы" },
+                      { key: "dirt",       label: "🟫 Грязь" },
+                      { key: "bruises",    label: "🟣 Синяки" },
+                      { key: "sweat",      label: "💧 Пот" },
+                      { key: "exhaustion", label: "😮 Истощение" },
+                      { key: "pale",       label: "🤍 Бледность" },
+                      { key: "blood",      label: "🔴 Кровь (безоп.)" },
+                    ].map(mod => (
+                      <button key={mod.key}
+                        className={"btn btn-xs" + (charModifiers[mod.key] ? " btn-red" : "")}
+                        onClick={() => setCharModifiers(prev => ({ ...prev, [mod.key]: !prev[mod.key] }))}
+                      >
+                        {charModifiers[mod.key] ? "✓ " : ""}{mod.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview */}
+                {(charFaceLock.trim() || Object.values(charModifiers).some(Boolean)) && (
+                  <div style={{ marginTop: 12, padding: "10px 12px", background: "rgba(229,53,53,0.06)", borderRadius: 8, border: "1px solid rgba(229,53,53,0.15)", fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
+                    <strong style={{ color: "var(--accent)" }}>Face lock:</strong> {charFaceLock || "не задано"}<br/>
+                    <strong style={{ color: "var(--accent)" }}>Модификаторы:</strong> {Object.entries(charModifiers).filter(([,v])=>v).map(([k])=>k).join(", ") || "нет"}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="out-box" style={{ marginBottom: 14 }}>
             <div className="out-head">
               <span className="out-label">Что делает V2.6</span>
