@@ -54,7 +54,7 @@ mode: "raw"
 # GLOBAL STYLE LOCK
 
 RAW unretouched photograph — NOT CGI, NOT rendered, NOT illustrated.
-Shot on Canon EOS R5, 85mm f/1.4 prime, 1/320s, ISO 1600, natural available light only.
+Shot on ARRI Alexa 65, Zeiss Master Prime 85mm T1.5, natural available light only.
 Optical realism: chromatic aberration on high-contrast edges, natural lens vignette, real bokeh from f/1.4 — background blurred by optics not post-processing.
 Sensor noise: ISO 1600 luminance grain, color noise in shadows, micro-motion blur on fast edges.
 Surface detail — SKIN: visible open pores on nose bridge and cheeks, individual pore shadows under raking light, dry cracked lip texture with vertical micro-fissures, visible capillaries in eye whites (sclera), natural tear film gloss on cornea, under-eye vascular darkness, cheekbone subsurface flush, individual stubble follicle dots, eyebrow individual hair shafts, eyelid skin crease texture. NO smooth airbrushed skin, NO plastic surface.
@@ -173,7 +173,7 @@ Do NOT escalate through explicit gore in safe mode.
 # IMAGE PROMPT QUALITY
 
 Keep image prompts CLEAN. Use only compact optics/quality signal:
-- Canon EOS R5, 85mm f/1.4, ISO 1600, natural light, chromatic aberration, real sensor grain, physical bokeh
+- ARRI Alexa 65, Zeiss Master Prime T1.5, natural light, anamorphic chromatic aberration, real film grain, physical anamorphic bokeh
 
 Do NOT spam: no blur / no plastic skin / no smudged faces / 8k texture fidelity / high frequency details.
 
