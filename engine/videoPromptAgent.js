@@ -178,6 +178,7 @@ export function buildVideoPromptFor({
   frame = {},
   storyboard = {},
   target = "veo3",  // "veo3" | "grok"
+  includeVo = false,
 } = {}) {
   const characterBlock = buildCharacterBlock(storyboard.character_lock);
   const aspectRatio = storyboard.aspect_ratio || "9:16";
@@ -227,9 +228,9 @@ export function buildVideoPromptFor({
   }
 
   // ───── VEO 3 ────────────────────────────────────────────────────────────
-  const audioBlock = voRu
-    ? `Audio: ${sfx}. Voiceover (Russian narrator, documentary tone, external to scene): "${voRu}"`
-    : `Audio: ${sfx}. No dialogue, ambient only`;
+  const audioBlock = includeVo && voRu
+    ? `Audio: ${sfx}. Voiceover/dialogue allowed by user: "${voRu}"`
+    : `Audio: ${sfx}. No dialogue, no voiceover, ambient only`;
 
   return [
     `${camera}, ${duration}-second shot.`,
@@ -284,13 +285,13 @@ export function stripBannedWords(text = "") {
 // Финальная сборка для одного кадра — image + video + negative.
 // Используется в normalizeStoryboard.
 // ────────────────────────────────────────────────────────────────────────────
-export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3" }) {
+export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3", includeVo = false }) {
   const imagePrompt = ensurePromptPrefix(
     stripBannedWords(buildImagePrompt({ frame, storyboard, target })),
     "SCENE PRIMARY FOCUS:"
   );
   const videoPrompt = ensurePromptPrefix(
-    ensureSfxLine(stripBannedWords(buildVideoPromptFor({ frame, storyboard, target })), frame.sfx),
+    ensureSfxLine(stripBannedWords(buildVideoPromptFor({ frame, storyboard, target, includeVo })), frame.sfx),
     "ANIMATE CURRENT FRAME:"
   );
 
