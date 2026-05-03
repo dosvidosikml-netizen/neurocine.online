@@ -109,8 +109,8 @@ These models have DIFFERENT prompt expectations. You must adapt.
 - Order: shot type → subject → action → environment → camera → lighting → color → realism → audio
 - Camera movement MUST include explicit timing: "slow 2-second push-in", "static 3-second hold"
 - AUDIO BLOCK IS MANDATORY in video_prompt_en:
-    "Audio: [ambience]. [SFX]. [voiceover or 'no dialogue, ambient only']"
-- Veo 3 generates native synchronized sound — silent prompts waste the model
+    "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
+- Veo 3 generates native synchronized sound — use ambience and SFX only by default
 
 ## GROK IMAGINE PROMPT FORMAT
 - video_prompt_en: compact 40-80 words
@@ -189,7 +189,7 @@ Every video_prompt_en MUST (regardless of target):
 - End EXACTLY with: "Maintain EXACT same character appearance, face, clothing, and condition as previous frame."
 
 VEO 3 specific:
-- Mandatory Audio block: "Audio: [ambience]. SFX: [details]. [Voiceover or no dialogue]."
+- Mandatory Audio block: "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
 - Explicit timing on camera movement
 - Length: 60-120 words
 
@@ -207,10 +207,10 @@ Raw mode action verbs: slam, crash, drag, strike, collapse, collide, shove, stag
 # VO RULE
 ═══════════════════════════════════════════════════════════════════════════
 vo_ru:
-- always external narrator text
-- always TTS overlay
-- never dialogue
+- keep as separate external TTS text only
+- never dialogue unless user explicitly enables VO/dialogue later
 - never spoken by characters inside scene
+- never include vo_ru, VO meaning, narration, speech, or dialogue inside image_prompt_en/video_prompt_en by default
 - documentary / trailer tone
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -241,7 +241,7 @@ If any scene < 8 → rewrite until 8+.
 - image_prompt_en starts with "SCENE PRIMARY FOCUS:"
 - video_prompt_en ends with EXACT continuity sentence
 - NO banned style tokens (cinematic, 8k, masterpiece, perfect, etc.)
-- target-specific format respected (Veo 3 audio block / Grok hook+brevity)
+- target-specific format respected (Veo 3 SFX/no-voice audio block / Grok hook+brevity)
 - total_duration equals requested duration
 - safe wording if mode=safe
 If broken → rewrite until valid.
