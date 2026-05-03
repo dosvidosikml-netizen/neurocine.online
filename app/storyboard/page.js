@@ -210,6 +210,7 @@ export default function StudioPage() {
   const [sbStat, setSbStat]   = useState("");
   const [jsonIn, setJsonIn]   = useState("");
   const [sbMode, setSbMode]   = useState("safe");
+  const [target, setTarget]   = useState("veo3"); // "veo3" | "grok" — целевая видео-модель
   const [validation, setValidation] = useState(null);
 
   /* STEP 3 — Pipeline */
@@ -390,6 +391,7 @@ ${lines.join("\n")}` : "";
       if (text.storyboard)  setSB(text.storyboard);
       if (text.jsonIn)      setJsonIn(text.jsonIn);
       if (text.sbMode)      setSbMode(text.sbMode);
+      if (text.target)      setTarget(text.target);
       if (text.validation)  setValidation(text.validation);
       if (text.frameIdx !== undefined && text.frameIdx !== null) setFrameIdx(text.frameIdx);
       if (text.exploreP)    setExploreP(text.exploreP);
@@ -414,11 +416,11 @@ ${lines.join("\n")}` : "";
     if (!hydrated) return;
     tryLsSave(KEY_TEXT, {
       projectName, topic, projectType, stylePreset, duration,
-      aspectRatio, tone, script, storyboard, jsonIn, sbMode, validation,
+      aspectRatio, tone, script, storyboard, jsonIn, sbMode, target, validation,
       frameIdx, exploreP, selVariant, p2k, videoP, analysis
     });
   }, [hydrated, projectName, topic, projectType, stylePreset, duration, aspectRatio,
-      tone, script, storyboard, jsonIn, sbMode, validation, frameIdx, exploreP, selVariant, p2k, videoP, analysis]);
+      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, analysis]);
 
   /* ── AUTOSAVE WRITE (images — separate key, с защитой от quota) ── */
   useEffect(() => {
@@ -504,7 +506,8 @@ ${lines.join("\n")}` : "";
           aspect_ratio: aspectRatio,
           style: stylePreset,
           project_name: projectName,
-          mode: sbMode
+          mode: sbMode,
+          target
         })
       });
       const d = await r.json();
@@ -610,7 +613,7 @@ ${lines.join("\n")}` : "";
 
       const r2 = await fetch("/api/video", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ frame: curFrame, analysis: d1.analysis, storyboard, styleProfile, projectType, stylePreset })
+        body: JSON.stringify({ frame: curFrame, analysis: d1.analysis, storyboard, styleProfile, projectType, stylePreset, target })
       });
       const d2 = await r2.json();
       setVideoP(d2.video_prompt_en || "");
@@ -1210,6 +1213,31 @@ ${lines.join("\n")}` : "";
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
                   {sbMode === "safe" ? "Safe — документальный стиль, без жёсткого контента" : "Raw — сильная камера, интенсивная атмосфера, кинематографичнее"}
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="field-label">Целевая видео-модель</label>
+                <div className="brow">
+                  <button
+                    className={`btn${target === "veo3" ? " btn-red" : ""}`}
+                    onClick={() => setTarget("veo3")}
+                    style={{ flex: 1 }}
+                  >
+                    🎬 Veo 3
+                  </button>
+                  <button
+                    className={`btn${target === "grok" ? " btn-red" : ""}`}
+                    onClick={() => setTarget("grok")}
+                    style={{ flex: 1 }}
+                  >
+                    🚀 Grok
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
+                  {target === "veo3"
+                    ? "Veo 3 — длинные промты с native audio, явное тайминг камеры, до 8с"
+                    : "Grok Imagine — компактные промты с visual hook, стилевые референсы, до 6с"}
                 </div>
               </div>
 
