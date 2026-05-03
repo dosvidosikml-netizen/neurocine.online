@@ -329,7 +329,9 @@ export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, cha
   const visual = sceneText(scene);
   const motion = sceneMotion(scene);
   const style  = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
-  return `ANIMATE CURRENT FRAME — ${label}
+  return `ANIMATE CURRENT FRAME:
+
+FRAME LABEL: ${label}
 
 SOURCE OF TRUTH:
 Animate ONLY what is present in this frame and its storyboard description. Do not invent new plot events.
