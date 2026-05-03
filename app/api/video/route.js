@@ -1,5 +1,5 @@
 // app/api/video/route.js
-// NeuroCine Video Prompt API v2.2
+// NeuroCine Video Prompt API v2.7
 // Использует centralized modelRouter — VIDEO_PROMPT_REFINEMENT task.
 // По умолчанию Haiku 4.5: дешёвая модель полирует уже собранный videoPromptAgent
 // промт. Большая часть работы делается локально, LLM только дошлифовывает.
@@ -11,6 +11,9 @@ import {
   stripBannedWords,
   validateFramePrompts,
   NEGATIVE_PROMPT_BASE,
+  cleanVideoPromptText,
+  buildContinuityLine,
+  compactVideoPrompt,
 } from "../../../engine/videoPromptAgent";
 import { normalizeTarget } from "../../../engine/sceneEngine_v2";
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
@@ -19,9 +22,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT_BASE = `
-You are NeuroCine Video Prompt Director v2.2.
+You are NeuroCine Video Prompt Director v2.7.
 Output ONLY valid JSON. No markdown.
-Create one production-ready image-to-video prompt for a locked frame.
+Create one production-ready image-to-video prompt for a locked frame. Do not invent names; use descriptive roles only.
 
 CORE RULES:
 - preserve storyboard frame, character identity, location, style, action, and SFX
@@ -29,7 +32,7 @@ CORE RULES:
 - inject character_lock VERBATIM (no paraphrasing of locked features)
 - use realism anchors: visible skin pores, individual hair strands, fabric weave, lens vignette, 35mm film grain
 - NO banned tokens: "cinematic", "epic", "stunning", "8K", "masterpiece", "perfect", "hyperrealistic", "rendered", "CGI"
-- end video_prompt with EXACT line: "Maintain EXACT same character appearance, face, clothing, and condition as previous frame."
+- end video_prompt with the continuity line provided by the API; frame_01 must reference the uploaded final 2K frame, not a previous frame
 
 OUTPUT JSON: { "video_prompt_en": "...", "image_prompt_en": "...", "sfx": "...", "negative_prompt": "...", "notes_ru": "..." }
 `;
@@ -113,10 +116,15 @@ function removeVoDialogueWhenDisabled(videoPrompt = "", includeVo = false) {
   return out.replace(/\s+/g, " ").trim();
 }
 
-function ensureContinuityLine(videoPrompt = "") {
-  const line = "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
+function ensureContinuityLine(videoPrompt = "", frame = {}, consistency = "normal") {
+  const line = buildContinuityLine(frame, consistency);
   let out = String(videoPrompt || "").trim();
-  out = out.replace(/Maintain EXACT same character appearance, face, clothing, and condition as previous frame\.?/gi, "").trim();
+  out = out
+    .replace(/Maintain exact character appearance, face, clothing, and condition from the uploaded final 2K frame\.?/gi, "")
+    .replace(/Maintain EXACT same character appearance, face, clothing, and condition as previous frame\.?/gi, "")
+    .replace(/Maintain exact same character appearance, face, clothing, and condition as previous frame\.?/gi, "")
+    .replace(/Ultra consistency:[^.]*\./gi, "")
+    .trim();
   return `${out} ${line}`.replace(/\s+/g, " ").trim();
 }
 
@@ -134,7 +142,7 @@ function buildSegmentPlan(frame = {}) {
   };
 }
 
-function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePrompt, sfx, negativePrompt, includeVo = false }) {
+function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePrompt, sfx, negativePrompt, includeVo = false, promptMode = "pro", consistency = "normal" }) {
   const finalSfx = String(sfx || frame.sfx || "subtle realistic ambience").trim();
   let finalVideo = stripBannedWords(videoPrompt || "");
   let finalImage = stripBannedWords(imagePrompt || "");
@@ -143,7 +151,9 @@ function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePr
   finalImage = normalizePromptPrefix(finalImage, "SCENE PRIMARY FOCUS:");
   finalVideo = ensureSfxInsideVideoPrompt(finalVideo, finalSfx);
   finalVideo = removeVoDialogueWhenDisabled(finalVideo, includeVo);
-  finalVideo = ensureContinuityLine(finalVideo);
+  finalVideo = cleanVideoPromptText(finalVideo, { storyboard, includeVo });
+  finalVideo = ensureContinuityLine(finalVideo, frame, consistency);
+  if (promptMode === "cheap") finalVideo = compactVideoPrompt(finalVideo, { maxWords: target === "grok" ? 80 : 95 });
 
   const finalNegative = [negativePrompt || NEGATIVE_PROMPT_BASE, "subtitles, captions, on-screen text, UI overlay, watermark, logo, deformed face, identity drift, clothing drift"]
     .filter(Boolean)
@@ -167,7 +177,7 @@ function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePr
   };
 }
 
-async function refineWithRouter({ frame, analysis, storyboard, target, seedPrompt, seedImage, includeVo = false }) {
+async function refineWithRouter({ frame, analysis, storyboard, target, seedPrompt, seedImage, includeVo = false, promptMode = "pro", consistency = "normal" }) {
   if (!process.env.OPENROUTER_API_KEY) return null;
 
   const targetRules = target === "grok" ? GROK_RULES : VEO3_RULES;
@@ -224,7 +234,7 @@ VISUAL ANALYSIS (if uploaded image present):
 - Emotion: ${analysis?.emotion || frame.emotion || "preserve emotional tone"}
 - Continuity: ${analysis?.continuity || "same character, same location"}
 
-Generate the FINAL ${target.toUpperCase()} prompt following all rules above. Output JSON only.`;
+Generate the FINAL ${target.toUpperCase()} prompt following all rules above. Use descriptive roles, not invented names. Output JSON only.`;
 
   const result = await callOpenRouter({
     taskType: TASK_TYPES.VIDEO_PROMPT_REFINEMENT,
@@ -249,11 +259,13 @@ export async function POST(req) {
     const storyboard = body.storyboard || {};
     const target = normalizeTarget(body.target || frame.target || storyboard?.export_meta?.target || "veo3");
     const includeVo = body.includeVo === true || body.include_vo === true;
+    const promptMode = body.promptMode === "cheap" || body.videoPromptMode === "cheap" ? "cheap" : "pro";
+    const consistency = body.consistency === "ultra" || body.videoConsistency === "ultra" ? "ultra" : "normal";
     const styleProfile = body.styleProfile || getStyleProfile(body.projectType, body.stylePreset);
 
     // Build seed prompts locally first (deterministic baseline)
     const seedImage = stripBannedWords(buildImagePrompt({ frame, storyboard, target }));
-    const seedVideo = stripBannedWords(buildVideoPromptFor({ frame, storyboard, target, includeVo }));
+    const seedVideo = stripBannedWords(buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency }));
 
     // Refine via cheap model (Haiku 4.5 default)
     let api = null;
@@ -266,6 +278,8 @@ export async function POST(req) {
         seedPrompt: seedVideo,
         seedImage,
         includeVo,
+        promptMode,
+        consistency,
       });
     } catch {}
 
@@ -278,6 +292,8 @@ export async function POST(req) {
       sfx: api?.sfx || analysis.sfx || frame.sfx || "subtle realistic ambience",
       negativePrompt: api?.negative_prompt || NEGATIVE_PROMPT_BASE,
       includeVo,
+      promptMode,
+      consistency,
     });
 
     return Response.json({
@@ -289,13 +305,16 @@ export async function POST(req) {
         video_prefix: "ANIMATE CURRENT FRAME:",
         sfx_embedded_in_video_prompt: true,
         vo_dialogue_enabled: includeVo,
+        prompt_mode: promptMode,
+        consistency,
+        video_engine: "v2.7",
         analysis_disabled: true,
         continuity_lock: true,
         no_subtitles_ui_watermark: true,
       },
       notes_ru:
         api?.notes_ru ||
-        `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: analyze отключён, VO/диалоги ${includeVo ? "включены пользователем" : "выключены"}, SFX внутри video prompt, continuity lock и realism anchors. Banned-токены вычищены.`,
+        `Промт V2.7 построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: режим ${promptMode}, consistency ${consistency}, analyze отключён, VO/диалоги ${includeVo ? "включены пользователем" : "выключены"}, имена/дубли/No No очищены, SFX внутри video prompt.`,
     });
   } catch (e) {
     return Response.json({ error: e.message || "Video API error" }, { status: 500 });
