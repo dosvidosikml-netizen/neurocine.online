@@ -24,7 +24,7 @@ Output ONLY valid JSON. No markdown.
 Create one production-ready image-to-video prompt for a locked frame.
 
 CORE RULES:
-- preserve storyboard frame, uploaded image analysis, character identity, location, style, VO meaning
+- preserve storyboard frame, character identity, location, style, action, and SFX
 - do not invent new action, new characters, or new location
 - inject character_lock VERBATIM (no paraphrasing of locked features)
 - use realism anchors: visible skin pores, individual hair strands, fabric weave, lens vignette, 35mm film grain
@@ -39,7 +39,7 @@ TARGET MODEL: Google Veo 3
 - video_prompt_en: flowing paragraph 60-120 words
 - Order: shot type → subject → action → environment → camera → lighting → color → realism → audio
 - Camera movement MUST include explicit timing ("slow 2-second push-in", "static 3-second hold")
-- MANDATORY Audio block: "Audio: [ambience]. SFX: [sfx]. [Voiceover or 'no dialogue']"
+- MANDATORY Audio block: "Audio: [ambience]. SFX: [sfx]. No dialogue, no voiceover."
 `;
 
 const GROK_RULES = `
@@ -95,6 +95,24 @@ function ensureSfxInsideVideoPrompt(videoPrompt = "", sfx = "") {
   return out.replace(/\s+/g, " ").trim();
 }
 
+function removeVoDialogueWhenDisabled(videoPrompt = "", includeVo = false) {
+  let out = String(videoPrompt || "").trim();
+  if (includeVo) return out;
+
+  out = out
+    .replace(/Voiceover[^.]*\./gi, "")
+    .replace(/VO meaning[^.]*\./gi, "")
+    .replace(/narrator[^.]*\./gi, "")
+    .replace(/dialogue[^.]*\./gi, "")
+    .replace(/spoken line[^.]*\./gi, "")
+    .replace(/speech[^.]*\./gi, "");
+
+  if (!/No dialogue, no voiceover/i.test(out)) {
+    out = `${out} No dialogue, no voiceover; ambient sound and SFX only.`;
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
 function ensureContinuityLine(videoPrompt = "") {
   const line = "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
   let out = String(videoPrompt || "").trim();
@@ -116,7 +134,7 @@ function buildSegmentPlan(frame = {}) {
   };
 }
 
-function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePrompt, sfx, negativePrompt }) {
+function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePrompt, sfx, negativePrompt, includeVo = false }) {
   const finalSfx = String(sfx || frame.sfx || "subtle realistic ambience").trim();
   let finalVideo = stripBannedWords(videoPrompt || "");
   let finalImage = stripBannedWords(imagePrompt || "");
@@ -124,6 +142,7 @@ function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePr
   finalVideo = normalizePromptPrefix(finalVideo, "ANIMATE CURRENT FRAME:");
   finalImage = normalizePromptPrefix(finalImage, "SCENE PRIMARY FOCUS:");
   finalVideo = ensureSfxInsideVideoPrompt(finalVideo, finalSfx);
+  finalVideo = removeVoDialogueWhenDisabled(finalVideo, includeVo);
   finalVideo = ensureContinuityLine(finalVideo);
 
   const finalNegative = [negativePrompt || NEGATIVE_PROMPT_BASE, "subtitles, captions, on-screen text, UI overlay, watermark, logo, deformed face, identity drift, clothing drift"]
@@ -148,11 +167,14 @@ function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePr
   };
 }
 
-async function refineWithRouter({ frame, analysis, storyboard, target, seedPrompt, seedImage }) {
+async function refineWithRouter({ frame, analysis, storyboard, target, seedPrompt, seedImage, includeVo = false }) {
   if (!process.env.OPENROUTER_API_KEY) return null;
 
   const targetRules = target === "grok" ? GROK_RULES : VEO3_RULES;
-  const systemPrompt = `${SYSTEM_PROMPT_BASE}\n${targetRules}`;
+  const voiceRules = includeVo
+    ? "USER ENABLED VO/DIALOGUE: voiceover/dialogue may be used only if the frame.vo_ru explicitly requires it. Keep it short."
+    : "VOICE LOCK: do NOT include voiceover, narration, dialogue, spoken lines, VO meaning, or character speech. Use visual action + SFX only.";
+  const systemPrompt = `${SYSTEM_PROMPT_BASE}\n${targetRules}\n${voiceRules}`;
 
   const characterContext = (storyboard?.character_lock || [])
     .map((c) => {
@@ -180,9 +202,10 @@ ${characterContext || "(none specified)"}
 SCENE DESCRIPTION (Russian):
 ${frame.description_ru || "(none)"}
 
-VOICEOVER (Russian, narrator):
+${includeVo ? `VOICEOVER / DIALOGUE ALLOWED BY USER:
 ${frame.vo_ru || "(none)"}
-
+` : `VOICEOVER / DIALOGUE: DISABLED BY USER. Do not include narration, VO, dialogue, or spoken lines.
+`}
 CAMERA:
 ${frame.camera || "(infer from scene)"}
 
@@ -225,11 +248,12 @@ export async function POST(req) {
     const analysis = body.analysis || {};
     const storyboard = body.storyboard || {};
     const target = normalizeTarget(body.target || frame.target || storyboard?.export_meta?.target || "veo3");
+    const includeVo = body.includeVo === true || body.include_vo === true;
     const styleProfile = body.styleProfile || getStyleProfile(body.projectType, body.stylePreset);
 
     // Build seed prompts locally first (deterministic baseline)
     const seedImage = stripBannedWords(buildImagePrompt({ frame, storyboard, target }));
-    const seedVideo = stripBannedWords(buildVideoPromptFor({ frame, storyboard, target }));
+    const seedVideo = stripBannedWords(buildVideoPromptFor({ frame, storyboard, target, includeVo }));
 
     // Refine via cheap model (Haiku 4.5 default)
     let api = null;
@@ -241,6 +265,7 @@ export async function POST(req) {
         target,
         seedPrompt: seedVideo,
         seedImage,
+        includeVo,
       });
     } catch {}
 
@@ -252,6 +277,7 @@ export async function POST(req) {
       imagePrompt: api?.image_prompt_en || seedImage,
       sfx: api?.sfx || analysis.sfx || frame.sfx || "subtle realistic ambience",
       negativePrompt: api?.negative_prompt || NEGATIVE_PROMPT_BASE,
+      includeVo,
     });
 
     return Response.json({
@@ -262,12 +288,14 @@ export async function POST(req) {
         image_prefix: "SCENE PRIMARY FOCUS:",
         video_prefix: "ANIMATE CURRENT FRAME:",
         sfx_embedded_in_video_prompt: true,
+        vo_dialogue_enabled: includeVo,
+        analysis_disabled: true,
         continuity_lock: true,
         no_subtitles_ui_watermark: true,
       },
       notes_ru:
         api?.notes_ru ||
-        `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"} с инжекцией character lock, SFX внутри video prompt, continuity lock и realism anchors. Banned-токены вычищены.`,
+        `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: analyze отключён, VO/диалоги ${includeVo ? "включены пользователем" : "выключены"}, SFX внутри video prompt, continuity lock и realism anchors. Banned-токены вычищены.`,
     });
   } catch (e) {
     return Response.json({ error: e.message || "Video API error" }, { status: 500 });
