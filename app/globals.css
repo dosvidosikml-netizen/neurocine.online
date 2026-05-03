@@ -322,3 +322,36 @@ table.sb-t { width: 100%; min-width: 800px; border-collapse: separate; border-sp
   background: rgba(229,53,53,0.18);
   box-shadow: 0 0 0 1px rgba(229,53,53,0.15) inset;
 }
+
+/* PRODUCTION GRID CANVAS FIX */
+.grid-canvas-viewer {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+}
+.grid-canvas-viewer > img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.step-section, .step-body, .pipe-body, .out-box, .img-viewer, .upload-zone {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.img-viewer img {
+  max-width: 100%;
+  object-fit: contain;
+}
+@media (max-width: 720px) {
+  .grid-canvas-viewer {
+    max-height: 62vh;
+    overflow: hidden;
+  }
+}
