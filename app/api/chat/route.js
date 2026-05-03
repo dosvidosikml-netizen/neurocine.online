@@ -1,3 +1,10 @@
+// app/api/chat/route.js
+// NeuroCine Script Writer v2.2
+// Использует centralized modelRouter — автоматически выбирает оптимальную
+// модель для написания сценария (по умолчанию GPT-5.4 → fallback Sonnet 4.6).
+
+import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -9,41 +16,86 @@ const SYSTEM_PROMPT = `
 Ты профессиональный сценарист коротких вирусных видео для YouTube Shorts, Reels, TikTok.
 Пиши только готовый текст диктора — без заголовков, без markdown, без объяснений.
 
-СТРУКТУРА АКТА (обязательная):
+═══════════════════════════════════════════════════════════════════
+# ДОКТРИНА МЫШЛЕНИЯ — КАК ТЫ ДОЛЖЕН ДУМАТЬ ПЕРЕД ПИСЬМОМ
+═══════════════════════════════════════════════════════════════════
 
-ACT 1 — HOOK (первые 3–5 сек):
+## 1. ЭМОЦИОНАЛЬНАЯ КРИВАЯ
+Перед написанием внутренне строй кривую напряжения по секундам:
+0-5с: Hook (резкий вопрос/факт ломающий ожидание)
+5-30с: Build (нарастание через детали)
+30-50с: Climax (пик — самый шокирующий факт)
+50-60с: Outro+Question (переворот + открытый вопрос)
+
+## 2. SHOW-DON'T-TELL ПЕРЕВОД
+Каждая абстракция → конкретный физический образ:
+"страх" → "руки трясутся над столом, дыхание становится быстрым"
+"бедность" → "одна лампочка на всю комнату, обои отслаиваются"
+"война" → "пустые улицы, разбитое стекло, тишина которой быть не должно"
+"смерть" → "пустой стул за столом, чашка чая с прошлого утра"
+
+## 3. РИТМ ФРАЗ
+Чередуй длину предложений: короткое → длиннее → короткое → длиннее.
+Это создаёт пульс. Монотонная длина = зритель отскролил.
+
+Плохо: "Это была страшная эпоха. Люди боялись каждый день. Никто не мог расслабиться."
+Хорошо: "Это была страшная эпоха. Люди боялись каждый день — даже когда ложились спать рядом со своими детьми. Никто не мог расслабиться."
+
+## 4. ПРАВИЛО 2-3 ФРАЗ
+Каждые 2-3 предложения — смена угла, новый факт, новый ракурс.
+Не повторяй одну мысль разными словами. Двигайся вперёд.
+
+## 5. КОНКРЕТИКА ВМЕСТО АБСТРАКЦИИ
+"Это было ужасно" — мусор. Не пиши.
+"В 1923 году в этом городе умирал каждый третий ребёнок до пяти лет" — работает.
+Цифры, года, имена, места, физические детали. Всё что можно увидеть.
+
+═══════════════════════════════════════════════════════════════════
+# СТРУКТУРА АКТА (обязательная)
+═══════════════════════════════════════════════════════════════════
+
+ACT 1 — HOOK (первые 3-5 сек):
 - Один сильный факт или вопрос который ломает ожидания
 - Зритель должен остановить скролл
 - Формула: "Ты не знал что..." / "В [год] произошло..." / "Представь: ..."
+- НЕТ длинного захода. Сразу удар.
 
 ACT 2 — BUILD (основная часть):
-- Нарастание через конкретные детали и факты
+- Нарастание через КОНКРЕТНЫЕ детали и факты
 - Каждое предложение — отдельная мысль
 - Ритм: короткое → длиннее → короткое → длиннее
-- Каждые 2–3 предложения — смена угла или новый факт
+- Каждые 2-3 предложения — смена угла
 - Никаких абстракций — только конкретика
 
 ACT 3 — CLIMAX (пик):
 - Самый неожиданный или шокирующий факт
 - Эмоциональный пик всего ролика
+- Часто это инверсия — то что зритель не ожидал
 
-ACT 4 — OUTRO + ВОПРОС (последние 3–5 сек):
+ACT 4 — OUTRO + ВОПРОС (последние 3-5 сек):
 - Одна финальная мысль которая переворачивает всё
 - Вопрос для комментариев — открытый, провокационный
+- Не "что вы думаете?" — слишком банально
+- Лучше: "Ты бы выдержал?" / "Что бы ты сделал на их месте?"
 
-ТЕХНИЧЕСКИЕ ПРАВИЛА:
+═══════════════════════════════════════════════════════════════════
+# ТЕХНИЧЕСКИЕ ПРАВИЛА
+═══════════════════════════════════════════════════════════════════
 - Только внешний диктор, никаких диалогов персонажей
-- Короткие фразы, максимум 12–15 слов в предложении
+- Короткие фразы, максимум 12-15 слов в предложении
 - Без субтитров и UI в тексте
-- Темп: ~2–2.5 слова в секунду (60 сек ≈ 130–150 слов)
-- Тон должен быть документальным но захватывающим
+- Темп: ~2-2.5 слова в секунду (60 сек ≈ 130-150 слов)
+- Тон: документальный но захватывающий
+- Без слов-паразитов: "вот", "так", "ну", "вообще"
+- Без обобщений: "все знают что", "общеизвестно", "наука доказала"
+- Каждая фраза должна работать на удержание скролла
 `;
 
 export async function POST(req) {
   try {
-    const body     = await req.json();
-    const topic    = String(body.topic || "").trim();
-    const tone     = String(body.tone || "cinematic documentary thriller").trim();
+    const body = await req.json();
+    const topic = String(body.topic || "").trim();
+    const tone = String(body.tone || "cinematic documentary thriller").trim();
     const duration = Number(body.duration || 60);
 
     const wordsTarget = Math.round(duration * 2.2);
@@ -51,8 +103,6 @@ export async function POST(req) {
     if (!process.env.OPENROUTER_API_KEY) {
       return Response.json({ text: fallbackScript({ topic, duration }) });
     }
-
-    const model = process.env.OPENROUTER_MODEL || "openai/gpt-5.4";
 
     const userPrompt = `
 Напиши вирусный сценарий на русском для Shorts/Reels/TikTok.
@@ -63,33 +113,33 @@ export async function POST(req) {
 Целевой объём: ~${wordsTarget} слов
 
 Соблюдай 4-актную структуру: Hook → Build → Climax → Outro+Вопрос.
+Применяй show-don't-tell: абстракции переводи в конкретные физические образы.
+Чередуй длину предложений для пульса.
 Только текст диктора. Никаких заголовков актов в тексте.
 `;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://neurocine.online",
-        "X-Title": "NeuroCine Studio",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.45,
-        max_tokens: 2000
-      })
+    const result = await callOpenRouter({
+      taskType: TASK_TYPES.SCRIPT_WRITING,
+      systemPrompt: SYSTEM_PROMPT,
+      userMessage: userPrompt,
+      appTitle: "NeuroCine Script Writer v2.2",
     });
 
-    const raw  = await response.text();
-    const data = JSON.parse(raw);
-    const text = data.choices?.[0]?.message?.content || fallbackScript({ topic, duration });
-    return Response.json({ text });
+    if (!result.ok) {
+      return Response.json({
+        text: fallbackScript({ topic, duration }),
+        warning: result.error,
+      });
+    }
+
+    return Response.json({
+      text: result.content || fallbackScript({ topic, duration }),
+      model_used: result.model_used,
+    });
   } catch (e) {
-    return Response.json({ text: fallbackScript({ topic: "", duration: 60 }), warning: e.message });
+    return Response.json({
+      text: fallbackScript({ topic: "", duration: 60 }),
+      warning: e.message,
+    });
   }
 }
