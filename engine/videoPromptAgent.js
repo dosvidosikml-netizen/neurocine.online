@@ -7,6 +7,21 @@
 // строятся по жёсткой структуре — visual hook первым, character lock дословно,
 // технические теги в конце.
 
+
+function ensurePromptPrefix(text = "", prefix) {
+  let out = String(text || "").trim();
+  if (prefix === "SCENE PRIMARY FOCUS:") out = out.replace(/^SCENE PRIMARY FOCUS[:\s-]*/i, "").trim();
+  if (prefix === "ANIMATE CURRENT FRAME:") out = out.replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "").trim();
+  return `${prefix} ${out}`.replace(/\s+/g, " ").trim();
+}
+
+function ensureSfxLine(text = "", sfx = "") {
+  const finalSfx = String(sfx || "subtle realistic ambience").trim();
+  let out = String(text || "").trim();
+  if (!/\bSFX\s*:/i.test(out)) out = `${out} SFX: ${finalSfx}.`;
+  return out.replace(/\s+/g, " ").trim();
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // REALISM ANCHORS — то, что убирает "AI-мыло" и пластик-кожу.
 // Эти теги ЯВНО прописываются в каждый промт. Без них — выходит soap opera.
@@ -270,8 +285,14 @@ export function stripBannedWords(text = "") {
 // Используется в normalizeStoryboard.
 // ────────────────────────────────────────────────────────────────────────────
 export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3" }) {
-  const imagePrompt = stripBannedWords(buildImagePrompt({ frame, storyboard, target }));
-  const videoPrompt = stripBannedWords(buildVideoPromptFor({ frame, storyboard, target }));
+  const imagePrompt = ensurePromptPrefix(
+    stripBannedWords(buildImagePrompt({ frame, storyboard, target })),
+    "SCENE PRIMARY FOCUS:"
+  );
+  const videoPrompt = ensurePromptPrefix(
+    ensureSfxLine(stripBannedWords(buildVideoPromptFor({ frame, storyboard, target })), frame.sfx),
+    "ANIMATE CURRENT FRAME:"
+  );
 
   return {
     image_prompt_en: imagePrompt,
@@ -302,6 +323,18 @@ export function validateFramePrompts({ frame, storyboard, target = "veo3" }) {
     if (firstName && !text.toLowerCase().includes(firstName.toLowerCase())) {
       errors.push(`character lock missing: "${firstName}" not found in prompts`);
     }
+  }
+
+  if (frame.image_prompt_en && !/^SCENE PRIMARY FOCUS:/i.test(frame.image_prompt_en)) {
+    errors.push("image prompt missing SCENE PRIMARY FOCUS prefix");
+  }
+
+  if (frame.video_prompt_en && !/^ANIMATE CURRENT FRAME:/i.test(frame.video_prompt_en)) {
+    errors.push("video prompt missing ANIMATE CURRENT FRAME prefix");
+  }
+
+  if (frame.video_prompt_en && !/SFX\s*:/i.test(frame.video_prompt_en)) {
+    errors.push("video prompt missing embedded SFX block");
   }
 
   // Target-specific
