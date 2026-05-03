@@ -324,6 +324,14 @@ export default function StudioPage() {
 
   const autoParts = useMemo(() => splitScenesIntoParts(scenes, autoPartSize), [scenes, autoPartSize]);
   const autoPartScenes = autoParts[autoPartIndex] || [];
+
+  // V2 Production Pipeline works with the selected PART, not the full storyboard.
+  // These values are required by crop/overlay/frame selection below.
+  const autoPartBaseIndex = autoPartIndex * autoPartSize;
+  const gridSelectionScenes = autoPartScenes.length ? autoPartScenes : scenes;
+  const gridSelectionStartIndex = autoPartScenes.length ? autoPartBaseIndex : 0;
+  const gridSelectionFrameCount = gridSelectionScenes.length;
+
   // Собираем CHARACTER OVERRIDE блок для движка
   const charOverrideBlock = charOverrideEnabled ? (() => {
     const mods = Object.entries(charModifiers).filter(([,v])=>v).map(([k]) => {
@@ -1556,8 +1564,8 @@ ${lines.join("\n")}` : "";
                           Колонок:
                         </span>
                         {[2, 3, 4].map(c => {
-                          const active = (gridColsOverride ?? gridCols(gridSelectionFrameCount || scenes.length)) === c;
-                          const isAuto = gridColsOverride === null && gridCols(scenes.length) === c;
+                          const active = (gridColsOverride ?? gridCols(gridSelectionFrameCount || 4)) === c;
+                          const isAuto = gridColsOverride === null && gridCols(gridSelectionFrameCount || 4) === c;
                           return (
                             <button key={c}
                               className={`btn btn-xs${active ? " btn-red" : ""}`}
@@ -1651,7 +1659,7 @@ ${lines.join("\n")}` : "";
                                   >
                                     <span style={{
                                       fontSize: 9, fontWeight: 900,
-                                      background: frameIdx === i ? "var(--red)" : "rgba(0,0,0,0.7)",
+                                      background: frameIdx === globalIdx ? "var(--red)" : "rgba(0,0,0,0.7)",
                                       color: "#fff", borderRadius: 4,
                                       padding: "2px 5px", lineHeight: 1.3,
                                       pointerEvents: "none", flexShrink: 0
