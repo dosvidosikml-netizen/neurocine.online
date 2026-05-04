@@ -1132,65 +1132,19 @@ ${lines.join("\n")}` : "";
             </div>
 
             <div className="col">
-              {!storyboard ? (
-                <div className="out-box">
-                  <div className="out-head"><span className="out-label">PART prompts</span></div>
-                  <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
-                    После создания storyboard JSON здесь появятся PART 1 / PART 2 / PART 3… и кнопки для сборки prompt под сетку 2×2.
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="field">
-                    <label className="field-label">PART</label>
-                    <div className="chunk-tabs">
-                      {autoParts.map((part, i) => (
-                        <button key={i}
-                          className={`chunk-tab${autoPartIndex === i ? " active" : ""}`}
-                          onClick={() => { setAutoPartIndex(i); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}>
-                          PART {i + 1} · {part[0]?.id}–{part[part.length - 1]?.id}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="brow" style={{ marginBottom: 10 }}>
-                    <button className="btn btn-red" onClick={generateAutoChainPart}>▶ Создать prompt для выбранного PART</button>
-                    <button className="btn" onClick={generateAllAutoChainPrompts}>📦 Собрать prompts для всего сценария</button>
-                    <button className="btn" onClick={nextAutoPart} disabled={autoPartIndex >= autoParts.length - 1}>NEXT PART →</button>
-                  </div>
-
-                  <div className="brow" style={{ marginBottom: 10 }}>
-                    <button className="btn btn-sm" onClick={exportAutoChainTxt}>⬇ Все PART .txt</button>
-                    <button className="btn btn-sm" onClick={exportAutoChainJson}>⬇ V2 .json</button>
-                  </div>
-
-                  <div className="frame-card" style={{ marginBottom: 10 }}>
-                    <div className="frame-card-lbl" style={{ marginBottom: 8 }}>Кадры в выбранном PART</div>
-                    {autoPartScenes.map((s, i) => (
-                      <div key={s.id || i} className="frame-card-row">
-                        <div className="frame-card-lbl">{s.id || `F${i + 1}`}</div>
-                        <div className="frame-card-val" style={{ color: "var(--muted)", fontSize: 12 }}>
-                          {(s.description_ru || s.vo_ru || s.image_prompt_en || "").slice(0, 160)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {autoAllPromptText ? (
-                    <OutBox label="AUTO-CHAIN PROMPTS — ВЕСЬ СЦЕНАРИЙ" text={autoAllPromptText} />
-                  ) : autoPartPrompt ? (
+              <div className="out-box">
+                <div className="out-head"><span className="out-label">V2 Status</span></div>
+                <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+                  {storyboard ? (
                     <>
-                      <OutBox label={`AUTO-CHAIN IMAGE PROMPT — PART ${autoPartIndex + 1}`} text={autoPartPrompt} />
-                      <OutBox label={`VIDEO PACK — PART ${autoPartIndex + 1}`} text={autoVideoPack} />
+                      <div style={{ color: "#22c55e", fontWeight: 900, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
+                      Дальше не запускай второй генератор: переходи в блок 03 — там FRAME GRID PROMPT, PART-сетка 2×2, A/B/C/D, кроп и video prompt.
                     </>
                   ) : (
-                    <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 24 }}>
-                      Выбери PART и нажми «Создать prompt». Эти prompts вставляются в Flow/VEO вместе с загруженными выше anchor-картинками.
-                    </div>
+                    <>После нажатия верхней кнопки V2 здесь появится статус. Все PART-prompts перенесены в блок 03 как FRAME GRID PROMPT · FLOW COMPACT.</>
                   )}
-                </>
-              )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1263,18 +1217,12 @@ ${lines.join("\n")}` : "";
                   onChange={e => handleManualJsonChange(e.target.value)}
                   placeholder='{"script": "..."} — или оставь пустым' />
               </div>
-              <button className="btn btn-red" onClick={doStoryboard}
-                disabled={sbBusy || (!script.trim() && !jsonIn.trim())}>
-                {sbBusy ? "⏳ Генерация..." : "▶ СГЕНЕРИРОВАТЬ STORYBOARD"}
-              </button>
-              {sbStat && (() => {
-                const [type, msg] = sbStat.includes("|") ? sbStat.split("|") : ["", sbStat];
-                return (
-                  <div className={`status-line${type === "ok" ? " ok" : type === "err" ? " err" : ""}`}>
-                    {type === "ok" ? `✓ Готово · ${msg}` : type === "err" ? `✗ ${msg}` : "⏳ Генерация..."}
-                  </div>
-                );
-              })()}
+              <div className="out-box">
+                <div className="out-head"><span className="out-label">Manual mode</span></div>
+                <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+                  Генерация storyboard запускается только верхней кнопкой V2. Этот блок хранит настройки Safe/Raw, Veo/Grok и ручной JSON — без второго запуска.
+                </div>
+              </div>
 
               {/* Validation badge */}
               {validation && (
@@ -1313,170 +1261,22 @@ ${lines.join("\n")}` : "";
               )}
             </div>
             <div className="col">
-              {storyGridPrompt || chunkGridPrompt ? (
-                <>
-                  {/* Chunk controls — only when storyboard has scenes */}
-                  {scenes.length > 0 && (
-                    <div className="out-box">
-                      <div className="out-head">
-                        <span className="out-label">Режим сетки</span>
-                        <div className="brow">
-                          {[4, 5, 6].filter(s => s < scenes.length).map(s => (
-                            <button key={s}
-                              className={`btn btn-xs${chunkSize === s ? " btn-red" : ""}`}
-                              onClick={() => { setChunkSize(s); setActiveChunk(0); }}
-                            >по {s} (2×2{s === 6 ? "/3×2" : ""})</button>
-                          ))}
-                          <button
-                            className={`btn btn-xs${chunkSize >= scenes.length ? " btn-red" : ""}`}
-                            onClick={() => { setChunkSize(scenes.length); setActiveChunk(0); }}
-                          >Всё ({scenes.length})</button>
-                        </div>
-                      </div>
-                      {chunkSize < scenes.length && (
-                        <div className="out-body" style={{ paddingTop: 8, paddingBottom: 8 }}>
-                          <div className="brow">
-                            {chunks.map((ch, i) => (
-                              <button key={i}
-                                className={`btn btn-xs${activeChunk === i ? " btn-red" : ""}`}
-                                onClick={() => setActiveChunk(i)}
-                              >
-                                Лист {i + 1} · {ch[0]?.id}–{ch[ch.length - 1]?.id}
-                              </button>
-                            ))}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
-                            Лист {activeChunk + 1} из {chunks.length} · {activeChunkScenes.length} кадров
-                          </div>
-                        </div>
-                      )}
-                    </div>
+              <div className="out-box">
+                <div className="out-head"><span className="out-label">V2 Status</span></div>
+                <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+                  {storyboard ? (
+                    <>
+                      <div style={{ color: "#22c55e", fontWeight: 900, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
+                      Дальше работа идёт в блоке 03: FRAME GRID PROMPT → PART-сетка 2×2 → A/B/C/D → video prompt из JSON.
+                    </>
+                  ) : (
+                    <>Сначала создай storyboard JSON верхней кнопкой V2. После этого сразу переходи к блоку 03.</>
                   )}
-
-                  {/* Grid prompt for active chunk or full */}
-                  <OutBox
-                    label={chunkSize < scenes.length
-                      ? `Story Grid Prompt — Лист ${activeChunk + 1}/${chunks.length} (EN)`
-                      : "Story Grid Prompt EN (Flux / Midjourney)"}
-                    text={chunkSize < scenes.length ? chunkGridPrompt : storyGridPrompt}
-                  />
-
-                  {/* CHAIN CONTINUATION block */}
-                  {chunkSize < scenes.length && activeChunk > 0 && (
-                    <div className="out-box">
-                      <div
-                        className="out-head"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setShowCont(v => !v)}
-                      >
-                        <span className="out-label">🔗 Chain Continuation — Лист {activeChunk + 1}</span>
-                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{showCont ? "▲ скрыть" : "▼ показать"}</span>
-                      </div>
-                      {showCont && (
-                        <div className="out-body">
-                          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>
-                            Загрузи последний лист сетки (Лист {activeChunk}) как anchor — система сгенерирует промт продолжения с привязкой к твоим кадрам.
-                          </div>
-                          {contAnchorGrid ? (
-                            <div>
-                              <div className="img-viewer" style={{ marginBottom: 8 }}>
-                                <img src={contAnchorGrid} alt="Anchor grid" />
-                              </div>
-                              <div className="brow" style={{ marginBottom: 10 }}>
-                                <button className="btn btn-sm" onClick={() => { setContAnchorGrid(null); setContPrompt(""); }}>
-                                  Заменить
-                                </button>
-                                <button className="btn btn-sm btn-red" onClick={() => {
-                                  const anchors = (chunks[activeChunk - 1] || []).slice(-2).map(s => ({ scene: s }));
-                                  const p = buildContinuationPrompt(anchors, activeChunkScenes, storyboard, styleProfile, activeChunk);
-                                  setContPrompt(p);
-                                }}>
-                                  ▶ СОЗДАТЬ CONTINUATION PROMPT
-                                </button>
-                              </div>
-                              {contPrompt && (
-                                <OutBox label={`Continuation Prompt — Лист ${activeChunk + 1} (EN)`} text={contPrompt} />
-                              )}
-                            </div>
-                          ) : (
-                            <UploadZone
-                              label={`Загрузи Лист ${activeChunk} (anchor)`}
-                              hint="Последний сгенерированный лист сетки"
-                              onFile={setContAnchorGrid}
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Russian descriptions — collapsible */}
-                  <div className="out-box">
-                    <div className="out-head" style={{ cursor: "pointer" }} onClick={() => setShowRu(v => !v)}>
-                      <span className="out-label">Описания кадров на русском</span>
-                      <span style={{ fontSize: 11, color: "var(--muted)" }}>{showRu ? "▲ скрыть" : "▼ показать"}</span>
-                    </div>
-                    {showRu && (
-                      <div className="out-body">
-                        <pre className="out-pre compact" style={{ color: "var(--muted)", fontSize: 12 }}>{storyGridRu}</pre>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="upload-zone" style={{ pointerEvents: "none", cursor: "default" }}>
-                  <div className="upload-icon">🎬</div>
-                  <div className="upload-text">Story Grid Prompt</div>
-                  <div className="upload-hint">Промт для генерации сетки всех кадров</div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
-          {scenes.length > 0 && <>
-            <hr className="divider" />
-            <div className="out-box">
-              <div className="out-head">
-                <span className="out-label">Все кадры ({scenes.length}) — нажми для выбора</span>
-              </div>
-              <div className="out-body" style={{ padding: 0 }}>
-                <div className="sb-wrap">
-                  <table className="sb-t">
-                    <thead>
-                      <tr>{["Кадр", "Тайм", "Beat", "Energy", "VO", "SFX"].map(h => <th key={h}>{h}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {scenes.map((s, i) => {
-                        const energy = String(s.cut_energy || "").toLowerCase();
-                        const eColor = energy === "high" ? "#f87171" : energy === "low" ? "#60a5fa" : "#a78bfa";
-                        return (
-                          <tr key={s.id} onClick={() => selectFrame(i)}
-                            style={{ outline: frameIdx === i ? "2px solid rgba(229,53,53,0.5)" : "none" }}>
-                            <td style={{ color: "#fca5a5", fontWeight: 800 }}>{s.id}</td>
-                            <td style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{s.start}–{s.end ?? "?"}s</td>
-                            <td style={{ color: "var(--muted)" }}>{s.beat_type}</td>
-                            <td>
-                              {energy && (
-                                <span style={{
-                                  fontSize: 9, fontWeight: 900, padding: "2px 6px",
-                                  borderRadius: 100, color: eColor,
-                                  border: `1px solid ${eColor}33`,
-                                  background: `${eColor}18`,
-                                  textTransform: "uppercase", letterSpacing: "0.08em"
-                                }}>{energy}</span>
-                              )}
-                            </td>
-                            <td style={{ maxWidth: 240 }}>{String(s.vo_ru || "").slice(0, 70)}</td>
-                            <td style={{ color: "var(--muted)" }}>{String(s.sfx || "").slice(0, 45)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </>}
         </div>
       </section>
 
