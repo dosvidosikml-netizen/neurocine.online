@@ -212,7 +212,6 @@ export default function StudioPage() {
   const [sbMode, setSbMode]   = useState("safe");
   const [target, setTarget]   = useState("veo3"); // "veo3" | "grok" — целевая видео-модель
   const [validation, setValidation] = useState(null);
-  const [longFormProgress, setLongFormProgress] = useState(null);
 
   /* STEP 3 — Pipeline */
   const [gridImg, setGridImg]           = useState(null);
@@ -257,8 +256,6 @@ export default function StudioPage() {
   const [autoContinuityMode, setAutoContinuityMode] = useState("smart");
   const [autoAppearanceMode, setAutoAppearanceMode] = useState("full");
   const [autoIncludeVo, setAutoIncludeVo] = useState(false);
-  const [videoPromptMode, setVideoPromptMode] = useState("pro");
-  const [videoConsistency, setVideoConsistency] = useState("ultra");
   const [autoHeroAnchor, setAutoHeroAnchor] = useState(null);
 
   /* CHARACTER OVERRIDE — лицо из anchor + костюм/модификаторы из роли */
@@ -311,6 +308,7 @@ export default function StudioPage() {
 
   const styleProfile = useMemo(() => getStyleProfile(projectType, stylePreset), [projectType, stylePreset]);
   const scenes       = storyboard?.scenes || [];
+  const curFrame     = frameIdx !== null ? scenes[frameIdx] : null;
 
   // Chunk logic — split scenes into pages
   const chunks = useMemo(() => {
@@ -327,16 +325,10 @@ export default function StudioPage() {
   const autoParts = useMemo(() => splitScenesIntoParts(scenes, autoPartSize), [scenes, autoPartSize]);
   const autoPartScenes = autoParts[autoPartIndex] || [];
 
-  // V2 Production Pipeline works with the selected PART, not the full storyboard.
-  // These values are required by crop/overlay/frame selection below.
-  const autoPartBaseIndex = autoPartIndex * autoPartSize;
-  const gridSelectionScenes = autoPartScenes.length ? autoPartScenes : scenes;
-  const gridSelectionStartIndex = autoPartScenes.length ? autoPartBaseIndex : 0;
-  const gridSelectionFrameCount = gridSelectionScenes.length;
-  const selectedFrameBelongsToPart = frameIdx !== null
-    && frameIdx >= gridSelectionStartIndex
-    && frameIdx < gridSelectionStartIndex + gridSelectionFrameCount;
-  const curFrame = selectedFrameBelongsToPart ? scenes[frameIdx] : null;
+  // Production Pipeline always works with the selected PART, not the full 20-frame storyboard.
+  const gridSelectionStartIndex = autoPartIndex * autoPartSize;
+  const gridSelectionFrameCount = autoPartScenes.length;
+  const gridSelectionScenes = autoPartScenes;
 
   // Собираем CHARACTER OVERRIDE блок для движка
   const charOverrideBlock = charOverrideEnabled ? (() => {
@@ -357,6 +349,42 @@ export default function StudioPage() {
 
 ${lines.join("\n")}` : "";
   })() : "";
+
+  const currentAutoPartPrompt = useMemo(() => {
+    if (!storyboard || !autoPartScenes.length) return "";
+
+    const prompt = buildAutoChainPartPrompt({
+      storyboard,
+      styleProfile,
+      partScenes: autoPartScenes,
+      partIndex: autoPartIndex,
+      totalScenes: scenes.length,
+      partSize: autoPartSize,
+      chainMode: autoChainMode,
+      strictLevel: autoStrictLevel,
+      referenceMode: autoReferenceMode,
+      appearanceMode: autoAppearanceMode,
+      continuityMode: autoContinuityMode,
+    });
+
+    const anchorLines = [];
+    if (autoHeroAnchor && autoReferenceMode !== "previousPart") {
+      anchorLines.push("Attach Hero anchor image in Flow/VEO if you want to lock the main hero identity.");
+    }
+    if (autoPrevPartAnchor && autoReferenceMode !== "heroOnly") {
+      anchorLines.push("Attach Previous PART image in Flow/VEO if you want to continue the visual DNA from the previous generated grid.");
+    }
+
+    const anchorNote = anchorLines.length
+      ? `\n\nANCHOR ATTACHMENT NOTE:\n${anchorLines.join("\n")}`
+      : "";
+
+    return `${prompt}${charOverrideBlock}${anchorNote}`.trim();
+  }, [
+    storyboard, styleProfile, autoPartScenes, autoPartIndex, scenes.length, autoPartSize,
+    autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, autoContinuityMode,
+    charOverrideBlock, autoHeroAnchor, autoPrevPartAnchor
+  ]);
 
   const autoAllPrompts = useMemo(() => buildAutoChainAllParts({ storyboard, styleProfile, partSize: autoPartSize, chainMode: autoChainMode, strictLevel: autoStrictLevel, referenceMode: autoReferenceMode, appearanceMode: autoAppearanceMode, continuityMode: autoContinuityMode }), [storyboard, styleProfile, autoPartSize, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, autoContinuityMode]);
 
@@ -414,8 +442,6 @@ ${lines.join("\n")}` : "";
       if (text.p2k)         setP2k(text.p2k);
       if (text.videoP)      setVideoP(text.videoP);
       if (text.analysis)    setAnalysis(text.analysis);
-      if (text.videoPromptMode) setVideoPromptMode(text.videoPromptMode);
-      if (text.videoConsistency) setVideoConsistency(text.videoConsistency);
     }
 
     if (imgs) {
@@ -434,10 +460,10 @@ ${lines.join("\n")}` : "";
     tryLsSave(KEY_TEXT, {
       projectName, topic, projectType, stylePreset, duration,
       aspectRatio, tone, script, storyboard, jsonIn, sbMode, target, validation,
-      frameIdx, exploreP, selVariant, p2k, videoP, analysis, videoPromptMode, videoConsistency
+      frameIdx, exploreP, selVariant, p2k, videoP, analysis
     });
   }, [hydrated, projectName, topic, projectType, stylePreset, duration, aspectRatio,
-      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, analysis, videoPromptMode, videoConsistency]);
+      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, analysis]);
 
   /* ── AUTOSAVE WRITE (images — separate key, с защитой от quota) ── */
   useEffect(() => {
@@ -463,20 +489,6 @@ ${lines.join("\n")}` : "";
         .catch(() => {});
     }
   }, [gridColsOverride, gridImg, frameIdx, gridSelectionFrameCount, gridSelectionStartIndex]);
-
-  useEffect(() => {
-    if (!scenes.length || !gridSelectionFrameCount) return;
-    const inSelectedPart = frameIdx !== null
-      && frameIdx >= gridSelectionStartIndex
-      && frameIdx < gridSelectionStartIndex + gridSelectionFrameCount;
-    if (!inSelectedPart) {
-      setFrameIdx(gridSelectionStartIndex);
-      setCroppedFrame(null);
-      setFinalImg(null);
-      setVideoP("");
-      setAnalysis(null);
-    }
-  }, [scenes.length, gridSelectionStartIndex, gridSelectionFrameCount, frameIdx]);
   function resetStoryboardOutputs({ keepAnchors = true } = {}) {
     setSB(null); setValidation(null); setSbStat(""); setFrameIdx(null);
     setGridImg(null); setGridColsOverride(null); setGridManualFrames(null); setCroppedFrame(null);
@@ -530,132 +542,7 @@ ${lines.join("\n")}` : "";
     setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText("");
     setGridImg(null); setFrameIdx(null); setCroppedFrame(null);
     setSbBusy(true); setSbStat("gen"); setValidation(null);
-    setLongFormProgress(null);
-
-    const isLongForm = duration > 180;
-
     try {
-      // ───── LONG-FORM: SSE streaming с прогрессом ─────
-      if (isLongForm) {
-        const r = await fetch("/api/storyboard", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
-          body: JSON.stringify({
-            script: src, duration,
-            aspect_ratio: aspectRatio,
-            style: stylePreset,
-            project_name: projectName,
-            mode: sbMode,
-            target,
-            stream: true
-          })
-        });
-
-        if (!r.ok || !r.body) {
-          throw new Error(`HTTP ${r.status} — нет SSE stream`);
-        }
-
-        const reader = r.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-        let finalPayload = null;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          // Парсим SSE события: блоки разделены \n\n
-          const events = buffer.split("\n\n");
-          buffer = events.pop() || ""; // последний может быть неполным
-
-          for (const block of events) {
-            if (!block.trim() || block.startsWith(":")) continue; // heartbeat или пусто
-
-            const lines = block.split("\n");
-            let eventType = "message";
-            let dataStr = "";
-            for (const line of lines) {
-              if (line.startsWith("event:")) eventType = line.slice(6).trim();
-              else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
-            }
-
-            if (!dataStr) continue;
-            let data;
-            try { data = JSON.parse(dataStr); } catch { continue; }
-
-            switch (eventType) {
-              case "started":
-                setLongFormProgress({
-                  phase: "started",
-                  totalChunks: data.total_chunks,
-                  currentChunk: 0,
-                  message: data.message,
-                });
-                setSbStat(`gen|${data.message}`);
-                break;
-              case "chunk_started":
-                setLongFormProgress(p => ({
-                  ...(p || {}),
-                  phase: "chunk_started",
-                  currentChunk: data.chunk_number,
-                  totalChunks: data.total_chunks,
-                  message: `Генерирую chunk ${data.chunk_number}/${data.total_chunks} (${data.chunk_duration}с)`,
-                }));
-                setSbStat(`gen|Chunk ${data.chunk_number}/${data.total_chunks}`);
-                break;
-              case "chunk_completed":
-                setLongFormProgress(p => ({
-                  ...(p || {}),
-                  phase: "chunk_completed",
-                  currentChunk: data.chunk_number,
-                  totalChunks: data.total_chunks,
-                  message: `✓ Chunk ${data.chunk_number}/${data.total_chunks} готов (${data.scenes_in_chunk} сцен)`,
-                  modelUsed: data.model_used,
-                }));
-                break;
-              case "chunk_failed":
-                setLongFormProgress(p => ({
-                  ...(p || {}),
-                  phase: "chunk_failed",
-                  message: `⚠ Chunk упал: ${data.error}`,
-                }));
-                break;
-              case "merging":
-                setLongFormProgress(p => ({
-                  ...(p || {}),
-                  phase: "merging",
-                  message: data.message,
-                }));
-                setSbStat("gen|Склеиваю chunks...");
-                break;
-              case "done":
-                finalPayload = data;
-                break;
-              case "error":
-                throw new Error(data.message || "SSE error");
-            }
-          }
-        }
-
-        if (!finalPayload?.storyboard) {
-          throw new Error("Stream завершён без storyboard");
-        }
-
-        const sb = { ...finalPayload.storyboard, aspect_ratio: aspectRatio };
-        setSB(sb);
-        setValidation(finalPayload.validation || null);
-        const valInfo = finalPayload.validation
-          ? (finalPayload.validation.ok ? " · ✓ valid" : ` · ⚠ ${finalPayload.validation.errors?.length} issues`)
-          : "";
-        const lf = finalPayload.long_form;
-        const lfInfo = lf ? ` · ${lf.chunks_succeeded}/${lf.chunks_total} chunks` : "";
-        setSbStat(`ok|${sb.scenes?.length || 0} кадров · ${finalPayload.mode}${lfInfo}${valInfo}`);
-        setLongFormProgress({ phase: "done", message: "Готово" });
-        return;
-      }
-
-      // ───── SHORT-FORM: классический one-shot запрос ─────
       const r = await fetch("/api/storyboard", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -669,6 +556,7 @@ ${lines.join("\n")}` : "";
       });
       const d = await r.json();
       if (d.storyboard) {
+        // inject aspect_ratio from request into storyboard
         const sb = { ...d.storyboard, aspect_ratio: aspectRatio };
         setSB(sb);
         setValidation(d.validation || null);
@@ -724,10 +612,7 @@ ${lines.join("\n")}` : "";
   }, [variantImg, curFrame, storyboard, styleProfile]);
 
   async function doVideoPrompt() {
-    if (!curFrame || !finalImg || !selectedFrameBelongsToPart) {
-      setVideoP("Ошибка: выбери кадр текущего PART перед генерацией video prompt");
-      return;
-    }
+    if (!curFrame || !finalImg) return;
     setVidBusy(true); setVideoP(""); setAnalysis(null);
     try {
       const r2 = await fetch("/api/video", {
@@ -740,9 +625,7 @@ ${lines.join("\n")}` : "";
           projectType,
           stylePreset,
           target,
-          includeVo: autoIncludeVo,
-          promptMode: videoPromptMode,
-          consistency: videoConsistency
+          includeVo: autoIncludeVo
         })
       });
       const d2 = await r2.json();
@@ -753,7 +636,6 @@ ${lines.join("\n")}` : "";
 
   /* ── FRAME SELECT + CLEAR DOWNSTREAM ── */
   function selectFrame(idx) {
-    if (scenes.length && (idx < gridSelectionStartIndex || idx >= gridSelectionStartIndex + gridSelectionFrameCount)) return;
     setFrameIdx(idx);
     setShowFrameRu(false);
     setCroppedFrame(null);
@@ -1003,21 +885,7 @@ ${lines.join("\n")}` : "";
                     <option value={90}>90 сек</option>
                     <option value={120}>2 мин</option>
                     <option value={180}>3 мин</option>
-                    <option value={240}>4 мин · long-form</option>
-                    <option value={300}>5 мин · long-form</option>
-                    <option value={360}>6 мин · long-form</option>
-                    <option value={420}>7 мин · long-form</option>
-                    <option value={480}>8 мин · long-form</option>
-                    <option value={540}>9 мин · long-form</option>
-                    <option value={600}>10 мин · long-form</option>
                   </select>
-                  {duration > 180 && (
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3, lineHeight: 1.4 }}>
-                      ⚠ Long-form: storyboard будет сгенерирован по chunks ~90с.
-                      Это займёт {Math.ceil(duration / 90)} запросов к LLM (~{Math.ceil(duration / 90) * 45}с wall time).
-                      Стоимость ~${((Math.ceil(duration / 90) * 0.18)).toFixed(2)} (GPT-5.4).
-                    </div>
-                  )}
                 </div>
                 <div className="field">
                   <label className="field-label">Формат</label>
@@ -1343,41 +1211,6 @@ ${lines.join("\n")}` : "";
                   {sbBusy ? "⏳ Генерация..." : storyboard ? "↻ Обновить storyboard JSON" : "▶ Создать storyboard JSON для V2"}
                 </button>
               </div>
-              {longFormProgress && longFormProgress.totalChunks > 0 && (
-                <div style={{
-                  marginTop: 12,
-                  padding: "10px 12px",
-                  background: "rgba(239, 68, 68, 0.08)",
-                  border: "1px solid rgba(239, 68, 68, 0.25)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontWeight: 700, color: "#fca5a5" }}>
-                      Long-form chunked generation
-                    </span>
-                    <span style={{ color: "var(--muted)", fontSize: 11 }}>
-                      {longFormProgress.currentChunk || 0} / {longFormProgress.totalChunks}
-                    </span>
-                  </div>
-                  <div style={{
-                    height: 6,
-                    background: "rgba(255,255,255,0.08)",
-                    borderRadius: 3,
-                    overflow: "hidden",
-                    marginBottom: 8,
-                  }}>
-                    <div style={{
-                      height: "100%",
-                      width: `${Math.min(100, ((longFormProgress.currentChunk || 0) / longFormProgress.totalChunks) * 100)}%`,
-                      background: "linear-gradient(90deg, #ef4444, #f97316)",
-                      transition: "width 0.4s ease",
-                    }} />
-                  </div>
-                  <div style={{ color: "var(--muted)" }}>{longFormProgress.message}</div>
-                </div>
-              )}
               {sbStat && (() => {
                 const [type, msg] = sbStat.includes("|") ? sbStat.split("|") : ["", sbStat];
                 const isFallback = String(msg || "").includes("fallback") || String(msg || "").includes("FALLBACK");
@@ -1390,19 +1223,65 @@ ${lines.join("\n")}` : "";
             </div>
 
             <div className="col">
-              <div className="out-box">
-                <div className="out-head"><span className="out-label">V2 статус</span></div>
-                <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
-                  {!storyboard ? (
-                    <>Сначала нажми «Создать storyboard JSON для V2». После этого сразу переходи к блоку 03 — загрузи PART-сетку 2×2 и выбери кадр.</>
-                  ) : (
-                    <>
-                      <div style={{ color: "#22c55e", fontWeight: 800, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
-                      <div>Дальше работа идёт в блоке 03: PART-сетка 2×2 → выбор кадра → video prompt из JSON.</div>
-                    </>
-                  )}
+              {!storyboard ? (
+                <div className="out-box">
+                  <div className="out-head"><span className="out-label">PART prompts</span></div>
+                  <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+                    После создания storyboard JSON здесь появятся PART 1 / PART 2 / PART 3… и кнопки для сборки prompt под сетку 2×2.
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="field">
+                    <label className="field-label">PART</label>
+                    <div className="chunk-tabs">
+                      {autoParts.map((part, i) => (
+                        <button key={i}
+                          className={`chunk-tab${autoPartIndex === i ? " active" : ""}`}
+                          onClick={() => { setAutoPartIndex(i); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}>
+                          PART {i + 1} · {part[0]?.id}–{part[part.length - 1]?.id}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="brow" style={{ marginBottom: 10 }}>
+                    <button className="btn btn-red" onClick={generateAutoChainPart}>▶ Создать prompt для выбранного PART</button>
+                    <button className="btn" onClick={generateAllAutoChainPrompts}>📦 Собрать prompts для всего сценария</button>
+                    <button className="btn" onClick={nextAutoPart} disabled={autoPartIndex >= autoParts.length - 1}>NEXT PART →</button>
+                  </div>
+
+                  <div className="brow" style={{ marginBottom: 10 }}>
+                    <button className="btn btn-sm" onClick={exportAutoChainTxt}>⬇ Все PART .txt</button>
+                    <button className="btn btn-sm" onClick={exportAutoChainJson}>⬇ V2 .json</button>
+                  </div>
+
+                  <div className="frame-card" style={{ marginBottom: 10 }}>
+                    <div className="frame-card-lbl" style={{ marginBottom: 8 }}>Кадры в выбранном PART</div>
+                    {autoPartScenes.map((s, i) => (
+                      <div key={s.id || i} className="frame-card-row">
+                        <div className="frame-card-lbl">{s.id || `F${i + 1}`}</div>
+                        <div className="frame-card-val" style={{ color: "var(--muted)", fontSize: 12 }}>
+                          {(s.description_ru || s.vo_ru || s.image_prompt_en || "").slice(0, 160)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {autoAllPromptText ? (
+                    <OutBox label="AUTO-CHAIN PROMPTS — ВЕСЬ СЦЕНАРИЙ" text={autoAllPromptText} />
+                  ) : autoPartPrompt ? (
+                    <>
+                      <OutBox label={`AUTO-CHAIN IMAGE PROMPT — PART ${autoPartIndex + 1}`} text={autoPartPrompt} />
+                      <OutBox label={`VIDEO PACK — PART ${autoPartIndex + 1}`} text={autoVideoPack} />
+                    </>
+                  ) : (
+                    <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 24 }}>
+                      Выбери PART и нажми «Создать prompt». Эти prompts вставляются в Flow/VEO вместе с загруженными выше anchor-картинками.
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1519,19 +1398,170 @@ ${lines.join("\n")}` : "";
               )}
             </div>
             <div className="col">
-              <div className="out-box">
-                <div className="out-head"><span className="out-label">Storyboard control</span></div>
-                <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
-                  {storyboard ? (
-                    <>JSON готов и валидирован. Следующий рабочий шаг — блок 03: загрузка PART-сетки 2×2, выбор кадра и video prompt из сценария/JSON.</>
-                  ) : (
-                    <>Создай storyboard JSON верхней V2-кнопкой. Этот блок только хранит настройки Safe/Raw, Veo/Grok и ручной JSON.</>
+              {storyGridPrompt || chunkGridPrompt ? (
+                <>
+                  {/* Chunk controls — only when storyboard has scenes */}
+                  {scenes.length > 0 && (
+                    <div className="out-box">
+                      <div className="out-head">
+                        <span className="out-label">Режим сетки</span>
+                        <div className="brow">
+                          {[4, 5, 6].filter(s => s < scenes.length).map(s => (
+                            <button key={s}
+                              className={`btn btn-xs${chunkSize === s ? " btn-red" : ""}`}
+                              onClick={() => { setChunkSize(s); setActiveChunk(0); }}
+                            >по {s} (2×2{s === 6 ? "/3×2" : ""})</button>
+                          ))}
+                          <button
+                            className={`btn btn-xs${chunkSize >= scenes.length ? " btn-red" : ""}`}
+                            onClick={() => { setChunkSize(scenes.length); setActiveChunk(0); }}
+                          >Всё ({scenes.length})</button>
+                        </div>
+                      </div>
+                      {chunkSize < scenes.length && (
+                        <div className="out-body" style={{ paddingTop: 8, paddingBottom: 8 }}>
+                          <div className="brow">
+                            {chunks.map((ch, i) => (
+                              <button key={i}
+                                className={`btn btn-xs${activeChunk === i ? " btn-red" : ""}`}
+                                onClick={() => setActiveChunk(i)}
+                              >
+                                Лист {i + 1} · {ch[0]?.id}–{ch[ch.length - 1]?.id}
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
+                            Лист {activeChunk + 1} из {chunks.length} · {activeChunkScenes.length} кадров
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
+
+                  {/* Draft grid prompt removed: use the final Auto-Chain PART prompt button above */}
+                  <div className="out-box">
+                    <div className="out-head"><span className="out-label">Final PART prompt</span></div>
+                    <div className="out-body" style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+                      Черновой Story Grid Prompt скрыт. Выбери PART выше и нажми «Создать prompt для выбранного PART» — ниже появится только финальный Auto-Chain prompt для Flow/VEO.
+                    </div>
+                  </div>
+
+                  {/* CHAIN CONTINUATION block */}
+                  {chunkSize < scenes.length && activeChunk > 0 && (
+                    <div className="out-box">
+                      <div
+                        className="out-head"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setShowCont(v => !v)}
+                      >
+                        <span className="out-label">🔗 Chain Continuation — Лист {activeChunk + 1}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{showCont ? "▲ скрыть" : "▼ показать"}</span>
+                      </div>
+                      {showCont && (
+                        <div className="out-body">
+                          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>
+                            Загрузи последний лист сетки (Лист {activeChunk}) как anchor — система сгенерирует промт продолжения с привязкой к твоим кадрам.
+                          </div>
+                          {contAnchorGrid ? (
+                            <div>
+                              <div className="img-viewer" style={{ marginBottom: 8 }}>
+                                <img src={contAnchorGrid} alt="Anchor grid" />
+                              </div>
+                              <div className="brow" style={{ marginBottom: 10 }}>
+                                <button className="btn btn-sm" onClick={() => { setContAnchorGrid(null); setContPrompt(""); }}>
+                                  Заменить
+                                </button>
+                                <button className="btn btn-sm btn-red" onClick={() => {
+                                  const anchors = (chunks[activeChunk - 1] || []).slice(-2).map(s => ({ scene: s }));
+                                  const p = buildContinuationPrompt(anchors, activeChunkScenes, storyboard, styleProfile, activeChunk);
+                                  setContPrompt(p);
+                                }}>
+                                  ▶ СОЗДАТЬ CONTINUATION PROMPT
+                                </button>
+                              </div>
+                              {contPrompt && (
+                                <OutBox label={`Continuation Prompt — Лист ${activeChunk + 1} (EN)`} text={contPrompt} />
+                              )}
+                            </div>
+                          ) : (
+                            <UploadZone
+                              label={`Загрузи Лист ${activeChunk} (anchor)`}
+                              hint="Последний сгенерированный лист сетки"
+                              onFile={setContAnchorGrid}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Russian descriptions — collapsible */}
+                  <div className="out-box">
+                    <div className="out-head" style={{ cursor: "pointer" }} onClick={() => setShowRu(v => !v)}>
+                      <span className="out-label">Описания кадров на русском</span>
+                      <span style={{ fontSize: 11, color: "var(--muted)" }}>{showRu ? "▲ скрыть" : "▼ показать"}</span>
+                    </div>
+                    {showRu && (
+                      <div className="out-body">
+                        <pre className="out-pre compact" style={{ color: "var(--muted)", fontSize: 12 }}>{storyGridRu}</pre>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="upload-zone" style={{ pointerEvents: "none", cursor: "default" }}>
+                  <div className="upload-icon">🎬</div>
+                  <div className="upload-text">Story Grid Prompt</div>
+                  <div className="upload-hint">Промт для генерации сетки всех кадров</div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
+          {scenes.length > 0 && <>
+            <hr className="divider" />
+            <div className="out-box">
+              <div className="out-head">
+                <span className="out-label">Все кадры ({scenes.length}) — нажми для выбора</span>
+              </div>
+              <div className="out-body" style={{ padding: 0 }}>
+                <div className="sb-wrap">
+                  <table className="sb-t">
+                    <thead>
+                      <tr>{["Кадр", "Тайм", "Beat", "Energy", "VO", "SFX"].map(h => <th key={h}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {scenes.map((s, i) => {
+                        const energy = String(s.cut_energy || "").toLowerCase();
+                        const eColor = energy === "high" ? "#f87171" : energy === "low" ? "#60a5fa" : "#a78bfa";
+                        return (
+                          <tr key={s.id} onClick={() => selectFrame(i)}
+                            style={{ outline: frameIdx === i ? "2px solid rgba(229,53,53,0.5)" : "none" }}>
+                            <td style={{ color: "#fca5a5", fontWeight: 800 }}>{s.id}</td>
+                            <td style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{s.start}–{s.end ?? "?"}s</td>
+                            <td style={{ color: "var(--muted)" }}>{s.beat_type}</td>
+                            <td>
+                              {energy && (
+                                <span style={{
+                                  fontSize: 9, fontWeight: 900, padding: "2px 6px",
+                                  borderRadius: 100, color: eColor,
+                                  border: `1px solid ${eColor}33`,
+                                  background: `${eColor}18`,
+                                  textTransform: "uppercase", letterSpacing: "0.08em"
+                                }}>{energy}</span>
+                              )}
+                            </td>
+                            <td style={{ maxWidth: 240 }}>{String(s.vo_ru || "").slice(0, 70)}</td>
+                            <td style={{ color: "var(--muted)" }}>{String(s.sfx || "").slice(0, 45)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </>}
         </div>
       </section>
 
@@ -1542,11 +1572,55 @@ ${lines.join("\n")}` : "";
           <div className="step-num">03</div>
           <div className="step-info">
             <div className="step-title">Production Pipeline</div>
-            <div className="step-desc">Загрузи PART-сетку 2×2 → выбери кадр → video prompt из JSON</div>
+            <div className="step-desc">PART prompt → PART-сетка 2×2 → выбор кадра → video prompt из JSON</div>
           </div>
           {curFrame && <span className="step-badge">{curFrame.id}</span>}
         </div>
         <div className="step-body">
+
+          {storyboard && (
+            <div className="out-box" style={{ marginBottom: 14 }}>
+              <div className="out-head">
+                <span className="out-label">IMAGE PROMPT ДЛЯ ТЕКУЩЕГО PART · Flow/VEO</span>
+                <CopyBtn text={currentAutoPartPrompt} />
+              </div>
+              <div className="out-body">
+                <div className="field" style={{ marginBottom: 10 }}>
+                  <label className="field-label">Выбери PART для генерации сетки</label>
+                  <div className="chunk-tabs">
+                    {autoParts.map((part, i) => (
+                      <button
+                        key={i}
+                        className={`chunk-tab${autoPartIndex === i ? " active" : ""}`}
+                        onClick={() => {
+                          setAutoPartIndex(i);
+                          setGridImg(null);
+                          setGridColsOverride(null);
+                          setGridManualFrames(null);
+                          setCroppedFrame(null);
+                          setFrameIdx(null);
+                          setVideoP("");
+                          setFinalImg(null);
+                        }}
+                      >
+                        PART {i + 1} · {part[0]?.id}–{part[part.length - 1]?.id}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {currentAutoPartPrompt ? (
+                  <pre className="out-pre compact mono">{currentAutoPartPrompt}</pre>
+                ) : (
+                  <div className="out-empty">Сначала создай storyboard JSON для V2 — здесь появится prompt для генерации PART-сетки 2×2.</div>
+                )}
+
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, lineHeight: 1.55 }}>
+                  Скопируй этот prompt в Flow/VEO, сгенерируй сетку выбранного PART, затем загрузи готовую 2×2 сетку ниже.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* A: storyboard grid + frame select */}
           <div className={`pipe-step${gridImg && curFrame ? "" : " on"}`}>
@@ -1558,40 +1632,6 @@ ${lines.join("\n")}` : "";
               </div>
             </div>
             <div className="pipe-body">
-              {storyboard && autoParts.length > 0 && (
-                <div className="out-box" style={{ marginBottom: 12 }}>
-                  <div className="out-head"><span className="out-label">Текущий PART для загрузки сетки</span></div>
-                  <div className="out-body">
-                    <div className="chunk-tabs">
-                      {autoParts.map((part, i) => (
-                        <button key={i}
-                          className={`chunk-tab${autoPartIndex === i ? " active" : ""}`}
-                          onClick={() => {
-                            setAutoPartIndex(i);
-                            setFrameIdx(null);
-                            setGridImg(null);
-                            setGridColsOverride(null);
-                            setGridManualFrames(null);
-                            setCroppedFrame(null);
-                            setExploreP("");
-                            setVariantImg(null);
-                            setSelVariant(null);
-                            setCropped(null);
-                            setP2k("");
-                            setFinalImg(null);
-                            setVideoP("");
-                            setAnalysis(null);
-                          }}>
-                          PART {i + 1} · {part[0]?.id}–{part[part.length - 1]?.id}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-                      Загружай сетку именно для выбранного PART. Кадры ниже будут только из этого PART.
-                    </div>
-                  </div>
-                </div>
-              )}
               <div className="two-col">
                 <div className="col">
                   {gridImg ? (
@@ -1602,8 +1642,8 @@ ${lines.join("\n")}` : "";
                           Колонок:
                         </span>
                         {[2, 3, 4].map(c => {
-                          const active = (gridColsOverride ?? gridCols(gridSelectionFrameCount || 4)) === c;
-                          const isAuto = gridColsOverride === null && gridCols(gridSelectionFrameCount || 4) === c;
+                          const active = (gridColsOverride ?? gridCols(gridSelectionFrameCount || scenes.length)) === c;
+                          const isAuto = gridColsOverride === null && gridCols(scenes.length) === c;
                           return (
                             <button key={c}
                               className={`btn btn-xs${active ? " btn-red" : ""}`}
@@ -1715,7 +1755,7 @@ ${lines.join("\n")}` : "";
                         onClick={() => { setGridImg(null); setFrameIdx(null); setGridColsOverride(null); setGridManualFrames(null); setCroppedFrame(null); }}>Заменить</button>
                     </>
                   ) : (
-                    <UploadZone label="Загрузи PART-сетку 2×2" hint={autoPartScenes.length ? `Текущий PART: ${autoPartScenes[0]?.id}–${autoPartScenes[autoPartScenes.length - 1]?.id}` : "Загрузи сетку только выбранного PART"} onFile={(url) => { setGridImg(url); if (gridSelectionFrameCount > 0) setFrameIdx(gridSelectionStartIndex); setCroppedFrame(null); setFinalImg(null); setVideoP(""); setAnalysis(null); }} />
+                    <UploadZone label="Загрузи PART-сетку 2×2" hint={autoPartScenes.length ? `Текущий PART: ${autoPartScenes[0]?.id}–${autoPartScenes[autoPartScenes.length - 1]?.id}` : "Загрузи сетку только выбранного PART"} onFile={setGridImg} />
                   )}
                 </div>
                 <div className="col">
@@ -1865,14 +1905,111 @@ SFX: ${curFrame.sfx}` : ""
             </div>
           </div>
 
+          {/* B: explore prompts */}
+          {curFrame && (
+            <div className={`pipe-step${exploreP ? "" : " on"}`}>
+              <div className="pipe-head">
+                <div className={`pipe-dot${exploreP ? " done" : " act"}`}>B</div>
+                <div>
+                  <div className="pipe-title">4 варианта ракурсов — {curFrame.id}</div>
+                  <div className="pipe-sub">A extreme close-up · B low angle · C wide · D over-shoulder</div>
+                </div>
+              </div>
+              <div className="pipe-body">
+                <div className="col">
+                  <button className="btn btn-red" onClick={doExplore} disabled={expBusy}>
+                    {expBusy ? "⏳ Генерация..." : "▶ СОЗДАТЬ ПРОМТ 4 ВАРИАНТОВ (2×2)"}
+                  </button>
+                  {exploreP && <OutBox label="Explore Prompt — Flux / Midjourney / DALL-E" text={exploreP} />}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* C: upload 4-variant + select */}
+          {curFrame && (
+            <div className={`pipe-step${croppedVariant ? "" : variantImg ? " on" : ""}`}>
+              <div className="pipe-head">
+                <div className={`pipe-dot${croppedVariant ? " done" : variantImg ? " act" : ""}`}>C</div>
+                <div>
+                  <div className="pipe-title">Загрузи сетку 4 вариантов · Выбери лучший</div>
+                  <div className="pipe-sub">Нажми A / B / C / D — система выкадрирует и построит точный 2K промт</div>
+                </div>
+              </div>
+              <div className="pipe-body">
+                <div className="two-col">
+
+                  {/* left: full grid + overlay */}
+                  <div className="col">
+                    {variantImg ? (
+                      <>
+                        <div className="variant-wrap">
+                          <img src={variantImg} alt="4 variants" />
+                          <div className="variant-overlay">
+                            {["A","B","C","D"].map(v => (
+                              <div key={v}
+                                className={`variant-cell${selVariant === v ? " sel" : ""}`}
+                                onClick={() => handleSelectVariant(v)}>
+                                <div className="variant-badge">{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="brow" style={{ marginTop: 8 }}>
+                          <button className="btn btn-sm" onClick={() => { setVariantImg(null); setSelVariant(null); setCropped(null); setP2k(""); }}>
+                            Заменить
+                          </button>
+                          {p2kBusy && <span style={{ fontSize: 12, color: "var(--muted)" }}>⏳ Анализ варианта...</span>}
+                          {selVariant && !p2kBusy && <span style={{ fontSize: 12, color: "var(--muted)" }}>Выбран: <strong style={{ color: "#fff" }}>{selVariant}</strong></span>}
+                        </div>
+                      </>
+                    ) : (
+                      <UploadZone label="Загрузи сетку 4 вариантов" hint="2×2 из Midjourney / Flux" onFile={setVariantImg} />
+                    )}
+                  </div>
+
+                  {/* right: cropped variant + 2K prompt */}
+                  <div className="col">
+                    {croppedVariant && (
+                      <div>
+                        <div className="field-label" style={{ marginBottom: 6 }}>Выбранный вариант {selVariant}</div>
+                        <div className="img-viewer" style={{ marginBottom: 8 }}><img src={croppedVariant} alt={`Variant ${selVariant}`} /></div>
+                        <button
+                          className="btn btn-sm btn-red btn-full"
+                          onClick={() => {
+                            const a = document.createElement("a");
+                            a.href = croppedVariant;
+                            a.download = `${curFrame?.id || "frame"}_variant_${selVariant}.jpg`;
+                            a.click();
+                          }}
+                        >
+                          ⬇ Скачать вариант {selVariant}
+                        </button>
+                      </div>
+                    )}
+                    {p2kBusy ? (
+                      <div style={{ color: "var(--muted)", fontSize: 13, padding: 16 }}>⏳ Анализирую кадр, строю 2K промт...</div>
+                    ) : p2k ? (
+                      <OutBox label={`2K IMAGE PROMPT — вариант ${selVariant}`} text={p2k} />
+                    ) : (
+                      <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 24 }}>
+                        {variantImg ? "Нажми на вариант A / B / C / D" : "Загрузи сетку 4 вариантов слева"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* D: final 2K + video prompt */}
           {curFrame && (
             <div className={`pipe-step${videoP ? "" : finalImg ? " on" : ""}`}>
               <div className="pipe-head">
                 <div className={`pipe-dot${videoP ? " done" : finalImg ? " act" : ""}`}>D</div>
                 <div>
-                  <div className="pipe-title">Опционально: финальный 2K кадр → V2.7 Video Prompt</div>
-                  <div className="pipe-sub">Уточнение video prompt по выбранному кадру и 2K изображению</div>
+                  <div className="pipe-title">Загрузи финальный 2K кадр → Video Prompt</div>
+                  <div className="pipe-sub">Анализ изображения + видео промт для анимации</div>
                 </div>
               </div>
               <div className="pipe-body">
@@ -1881,57 +2018,10 @@ SFX: ${curFrame.sfx}` : ""
                     {finalImg ? (
                       <>
                         <div className="img-viewer"><img src={finalImg} alt="Final 2K frame" /></div>
-                        <div className="frame-card" style={{ marginTop: 10 }}>
-                          <div className="frame-card-lbl" style={{ marginBottom: 8 }}>🎬 Video Prompt Engine V2.7</div>
-                          <div className="field" style={{ marginBottom: 8 }}>
-                            <label className="field-label">Prompt mode</label>
-                            <div className="brow">
-                              <button
-                                className={"btn btn-sm" + (videoPromptMode === "cheap" ? " btn-red" : "")}
-                                onClick={() => { setVideoPromptMode("cheap"); setVideoP(""); }}
-                              >
-                                Cheap
-                              </button>
-                              <button
-                                className={"btn btn-sm" + (videoPromptMode === "pro" ? " btn-red" : "")}
-                                onClick={() => { setVideoPromptMode("pro"); setVideoP(""); }}
-                              >
-                                Pro
-                              </button>
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                              {videoPromptMode === "cheap"
-                                ? "Cheap — короткий prompt для тестов, меньше токенов и быстрее."
-                                : "Pro — полный кинематографичный prompt для финального кадра."}
-                            </div>
-                          </div>
-                          <div className="field">
-                            <label className="field-label">Consistency</label>
-                            <div className="brow">
-                              <button
-                                className={"btn btn-sm" + (videoConsistency === "normal" ? " btn-red" : "")}
-                                onClick={() => { setVideoConsistency("normal"); setVideoP(""); }}
-                              >
-                                Normal
-                              </button>
-                              <button
-                                className={"btn btn-sm" + (videoConsistency === "ultra" ? " btn-red" : "")}
-                                onClick={() => { setVideoConsistency("ultra"); setVideoP(""); }}
-                              >
-                                Ultra
-                              </button>
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                              {videoConsistency === "ultra"
-                                ? "Ultra — фикс лица, одежды, состояния, света и эпохи без копирования композиции."
-                                : "Normal — обычная связка кадра без сверхжёсткого identity lock."}
-                            </div>
-                          </div>
-                        </div>
                         <div className="brow" style={{ marginTop: 10 }}>
                           <button className="btn btn-sm" onClick={() => { setFinalImg(null); setVideoP(""); setAnalysis(null); }}>Заменить</button>
                           <button className="btn btn-red" onClick={doVideoPrompt} disabled={vidBusy}>
-                            {vidBusy ? "⏳ Генерация..." : "▶ VIDEO PROMPT"}
+                            {vidBusy ? "⏳ Анализ..." : "▶ VIDEO PROMPT"}
                           </button>
                         </div>
                         {analysis && (
@@ -1949,7 +2039,7 @@ SFX: ${curFrame.sfx}` : ""
                         )}
                       </>
                     ) : (
-                      <UploadZone label={`Загрузи финальный 2K кадр для ${curFrame?.id || "кадра"}`} hint={`Video prompt будет построен строго для ${curFrame?.id || "выбранного кадра"}`} onFile={(url) => { setFinalImg(url); setVideoP(""); setAnalysis(null); }} />
+                      <UploadZone label="Загрузи финальный 2K кадр" hint="Итоговое изображение для анимации" onFile={setFinalImg} />
                     )}
                   </div>
                   <div className="col">
