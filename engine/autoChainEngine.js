@@ -227,116 +227,10 @@ function frameRoleHint(localIdx = 0, chainMode = "worldHero") {
   return roles[localIdx % roles.length];
 }
 
-
-
-function compactSceneText(scene = {}, { characterLock = [], appearanceMode = "full" } = {}) {
-  let text = sceneText(scene, { characterLock, appearanceMode });
-  text = String(text || "")
-    .replace(/\s*visible skin pores[\s\S]*$/i, "")
-    .replace(/\s*ARRI Alexa[\s\S]*$/i, "")
-    .replace(/\s*ASPECT RATIO:[\s\S]*$/i, "")
-    .replace(/\s*Subject:[\s\S]*$/i, "")
-    .replace(/\s*Camera:[\s\S]*$/i, "")
-    .replace(/\s*Lighting:[\s\S]*$/i, "")
-    .replace(/\s*Color grade:[\s\S]*$/i, "")
-    .replace(/\s*Realism anchors:[\s\S]*$/i, "")
-    .replace(/\s*Format:[\s\S]*$/i, "");
-  text = cleanText(text);
-  return text.length > 360 ? text.slice(0, 357).trim() + "..." : text;
-}
-
-function compactCharacterLock(storyboard = {}) {
-  const chars = Array.isArray(storyboard?.character_lock) ? storyboard.character_lock : [];
-  if (!chars.length) return "If the same character returns, keep face, age, clothing and condition consistent with the storyboard.";
-  return chars.slice(0, 4).map((c, i) => {
-    const name = cleanText(c.name || `Character ${i + 1}`);
-    const parts = [c.age ? `${c.age}y` : "", c.face_features, c.hair, c.clothing, c.physical_condition]
-      .filter(Boolean).map(v => cleanText(v));
-    const desc = cleanText(parts.join(", "));
-    return `${name} — ${desc.length > 220 ? desc.slice(0, 217).trim() + "..." : desc}`;
-  }).join("\n");
-}
-
-export function buildFlowCompactPartPrompt({
-  storyboard, styleProfile, partScenes = [], partIndex = 0, totalScenes = 0,
-  partSize = 4, chainMode = "worldHero", strictLevel = "hard",
-  referenceMode = "previousPart", appearanceMode = "full", continuityMode = "smart"
-} = {}) {
-  if (!partScenes.length) return "";
-  const characterLock = storyboard?.character_lock || [];
-  const start = frameNumber(partScenes[0], partIndex * partSize);
-  const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
-  const rows = Math.ceil(partScenes.length / 2);
-  const labels = partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i));
-  const isFirstPart = partIndex === 0;
-
-  const referenceLines = [];
-  if (isFirstPart) {
-    if (referenceMode !== "previousPart") referenceLines.push("Use uploaded Hero Anchor only for recurring hero identity/style DNA. Do not copy its pose or composition.");
-    else referenceLines.push("No Previous PART is required for PART 1. Follow the storyboard and style lock.");
-  } else {
-    if (referenceMode === "heroAndPrevious") referenceLines.push("Use uploaded Hero Anchor for recurring hero identity. Use uploaded Previous PART only for world/style DNA. Do not copy previous compositions.");
-    else if (referenceMode === "heroOnly") referenceLines.push("Use uploaded Hero Anchor for recurring hero identity only. Do not force the hero into frames where the scenario does not include them.");
-    else referenceLines.push("Use uploaded Previous PART only for world/style DNA. Do not copy the same composition.");
-  }
-  if (continuityMode === "smart") {
-    referenceLines.push("Smart Continuity: preserve the same style, light, era and production design, but every cell must be a new shot with a new composition.");
-  }
-  if (appearanceMode === "minimal") {
-    referenceLines.push("Appearance mode: take faces/identity from anchors; frame text should drive action, location and camera only.");
-  }
-
-  const frames = partScenes.map((s, localIdx) => {
-    const label = frameLabel(s, partIndex * partSize + localIdx);
-    const visual = compactSceneText(s, { characterLock, appearanceMode });
-    const shot = getShotType(s, localIdx);
-    const sfx = cleanText(s.sfx || "subtle ambience");
-    return `${label} — ${visual}\nCamera: ${shot}. SFX mood: ${sfx}.`;
-  }).join("\n\n");
-
-  return `STORYBOARD GRID PART ${partIndex + 1} — FLOW COMPACT PROMPT\nFRAMES: F${String(start).padStart(2, "0")}–F${String(end).padStart(2, "0")} of ${totalScenes || storyboard?.scenes?.length || end} total\n\nGenerate exactly ${partScenes.length} live-action cinematic frames in a clean 2×${rows} grid. Each cell is vertical 9:16 portrait. Use thin black separators. Labels only: ${labels.join(", ")} in small white text top-left. No other text, no subtitles, no UI, no watermark.\n\nSTYLE LOCK:\ndark historical documentary realism, live-action camera-photographed film stills, cold overcast natural light, damp stone, smoke, mud, filthy wood, realistic skin, dirty hands, worn fabric, shallow depth of field, subtle 35mm film grain, natural handheld documentary feel. Not illustration, not painting, not parchment, not fantasy art, not CGI.\n\nCONTINUITY:\n${referenceLines.join("\n")}\n\nCHARACTER LOCK:\n${compactCharacterLock(storyboard)}\n\nFRAMES:\n${frames}\n\nFINAL CHECK:\nExactly ${partScenes.length} frames. ${labels.join("–")} only. Same cinematic world. New camera angle and composition in every cell. Do not invent new plot events, animals, modern objects, parchment, illustration, captions or UI.`;
-}
-
-function buildContinuityModeBlock({ continuityMode = "smart", chainMode = "worldHero", partIndex = 0 } = {}) {
-  if (continuityMode === "standard") {
-    return `CONTINUITY MODE — STANDARD:
-Use the storyboard and style lock normally. Keep the project genre, era and tone consistent, but do not force exact visual continuity between unrelated frames.`;
-  }
-
-  if (continuityMode === "anchor") {
-    return `CONTINUITY MODE — ANCHOR:
-Use uploaded Hero Anchor and/or Previous PART as strong visual references.
-LOCK: recurring hero identity, wardrobe logic, world texture, lighting family and color grade when those elements are present in the scenario.
-IMPORTANT: do not force the hero into frames where the scenario does not include the hero.
-AVOID: copying the exact same composition from the reference image unless the scenario explicitly requires the same shot.`;
-  }
-
-  return `CONTINUITY MODE — SMART CONTINUITY / STYLE LOCKED, COMPOSITION FREE:
-Maintain the SAME cinematic style, lighting family, color grading, lens language, historical world texture and documentary realism across all frames.
-Do NOT clone the previous PART. Use Previous PART only as world/style DNA, not as a layout to copy.
-Each frame MUST be visually distinct:
-- different camera angle
-- different shot size
-- different subject placement
-- different focal point
-- different foreground / midground / background relationship
-SHOT PROGRESSION GUIDE for a 4-frame PART:
-Cell 1: establishing or threat-detail hook
-Cell 2: medium human / action frame
-Cell 3: object/detail / evidence frame
-Cell 4: emotional close-up or consequence frame
-FORBIDDEN:
-- repeating the same camera position
-- repeating the same composition layout
-- duplicating a previous frame with small variations
-- adding characters, animals, modern objects or events not present in the scenario
-This is a cinematic sequence progression, not variations of the same shot.`;
-}
-
 export function buildAutoChainPartPrompt({
   storyboard, styleProfile, partScenes = [], partIndex = 0, totalScenes = 0,
   partSize = 4, chainMode = "worldHero", strictLevel = "hard",
-  referenceMode = "previousPart", appearanceMode = "full", continuityMode = "smart"
+  referenceMode = "previousPart", appearanceMode = "full"
 } = {}) {
   if (!partScenes.length) return "";
   const characterLock = storyboard?.character_lock || [];
@@ -345,7 +239,7 @@ export function buildAutoChainPartPrompt({
   const rows  = Math.ceil(partScenes.length / 2);
   const isFirstPart = partIndex === 0;
 
-  const baseRefText = isFirstPart
+  const refText = isFirstPart
     ? (referenceMode === "previousPart"
         ? "PART 1 has no previous PART. If a previous reference is uploaded, use it only as loose world/style DNA, not as story continuity."
         : "PART 1: use the uploaded HERO ANCHOR image for recurring hero identity and visual DNA. There is no previous PART yet. Do not copy the anchor composition into every cell.")
@@ -354,13 +248,6 @@ export function buildAutoChainPartPrompt({
       : referenceMode === "heroOnly"
         ? "Use the uploaded HERO ANCHOR image only for recurring hero identity and style DNA. Do not force the hero into frames where the scenario does not include him/her."
         : "Use the uploaded PREVIOUS PART image as visual reference for world/style continuity. Do not copy the same composition.";
-
-  const refText = continuityMode === "smart"
-    ? `${baseRefText}
-SMART CONTINUITY OVERRIDE: uploaded references are style/world DNA only. Preserve atmosphere and production design, but every frame must be a new shot with a new composition.`
-    : continuityMode === "standard"
-      ? "Standard mode: references are optional and loose. Follow the storyboard scenario first."
-      : baseRefText;
 
   // Подсказка для режима minimal
   const appearanceNote = appearanceMode === "minimal"
@@ -375,6 +262,7 @@ SMART CONTINUITY OVERRIDE: uploaded references are style/world DNA only. Preserv
 ${frameRoleHint(localIdx, chainMode)}
 MANDATORY VISUAL PREFIX: camera-photographed live-action image, NOT illustration, NOT 2D art, NOT painting, NOT concept art.
 SCENARIO INPUT (STRICT): ${sceneTxt}
+VO MEANING: ${cleanText(s.vo_ru || "")}
 SHOT TYPE: ${getShotType(s, localIdx)}
 COMPOSITION RULE: visualize only the described action/subject/environment; keep cinematic composition but do not add new story events.
 SFX NOTE: ${cleanText(s.sfx || "")}`;
@@ -399,8 +287,6 @@ Small white text, top-left corner of each cell.
 No other text.
 
 ${buildWorldLock({ storyboard, styleProfile, chainMode, strictLevel })}
-
-${buildContinuityModeBlock({ continuityMode, chainMode, partIndex })}
 
 MOTION / EDITING CONTINUITY:
 The PART should feel like a sequence cut from the same film.
@@ -428,24 +314,22 @@ No parchment. No illustration. No concept art. No extra text except frame labels
 
 export function buildAutoChainAllParts({
   storyboard, styleProfile, partSize = 4, chainMode = "worldHero",
-  strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full", continuityMode = "smart"
+  strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full"
 } = {}) {
   const scenes = storyboard?.scenes || [];
   const parts  = splitScenesIntoParts(scenes, partSize);
   return parts.map((partScenes, i) => buildAutoChainPartPrompt({
     storyboard, styleProfile, partScenes, partIndex: i, totalScenes: scenes.length,
-    partSize, chainMode, strictLevel, referenceMode, appearanceMode, continuityMode
+    partSize, chainMode, strictLevel, referenceMode, appearanceMode
   }));
 }
 
-export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero", includeVo = false } = {}) {
+export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero", includeVo = true } = {}) {
   const label  = frameLabel(scene, 0);
   const visual = sceneText(scene);
   const motion = sceneMotion(scene);
   const style  = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
-  return `ANIMATE CURRENT FRAME:
-
-FRAME LABEL: ${label}
+  return `ANIMATE CURRENT FRAME — ${label}
 
 SOURCE OF TRUTH:
 Animate ONLY what is present in this frame and its storyboard description. Do not invent new plot events.
@@ -473,13 +357,13 @@ RESTRICTIONS:
 No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.`;
 }
 
-export function buildAutoVideoPack({ storyboard, styleProfile, partScenes = [], chainMode = "worldHero", includeVo = false } = {}) {
+export function buildAutoVideoPack({ storyboard, styleProfile, partScenes = [], chainMode = "worldHero", includeVo = true } = {}) {
   return partScenes.map((s) => buildAutoVideoPrompt(s, { storyboard, styleProfile, chainMode, includeVo })).join("\n\n---\n\n");
 }
 
 export function buildAutoChainJson({
   storyboard, styleProfile, partSize = 4, chainMode = "worldHero",
-  strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full", continuityMode = "smart", includeVo = false
+  strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full", includeVo = true
 } = {}) {
   const scenes = storyboard?.scenes || [];
   const parts  = splitScenesIntoParts(scenes, partSize);
@@ -491,7 +375,6 @@ export function buildAutoChainJson({
     strict_level: strictLevel,
     reference_mode: referenceMode,
     appearance_mode: appearanceMode,
-    continuity_mode: continuityMode,
     part_size: partSize,
     total_frames: scenes.length,
     parts: parts.map((partScenes, i) => ({
@@ -499,7 +382,7 @@ export function buildAutoChainJson({
       frame_range: `${frameLabel(partScenes[0], i * partSize)}-${frameLabel(partScenes[partScenes.length - 1], i * partSize + partScenes.length - 1)}`,
       image_prompt: buildAutoChainPartPrompt({
         storyboard, styleProfile, partScenes, partIndex: i, totalScenes: scenes.length,
-        partSize, chainMode, strictLevel, referenceMode, appearanceMode, continuityMode
+        partSize, chainMode, strictLevel, referenceMode, appearanceMode
       }),
       video_pack: buildAutoVideoPack({ storyboard, styleProfile, partScenes, chainMode, includeVo }),
       frames: partScenes.map((s, localIdx) => ({
@@ -513,4 +396,55 @@ export function buildAutoChainJson({
       }))
     }))
   };
+}
+
+
+export function buildFlowCompactPartPrompt({
+  storyboard, styleProfile, partScenes = [], partIndex = 0, totalScenes = 0,
+  partSize = 4, chainMode = "worldHero", strictLevel = "hard",
+  referenceMode = "previousPart", appearanceMode = "full"
+} = {}) {
+  if (!partScenes.length) return "";
+  const characterLock = storyboard?.character_lock || [];
+  const start = frameNumber(partScenes[0], partIndex * partSize);
+  const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
+  const labels = partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i)).join(", ");
+  const isFirstPart = partIndex === 0;
+
+  const refLine = isFirstPart
+    ? "Use Hero Anchor only if uploaded for recurring identity. No Previous PART exists yet."
+    : referenceMode === "heroAndPrevious"
+      ? "Use Hero Anchor for recurring identity and Previous PART only for world/style DNA. Do not copy compositions."
+      : referenceMode === "heroOnly"
+        ? "Use Hero Anchor only for recurring identity. Do not force the hero into frames where the scenario does not include them."
+        : "Use Previous PART only for world/style DNA. Do not copy compositions.";
+
+  const chars = characterLock.slice(0, 4).map((c, i) => {
+    const name = cleanText(c.name || `Character ${i + 1}`);
+    const desc = cleanText(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "));
+    return desc ? `${name} — ${desc}` : "";
+  }).filter(Boolean).join("\n");
+
+  const frames = partScenes.map((s, localIdx) => {
+    const label = frameLabel(s, partIndex * partSize + localIdx);
+    const text = sceneText(s, { characterLock, appearanceMode });
+    const sfx = cleanText(s.sfx || "subtle ambience");
+    return `${label} — ${text}\nSFX mood: ${sfx}`;
+  }).join("\n\n");
+
+  return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
+Generate exactly ${partScenes.length} live-action cinematic frames in a clean 2×2 grid. Each cell is vertical 9:16 portrait. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.
+
+STYLE LOCK:
+dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, cold overcast light, realistic skin and fabric, dirty hands, smoke, mud, damp stone, shallow depth of field, subtle 35mm film grain. Not illustration, not painting, not concept art, not parchment, not fantasy art.
+
+CONTINUITY:
+${refLine}
+Smart continuity: preserve atmosphere, lighting family, color grade and historical world texture, but every frame must be a new shot with a different composition, camera angle and focal point.
+
+${chars ? `CHARACTER LOCK:\n${chars}\n\n` : ""}FRAMES:
+${frames}
+
+FINAL CHECK:
+Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Same cinematic world, different composition in every cell.`;
 }
