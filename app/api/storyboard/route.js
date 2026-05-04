@@ -11,8 +11,15 @@ import {
   normalizeTarget,
   normalizeStoryboard,
   validateStoryboard,
+  getChunkPlan,
 } from "../../../engine/sceneEngine_v2";
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+import {
+  splitScriptForChunks,
+  buildChunkUserPrompt,
+  mergeChunks,
+  extractLastSceneContext,
+} from "../../../engine/longFormEngine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -377,6 +384,131 @@ export async function POST(req) {
 
     if (!script || script.length < 10) {
       return NextResponse.json({ error: "Сценарий слишком короткий." }, { status: 400 });
+    }
+
+    if (body.stream === true && duration > 180) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (event, data) => {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          };
+
+          try {
+            const chunks = getChunkPlan(duration);
+            const scriptChunks = splitScriptForChunks(script, chunks);
+            send("started", {
+              total_chunks: chunks.length,
+              message: `Long-form режим: ${chunks.length} chunk(s) по ~90 секунд`,
+            });
+
+            if (!process.env.OPENROUTER_API_KEY) {
+              const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
+              const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
+              send("done", {
+                storyboard: local,
+                mode: "local_fallback_longform",
+                target,
+                validation: { ok: true, errors: [] },
+                long_form: { chunks_total: chunks.length, chunks_succeeded: chunks.length },
+              });
+              controller.close();
+              return;
+            }
+
+            const chunkResults = [];
+            let characterLockFromPrev = null;
+            let lastSceneFromPrev = null;
+            let globalStyleLock = null;
+            let lastModelUsed = null;
+
+            for (let i = 0; i < chunks.length; i++) {
+              const ch = chunks[i];
+              send("chunk_started", {
+                chunk_number: i + 1,
+                total_chunks: chunks.length,
+                chunk_duration: ch.duration,
+              });
+
+              const chunkUserMessage = buildChunkUserPrompt({
+                chunkIndex: i,
+                totalChunks: chunks.length,
+                chunkDuration: ch.duration,
+                chunkStart: ch.start,
+                totalDuration: duration,
+                scriptForChunk: scriptChunks[i] || "",
+                globalScript: script,
+                mode,
+                target,
+                aspectRatio,
+                characterLockFromPrev,
+                lastSceneFromPrev,
+                globalStyleLock,
+              });
+
+              const result = await callOpenRouter({
+                taskType: TASK_TYPES.STORYBOARD_GENERATION,
+                systemPrompt: SYSTEM_PROMPT,
+                userMessage: chunkUserMessage,
+                temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+                responseFormat: { type: "json_object" },
+                appTitle: `NeuroCine Long-Form Chunk ${i + 1}/${chunks.length}`,
+              });
+
+              if (!result.ok) {
+                send("chunk_failed", { chunk_number: i + 1, error: result.error || "OpenRouter chunk failed" });
+                throw new Error(result.error || `Chunk ${i + 1} failed`);
+              }
+
+              const parsedChunk = extractJson(result.content);
+              const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target);
+              if (i > 0 && characterLockFromPrev) normalizedChunk.character_lock = characterLockFromPrev;
+              if (globalStyleLock) normalizedChunk.global_style_lock = globalStyleLock;
+
+              chunkResults.push(normalizedChunk);
+              characterLockFromPrev = normalizedChunk.character_lock || characterLockFromPrev;
+              globalStyleLock = normalizedChunk.global_style_lock || globalStyleLock;
+              lastSceneFromPrev = extractLastSceneContext(normalizedChunk);
+              lastModelUsed = result.model_used;
+
+              send("chunk_completed", {
+                chunk_number: i + 1,
+                total_chunks: chunks.length,
+                scenes_in_chunk: normalizedChunk.scenes?.length || 0,
+                model_used: result.model_used,
+              });
+            }
+
+            send("merging", { message: "Склеиваю chunks в единый storyboard JSON" });
+            const mergedRaw = mergeChunks(chunkResults, duration);
+            const storyboard = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target);
+            storyboard.project_name = projectName;
+            storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
+            const validation = validateStoryboard(storyboard, mode, target);
+
+            send("done", {
+              storyboard,
+              mode: "api_longform",
+              target,
+              validation,
+              model_used: lastModelUsed,
+              long_form: { chunks_total: chunks.length, chunks_succeeded: chunkResults.length },
+            });
+          } catch (e) {
+            send("error", { message: e.message || "Long-form storyboard error" });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
     }
 
     // Local fallback if no API key
