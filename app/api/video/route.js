@@ -103,6 +103,7 @@ function removeVoDialogueWhenDisabled(videoPrompt = "", includeVo = false) {
   if (includeVo) return out;
 
   out = out
+    .replace(/\bNo\s+SFX\s*:/gi, "SFX:")
     .replace(/Voiceover[^.]*\./gi, "")
     .replace(/VO meaning[^.]*\./gi, "")
     .replace(/narrator[^.]*\./gi, "")
@@ -163,7 +164,7 @@ function finalizeVideoContract({ frame, storyboard, target, videoPrompt, imagePr
     .trim();
 
   if (target === "grok") {
-    finalVideo = compactVideoPrompt(finalVideo, { maxWords: 72 });
+    finalVideo = compactVideoPrompt(finalVideo, { maxWords: consistency === "ultra" ? 58 : 70 });
     finalVideo = `${finalVideo} ${continuityLine}`.replace(/\s+/g, " ").trim();
   } else {
     finalVideo = `${finalVideo} ${continuityLine}`.replace(/\s+/g, " ").trim();
@@ -272,7 +273,7 @@ export async function POST(req) {
     const frame = body.frame || {};
     const analysis = body.analysis || {};
     const storyboard = body.storyboard || {};
-    const target = normalizeTarget(body.target || frame.target || storyboard?.export_meta?.target || "veo3");
+    const target = normalizeTarget(body.target || body.videoTarget || frame.target || storyboard?.export_meta?.target || "veo3");
     const includeVo = body.includeVo === true || body.include_vo === true;
     const promptMode = body.promptMode === "cheap" || body.videoPromptMode === "cheap" ? "cheap" : "pro";
     const consistency = body.consistency === "ultra" || body.videoConsistency === "ultra" ? "ultra" : "normal";
