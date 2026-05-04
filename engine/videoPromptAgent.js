@@ -145,6 +145,7 @@ export function cleanVideoPromptText(text = "", { storyboard = {}, includeVo = f
   let out = String(text || "");
   out = removeCharacterNames(out, storyboard);
   out = out
+    .replace(/\bNo\s+SFX\s*:/gi, "SFX:")
     .replace(/No\s+No\s+dialogue/gi, "No dialogue")
     .replace(/no\s+No\s+dialogue/gi, "no dialogue")
     .replace(/No dialogue,\s*no\s+No dialogue,\s*no voiceover/gi, "No dialogue, no voiceover")
@@ -177,11 +178,20 @@ export function buildContinuityLine(frame = {}, consistency = "normal") {
   return `${base} Ultra consistency: do not change face structure, age, clothing, dirt level, injuries, lighting style, color grade, or historical period; do not clone the previous composition.`;
 }
 
-export function compactVideoPrompt(text = "", { maxWords = 95 } = {}) {
-  const words = String(text || "").split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return String(text || "").trim();
-  const keep = words.slice(0, maxWords).join(" ");
-  return keep.replace(/[,;:]?\s*$/, ".");
+export function compactVideoPrompt(text = "", { maxWords = 95, preserveContinuity = false } = {}) {
+  let source = String(text || "").replace(/\s+/g, " ").trim();
+  let preserved = "";
+  if (preserveContinuity) {
+    const match = source.match(/Maintain EXACT[^.]*\.(?: Ultra consistency:[^.]*\.)?/i);
+    if (match) {
+      preserved = match[0].trim();
+      source = source.replace(match[0], "").replace(/\s+/g, " ").trim();
+    }
+  }
+  const words = source.split(/\s+/).filter(Boolean);
+  let keep = words.length <= maxWords ? source : words.slice(0, maxWords).join(" ");
+  keep = keep.replace(/[,;:]?\s*$/, ".").trim();
+  return [keep, preserved].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -303,9 +313,9 @@ export function buildVideoPromptFor({
       "Natural light, documentary realism, handheld motion",
       `SFX: ${sfx}`,
       "No dialogue, no voiceover",
-      continuity,
     ].filter(Boolean).join(". ").replace(/\.\.+/g, ".").replace(/\s+/g, " ").trim();
-    return base;
+    const compact = compactVideoPrompt(base, { maxWords: consistency === "ultra" ? 58 : 70 });
+    return `${compact} ${continuity}`.replace(/\s+/g, " ").trim();
   }
 
   if (promptMode === "cheap") {
@@ -395,7 +405,7 @@ export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3",
       .replace(/Maintain EXACT same character appearance, face, clothing, and condition as previous frame\.?/gi, "")
       .replace(/Ultra consistency:[^.]*\./gi, "")
       .trim();
-    rawVideo = compactVideoPrompt(rawVideo, { maxWords: 72 });
+    rawVideo = compactVideoPrompt(rawVideo, { maxWords: consistency === "ultra" ? 58 : 70 });
     rawVideo = `${rawVideo} ${continuity}`.replace(/\s+/g, " ").trim();
   }
 
