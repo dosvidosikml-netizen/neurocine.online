@@ -228,6 +228,75 @@ function frameRoleHint(localIdx = 0, chainMode = "worldHero") {
 }
 
 
+
+function compactSceneText(scene = {}, { characterLock = [], appearanceMode = "full" } = {}) {
+  let text = sceneText(scene, { characterLock, appearanceMode });
+  text = String(text || "")
+    .replace(/\s*visible skin pores[\s\S]*$/i, "")
+    .replace(/\s*ARRI Alexa[\s\S]*$/i, "")
+    .replace(/\s*ASPECT RATIO:[\s\S]*$/i, "")
+    .replace(/\s*Subject:[\s\S]*$/i, "")
+    .replace(/\s*Camera:[\s\S]*$/i, "")
+    .replace(/\s*Lighting:[\s\S]*$/i, "")
+    .replace(/\s*Color grade:[\s\S]*$/i, "")
+    .replace(/\s*Realism anchors:[\s\S]*$/i, "")
+    .replace(/\s*Format:[\s\S]*$/i, "");
+  text = cleanText(text);
+  return text.length > 360 ? text.slice(0, 357).trim() + "..." : text;
+}
+
+function compactCharacterLock(storyboard = {}) {
+  const chars = Array.isArray(storyboard?.character_lock) ? storyboard.character_lock : [];
+  if (!chars.length) return "If the same character returns, keep face, age, clothing and condition consistent with the storyboard.";
+  return chars.slice(0, 4).map((c, i) => {
+    const name = cleanText(c.name || `Character ${i + 1}`);
+    const parts = [c.age ? `${c.age}y` : "", c.face_features, c.hair, c.clothing, c.physical_condition]
+      .filter(Boolean).map(v => cleanText(v));
+    const desc = cleanText(parts.join(", "));
+    return `${name} — ${desc.length > 220 ? desc.slice(0, 217).trim() + "..." : desc}`;
+  }).join("\n");
+}
+
+export function buildFlowCompactPartPrompt({
+  storyboard, styleProfile, partScenes = [], partIndex = 0, totalScenes = 0,
+  partSize = 4, chainMode = "worldHero", strictLevel = "hard",
+  referenceMode = "previousPart", appearanceMode = "full", continuityMode = "smart"
+} = {}) {
+  if (!partScenes.length) return "";
+  const characterLock = storyboard?.character_lock || [];
+  const start = frameNumber(partScenes[0], partIndex * partSize);
+  const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
+  const rows = Math.ceil(partScenes.length / 2);
+  const labels = partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i));
+  const isFirstPart = partIndex === 0;
+
+  const referenceLines = [];
+  if (isFirstPart) {
+    if (referenceMode !== "previousPart") referenceLines.push("Use uploaded Hero Anchor only for recurring hero identity/style DNA. Do not copy its pose or composition.");
+    else referenceLines.push("No Previous PART is required for PART 1. Follow the storyboard and style lock.");
+  } else {
+    if (referenceMode === "heroAndPrevious") referenceLines.push("Use uploaded Hero Anchor for recurring hero identity. Use uploaded Previous PART only for world/style DNA. Do not copy previous compositions.");
+    else if (referenceMode === "heroOnly") referenceLines.push("Use uploaded Hero Anchor for recurring hero identity only. Do not force the hero into frames where the scenario does not include them.");
+    else referenceLines.push("Use uploaded Previous PART only for world/style DNA. Do not copy the same composition.");
+  }
+  if (continuityMode === "smart") {
+    referenceLines.push("Smart Continuity: preserve the same style, light, era and production design, but every cell must be a new shot with a new composition.");
+  }
+  if (appearanceMode === "minimal") {
+    referenceLines.push("Appearance mode: take faces/identity from anchors; frame text should drive action, location and camera only.");
+  }
+
+  const frames = partScenes.map((s, localIdx) => {
+    const label = frameLabel(s, partIndex * partSize + localIdx);
+    const visual = compactSceneText(s, { characterLock, appearanceMode });
+    const shot = getShotType(s, localIdx);
+    const sfx = cleanText(s.sfx || "subtle ambience");
+    return `${label} — ${visual}\nCamera: ${shot}. SFX mood: ${sfx}.`;
+  }).join("\n\n");
+
+  return `STORYBOARD GRID PART ${partIndex + 1} — FLOW COMPACT PROMPT\nFRAMES: F${String(start).padStart(2, "0")}–F${String(end).padStart(2, "0")} of ${totalScenes || storyboard?.scenes?.length || end} total\n\nGenerate exactly ${partScenes.length} live-action cinematic frames in a clean 2×${rows} grid. Each cell is vertical 9:16 portrait. Use thin black separators. Labels only: ${labels.join(", ")} in small white text top-left. No other text, no subtitles, no UI, no watermark.\n\nSTYLE LOCK:\ndark historical documentary realism, live-action camera-photographed film stills, cold overcast natural light, damp stone, smoke, mud, filthy wood, realistic skin, dirty hands, worn fabric, shallow depth of field, subtle 35mm film grain, natural handheld documentary feel. Not illustration, not painting, not parchment, not fantasy art, not CGI.\n\nCONTINUITY:\n${referenceLines.join("\n")}\n\nCHARACTER LOCK:\n${compactCharacterLock(storyboard)}\n\nFRAMES:\n${frames}\n\nFINAL CHECK:\nExactly ${partScenes.length} frames. ${labels.join("–")} only. Same cinematic world. New camera angle and composition in every cell. Do not invent new plot events, animals, modern objects, parchment, illustration, captions or UI.`;
+}
+
 function buildContinuityModeBlock({ continuityMode = "smart", chainMode = "worldHero", partIndex = 0 } = {}) {
   if (continuityMode === "standard") {
     return `CONTINUITY MODE — STANDARD:
@@ -252,10 +321,10 @@ Each frame MUST be visually distinct:
 - different focal point
 - different foreground / midground / background relationship
 SHOT PROGRESSION GUIDE for a 4-frame PART:
-F01: establishing or threat-detail hook
-F02: medium human / action frame
-F03: object/detail / evidence frame
-F04: emotional close-up or consequence frame
+Cell 1: establishing or threat-detail hook
+Cell 2: medium human / action frame
+Cell 3: object/detail / evidence frame
+Cell 4: emotional close-up or consequence frame
 FORBIDDEN:
 - repeating the same camera position
 - repeating the same composition layout
