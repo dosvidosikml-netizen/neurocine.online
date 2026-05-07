@@ -16,6 +16,7 @@ import {
 import { downloadTextFile, downloadJsonFile, safeFileName } from "../../lib/download";
 import { validateScript } from "../../lib/scriptValidator";
 import ProductionPack from "../../components/ProductionPack";
+import AuthPanel from "../../components/AuthPanel";
 import { MOCK_SCRIPT_RU, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
 /* ─── autosave keys ─── */
@@ -1320,6 +1321,8 @@ ${lines.join("\n")}` : "";
         style={{ display: "none" }}
         onChange={e => importProjectSnapshot(e.target.files?.[0])}
       />
+
+      <AuthPanel devMode={devMode} onModeToggle={() => setDevMode(v => !v)} />
 
       {devMode && <div className="demo-banner-v35">{t.devHint}</div>}
       {snapshotStatus && (
