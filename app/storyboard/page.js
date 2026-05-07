@@ -1098,7 +1098,6 @@ ${lines.join("\n")}` : "";
         </div>
         <div className="nav-links">
           <Link href="/" className="nav-btn">{t.navHome}</Link>
-          <Link href="/chat" className="nav-btn">{t.navChat}</Link>
           <Link href="/storyboard" className="nav-btn active">{t.navStudio}</Link>
           <button className="nav-btn" onClick={exportProjectSnapshot}>{t.save}</button>
           <button className="nav-btn" onClick={() => snapshotInputRef.current?.click()}>{t.load}</button>
