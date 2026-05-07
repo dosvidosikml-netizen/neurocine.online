@@ -334,6 +334,7 @@ function ProjectSetupPanelV40({
   devMode,
   sBusy, sbBusy, doScript, doStoryboard,
   sStat, sbStat, storyboard,
+  clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
 }) {
   const durationOptions = [30, 60, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
@@ -377,6 +378,10 @@ function ProjectSetupPanelV40({
             onChange={(e) => handleTopicChange(e.target.value)}
             placeholder="Например: Ты бы не выжил в Средневековье — вот почему"
           />
+          <div className="setup-mini-actions-v41">
+            <button type="button" onClick={clearTopicOnly} disabled={!topic?.trim()}>Очистить тему</button>
+            <button type="button" onClick={clearSetupText} disabled={!topic?.trim() && !script?.trim()}>Очистить тему + сценарий</button>
+          </div>
 
           <div className="setup-row-v40">
             <div className="setup-field-v40">
@@ -397,6 +402,10 @@ function ProjectSetupPanelV40({
               onChange={(e) => setScript(e.target.value)}
               placeholder="Если текст уже есть — вставь сюда и сразу жми «Создать storyboard»."
             />
+            <div className="setup-mini-actions-v41">
+              <button type="button" onClick={clearScriptOnly} disabled={!script?.trim()}>Очистить сценарий</button>
+              <button type="button" onClick={clearEverything}>Сбросить всё</button>
+            </div>
           </div>
         </div>
 
@@ -464,6 +473,7 @@ function ProjectSetupPanelV40({
           <span>Режим: <b>{String(sbMode || "safe").toUpperCase()}</b></span>
         </div>
         <div className="setup-buttons-v40">
+          <button className="setup-btn-v40 ghost" onClick={clearEverything} type="button">Очистить всё</button>
           <button className="setup-btn-v40 secondary" onClick={doScript} disabled={busy || (!topic.trim() && !script.trim() && !devMode)} type="button">
             {sBusy ? "Генерация..." : "01 · Создать сценарий"}
           </button>
@@ -769,6 +779,44 @@ ${lines.join("\n")}` : "";
     setActiveChunk(0); setContAnchor([]); setContAnchorGrid(null); setContPrompt(""); setShowCont(false);
     setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText("");
     if (!keepAnchors) { setAutoHeroAnchor(null); setAutoPrevPartAnchor(null); }
+  }
+
+  function clearTopicOnly() {
+    setTopic("");
+    setSStat("");
+    resetStoryboardOutputs({ keepAnchors: true });
+  }
+
+  function clearScriptOnly() {
+    setScript("");
+    setScriptValidation(null);
+    setSStat("");
+    resetStoryboardOutputs({ keepAnchors: true });
+  }
+
+  function clearSetupText() {
+    setTopic("");
+    setScript("");
+    setScriptValidation(null);
+    setSStat("");
+    resetStoryboardOutputs({ keepAnchors: true });
+  }
+
+  function clearEverything() {
+    setProjectName("NeuroCine Project");
+    setTopic("");
+    setTone("cinematic documentary thriller");
+    setProjectType("film");
+    setStylePreset("cinematic");
+    setDuration(60);
+    setAspect("9:16");
+    setTarget("veo3");
+    setSbMode("safe");
+    setScript("");
+    setScriptValidation(null);
+    setJsonIn("");
+    setSStat("");
+    resetStoryboardOutputs({ keepAnchors: true });
   }
 
   function handleTopicChange(value) {
@@ -1307,6 +1355,10 @@ ${lines.join("\n")}` : "";
         sStat={sStat}
         sbStat={sbStat}
         storyboard={storyboard}
+        clearTopicOnly={clearTopicOnly}
+        clearScriptOnly={clearScriptOnly}
+        clearSetupText={clearSetupText}
+        clearEverything={clearEverything}
       />
 
       <ProductionStatusBar
@@ -1339,77 +1391,19 @@ ${lines.join("\n")}` : "";
         </div>
         <div className="step-body">
           <div className="two-col lw">
-            <div className="col">
-              <div className="field">
-                <label className="field-label">Название проекта</label>
-                <input className="inp" value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="NeuroCine Project" />
+            <div className="col script-control-v41">
+              <div className="compact-step-note-v41">
+                <strong>Настройки теперь сверху.</strong>
+                <span>Этот блок больше не дублирует тему, стиль, длительность и готовый сценарий. Здесь только управление сценарием и результат.</span>
               </div>
-              <div className="field">
-                <label className="field-label">Тема / задание</label>
-                <textarea className="inp" style={{ minHeight: 72 }} value={topic} onChange={e => handleTopicChange(e.target.value)}
-                  placeholder="Например: Ты бы не выжил в Средневековье — вот почему" />
+              <div className="script-actions-v41">
+                <button className="btn btn-red btn-full" onClick={doScript} disabled={sBusy || (!topic.trim() && !script.trim())}>
+                  {sBusy ? "⏳ Генерация..." : script.trim() && !topic.trim() ? "▶ ПРОВЕРИТЬ СЦЕНАРИЙ" : "▶ СОЗДАТЬ СЦЕНАРИЙ"}
+                </button>
+                <button className="btn btn-soft btn-full" onClick={clearTopicOnly} disabled={!topic.trim()} type="button">Очистить тему</button>
+                <button className="btn btn-soft btn-full" onClick={clearScriptOnly} disabled={!script.trim()} type="button">Очистить сценарий</button>
+                <button className="btn btn-soft-danger btn-full" onClick={clearSetupText} disabled={!topic.trim() && !script.trim()} type="button">Очистить тему + сценарий</button>
               </div>
-
-              {/* Блок для готового сценария */}
-              <div className="field">
-                <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span>Готовый сценарий</span>
-                  <span style={{ fontSize: 10, fontWeight: 400, color: "var(--muted)", letterSpacing: "0.05em" }}>
-                    — уже есть текст? Вставь сюда → сразу получишь розкадровку
-                  </span>
-                </label>
-                <textarea className="inp" style={{ minHeight: 110 }} value={script} onChange={e => setScript(e.target.value)}
-                  placeholder="Вставь готовый текст диктора — AI разобьёт на кадры без генерации сценария..." />
-                {script.trim() && !topic.trim() && (
-                  <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6 }}>
-                    ✓ Готовый сценарий — нажми «Создать сторибоард» напрямую
-                  </div>
-                )}
-              </div>
-              <div className="frow frow2">
-                <div className="field">
-                  <label className="field-label">Тип проекта</label>
-                  <select className="inp" value={projectType} onChange={e => setProjectType(e.target.value)}>
-                    {Object.entries(PROJECT_TYPES).map(([k, v]) =>
-                      <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label className="field-label">Стиль / пресет</label>
-                  <select className="inp" value={stylePreset} onChange={e => setStylePreset(e.target.value)}>
-                    {Object.entries(STYLE_PRESETS).map(([k, v]) =>
-                      <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="frow frow3">
-                <div className="field">
-                  <label className="field-label">Длительность</label>
-                  <select className="inp" value={duration} onChange={e => setDuration(Number(e.target.value))}>
-                    <option value={30}>30 сек</option>
-                    <option value={60}>60 сек</option>
-                    <option value={90}>90 сек</option>
-                    <option value={120}>2 мин</option>
-                    <option value={180}>3 мин</option>
-                  </select>
-                </div>
-                <div className="field">
-                  <label className="field-label">Формат</label>
-                  <select className="inp" value={aspectRatio} onChange={e => setAspect(e.target.value)}>
-                    <option value="9:16">9:16 Shorts</option>
-                    <option value="16:9">16:9 YouTube</option>
-                    <option value="1:1">1:1 Square</option>
-                    <option value="4:5">4:5 Instagram</option>
-                  </select>
-                </div>
-                <div className="field">
-                  <label className="field-label">Тон / жанр</label>
-                  <input className="inp" value={tone} onChange={e => setTone(e.target.value)} placeholder="thriller, dark..." />
-                </div>
-              </div>
-              <button className="btn btn-red btn-full" onClick={doScript} disabled={sBusy || (!topic.trim() && !script.trim())}>
-                {sBusy ? "⏳ Генерация..." : script.trim() && !topic.trim() ? "▶ СОЗДАТЬ СТОРИБОАРД" : "▶ СОЗДАТЬ СЦЕНАРИЙ"}
-              </button>
               {sStat && (() => {
                 const [sType, sMsg] = sStat.includes("|") ? sStat.split("|") : [sStat, ""];
                 const isErr = sType === "err";
