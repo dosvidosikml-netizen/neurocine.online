@@ -17,6 +17,9 @@ import { downloadTextFile, downloadJsonFile, safeFileName } from "../../lib/down
 import { validateScript } from "../../lib/scriptValidator";
 import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
+import UserDashboard from "../../components/UserDashboard";
+import CloudProjectsPanel from "../../components/CloudProjectsPanel";
+import { getAccountAccess } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
 /* ─── autosave keys ─── */
@@ -332,7 +335,7 @@ function ProjectSetupPanelV40({
   tone, setTone,
   target, setTarget,
   sbMode, setSbMode,
-  devMode,
+  devMode, modeLabel, accountAccess,
   sBusy, sbBusy, doScript, doStoryboard,
   sStat, sbStat, storyboard,
   clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
@@ -364,7 +367,7 @@ function ProjectSetupPanelV40({
           <p>Сначала тема и параметры. Потом сценарий, storyboard, PART grid, video prompt и Production Pack — без старого мусорного меню.</p>
         </div>
         <div className="setup-status-v40">
-          <span className={devMode ? "is-demo" : "is-live"}>{devMode ? "DEMO" : "LIVE / PRO"}</span>
+          <span className={devMode ? "is-demo" : "is-live"}>{modeLabel}</span>
           <strong>{duration}s · {aspectRatio}</strong>
           <em>{estimatedScenes} кадров</em>
         </div>
@@ -542,7 +545,11 @@ export default function StudioPage() {
   const [snapshotStatus, setSnapshotStatus] = useState("");
   const snapshotInputRef = useRef(null);
   const [uiLang, setUiLang] = useState("ru");
-  const [devMode, setDevMode] = useState(false);
+  const [account, setAccount] = useState(null);
+  const [devMode, setDevMode] = useState(true);
+  const accountAccess = getAccountAccess(account?.profile, account?.session);
+  const liveAllowed = accountAccess.canLive;
+  const modeLabel = devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
@@ -1309,7 +1316,7 @@ ${lines.join("\n")}` : "";
           <a href="#storyboard" className="top-pill-v40">02 Storyboard</a>
           <a href="#production" className="top-pill-v40">03 Pipeline</a>
           <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={() => setDevMode(v => !v)} type="button">
-            {devMode ? "DEMO" : "LIVE / PRO"}
+            {modeLabel}
           </button>
           <button className="top-pill-v40" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")} type="button">🌐 {uiLang.toUpperCase()}</button>
         </div>
@@ -1322,7 +1329,17 @@ ${lines.join("\n")}` : "";
         onChange={e => importProjectSnapshot(e.target.files?.[0])}
       />
 
-      <AuthPanel devMode={devMode} onModeToggle={() => setDevMode(v => !v)} />
+      <AuthPanel devMode={devMode} onModeToggle={() => setDevMode(v => !v)} onAccountChange={setAccount} />
+
+      <UserDashboard account={account} devMode={devMode} />
+
+      <CloudProjectsPanel
+        account={account}
+        projectName={projectName}
+        buildSnapshot={buildProjectSnapshot}
+        applySnapshot={applyProjectSnapshot}
+        onStatus={setSnapshotStatus}
+      />
 
       {devMode && <div className="demo-banner-v35">{t.devHint}</div>}
       {snapshotStatus && (
@@ -1351,6 +1368,8 @@ ${lines.join("\n")}` : "";
         sbMode={sbMode}
         setSbMode={setSbMode}
         devMode={devMode}
+        modeLabel={modeLabel}
+        accountAccess={accountAccess}
         sBusy={sBusy}
         sbBusy={sbBusy}
         doScript={doScript}
