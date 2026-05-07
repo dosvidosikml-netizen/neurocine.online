@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import Link from "next/link";
 import {
   PROJECT_TYPES, STYLE_PRESETS,
   build2KPrompt, buildStoryGridPrompt, buildChunkGridPrompt,
@@ -316,6 +315,165 @@ function StudioDashboardHero({ projectName, topic, script, storyboard, scenes, d
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+
+function ProjectSetupPanelV40({
+  projectName, setProjectName,
+  topic, handleTopicChange,
+  script, setScript,
+  projectType, setProjectType,
+  stylePreset, setStylePreset,
+  duration, setDuration,
+  aspectRatio, setAspect,
+  tone, setTone,
+  target, setTarget,
+  sbMode, setSbMode,
+  devMode,
+  sBusy, sbBusy, doScript, doStoryboard,
+  sStat, sbStat, storyboard,
+}) {
+  const durationOptions = [30, 60, 90, 120, 180, 300, 600];
+  const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
+  const modeOptions = [
+    { id: "safe", label: "Safe", hint: "документально, без жёстких кадров" },
+    { id: "raw", label: "Raw", hint: "меньше смягчения, больше фактуры" },
+  ];
+  const targetOptions = [
+    { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
+    { id: "grok", label: "Grok Imagine", hint: "короткий визуальный prompt" },
+  ];
+  const styleCards = ["dark", "cinematic", "truecrime", "war", "animeDark", "animation25d", "graphicNovel", "stopmotion"]
+    .filter((k) => STYLE_PRESETS[k]);
+  const estimatedScenes = Math.max(1, Math.round(Number(duration || 60) / 3));
+  const readyForStoryboard = !!script?.trim() || devMode;
+  const busy = sBusy || sbBusy;
+  const statusText = sbStat || sStat || (devMode ? "DEMO MODE · API не используется" : "LIVE требует API / Google account");
+
+  return (
+    <section id="setup" className="setup-v40">
+      <div className="setup-bg-v40" />
+      <div className="setup-head-v40">
+        <div>
+          <div className="setup-kicker-v40">NeuroCine v40 · нормальный запуск</div>
+          <h1>Настрой свой ролик</h1>
+          <p>Сначала тема и параметры. Потом сценарий, storyboard, PART grid, video prompt и Production Pack — без старого мусорного меню.</p>
+        </div>
+        <div className="setup-status-v40">
+          <span className={devMode ? "is-demo" : "is-live"}>{devMode ? "DEMO" : "LIVE / PRO"}</span>
+          <strong>{duration}s · {aspectRatio}</strong>
+          <em>{estimatedScenes} кадров</em>
+        </div>
+      </div>
+
+      <div className="setup-grid-v40">
+        <div className="setup-main-v40">
+          <label className="setup-label-v40">Тема ролика</label>
+          <textarea
+            className="setup-topic-v40"
+            value={topic}
+            onChange={(e) => handleTopicChange(e.target.value)}
+            placeholder="Например: Ты бы не выжил в Средневековье — вот почему"
+          />
+
+          <div className="setup-row-v40">
+            <div className="setup-field-v40">
+              <label className="setup-label-v40">Название проекта</label>
+              <input className="setup-input-v40" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="NeuroCine Project" />
+            </div>
+            <div className="setup-field-v40">
+              <label className="setup-label-v40">Тон / жанр</label>
+              <input className="setup-input-v40" value={tone} onChange={(e) => setTone(e.target.value)} placeholder="cinematic documentary thriller" />
+            </div>
+          </div>
+
+          <div className="setup-manual-v40">
+            <label className="setup-label-v40">Готовый сценарий</label>
+            <textarea
+              className="setup-script-v40"
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              placeholder="Если текст уже есть — вставь сюда и сразу жми «Создать storyboard»."
+            />
+          </div>
+        </div>
+
+        <div className="setup-options-v40">
+          <div className="setup-block-v40">
+            <div className="setup-label-v40">Длительность</div>
+            <div className="setup-pills-v40">
+              {durationOptions.map((v) => (
+                <button key={v} className={Number(duration) === v ? "active" : ""} onClick={() => setDuration(v)} type="button">
+                  {v < 60 ? `${v}с` : v === 60 ? "60с" : v < 300 ? `${v / 60}м` : `${v / 60}м`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="setup-block-v40">
+            <div className="setup-label-v40">Формат</div>
+            <div className="setup-pills-v40">
+              {formatOptions.map((v) => (
+                <button key={v} className={aspectRatio === v ? "active" : ""} onClick={() => setAspect(v)} type="button">{v}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="setup-block-v40">
+            <div className="setup-label-v40">Видео-модель</div>
+            <div className="setup-cards-v40 two">
+              {targetOptions.map((x) => (
+                <button key={x.id} className={target === x.id ? "active" : ""} onClick={() => setTarget(x.id)} type="button">
+                  <strong>{x.label}</strong><span>{x.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="setup-block-v40">
+            <div className="setup-label-v40">Режим контента</div>
+            <div className="setup-cards-v40 two">
+              {modeOptions.map((x) => (
+                <button key={x.id} className={sbMode === x.id ? "active" : ""} onClick={() => setSbMode(x.id)} type="button">
+                  <strong>{x.label}</strong><span>{x.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="setup-block-v40">
+            <div className="setup-label-v40">Стиль</div>
+            <div className="setup-style-grid-v40">
+              {styleCards.map((key) => (
+                <button key={key} className={stylePreset === key ? "active" : ""} onClick={() => setStylePreset(key)} type="button">
+                  {STYLE_PRESETS[key].label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="setup-actions-v40">
+        <div className="setup-summary-v40">
+          <span>Тема: <b>{topic?.trim() || "не задана"}</b></span>
+          <span>Стиль: <b>{STYLE_PRESETS[stylePreset]?.label || stylePreset}</b></span>
+          <span>Модель: <b>{String(target || "veo3").toUpperCase()}</b></span>
+          <span>Режим: <b>{String(sbMode || "safe").toUpperCase()}</b></span>
+        </div>
+        <div className="setup-buttons-v40">
+          <button className="setup-btn-v40 secondary" onClick={doScript} disabled={busy || (!topic.trim() && !script.trim() && !devMode)} type="button">
+            {sBusy ? "Генерация..." : "01 · Создать сценарий"}
+          </button>
+          <button className="setup-btn-v40 primary" onClick={doStoryboard} disabled={busy || !readyForStoryboard} type="button">
+            {sbBusy ? "Storyboard..." : "02 · Создать storyboard"}
+          </button>
+        </div>
+      </div>
+
+      <div className={`setup-statusline-v40 ${String(statusText).startsWith("err") ? "err" : ""}`}>{String(statusText).replace(/^ok\|?/, "✓ ").replace(/^gen\|?/, "⏳ ").replace(/^err\|?/, "✗ ")}</div>
     </section>
   );
 }
@@ -1090,54 +1248,65 @@ ${lines.join("\n")}` : "";
   return (
     <div className="studio">
 
-      {/* NAV */}
-      <nav className="studio-nav">
-        <div className="nav-brand">
-          <div className="nav-kicker">NeuroCine Online</div>
-          <div className="nav-title">Director Studio</div>
+      {/* TOP BAR */}
+      <nav className="studio-topbar-v40">
+        <div className="topbrand-v40">
+          <div className="topbrand-kicker-v40">NeuroCine Online</div>
+          <div className="topbrand-title-v40">Director Studio</div>
         </div>
-        <div className="nav-links">
-          <Link href="/" className="nav-btn">{t.navHome}</Link>
-          <Link href="/storyboard" className="nav-btn active">{t.navStudio}</Link>
-          <button className="nav-btn" onClick={exportProjectSnapshot}>{t.save}</button>
-          <button className="nav-btn" onClick={() => snapshotInputRef.current?.click()}>{t.load}</button>
-          <input
-            ref={snapshotInputRef}
-            type="file"
-            accept=".json,.neurocine.json,application/json"
-            style={{ display: "none" }}
-            onChange={e => importProjectSnapshot(e.target.files?.[0])}
-          />
-          {storyboard && <>
-            <button className="nav-btn" onClick={exportJson}>⬇ JSON</button>
-            <button className="nav-btn" onClick={exportTxt}>⬇ TXT</button>
-            <button className="nav-btn" onClick={exportFlow}>⬇ Flow/VEO</button>
-          </>}
-          <button className="nav-btn danger" onClick={clearAll}>{t.clear}</button>
-          <button className={`nav-btn access-toggle-v35 ${devMode ? "active" : ""}`} onClick={() => setDevMode(v => !v)}>{devMode ? t.devMode : t.liveMode}</button>
-          <button className="nav-btn lang-mobile-v33" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")}>{t.otherLang}</button>
+        <div className="top-actions-v40">
+          <a href="#setup" className="top-pill-v40 active">00 Настройка</a>
+          <a href="#script" className="top-pill-v40">01 Сценарий</a>
+          <a href="#storyboard" className="top-pill-v40">02 Storyboard</a>
+          <a href="#production" className="top-pill-v40">03 Pipeline</a>
+          <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={() => setDevMode(v => !v)} type="button">
+            {devMode ? "DEMO" : "LIVE / PRO"}
+          </button>
+          <button className="top-pill-v40" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")} type="button">🌐 {uiLang.toUpperCase()}</button>
         </div>
       </nav>
+      <input
+        ref={snapshotInputRef}
+        type="file"
+        accept=".json,.neurocine.json,application/json"
+        style={{ display: "none" }}
+        onChange={e => importProjectSnapshot(e.target.files?.[0])}
+      />
 
       {devMode && <div className="demo-banner-v35">{t.devHint}</div>}
       {snapshotStatus && (
         <div className="snapshot-status">{snapshotStatus}</div>
       )}
 
-      <StudioDashboardHero
+      <ProjectSetupPanelV40
         projectName={projectName}
+        setProjectName={setProjectName}
         topic={topic}
+        handleTopicChange={handleTopicChange}
         script={script}
-        storyboard={storyboard}
-        scenes={scenes}
-        duration={duration}
-        aspectRatio={aspectRatio}
-        target={target}
+        setScript={setScript}
+        projectType={projectType}
+        setProjectType={setProjectType}
         stylePreset={stylePreset}
-        sbBusy={sbBusy}
+        setStylePreset={setStylePreset}
+        duration={duration}
+        setDuration={setDuration}
+        aspectRatio={aspectRatio}
+        setAspect={setAspect}
+        tone={tone}
+        setTone={setTone}
+        target={target}
+        setTarget={setTarget}
+        sbMode={sbMode}
+        setSbMode={setSbMode}
+        devMode={devMode}
         sBusy={sBusy}
-        lang={uiLang}
-        onLang={() => setUiLang(v => v === "ru" ? "en" : "ru")}
+        sbBusy={sbBusy}
+        doScript={doScript}
+        doStoryboard={doStoryboard}
+        sStat={sStat}
+        sbStat={sbStat}
+        storyboard={storyboard}
       />
 
       <ProductionStatusBar
