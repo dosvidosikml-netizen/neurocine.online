@@ -27,3 +27,15 @@ http://localhost:3000
 ## Важно
 
 Если API ключ не задан, storyboard всё равно работает через локальный fallback pipeline.
+
+## NeuroCine V43 — User Profiles / Roles / Cloud Projects
+
+Added full user layer on top of Google Login + Supabase:
+
+- Account dashboard in Studio
+- Roles: demo, free, pro, admin, byo_api
+- Access matrix: DEMO mock, FREE live lock, PRO live, BYO API, ADMIN
+- Supabase Cloud Projects: save/open/delete full NeuroCine project snapshots
+- New SQL migration: `supabase/schema_v43_profiles_projects.sql`
+
+Run the SQL file in Supabase SQL Editor after deploy.
