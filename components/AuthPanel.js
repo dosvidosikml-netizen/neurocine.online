@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
+import { getAccountAccess } from "../lib/accountRoles";
 
 function getUserMeta(user) {
   const meta = user?.user_metadata || {};
@@ -12,7 +13,7 @@ function getUserMeta(user) {
   };
 }
 
-export default function AuthPanel({ devMode = true, onModeToggle }) {
+export default function AuthPanel({ devMode = true, onModeToggle, onAccountChange }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,8 +22,9 @@ export default function AuthPanel({ devMode = true, onModeToggle }) {
 
   const user = session?.user || null;
   const meta = useMemo(() => getUserMeta(user), [user]);
-  const role = profile?.role || (user ? "free" : "demo");
-  const plan = profile?.plan || (user ? "free" : "demo");
+  const access = getAccountAccess(profile, session);
+  const role = access.role;
+  const plan = profile?.plan || access.plan;
 
   useEffect(() => {
     let mounted = true;
@@ -65,13 +67,14 @@ export default function AuthPanel({ devMode = true, onModeToggle }) {
         email: meta.email,
         full_name: meta.name,
         avatar_url: meta.avatar,
+        updated_at: new Date().toISOString(),
       };
 
       await supabase.from("profiles").upsert(nextProfile, { onConflict: "id" });
 
       const { data, error: profileError } = await supabase
         .from("profiles")
-        .select("id,email,full_name,avatar_url,role,plan,created_at")
+        .select("id,email,full_name,avatar_url,role,plan,created_at,updated_at,default_mode,monthly_generation_limit,cloud_project_limit")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -87,6 +90,17 @@ export default function AuthPanel({ devMode = true, onModeToggle }) {
     syncProfile();
     return () => { mounted = false; };
   }, [user?.id, meta.email, meta.name, meta.avatar]);
+
+  useEffect(() => {
+    onAccountChange?.({
+      session,
+      user,
+      profile,
+      access,
+      isSignedIn: Boolean(user),
+      isSupabaseConfigured,
+    });
+  }, [session, user?.id, profile?.id, profile?.role, profile?.plan, access.role, isSupabaseConfigured]);
 
   async function loginWithGoogle() {
     if (!isSupabaseConfigured || !supabase) {
@@ -137,11 +151,11 @@ export default function AuthPanel({ devMode = true, onModeToggle }) {
       <div className="auth-status-grid-v42">
         <div className={`auth-chip-v42 ${user ? "is-free" : "is-demo"}`}>
           <span>Статус</span>
-          <strong>{user ? String(plan).toUpperCase() : "DEMO"}</strong>
+          <strong>{user ? access.label : "DEMO"}</strong>
         </div>
         <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
           <span>Режим</span>
-          <strong>{devMode ? "DEMO" : role === "pro" || role === "admin" ? "LIVE" : "LIVE LOCK"}</strong>
+          <strong>{devMode ? "DEMO" : access.canLive ? "LIVE" : "LIVE LOCK"}</strong>
         </button>
       </div>
 
