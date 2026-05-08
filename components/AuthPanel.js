@@ -23,9 +23,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   const user = session?.user || null;
   const meta = useMemo(() => getUserMeta(user), [user]);
   const access = getAccountAccess(profile, session);
-  const role = access.role;
-  const plan = access.plan || profile?.plan;
-
+  
   useEffect(() => {
     let mounted = true;
     if (!isSupabaseConfigured || !supabase) {
@@ -137,6 +135,16 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
     setBusy(false);
   }
 
+  const generationModeText = !user
+    ? "Вход нужен"
+    : access.isOwner || access.isAdmin
+      ? "LIVE OWNER"
+      : access.role === "pro"
+        ? (access.hasOwnApiKeys ? "PRO LIVE" : "PRO · ключ нужен")
+        : "FREE PREVIEW";
+
+  const canSwitchMode = Boolean(user && access.canLive);
+
   return (
     <section className="auth-panel-v42">
       <div className="auth-panel-main-v42">
@@ -161,15 +169,15 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
           <span>Статус</span>
           <strong>{user ? (access.isOwner || access.isAdmin ? "OWNER" : access.role === "pro" ? "PRO" : "FREE") : "AUTH"}</strong>
         </div>
-        {user && access.canLive ? (
+        {canSwitchMode ? (
           <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
             <span>Режим генерации</span>
-            <strong>{access.isOwner || access.isAdmin ? "LIVE OWNER" : devMode ? "FREE PREVIEW" : "PRO LIVE"}</strong>
+            <strong>{generationModeText}</strong>
           </button>
         ) : (
-          <div className="auth-chip-v42 auth-mode-v42 is-demo">
+          <div className={`auth-chip-v42 auth-mode-v42 ${access.role === "pro" ? "is-pro" : "is-demo"}`}>
             <span>Режим генерации</span>
-            <strong>{user ? "FREE" : "Вход нужен"}</strong>
+            <strong>{generationModeText}</strong>
           </div>
         )}
       </div>

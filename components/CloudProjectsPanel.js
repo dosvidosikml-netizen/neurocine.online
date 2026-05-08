@@ -41,6 +41,7 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
   const [selectedId, setSelectedId] = useState(null);
   const [status, setStatus] = useState("");
   const [schemaWarning, setSchemaWarning] = useState("");
+  const [search, setSearch] = useState("");
   const buildSnapshotRef = useRef(buildSnapshot);
   const autoSaveTimerRef = useRef(null);
   const lastAutoSaveKeyRef = useRef("");
@@ -217,6 +218,58 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     setBusy(false);
   }
 
+  async function renameCloudProject(item) {
+    if (!canUseCloud || !item?.id) return;
+    const current = item.name || item.title || "NeuroCine Project";
+    const next = typeof window !== "undefined" ? window.prompt("Новое имя проекта", current) : current;
+    const name = String(next || "").trim();
+    if (!name || name === current) return;
+    setBusy(true);
+    const { error } = await supabase
+      .from("projects")
+      .update({ name, title: name, updated_at: new Date().toISOString() })
+      .eq("id", item.id)
+      .eq("user_id", user.id);
+    if (error) setBothStatus(`✗ Cloud Rename: ${explainCloudError(error)}`);
+    else { setBothStatus("✓ Project renamed"); await loadList(); }
+    setBusy(false);
+  }
+
+  async function duplicateCloudProject(item) {
+    if (!canUseCloud || !item?.id) return;
+    if (full) { setBothStatus(`✗ Лимит Cloud Projects для ${access.label}: ${projectLimit}`); return; }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", item.id)
+        .eq("user_id", user.id)
+        .single();
+      if (error) throw error;
+      const copyName = `${data.name || data.title || "NeuroCine Project"} · copy`;
+      const payload = {
+        ...data,
+        id: undefined,
+        user_id: user.id,
+        name: copyName,
+        title: copyName,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      delete payload.id;
+      const res = await supabase.from("projects").insert(payload).select("id").single();
+      if (res.error) throw res.error;
+      if (res.data?.id) setSelectedId(res.data.id);
+      setBothStatus("✓ Project duplicated");
+      await loadList();
+    } catch (e) {
+      setBothStatus(`✗ Cloud Duplicate: ${explainCloudError(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!autoSaveEnabled || !canUseCloud || !selectedId || !autoSaveKey) return;
     if (lastAutoSaveKeyRef.current === autoSaveKey) return;
@@ -244,24 +297,33 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     if (!isSupabaseConfigured) return "Supabase ENV не настроены";
     if (!user) return "Войдите через Google, чтобы включить Cloud Projects";
     if (schemaWarning) return "Нужно выполнить SQL schema v44";
+    if (items.length && search.trim()) return "Поиск ничего не нашёл";
     return "Проекты ещё не сохранены";
-  }, [user, schemaWarning]);
+  }, [user, schemaWarning, items.length, search]);
+
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => [item.name, item.title, item.topic, item.aspect_ratio, item.style_preset, item.mode, item.target]
+      .some((value) => String(value || "").toLowerCase().includes(q)));
+  }, [items, search]);
 
   return (
     <section className="cloud-projects-v43" id="cloud-projects">
       <div className="cp-head-v43">
         <div>
-          <div className="cp-kicker-v43">Supabase Cloud Projects · v44</div>
+          <div className="cp-kicker-v43">Supabase Cloud Projects · v57</div>
           <h2>Мои проекты</h2>
-          <p>Сохраняет весь NeuroCine snapshot: тема, сценарий, storyboard, PART pipeline, prompts, Production Pack cache.</p>
+          <p>Сохраняет весь NeuroCine snapshot: сценарий, storyboard, PART pipeline и Production Pack cache. Теперь есть поиск, rename, duplicate и delete.</p>
         </div>
         <div className="cp-quota-v43"><span>{used}/{projectLimit}</span><b>{access.label}</b></div>
       </div>
 
-      <div className="cp-actions-v43">
+      <div className="cp-actions-v43 cp-actions-v57">
         <button onClick={saveCloudProject} disabled={busy || !canUseCloud || (full && !selectedId)} type="button">💾 Сохранить в Cloud</button>
         <button onClick={loadList} disabled={busy || !canUseCloud} type="button">↻ Обновить список</button>
         {selectedId && <button onClick={() => setSelectedId(null)} disabled={busy} type="button">＋ Сохранить как новый</button>}
+        <input className="cp-search-v57" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск проектов" />
       </div>
 
       {selectedId && <div className="cp-autosave-v45">● Auto Save включён: изменения проекта сохраняются автоматически через 2–3 секунды.</div>}
@@ -270,9 +332,9 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
       {status && <div className={`cp-status-v43 ${status.startsWith("✗") ? "err" : ""}`}>{status}</div>}
 
       <div className="cp-list-v43">
-        {!items.length ? (
+        {!filteredItems.length ? (
           <div className="cp-empty-v43">{emptyText}</div>
-        ) : items.map((item) => (
+        ) : filteredItems.map((item) => (
           <article key={item.id} className={`cp-item-v43 ${selectedId === item.id ? "active" : ""}`}>
             <div>
               <strong>{item.name || item.title || "NeuroCine Project"}</strong>
@@ -281,6 +343,8 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
             </div>
             <div className="cp-item-actions-v43">
               <button onClick={() => openCloudProject(item.id)} disabled={busy} type="button">Открыть</button>
+              <button onClick={() => renameCloudProject(item)} disabled={busy} type="button">Rename</button>
+              <button onClick={() => duplicateCloudProject(item)} disabled={busy || full} type="button">Duplicate</button>
               <button onClick={() => deleteCloudProject(item.id)} disabled={busy} type="button">Удалить</button>
             </div>
           </article>

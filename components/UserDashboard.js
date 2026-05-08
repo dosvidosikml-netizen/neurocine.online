@@ -109,9 +109,9 @@ function ApiKeyVault({ account, access, onAccountPatch }) {
       <div className="ud-card-v43 wide pro-own-keys-v53 key-vault-v54 locked">
         <div className="ud-label-v43">AI-ключи</div>
         <strong className="ud-big-v43">Доступно в PRO</strong>
-        <p>FREE подходит для знакомства со студией. В PRO открывается полный рабочий режим и подключение собственных AI API-ключей.</p>
+        <p>FREE подходит для знакомства со студией. В PRO открывается полный рабочий режим и подключение собственных AI-ключей.</p>
         <div className="ud-role-row-v43"><span>Рекомендуемый провайдер</span><b>OpenRouter</b></div>
-        <div className="ud-role-row-v43"><span>Что даёт PRO</span><b>LIVE-генерация и полный pipeline</b></div>
+        <div className="ud-role-row-v43"><span>Что даёт PRO</span><b>полный production-пайплайн</b></div>
       </div>
     );
   }
@@ -192,7 +192,7 @@ export default function UserDashboard({ account, devMode, onAccountPatch }) {
     <section className="user-dashboard-v43" id="account">
       <div className="ud-head-v43">
         <div>
-          <div className="ud-kicker-v43">User Control Center · v54 {isOwnerView ? "· OWNER" : ""}</div>
+          <div className="ud-kicker-v43">User Control Center · v55 {isOwnerView ? "· OWNER" : ""}</div>
           <h2>Профиль и доступ</h2>
           <p>{isOwnerView ? "Служебный доступ владельца платформы." : "FREE для знакомства. PRO для полного production-пайплайна и LIVE-генерации."}</p>
         </div>
@@ -223,7 +223,9 @@ export default function UserDashboard({ account, devMode, onAccountPatch }) {
 
         <div className="ud-card-v43">
           <div className="ud-label-v43">Доступ генерации</div>
-          <strong className={access.canLive ? "ud-ok-v43" : "ud-lock-v43"}>{access.canLive ? "LIVE включён" : "FREE / PRO LOCK"}</strong>
+          <strong className={access.canLive || isProView ? "ud-ok-v43" : "ud-lock-v43"}>
+            {isOwnerView ? "LIVE OWNER" : isProView ? (access.hasOwnApiKeys ? "LIVE включён" : "PRO активен") : "FREE Preview"}
+          </strong>
           <p>{liveText}</p>
         </div>
 

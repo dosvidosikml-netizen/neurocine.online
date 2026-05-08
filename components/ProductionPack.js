@@ -35,7 +35,7 @@ function useStoredState(key, initialValue) {
   }, [key]);
   useEffect(() => {
     if (!key) return;
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    try { localStorage.setItem(key, JSON.stringify(value)); window.dispatchEvent(new CustomEvent("neurocine-production-cache-change", { detail: { key } })); } catch {}
   }, [key, value]);
   return [value, setValue];
 }
@@ -51,7 +51,7 @@ function useStoredString(key, initialValue) {
   }, [key]);
   useEffect(() => {
     if (!key) return;
-    try { localStorage.setItem(key, String(value ?? "")); } catch {}
+    try { localStorage.setItem(key, String(value ?? "")); window.dispatchEvent(new CustomEvent("neurocine-production-cache-change", { detail: { key } })); } catch {}
   }, [key, value]);
   return [value, setValue];
 }
@@ -60,7 +60,7 @@ function PackToolbar({ onClear }) {
   return (
     <div className="brow" style={{ marginTop: 10 }}>
       <button className="btn btn-xs btn-ghost" onClick={onClear}>Очистить сохранённый результат</button>
-      <span className="out-label">Результат сохраняется в браузере и не пропадает после обновления страницы</span>
+      <span className="out-label">Результат сохраняется в браузере и попадает в Cloud snapshot проекта</span>
     </div>
   );
 }
@@ -930,11 +930,22 @@ const PACK_I18N = {
   }
 };
 
-export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false, userId = "guest", accessToken = "" }) {
+export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false, userId = "guest", accessToken = "", onCacheChange = null }) {
   const sourceKey = useMemo(() => hashString(`${topic}|${script?.slice(0, 1200)}|${storyboard?.scenes?.length || 0}`), [topic, script, storyboard]);
   const ownerKey = String(userId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
   const cacheKey = `neurocine:production:v49:${ownerKey}:${devMode ? "demo" : "pro"}:${sourceKey}`;
   const [activeTab, setActiveTab] = useStoredString(`neurocine:production:v49:${ownerKey}:activeTab`, "cover");
+
+  useEffect(() => {
+    if (!onCacheChange) return;
+    const handler = (event) => {
+      const key = String(event?.detail?.key || "");
+      if (!key || key.startsWith(cacheKey) || key.includes(`${ownerKey}:activeTab`)) onCacheChange();
+    };
+    window.addEventListener("neurocine-production-cache-change", handler);
+    return () => window.removeEventListener("neurocine-production-cache-change", handler);
+  }, [cacheKey, ownerKey, onCacheChange]);
+
   const t = PACK_I18N[lang] || PACK_I18N.ru;
 
   const tabs = [
