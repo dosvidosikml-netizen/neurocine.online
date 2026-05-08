@@ -2185,3 +2185,70 @@ input:disabled{
   max-width: 920px;
   margin: 28px auto 80px;
 }
+
+/* v54 — Public UX + AI Key Vault */
+.key-vault-v54 {
+  border-color: rgba(124,106,247,.25) !important;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(124,106,247,.14), transparent 34%),
+    rgba(0,0,0,.34) !important;
+}
+.key-vault-v54.locked {
+  border-color: rgba(255,255,255,.1) !important;
+  background: rgba(0,0,0,.28) !important;
+}
+.key-vault-v54.owner {
+  border-color: rgba(250,204,21,.32) !important;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(250,204,21,.12), transparent 34%),
+    rgba(0,0,0,.34) !important;
+}
+.key-vault-status-v54 {
+  display: grid;
+  gap: 0;
+  margin: 16px 0;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.key-vault-form-v54 {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.key-vault-form-v54 label {
+  color: rgba(238,240,255,.52);
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  font-size: 10px;
+  font-weight: 900;
+}
+.key-vault-form-v54 input,
+.key-vault-form-v54 select {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(0,0,0,.35);
+  color: #fff;
+  padding: 0 14px;
+  outline: none;
+}
+.key-vault-form-v54 input:focus {
+  border-color: rgba(67,217,173,.5);
+  box-shadow: 0 0 0 3px rgba(67,217,173,.1);
+}
+.key-vault-actions-v54 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+.ud-access-badge-v43.role-pro strong,
+.auth-chip-v42.is-pro strong {
+  color: #b9a8ff !important;
+}
+.ud-access-badge-v43.role-demo strong,
+.ud-access-badge-v43.role-free strong,
+.auth-chip-v42.is-free strong,
+.auth-chip-v42.is-demo strong {
+  color: #43d9ad !important;
+}
