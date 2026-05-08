@@ -284,7 +284,7 @@ function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = f
   async function run() {
     if (!script?.trim() && !devMode) { setErr("Сначала создай сценарий в шаге 01"); return; }
     if (devMode) { setErr(""); setData(buildMockTtsPack({ topic, script })); return; }
-    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
+    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/tts-studio", {
@@ -383,7 +383,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
 
   async function run() {
     if (devMode) { setErr(""); setData(buildMockCoverPack({ topic, script, storyboard })); return; }
-    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
+    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/cover", {
@@ -511,7 +511,7 @@ function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode, live
 
   async function run() {
     if (devMode) { setErr(""); setMusic(buildMockMusicPack({ topic, script, genre, storyboard })); setSeo(buildMockSeoPack({ topic, script, genre })); return; }
-    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
+    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
     setBusy(true); setErr(""); setMusic(null); setSeo(null);
     try {
       const [m, s] = await Promise.all([
@@ -627,7 +627,7 @@ function SocialPackTab({ topic, script, genre, cacheKey, devMode, liveAllowed = 
   async function run() {
     if (!script?.trim() && !devMode) { setErr("Сначала создай сценарий"); return; }
     if (devMode) { setErr(""); setData(buildMockSocialPack({ topic, script, genre })); return; }
-    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
+    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/social-pack", {
@@ -911,7 +911,7 @@ const PACK_I18N = {
   },
   en: {
     title: "Production Pack",
-    desc: "TTS · Cover Director · Music · SEO · Social Visual Export · Visual Explainer — DEMO/PRO mode, results persist after refresh",
+    desc: "TTS · Cover Director · Music · SEO · Social Visual Export · Visual Explainer — DEMO/PRO Own Keys mode, results persist after refresh",
     version: "v3.4",
     tabs: {
       tts: ["TTS Studio", "voiceover", "VOICE"],

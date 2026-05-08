@@ -140,7 +140,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   return (
     <section className="auth-panel-v42">
       <div className="auth-panel-main-v42">
-        <div className="auth-label-v42">Аккаунт NeuroCine {access.isOwner ? "· OWNER" : access.isAdmin ? "· ADMIN" : ""}</div>
+        <div className="auth-label-v42">Аккаунт NeuroCine {access.isOwner || access.isAdmin ? "· OWNER" : ""}</div>
         {loading ? (
           <div className="auth-muted-v42">Проверяю вход...</div>
         ) : user ? (
@@ -152,19 +152,19 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
             </div>
           </div>
         ) : (
-          <div className="auth-muted-v42">Войди через Google, чтобы сохранять проекты и включить тарифы FREE / PRO.</div>
+          <div className="auth-muted-v42">Войди через Google, чтобы сохранять проекты. DEMO — бесплатно, PRO — работа со своими API-ключами.</div>
         )}
       </div>
 
       <div className="auth-status-grid-v42">
         <div className={`auth-chip-v42 ${access.isOwner ? "is-owner" : access.isAdmin ? "is-admin" : user ? "is-free" : "is-demo"}`}>
           <span>Статус</span>
-          <strong>{user ? access.label : "AUTH"}</strong>
+          <strong>{user ? (access.isOwner || access.isAdmin ? "OWNER" : access.role === "pro" ? "PRO" : "DEMO") : "AUTH"}</strong>
         </div>
         {user && access.canLive ? (
           <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
             <span>Режим генерации</span>
-            <strong>{access.isOwner ? "LIVE OWNER" : access.isAdmin ? "LIVE ADMIN" : devMode ? "DEMO" : "LIVE"}</strong>
+            <strong>{access.isOwner || access.isAdmin ? "LIVE OWNER" : devMode ? "DEMO" : "PRO LIVE"}</strong>
           </button>
         ) : (
           <div className="auth-chip-v42 auth-mode-v42 is-demo">
