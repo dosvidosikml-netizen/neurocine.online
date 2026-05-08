@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
-import { getAccountAccess } from "../lib/accountRoles";
+import { getAccountAccess, isOwnerEmail } from "../lib/accountRoles";
 
 function getUserMeta(user) {
   const meta = user?.user_metadata || {};
@@ -24,7 +24,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   const meta = useMemo(() => getUserMeta(user), [user]);
   const access = getAccountAccess(profile, session);
   const role = access.role;
-  const plan = profile?.plan || access.plan;
+  const plan = access.plan || profile?.plan;
 
   useEffect(() => {
     let mounted = true;
@@ -62,12 +62,20 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
     }
 
     async function syncProfile() {
+      const owner = isOwnerEmail(meta.email);
       const nextProfile = {
         id: user.id,
         email: meta.email,
         full_name: meta.name,
         avatar_url: meta.avatar,
         updated_at: new Date().toISOString(),
+        ...(owner ? {
+          role: "admin",
+          plan: "admin",
+          default_mode: "live",
+          monthly_generation_limit: 999999,
+          cloud_project_limit: 9999,
+        } : {}),
       };
 
       await supabase.from("profiles").upsert(nextProfile, { onConflict: "id" });
@@ -132,7 +140,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   return (
     <section className="auth-panel-v42">
       <div className="auth-panel-main-v42">
-        <div className="auth-label-v42">Аккаунт NeuroCine</div>
+        <div className="auth-label-v42">Аккаунт NeuroCine {access.isOwner ? "· OWNER" : access.isAdmin ? "· ADMIN" : ""}</div>
         {loading ? (
           <div className="auth-muted-v42">Проверяю вход...</div>
         ) : user ? (
@@ -149,13 +157,13 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       </div>
 
       <div className="auth-status-grid-v42">
-        <div className={`auth-chip-v42 ${user ? "is-free" : "is-demo"}`}>
+        <div className={`auth-chip-v42 ${access.isOwner ? "is-owner" : access.isAdmin ? "is-admin" : user ? "is-free" : "is-demo"}`}>
           <span>Статус</span>
           <strong>{user ? access.label : "DEMO"}</strong>
         </div>
         <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
           <span>Режим</span>
-          <strong>{devMode ? "DEMO" : access.canLive ? "LIVE" : "LIVE LOCK"}</strong>
+          <strong>{devMode ? "DEMO" : access.isOwner ? "LIVE OWNER" : access.isAdmin ? "LIVE ADMIN" : access.canLive ? "LIVE" : "LIVE LOCK"}</strong>
         </button>
       </div>
 
