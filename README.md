@@ -30,3 +30,14 @@ ADMIN_EMAILS=dosvidosikml@gmail.com
 
 После деплоя: выйти из аккаунта и войти через Google заново.
 SQL: можно выполнить `supabase/schema_v48_admin_owner_access.sql` целиком, чтобы профиль владельца сразу стал admin в Supabase.
+
+
+## v50 Auth Cleanup + Normal User UX
+
+- Вход работает только через Supabase Auth / Google Provider.
+- Обычный DEMO/FREE пользователь больше не видит активный LIVE-переключатель: только DEMO MODE + отдельное объяснение LIVE lock.
+- OWNER/ADMIN получает LIVE автоматически и не вводит BYO API ключи.
+- Локальные черновики остаются разделёнными по `user.id`.
+- `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` в Render больше не нужны для Supabase OAuth. Google Client ID/Secret должны храниться в Supabase → Authentication → Providers → Google.
+
+После замены файлов: redeploy Render. SQL для v50 не нужен, если профильный SQL repair уже выполнен.
