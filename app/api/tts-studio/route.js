@@ -4,6 +4,7 @@
 // Не озвучивает! Готовит промт для копирования в aistudio.google.com.
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,8 @@ const SYS = (voiceList) => `You are a PRO TTS Director. Output ONLY valid JSON (
 export async function POST(req) {
   try {
     const body = await req.json();
+    const accessGuard = await requireOpenRouterAccess(req);
+    if (!accessGuard.ok) return guardErrorJson(accessGuard);
     const script = String(body.script || "").trim();
     const genre = String(body.genre || "ИСТОРИЯ").trim();
     const topic = String(body.topic || "").trim();
@@ -51,6 +54,7 @@ export async function POST(req) {
       userMessage: `Жанр: ${genre}. Тема: ${topic || "Видео"}.\nСценарий:\n${script}`,
       maxTokensOverride: 4500,
       responseFormat: { type: "json_object" },
+      apiKeyOverride: accessGuard.apiKey,
       appTitle: "NeuroCine TTS Studio v1",
     });
     if (!r.ok) return Response.json({ error: r.error }, { status: 500 });
