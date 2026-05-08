@@ -20,6 +20,7 @@ import AuthPanel from "../../components/AuthPanel";
 import UserDashboard from "../../components/UserDashboard";
 import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import AdminPanel from "../../components/AdminPanel";
+import StudioFlowPanel from "../../components/StudioFlowPanel";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
@@ -1329,7 +1330,7 @@ ${lines.join("\n")}` : "";
   function buildProjectSnapshot() {
     return {
       neurocine_project_snapshot: true,
-      version: "v55_60_core_saas_hardening",
+      version: "v62_63_studio_ui_production_pack_polish",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
       project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
@@ -1464,7 +1465,7 @@ ${lines.join("\n")}` : "";
 
       {!isSignedIn && (
         <section className="auth-required-v46">
-          <div className="auth-required-kicker-v46">NeuroCine Auth Gate · v46</div>
+          <div className="auth-required-kicker-v46">NeuroCine Access Gate</div>
           <h2>Вход обязателен</h2>
           <p>Без Google-аккаунта рабочая зона закрыта: вход нужен для проектов, сценариев и storyboard.</p>
           <p><b>FREE Preview</b> открывается после входа. PRO включает полный рабочий режим.</p>
@@ -1483,6 +1484,20 @@ ${lines.join("\n")}` : "";
           onStatus={setSnapshotStatus}
           autoSaveKey={cloudAutoSaveKey}
           autoSaveEnabled={true}
+        />
+      )}
+
+      {isSignedIn && (
+        <StudioFlowPanel
+          topic={topic}
+          script={script}
+          storyboard={storyboard}
+          frameGridPrompt={frameGridPrompt}
+          videoPrompt={videoP}
+          productionReady={Boolean(script.trim() || storyboard)}
+          access={accountAccess}
+          devMode={effectiveDevMode}
+          liveAllowed={liveAllowed}
         />
       )}
 
@@ -2526,7 +2541,7 @@ ${lines.join("\n")}` : "";
         </>
       ) : (
         <section className="auth-required-v46 studio-locked-workspace-v52">
-          <div className="auth-required-kicker-v46">Workspace locked · v52</div>
+          <div className="auth-required-kicker-v46">Workspace locked</div>
           <h2>Рабочая зона заблокирована</h2>
           <p>Storyboard, ручной JSON, Production Pack, экспорт, импорт и локальные черновики доступны только после входа через Google.</p>
           <p><b>DEMO</b> также работает только после входа: гость не может вводить тему, писать JSON или запускать генерацию.</p>
