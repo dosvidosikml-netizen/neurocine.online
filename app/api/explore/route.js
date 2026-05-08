@@ -1,5 +1,6 @@
 import { buildExplorePrompt, getStyleProfile } from "../../../engine/directorEngine_v4";
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,7 @@ Rules:
 - Output JSON: { "prompt": "...", "notes_ru": "..." }
 `;
 
-async function askOpenRouter({ frame, storyboard, styleProfile, variantCount }) {
-  if (!process.env.OPENROUTER_API_KEY) return null;
+async function askOpenRouter({ frame, storyboard, styleProfile, variantCount, apiKeyOverride }) {
   const seedPrompt = buildExplorePrompt(frame, storyboard, styleProfile, variantCount);
 
   const result = await callOpenRouter({
@@ -29,6 +29,7 @@ ${seedPrompt}`,
     maxTokensOverride: 3000,
     responseFormat: { type: "json_object" },
     appTitle: "NeuroCine Director Studio",
+    apiKeyOverride,
   });
 
   if (!result.ok || !result.content) return null;
@@ -39,6 +40,8 @@ ${seedPrompt}`,
 export async function POST(req) {
   try {
     const body = await req.json();
+    const accessGuard = await requireOpenRouterAccess(req);
+    if (!accessGuard.ok) return guardErrorJson(accessGuard);
     const frame = body.frame || {};
     const storyboard = body.storyboard || {};
     const styleProfile = body.styleProfile || getStyleProfile(body.projectType, body.stylePreset);
@@ -46,7 +49,7 @@ export async function POST(req) {
 
     let api = null;
     try {
-      api = await askOpenRouter({ frame, storyboard, styleProfile, variantCount });
+      api = await askOpenRouter({ frame, storyboard, styleProfile, variantCount, apiKeyOverride: accessGuard.apiKey });
     } catch {}
 
     const prompt = api?.prompt || buildExplorePrompt(frame, storyboard, styleProfile, variantCount);
