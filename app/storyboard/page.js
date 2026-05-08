@@ -705,6 +705,33 @@ ${lines.join("\n")}` : "";
     ? JSON.stringify({ project_name: projectName, script, topic, duration, aspect_ratio: aspectRatio, style: stylePreset, project_type: projectType, tone }, null, 2)
     : "";
 
+  const cloudAutoSaveKey = useMemo(() => {
+    if (!hydrated) return "";
+    return JSON.stringify({
+      projectName, topic, projectType, stylePreset, duration, aspectRatio, tone,
+      script, storyboard, jsonIn, sbMode, target, validation,
+      frameIdx, gridColsOverride, gridManualFrames, exploreP, selVariant, p2k,
+      videoP, videoPromptMode, videoConsistency, analysis,
+      autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
+      autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
+      autoPartPrompt, autoVideoPack, autoAllPromptText,
+      production_pack_cache: collectProductionCache(),
+      image_state: {
+        gridImg: Boolean(gridImg), croppedFrame: Boolean(croppedFrame),
+        variantImg: Boolean(variantImg), croppedVariant: Boolean(croppedVariant), finalImg: Boolean(finalImg),
+      }
+    });
+  }, [
+    hydrated, projectName, topic, projectType, stylePreset, duration, aspectRatio, tone,
+    script, storyboard, jsonIn, sbMode, target, validation,
+    frameIdx, gridColsOverride, gridManualFrames, exploreP, selVariant, p2k,
+    videoP, videoPromptMode, videoConsistency, analysis,
+    autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
+    autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
+    autoPartPrompt, autoVideoPack, autoAllPromptText,
+    gridImg, croppedFrame, variantImg, croppedVariant, finalImg
+  ]);
+
   /* ── AUTOSAVE LOAD ── */
   useEffect(() => {
     const text = safeJson(localStorage.getItem(KEY_TEXT));
@@ -1198,7 +1225,7 @@ ${lines.join("\n")}` : "";
   function buildProjectSnapshot() {
     return {
       neurocine_project_snapshot: true,
-      version: "v32",
+      version: "v45",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
       project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
@@ -1339,6 +1366,8 @@ ${lines.join("\n")}` : "";
         buildSnapshot={buildProjectSnapshot}
         applySnapshot={applyProjectSnapshot}
         onStatus={setSnapshotStatus}
+        autoSaveKey={cloudAutoSaveKey}
+        autoSaveEnabled={true}
       />
 
       {devMode && <div className="demo-banner-v35">{t.devHint}</div>}
