@@ -19,7 +19,7 @@ import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
 import UserDashboard from "../../components/UserDashboard";
 import CloudProjectsPanel from "../../components/CloudProjectsPanel";
-import { getAccountAccess } from "../../lib/accountRoles";
+import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
 /* ─── autosave keys ─── */
@@ -552,11 +552,17 @@ export default function StudioPage() {
   const [devMode, setDevMode] = useState(true);
   const accountAccess = getAccountAccess(account?.profile, account?.session);
   const isSignedIn = Boolean(account?.session?.user);
+  const forceLiveForAdmin = shouldForceLiveForAccount(account?.profile, account?.session);
+  const effectiveDevMode = forceLiveForAdmin ? false : devMode;
   const liveAllowed = isSignedIn && accountAccess.canLive;
-  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
+  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? (accountAccess.isOwner ? "LIVE OWNER" : "LIVE ADMIN") : devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
+
+  useEffect(() => {
+    if (forceLiveForAdmin && devMode) setDevMode(false);
+  }, [forceLiveForAdmin, devMode]);
 
   // Chunk / continuation state
   const [chunkSize, setChunkSize]       = useState(4);
@@ -888,8 +894,8 @@ ${lines.join("\n")}` : "";
       setSStat("ok");
       return;
     }
-    if (!topic.trim() && !devMode) return;
-    if (devMode) {
+    if (!topic.trim() && !effectiveDevMode) return;
+    if (effectiveDevMode) {
       setSBusy(false);
       setSbBusy(false);
       resetStoryboardOutputs({ keepAnchors: true });
@@ -947,10 +953,10 @@ ${lines.join("\n")}` : "";
     if (!src && jsonIn.trim()) {
       try { const p = JSON.parse(jsonIn); src = String(p.script || p.text || "").trim(); } catch {}
     }
-    if (!src.trim() && !devMode) return;
+    if (!src.trim() && !effectiveDevMode) return;
     setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText("");
     setGridImg(null); setFrameIdx(null); setCroppedFrame(null);
-    if (devMode) {
+    if (effectiveDevMode) {
       setSBusy(false);
       setSbBusy(false);
       const effectiveTopic = topic || projectName || "DEMO Sample Story";
@@ -1043,7 +1049,7 @@ ${lines.join("\n")}` : "";
   async function doExplore() {
     if (!isSignedIn) { setExploreP("Ошибка: войдите через Google."); return; }
     if (!curFrame) return;
-    if (devMode) { setExploreP(buildExplorePrompt(curFrame, storyboard, styleProfile)); return; }
+    if (effectiveDevMode) { setExploreP(buildExplorePrompt(curFrame, storyboard, styleProfile)); return; }
     if (!liveAllowed) { setExploreP("Ошибка: LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setExpBusy(true); setExploreP("");
     try {
@@ -1076,7 +1082,7 @@ ${lines.join("\n")}` : "";
       const cropped = await cropQuadrant(variantImg, variant);
       setCropped(cropped);
 
-      if (devMode || !liveAllowed) {
+      if (effectiveDevMode || !liveAllowed) {
         setP2k(build2KPrompt(curFrame, variant, storyboard, styleProfile));
         return;
       }
@@ -1388,7 +1394,7 @@ ${lines.join("\n")}` : "";
           <a href="#script" className="top-pill-v40">01 Сценарий</a>
           <a href="#storyboard" className="top-pill-v40">02 Storyboard</a>
           <a href="#production" className="top-pill-v40">03 Pipeline</a>
-          <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={handleModeToggle} type="button" disabled={!isSignedIn}>
+          <button className={`top-pill-v40 mode ${effectiveDevMode ? "demo" : "live"}`} onClick={handleModeToggle} type="button" disabled={!isSignedIn || forceLiveForAdmin}>
             {modeLabel}
           </button>
           <button className="top-pill-v40" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")} type="button">🌐 {uiLang.toUpperCase()}</button>
@@ -1402,7 +1408,7 @@ ${lines.join("\n")}` : "";
         onChange={e => importProjectSnapshot(e.target.files?.[0])}
       />
 
-      <AuthPanel devMode={devMode} onModeToggle={() => isSignedIn && setDevMode(v => !v)} onAccountChange={setAccount} />
+      <AuthPanel devMode={effectiveDevMode} onModeToggle={() => isSignedIn && !forceLiveForAdmin && setDevMode(v => !v)} onAccountChange={setAccount} />
 
       {!isSignedIn && (
         <section className="auth-required-v46">
@@ -1413,7 +1419,7 @@ ${lines.join("\n")}` : "";
         </section>
       )}
 
-      {isSignedIn && <UserDashboard account={account} devMode={devMode} />}
+      {isSignedIn && <UserDashboard account={account} devMode={effectiveDevMode} />}
 
       {isSignedIn && (
         <CloudProjectsPanel
@@ -1427,7 +1433,7 @@ ${lines.join("\n")}` : "";
         />
       )}
 
-      {devMode && <div className="demo-banner-v35">{t.devHint}</div>}
+      {effectiveDevMode && <div className="demo-banner-v35">{t.devHint}</div>}
       {snapshotStatus && (
         <div className="snapshot-status">{snapshotStatus}</div>
       )}
@@ -1453,7 +1459,7 @@ ${lines.join("\n")}` : "";
         setTarget={setTarget}
         sbMode={sbMode}
         setSbMode={setSbMode}
-        devMode={devMode}
+        devMode={effectiveDevMode}
         modeLabel={modeLabel}
         accountAccess={accountAccess}
         sBusy={sBusy}
@@ -2434,7 +2440,7 @@ ${lines.join("\n")}` : "";
             genre={projectType}
             storyboard={storyboard}
             lang={uiLang}
-            devMode={devMode}
+            devMode={effectiveDevMode}
             isSignedIn={isSignedIn}
             liveAllowed={liveAllowed}
           />
