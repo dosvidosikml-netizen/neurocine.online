@@ -2,6 +2,7 @@
 // NeuroCine SEO Director V2 — platform-aware titles, descriptions and hashtags.
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +37,8 @@ JSON:
 export async function POST(req) {
   try {
     const body = await req.json();
+    const accessGuard = await requireOpenRouterAccess(req);
+    if (!accessGuard.ok) return guardErrorJson(accessGuard);
     const topic = String(body.topic || "").trim();
     const script = String(body.script || "").trim();
     const genre = String(body.genre || "").trim();
@@ -50,6 +53,7 @@ export async function POST(req) {
       userMessage: userMsg,
       maxTokensOverride: 3200,
       responseFormat: { type: "json_object" },
+      apiKeyOverride: accessGuard.apiKey,
       appTitle: "NeuroCine SEO Director V2",
     });
     if (!r.ok) return Response.json({ error: r.error }, { status: 500 });
