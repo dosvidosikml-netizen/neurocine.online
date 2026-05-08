@@ -2163,3 +2163,19 @@ input:disabled{
   opacity: .55;
   cursor: not-allowed !important;
 }
+
+
+/* v48 ADMIN / OWNER badges */
+.auth-chip-v42.is-owner,
+.auth-chip-v42.is-admin,
+.ud-access-badge-v43.role-owner,
+.ud-access-badge-v43.role-admin {
+  border-color: rgba(250, 204, 21, .75) !important;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, .18), 0 0 38px rgba(250, 204, 21, .12) !important;
+}
+.auth-chip-v42.is-owner strong,
+.auth-chip-v42.is-admin strong,
+.ud-access-badge-v43.role-owner strong,
+.ud-access-badge-v43.role-admin strong {
+  color: #fde68a !important;
+}
