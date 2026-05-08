@@ -12,6 +12,7 @@ import {
   hasMinorContext,
 } from "../../../engine/videoPromptAgent";
 import { normalizeTarget } from "../../../engine/sceneEngine_v2";
+import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +58,8 @@ function buildSegmentPlan(frame = {}) {
 
 export async function POST(req) {
   try {
+    const guard = await requireSignedInAccess(req);
+    if (!guard.ok) return guardErrorJson(guard);
     const body = await req.json();
     const frame = body.frame || {};
     const storyboard = body.storyboard || {};
@@ -96,6 +99,7 @@ export async function POST(req) {
       segment_plan: buildSegmentPlan(frame),
       target,
       model_used: "local_v2.8_minor_safe",
+      access_source: guard.access?.apiSource || "local_signed_in",
       pipeline_contract: {
         image_prefix: "SCENE PRIMARY FOCUS:",
         video_prefix: "ANIMATE CURRENT FRAME:",
