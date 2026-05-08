@@ -20,7 +20,7 @@ import AuthPanel from "../../components/AuthPanel";
 import UserDashboard from "../../components/UserDashboard";
 import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import { getAccountAccess } from "../../lib/accountRoles";
-import { MOCK_SCRIPT_RU, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
+import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
 /* ─── autosave keys ─── */
 const KEY_TEXT  = "nc_text_v3";
@@ -858,6 +858,15 @@ ${lines.join("\n")}` : "";
     resetStoryboardOutputs({ keepAnchors: true });
   }
 
+  function handleModeToggle() {
+    if (!isSignedIn) return;
+    setSBusy(false);
+    setSbBusy(false);
+    setSStat("");
+    setSbStat("");
+    setDevMode(v => !v);
+  }
+
   function handleTopicChange(value) {
     setTopic(value);
     if (storyboard || autoPartPrompt || autoAllPromptText) resetStoryboardOutputs({ keepAnchors: true });
@@ -881,11 +890,14 @@ ${lines.join("\n")}` : "";
     }
     if (!topic.trim() && !devMode) return;
     if (devMode) {
+      setSBusy(false);
+      setSbBusy(false);
       resetStoryboardOutputs({ keepAnchors: true });
       setJsonIn("");
-      setScript(MOCK_SCRIPT_RU);
-      setScriptValidation(validateScript(MOCK_SCRIPT_RU));
-      setSStat("ok|DEMO MODE · sample script");
+      const mockScript = buildMockScript(topic || projectName || "DEMO topic");
+      setScript(mockScript);
+      setScriptValidation(validateScript(mockScript));
+      setSStat("ok|DEMO MODE · mock script · API не используется");
       return;
     }
     if (!liveAllowed) {
@@ -939,8 +951,11 @@ ${lines.join("\n")}` : "";
     setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText("");
     setGridImg(null); setFrameIdx(null); setCroppedFrame(null);
     if (devMode) {
-      const sb = buildMockStoryboard({ projectName, topic: topic || "DEMO Sample Story", duration, aspectRatio, style: stylePreset });
-      setScript(prev => prev?.trim() ? prev : MOCK_SCRIPT_RU);
+      setSBusy(false);
+      setSbBusy(false);
+      const effectiveTopic = topic || projectName || "DEMO Sample Story";
+      const sb = buildMockStoryboard({ projectName, topic: effectiveTopic, duration, aspectRatio, style: stylePreset });
+      setScript(prev => prev?.trim() ? prev : buildMockScript(effectiveTopic));
       setSB(sb);
       setValidation({ ok: true, errors: [], warnings: ["DEMO MODE: sample storyboard, API not used"] });
       setSbStat(`ok|${sb.scenes?.length || 0} кадров · DEMO MODE · sample storyboard`);
@@ -1373,7 +1388,7 @@ ${lines.join("\n")}` : "";
           <a href="#script" className="top-pill-v40">01 Сценарий</a>
           <a href="#storyboard" className="top-pill-v40">02 Storyboard</a>
           <a href="#production" className="top-pill-v40">03 Pipeline</a>
-          <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={() => isSignedIn && setDevMode(v => !v)} type="button" disabled={!isSignedIn}>
+          <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={handleModeToggle} type="button" disabled={!isSignedIn}>
             {modeLabel}
           </button>
           <button className="top-pill-v40" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")} type="button">🌐 {uiLang.toUpperCase()}</button>
@@ -1491,7 +1506,7 @@ ${lines.join("\n")}` : "";
                 <span>Этот блок больше не дублирует тему, стиль, длительность и готовый сценарий. Здесь только управление сценарием и результат.</span>
               </div>
               <div className="script-actions-v41">
-                <button className="btn btn-red btn-full" onClick={doScript} disabled={sBusy || (!topic.trim() && !script.trim())}>
+                <button className="btn btn-red btn-full" onClick={doScript} disabled={!isSignedIn || sBusy || (!topic.trim() && !script.trim() && !devMode)}>
                   {sBusy ? "⏳ Генерация..." : script.trim() && !topic.trim() ? "▶ ПРОВЕРИТЬ СЦЕНАРИЙ" : "▶ СОЗДАТЬ СЦЕНАРИЙ"}
                 </button>
                 <button className="btn btn-soft btn-full" onClick={clearTopicOnly} disabled={!topic.trim()} type="button">Очистить тему</button>
