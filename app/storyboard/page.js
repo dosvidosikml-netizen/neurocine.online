@@ -22,9 +22,14 @@ import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
-/* ─── autosave keys ─── */
-const KEY_TEXT  = "nc_text_v3";
-const KEY_IMGS  = "nc_imgs_v3";
+/* ─── browser draft keys ───
+   v49: drafts are scoped by Supabase user id.
+   This prevents one Google account from seeing another account's local browser draft. */
+const BASE_KEY_TEXT  = "nc_text_v3";
+const BASE_KEY_IMGS  = "nc_imgs_v3";
+function scopedDraftKey(base, ownerId) {
+  return ownerId ? `${base}:user:${ownerId}` : `${base}:guest`;
+}
 
 /* ─── grid cols helper ─── */
 function gridCols(n) { return n <= 8 ? 2 : 3; }
@@ -150,22 +155,26 @@ function tryLsSave(key, data) {
   catch { return false; }
 }
 
-function collectProductionCache() {
+function collectProductionCache(ownerId = "guest") {
   const out = {};
+  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const prefix = `neurocine:production:v49:${ownerKey}:`;
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (key.startsWith("neurocine:production:")) out[key] = localStorage.getItem(key);
+      if (key.startsWith(prefix)) out[key] = localStorage.getItem(key);
     }
   } catch {}
   return out;
 }
 
-function restoreProductionCache(cache = {}) {
+function restoreProductionCache(cache = {}, ownerId = "guest") {
+  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const prefix = `neurocine:production:v49:${ownerKey}:`;
   try {
     Object.entries(cache || {}).forEach(([key, value]) => {
-      if (key.startsWith("neurocine:production:") && value != null) {
+      if (key.startsWith(prefix) && value != null) {
         localStorage.setItem(key, String(value));
       }
     });
@@ -556,6 +565,9 @@ export default function StudioPage() {
   const effectiveDevMode = forceLiveForAdmin ? false : devMode;
   const liveAllowed = isSignedIn && accountAccess.canLive;
   const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? (accountAccess.isOwner ? "LIVE OWNER" : "LIVE ADMIN") : devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
+  const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
+  const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
+  const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
@@ -725,7 +737,7 @@ ${lines.join("\n")}` : "";
       autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
       autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
       autoPartPrompt, autoVideoPack, autoAllPromptText,
-      production_pack_cache: collectProductionCache(),
+      production_pack_cache: collectProductionCache(storageOwnerId || "guest"),
       image_state: {
         gridImg: Boolean(gridImg), croppedFrame: Boolean(croppedFrame),
         variantImg: Boolean(variantImg), croppedVariant: Boolean(croppedVariant), finalImg: Boolean(finalImg),
@@ -742,8 +754,34 @@ ${lines.join("\n")}` : "";
     gridImg, croppedFrame, variantImg, croppedVariant, finalImg
   ]);
 
-  /* ── AUTOSAVE LOAD ── */
+  /* ── LOCAL DRAFT LOAD — v49 user-scoped ── */
   useEffect(() => {
+    if (!storageOwnerId || !KEY_TEXT || !KEY_IMGS) return;
+
+    setHydrated(false);
+
+    // Always reset visible workspace before loading the draft for the current account.
+    // This prevents admin/user/browser-account leakage after logout/login.
+    setProjectName("NeuroCine Project");
+    setTopic("");
+    setProjectType("film");
+    setStylePreset("cinematic");
+    setDuration(60);
+    setAspect("9:16");
+    setTone("cinematic documentary thriller");
+    setScript("");
+    setScriptValidation(null);
+    setSB(null);
+    setSbBusy(false);
+    setSbStat("");
+    setJsonIn("");
+    setSbMode("safe");
+    setTarget("veo3");
+    setValidation(null);
+    setSBusy(false);
+    setSStat("");
+    resetStoryboardOutputs({ keepAnchors: false });
+
     const text = safeJson(localStorage.getItem(KEY_TEXT));
     const imgs = safeJson(localStorage.getItem(KEY_IMGS));
 
@@ -779,23 +817,24 @@ ${lines.join("\n")}` : "";
       if (imgs.finalImg)   setFinalImg(imgs.finalImg);
     }
 
+    setSnapshotStatus(text ? "✓ Локальный черновик этого аккаунта загружен" : "");
     setHydrated(true);
-  }, []);
+  }, [storageOwnerId, KEY_TEXT, KEY_IMGS]);
 
   /* ── AUTOSAVE WRITE (text) ── */
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !KEY_TEXT) return;
     tryLsSave(KEY_TEXT, {
       projectName, topic, projectType, stylePreset, duration,
       aspectRatio, tone, script, storyboard, jsonIn, sbMode, target, validation,
       frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode
     });
-  }, [hydrated, projectName, topic, projectType, stylePreset, duration, aspectRatio,
+  }, [hydrated, KEY_TEXT, projectName, topic, projectType, stylePreset, duration, aspectRatio,
       tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode]);
 
   /* ── AUTOSAVE WRITE (images — separate key, с защитой от quota) ── */
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !KEY_IMGS) return;
     // limit: skip images > 2MB to avoid localStorage quota
     const maxSize = 2_000_000;
     const safe = (v) => (v && v.length <= maxSize ? v : null);
@@ -805,7 +844,7 @@ ${lines.join("\n")}` : "";
       croppedVariant: safe(croppedVariant),
       finalImg: safe(finalImg)
     });
-  }, [hydrated, gridImg, variantImg, croppedVariant, finalImg]);
+  }, [hydrated, KEY_IMGS, gridImg, variantImg, croppedVariant, finalImg]);
 
   /* Re-crop if cols override changes while frame is selected */
   useEffect(() => {
@@ -1277,7 +1316,7 @@ ${lines.join("\n")}` : "";
   function buildProjectSnapshot() {
     return {
       neurocine_project_snapshot: true,
-      version: "v45",
+      version: "v49",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
       project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
@@ -1291,7 +1330,7 @@ ${lines.join("\n")}` : "";
         autoPartPrompt, autoVideoPack, autoAllPromptText
       },
       images: { gridImg, croppedFrame, variantImg, croppedVariant, finalImg },
-      production_pack_cache: collectProductionCache()
+      production_pack_cache: collectProductionCache(storageOwnerId || "guest")
     };
   }
 
@@ -1349,7 +1388,7 @@ ${lines.join("\n")}` : "";
     setCropped(imgs.croppedVariant || null);
     setFinalImg(imgs.finalImg || null);
 
-    restoreProductionCache(data?.production_pack_cache);
+    restoreProductionCache(data?.production_pack_cache, storageOwnerId || "guest");
     setSnapshotStatus("✓ Project Snapshot загружен");
   }
 
@@ -2443,6 +2482,7 @@ ${lines.join("\n")}` : "";
             devMode={effectiveDevMode}
             isSignedIn={isSignedIn}
             liveAllowed={liveAllowed}
+            userId={account?.session?.user?.id || "guest"}
           />
         ) : (
           <div className="step-section studio-step-card">
