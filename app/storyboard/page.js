@@ -217,6 +217,15 @@ function OutBox({ label, text, empty = "Пусто", compact = false, mono = fal
           ? <pre className={`out-pre${compact ? " compact" : ""}${mono ? " mono" : ""}`}>{text}</pre>
           : <div className="out-empty">{empty}</div>}
       </div>
+        </>
+      ) : (
+        <section className="auth-required-v46 studio-locked-workspace-v51">
+          <div className="auth-required-kicker-v46">Workspace locked · v51</div>
+          <h2>Рабочая зона заблокирована</h2>
+          <p>Storyboard, ручной JSON, Production Pack, экспорт и локальные черновики доступны только после входа через Google.</p>
+          <p>Это защищает аккаунты: гость больше не может вводить данные в скрытые поля и видеть чужие локальные черновики.</p>
+        </section>
+      )}
     </div>
   );
 }
@@ -566,7 +575,7 @@ export default function StudioPage() {
   const effectiveDevMode = forceLiveForAdmin ? false : (!liveAllowed ? true : devMode);
   const canToggleLiveMode = isSignedIn && liveAllowed && !forceLiveForAdmin;
   const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? (accountAccess.isOwner ? "LIVE OWNER" : "LIVE ADMIN") : !liveAllowed ? "DEMO" : effectiveDevMode ? "DEMO" : "LIVE";
-  const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
+  const storageOwnerId = isSignedIn ? account.session.user.id : "";
   const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
   const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
@@ -1474,7 +1483,7 @@ ${lines.join("\n")}` : "";
         />
       )}
 
-      {effectiveDevMode && <div className="demo-banner-v35">{t.devHint}</div>}
+      {isSignedIn && effectiveDevMode && <div className="demo-banner-v35">{t.devHint}</div>}
       {snapshotStatus && (
         <div className="snapshot-status">{snapshotStatus}</div>
       )}
@@ -1517,6 +1526,8 @@ ${lines.join("\n")}` : "";
         authLocked={!isSignedIn}
       />
 
+      {isSignedIn ? (
+        <>
       <ProductionStatusBar
         t={t}
         script={script}
