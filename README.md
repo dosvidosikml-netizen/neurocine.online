@@ -62,3 +62,25 @@ This migration is safe to run multiple times. It creates or extends:
 - RLS policies
 
 Cloud Projects now stores full NeuroCine project snapshots plus indexed fields: topic, script, storyboard, duration, aspect ratio, style preset, mode, target and Production Pack cache.
+
+
+## NeuroCine v45 — Auto Save + Load Snapshot
+
+Обновление поверх v44 Cloud Studio.
+
+### Что добавлено
+- Cloud Auto Save для выбранного проекта: после первого ручного `Сохранить в Cloud` дальнейшие изменения уходят в Supabase автоматически через 2–3 секунды.
+- При открытии cloud project восстанавливается полный NeuroCine snapshot: setup, script, storyboard, PART pipeline, prompts, images/cache если сохранены.
+- В панели Cloud Projects появился статус `Auto Save включён`.
+- Версия snapshot обновлена до `v45`.
+
+### Файлы для точечной замены
+- `app/storyboard/page.js`
+- `components/CloudProjectsPanel.js`
+- `app/globals.css`
+- `README.md`
+- `supabase/schema_v45_full_cloud_studio.sql`
+
+### SQL
+Если `schema_v44_full_cloud_studio.sql` уже выполнен успешно, новый SQL выполнять не обязательно.
+Файл `schema_v45_full_cloud_studio.sql` добавлен как полный безопасный baseline и может быть выполнен повторно при необходимости.
