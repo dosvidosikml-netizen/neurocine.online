@@ -19,7 +19,7 @@ No SQL changes required if v44/v45 schema was already applied.
 
 Добавлено:
 - OWNER/ADMIN распознаётся по email `dosvidosikml@gmail.com` и по ENV `NEXT_PUBLIC_ADMIN_EMAILS`.
-- OWNER всегда получает LIVE доступ без BYO ключей и без лимитов.
+- OWNER всегда получает LIVE доступ через platform API без лимитов.
 - Для обычных пользователей остаётся DEMO/FREE/LIVE LOCK.
 
 Render ENV:
@@ -36,8 +36,19 @@ SQL: можно выполнить `supabase/schema_v48_admin_owner_access.sql` 
 
 - Вход работает только через Supabase Auth / Google Provider.
 - Обычный DEMO/FREE пользователь больше не видит активный LIVE-переключатель: только DEMO MODE + отдельное объяснение LIVE lock.
-- OWNER/ADMIN получает LIVE автоматически и не вводит BYO API ключи.
+- OWNER/ADMIN получает LIVE автоматически через platform API.
 - Локальные черновики остаются разделёнными по `user.id`.
 - `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` в Render больше не нужны для Supabase OAuth. Google Client ID/Secret должны храниться в Supabase → Authentication → Providers → Google.
 
 После замены файлов: redeploy Render. SQL для v50 не нужен, если профильный SQL repair уже выполнен.
+
+---
+
+## v53 — PRO Own Keys Model
+
+- Убран публичный BYO/API/ADMIN wording.
+- Для обычного пользователя: DEMO → PRO.
+- PRO теперь означает: доступ к Studio + собственные API-ключи пользователя.
+- OWNER/ADMIN остаётся скрытым внутренним режимом владельца.
+- Platform API не должны использоваться обычными PRO-пользователями.
+- Добавлен SQL `supabase/schema_v53_pro_own_keys.sql` для подготовки полей API-key status.
