@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
 import { getAccountAccess } from "../lib/accountRoles";
 
@@ -31,7 +31,7 @@ function explainCloudError(error) {
   return msg;
 }
 
-export default function CloudProjectsPanel({ account, projectName, buildSnapshot, applySnapshot, onStatus }) {
+export default function CloudProjectsPanel({ account, projectName, buildSnapshot, applySnapshot, onStatus, autoSaveKey, autoSaveEnabled = true }) {
   const session = account?.session || null;
   const profile = account?.profile || null;
   const access = getAccountAccess(profile, session);
@@ -41,6 +41,13 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
   const [selectedId, setSelectedId] = useState(null);
   const [status, setStatus] = useState("");
   const [schemaWarning, setSchemaWarning] = useState("");
+  const buildSnapshotRef = useRef(buildSnapshot);
+  const autoSaveTimerRef = useRef(null);
+  const lastAutoSaveKeyRef = useRef("");
+
+  useEffect(() => {
+    buildSnapshotRef.current = buildSnapshot;
+  }, [buildSnapshot]);
 
   const canUseCloud = Boolean(user && isSupabaseConfigured && supabase);
   const projectLimit = Number(access.storageProjects || profile?.cloud_project_limit || 0);
@@ -75,6 +82,55 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
 
   useEffect(() => { loadList(); }, [canUseCloud, user?.id]);
 
+  function buildCloudPayload(snapshot) {
+    if (!snapshot) throw new Error("Project snapshot пустой");
+    const p = snapshot.project || {};
+    const sp = snapshot.script_pack || {};
+    const sbp = snapshot.storyboard_pack || {};
+    const pipe = snapshot.production_pipeline || {};
+    const cache = snapshot.production_pack_cache || {};
+    return {
+      user_id: user.id,
+      name: projectName || p.projectName || "NeuroCine Project",
+      title: projectName || p.projectName || "NeuroCine Project",
+      topic: p.topic || snapshot.topic || "",
+      script: sp.script || snapshot.script || "",
+      duration: Number(p.duration || 60),
+      aspect_ratio: p.aspectRatio || "9:16",
+      project_type: p.projectType || "film",
+      style_preset: p.stylePreset || "cinematic",
+      tone: p.tone || "cinematic documentary thriller",
+      mode: sbp.sbMode || "safe",
+      target: sbp.target || "veo3",
+      storyboard: sbp.storyboard || null,
+      settings: {
+        frameIdx: pipe.frameIdx ?? null,
+        autoPartIndex: pipe.autoPartIndex ?? 0,
+        autoPartSize: pipe.autoPartSize ?? 4,
+        videoPromptMode: pipe.videoPromptMode || "cheap",
+        videoConsistency: pipe.videoConsistency || "ultra",
+      },
+      snapshot,
+      data: snapshot,
+      production_pack_cache: cache,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  async function updateSelectedCloudProject({ silent = false } = {}) {
+    if (!canUseCloud || !selectedId) return false;
+    const snapshot = buildSnapshotRef.current?.();
+    const payload = buildCloudPayload(snapshot);
+    const { error } = await supabase
+      .from("projects")
+      .update(payload)
+      .eq("id", selectedId)
+      .eq("user_id", user.id);
+    if (error) throw error;
+    if (!silent) setBothStatus("✓ Project autosaved in Supabase Cloud");
+    return true;
+  }
+
   async function saveCloudProject() {
     if (!canUseCloud) {
       setBothStatus("✗ Войдите через Google, чтобы сохранять проекты в облако");
@@ -87,39 +143,8 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     setBusy(true);
     setSchemaWarning("");
     try {
-      const snapshot = buildSnapshot?.();
-      if (!snapshot) throw new Error("Project snapshot пустой");
-      const p = snapshot.project || {};
-      const sp = snapshot.script_pack || {};
-      const sbp = snapshot.storyboard_pack || {};
-      const pipe = snapshot.production_pipeline || {};
-      const cache = snapshot.production_pack_cache || {};
-      const payload = {
-        user_id: user.id,
-        name: projectName || p.projectName || "NeuroCine Project",
-        title: projectName || p.projectName || "NeuroCine Project",
-        topic: p.topic || snapshot.topic || "",
-        script: sp.script || snapshot.script || "",
-        duration: Number(p.duration || 60),
-        aspect_ratio: p.aspectRatio || "9:16",
-        project_type: p.projectType || "film",
-        style_preset: p.stylePreset || "cinematic",
-        tone: p.tone || "cinematic documentary thriller",
-        mode: sbp.sbMode || "safe",
-        target: sbp.target || "veo3",
-        storyboard: sbp.storyboard || null,
-        settings: {
-          frameIdx: pipe.frameIdx ?? null,
-          autoPartIndex: pipe.autoPartIndex ?? 0,
-          autoPartSize: pipe.autoPartSize ?? 4,
-          videoPromptMode: pipe.videoPromptMode || "cheap",
-          videoConsistency: pipe.videoConsistency || "ultra",
-        },
-        snapshot,
-        data: snapshot,
-        production_pack_cache: cache,
-        updated_at: new Date().toISOString(),
-      };
+      const snapshot = buildSnapshotRef.current?.();
+      const payload = buildCloudPayload(snapshot);
 
       let error;
       if (selectedId) {
@@ -138,6 +163,7 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
         if (res.data?.id) setSelectedId(res.data.id);
       }
       if (error) throw error;
+      lastAutoSaveKeyRef.current = autoSaveKey || "manual-save";
       setBothStatus("✓ Проект сохранён в Supabase Cloud");
       await loadList();
     } catch (e) {
@@ -191,6 +217,29 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     setBusy(false);
   }
 
+  useEffect(() => {
+    if (!autoSaveEnabled || !canUseCloud || !selectedId || !autoSaveKey) return;
+    if (lastAutoSaveKeyRef.current === autoSaveKey) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await updateSelectedCloudProject({ silent: true });
+        lastAutoSaveKeyRef.current = autoSaveKey;
+        setBothStatus("✓ Autosave: проект обновлён в Supabase Cloud");
+        await loadList();
+      } catch (e) {
+        const message = explainCloudError(e);
+        if (isSchemaCacheError(e)) setSchemaWarning(message);
+        setBothStatus(`✗ Autosave: ${message}`);
+      }
+    }, 2500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [autoSaveEnabled, canUseCloud, selectedId, autoSaveKey, user?.id]);
+
   const emptyText = useMemo(() => {
     if (!isSupabaseConfigured) return "Supabase ENV не настроены";
     if (!user) return "Войдите через Google, чтобы включить Cloud Projects";
@@ -214,6 +263,8 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
         <button onClick={loadList} disabled={busy || !canUseCloud} type="button">↻ Обновить список</button>
         {selectedId && <button onClick={() => setSelectedId(null)} disabled={busy} type="button">＋ Сохранить как новый</button>}
       </div>
+
+      {selectedId && <div className="cp-autosave-v45">● Auto Save включён: изменения проекта сохраняются автоматически через 2–3 секунды.</div>}
 
       {schemaWarning && <div className="cp-status-v43 err">{schemaWarning}</div>}
       {status && <div className={`cp-status-v43 ${status.startsWith("✗") ? "err" : ""}`}>{status}</div>}
