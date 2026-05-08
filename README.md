@@ -52,3 +52,21 @@ SQL: можно выполнить `supabase/schema_v48_admin_owner_access.sql` 
 - OWNER/ADMIN остаётся скрытым внутренним режимом владельца.
 - Platform API не должны использоваться обычными PRO-пользователями.
 - Добавлен SQL `supabase/schema_v53_pro_own_keys.sql` для подготовки полей API-key status.
+
+## NeuroCine v54 — Public UX + AI Key Vault + Access Guard
+
+- FREE UI очищен от dev-текста: обычный пользователь не видит OWNER/ADMIN/BYO/API internals.
+- PRO-модель: пользователь подключает собственный AI API key. В v54 поддержан OpenRouter как первый провайдер.
+- OWNER/ADMIN использует platform API из Render ENV.
+- Добавлены API routes: `/api/user-keys`, `/api/user-keys/test`, `/api/user-keys/delete`.
+- Добавлены server helpers: `lib/serverSupabase.js`, `lib/apiKeyCrypto.js`, `lib/apiAccess.js`.
+- Добавить Render ENV: `API_KEY_ENCRYPTION_SECRET`.
+- Выполнить SQL: `supabase/schema_v54_public_ux_key_vault_access_guard.sql`.
+
+Access model:
+
+```txt
+FREE  → preview / demo only
+PRO   → LIVE through user's own AI API key
+OWNER → LIVE through platform API in Render ENV
+```
