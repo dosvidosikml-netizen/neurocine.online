@@ -106,6 +106,13 @@ function StatusLine({ type, text }) {
   return <div className={`status-line${type ? " " + type : ""}`}>{text}</div>;
 }
 
+function apiHeaders(accessToken = "") {
+  return {
+    "Content-Type": "application/json",
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+}
+
 
 // ─────── SOCIAL VISUAL EXPORT HELPERS ─────────────────────────────
 function safeFileName(input = "neurocine") {
@@ -275,7 +282,7 @@ function SocialExportButtons({ carousel = [], slides = [], topic = "neurocine" }
 }
 
 // ─────── 🎙 TTS STUDIO TAB ────────────────────────────────────────
-function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = false }) {
+function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = false, accessToken = "" }) {
   const [data, setData] = useStoredState(`${cacheKey}:tts:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -284,13 +291,13 @@ function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = f
   async function run() {
     if (!script?.trim() && !devMode) { setErr("Сначала создай сценарий в шаге 01"); return; }
     if (devMode) { setErr(""); setData(buildMockTtsPack({ topic, script })); return; }
-    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
+    if (!liveAllowed) { setErr("LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/tts-studio", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, script, genre })
+        headers: apiHeaders(accessToken),
+        body: JSON.stringify({ topic, script, genre, generationMode: "live" })
       });
       const d = await r.json();
       if (d.error) setErr(d.error); else setData(d.ttsStudio);
@@ -373,7 +380,7 @@ function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = f
 }
 
 // ─────── 🖼 COVER DIRECTOR TAB ───────────────────────────────────
-function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = false }) {
+function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = false, accessToken = "" }) {
   const [data, setData] = useStoredState(`${cacheKey}:cover:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -383,13 +390,13 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
 
   async function run() {
     if (devMode) { setErr(""); setData(buildMockCoverPack({ topic, script, storyboard })); return; }
-    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
+    if (!liveAllowed) { setErr("LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/cover", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, script, storyboard, mode, style, platform: "shorts" })
+        headers: apiHeaders(accessToken),
+        body: JSON.stringify({ topic, script, storyboard, mode, style, platform: "shorts", generationMode: devMode ? "demo" : "live" })
       });
       const d = await r.json();
       if (d.error) setErr(d.error); else setData(d.cover || d);
@@ -501,7 +508,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
 }
 
 // ─────── 🎵 MUSIC + 🚀 SEO TAB ────────────────────────────────────
-function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode, liveAllowed = false }) {
+function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode, liveAllowed = false, accessToken = "" }) {
   const [music, setMusic] = useStoredState(`${cacheKey}:music:data`, null);
   const [seo, setSeo] = useStoredState(`${cacheKey}:seo:data`, null);
   const [musicMode, setMusicMode] = useStoredString(`${cacheKey}:music:mode`, "cinematic_thriller");
@@ -511,19 +518,19 @@ function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode, live
 
   async function run() {
     if (devMode) { setErr(""); setMusic(buildMockMusicPack({ topic, script, genre, storyboard })); setSeo(buildMockSeoPack({ topic, script, genre })); return; }
-    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
+    if (!liveAllowed) { setErr("LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setBusy(true); setErr(""); setMusic(null); setSeo(null);
     try {
       const [m, s] = await Promise.all([
         fetch("/api/music-suno", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic, script, genre, storyboard, musicMode })
+          headers: apiHeaders(accessToken),
+          body: JSON.stringify({ topic, script, genre, storyboard, musicMode, generationMode: "live" })
         }).then(r => r.json()),
         fetch("/api/seo-pack", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic, script, genre, platform: seoPlatform })
+          headers: apiHeaders(accessToken),
+          body: JSON.stringify({ topic, script, genre, platform: seoPlatform, generationMode: "live" })
         }).then(r => r.json()),
       ]);
       if (m.error || s.error) setErr(m.error || s.error);
@@ -619,7 +626,7 @@ function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode, live
 }
 
 // ─────── 📘 SOCIAL PACK TAB ───────────────────────────────────────
-function SocialPackTab({ topic, script, genre, cacheKey, devMode, liveAllowed = false }) {
+function SocialPackTab({ topic, script, genre, cacheKey, devMode, liveAllowed = false, accessToken = "" }) {
   const [data, setData] = useStoredState(`${cacheKey}:social:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -627,13 +634,13 @@ function SocialPackTab({ topic, script, genre, cacheKey, devMode, liveAllowed = 
   async function run() {
     if (!script?.trim() && !devMode) { setErr("Сначала создай сценарий"); return; }
     if (devMode) { setErr(""); setData(buildMockSocialPack({ topic, script, genre })); return; }
-    if (!liveAllowed) { setErr("LIVE/API доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
+    if (!liveAllowed) { setErr("LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/social-pack", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, script, genre })
+        headers: apiHeaders(accessToken),
+        body: JSON.stringify({ topic, script, genre, generationMode: "live" })
       });
       const d = await r.json();
       if (d.error) setErr(d.error); else setData(d.social);
@@ -923,7 +930,7 @@ const PACK_I18N = {
   }
 };
 
-export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false, userId = "guest" }) {
+export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false, userId = "guest", accessToken = "" }) {
   const sourceKey = useMemo(() => hashString(`${topic}|${script?.slice(0, 1200)}|${storyboard?.scenes?.length || 0}`), [topic, script, storyboard]);
   const ownerKey = String(userId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
   const cacheKey = `neurocine:production:v49:${ownerKey}:${devMode ? "demo" : "pro"}:${sourceKey}`;
@@ -931,10 +938,10 @@ export default function ProductionPack({ topic = "", script = "", genre = "ИС�
   const t = PACK_I18N[lang] || PACK_I18N.ru;
 
   const tabs = [
-    { id: "tts", icon: "🎙️", label: t.tabs.tts[0], sub: t.tabs.tts[1], status: t.tabs.tts[2], comp: <TtsStudioTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
-    { id: "cover", icon: "🧲", label: t.tabs.cover[0], sub: t.tabs.cover[1], status: t.tabs.cover[2], comp: <CoverTab topic={topic} script={script} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
-    { id: "music", icon: "🎧", label: t.tabs.music[0], sub: t.tabs.music[1], status: t.tabs.music[2], comp: <MusicSeoTab topic={topic} script={script} genre={genre} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
-    { id: "social", icon: "📲", label: t.tabs.social[0], sub: t.tabs.social[1], status: t.tabs.social[2], comp: <SocialPackTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
+    { id: "tts", icon: "🎙️", label: t.tabs.tts[0], sub: t.tabs.tts[1], status: t.tabs.tts[2], comp: <TtsStudioTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
+    { id: "cover", icon: "🧲", label: t.tabs.cover[0], sub: t.tabs.cover[1], status: t.tabs.cover[2], comp: <CoverTab topic={topic} script={script} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
+    { id: "music", icon: "🎧", label: t.tabs.music[0], sub: t.tabs.music[1], status: t.tabs.music[2], comp: <MusicSeoTab topic={topic} script={script} genre={genre} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
+    { id: "social", icon: "📲", label: t.tabs.social[0], sub: t.tabs.social[1], status: t.tabs.social[2], comp: <SocialPackTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
     { id: "explainer", icon: "🗺️", label: t.tabs.explainer[0], sub: t.tabs.explainer[1], status: t.tabs.explainer[2], comp: <VisualExplainerTab topic={topic} script={script} cacheKey={cacheKey} /> },
   ];
 

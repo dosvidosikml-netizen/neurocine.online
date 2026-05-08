@@ -82,7 +82,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
       const { data, error: profileError } = await supabase
         .from("profiles")
-        .select("id,email,full_name,avatar_url,role,plan,created_at,updated_at,default_mode,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used")
+        .select("id,email,full_name,avatar_url,role,plan,created_at,updated_at,default_mode,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used,api_keys_connected,api_key_status,pro_api_note")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -152,24 +152,24 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
             </div>
           </div>
         ) : (
-          <div className="auth-muted-v42">Войди через Google, чтобы сохранять проекты. DEMO — бесплатно, PRO — работа со своими API-ключами.</div>
+          <div className="auth-muted-v42">Войди через Google, чтобы сохранять проекты. FREE — попробовать студию, PRO — полный рабочий режим.</div>
         )}
       </div>
 
       <div className="auth-status-grid-v42">
-        <div className={`auth-chip-v42 ${access.isOwner ? "is-owner" : access.isAdmin ? "is-admin" : user ? "is-free" : "is-demo"}`}>
+        <div className={`auth-chip-v42 ${access.isOwner ? "is-owner" : access.isAdmin ? "is-admin" : access.role === "pro" ? "is-pro" : user ? "is-free" : "is-demo"}`}>
           <span>Статус</span>
-          <strong>{user ? (access.isOwner || access.isAdmin ? "OWNER" : access.role === "pro" ? "PRO" : "DEMO") : "AUTH"}</strong>
+          <strong>{user ? (access.isOwner || access.isAdmin ? "OWNER" : access.role === "pro" ? "PRO" : "FREE") : "AUTH"}</strong>
         </div>
         {user && access.canLive ? (
           <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
             <span>Режим генерации</span>
-            <strong>{access.isOwner || access.isAdmin ? "LIVE OWNER" : devMode ? "DEMO" : "PRO LIVE"}</strong>
+            <strong>{access.isOwner || access.isAdmin ? "LIVE OWNER" : devMode ? "FREE PREVIEW" : "PRO LIVE"}</strong>
           </button>
         ) : (
           <div className="auth-chip-v42 auth-mode-v42 is-demo">
             <span>Режим генерации</span>
-            <strong>{user ? "DEMO" : "Вход нужен"}</strong>
+            <strong>{user ? "FREE" : "Вход нужен"}</strong>
           </div>
         )}
       </div>
