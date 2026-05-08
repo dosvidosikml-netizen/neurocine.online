@@ -1,72 +1,36 @@
-# NeuroCine v47 — DEMO topic-safe mock + stuck generation fix
+# NeuroCine Online Studio
 
-Changed files:
-- `app/storyboard/page.js`
-- `lib/mockData.js`
-- `README.md`
+Актуальная сборка: **v55–v60 Core SaaS Hardening**.
 
-Fixes:
-- DEMO script no longer always returns old Tunguska text.
-- DEMO mock script is now generated from the current topic.
-- DEMO storyboard follows the current topic instead of old Siberia frames.
-- Switching DEMO/LIVE resets stuck generation flags.
-- DEMO script/storyboard branch force-stops busy state so UI cannot hang on “Генерация…”.
+NeuroCine — AI production studio: сценарий → storyboard JSON → PART pipeline → video prompts → Production Pack → Cloud Projects.
 
-No SQL changes required if v44/v45 schema was already applied.
+## Access model
 
+- **FREE** — preview/демо после Google login, Cloud Projects до лимита, без real platform API.
+- **PRO** — полный workflow и LIVE через собственные AI API-ключи пользователя.
+- **OWNER / ADMIN** — служебный доступ владельца, LIVE через platform API из Render ENV.
 
-## v48 Admin Owner Access
+## Important ENV
 
-Добавлено:
-- OWNER/ADMIN распознаётся по email `dosvidosikml@gmail.com` и по ENV `NEXT_PUBLIC_ADMIN_EMAILS`.
-- OWNER всегда получает LIVE доступ через platform API без лимитов.
-- Для обычных пользователей остаётся DEMO/FREE/LIVE LOCK.
-
-Render ENV:
-```txt
+```env
+NEXT_PUBLIC_SITE_URL=https://neurocine.online
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 NEXT_PUBLIC_ADMIN_EMAILS=dosvidosikml@gmail.com
 ADMIN_EMAILS=dosvidosikml@gmail.com
+OPENROUTER_API_KEY=owner_platform_key
+API_KEY_ENCRYPTION_SECRET=long_random_secret_32_chars_min
+SUPABASE_SERVICE_ROLE_KEY=server_only_for_owner_admin_panel
 ```
 
-После деплоя: выйти из аккаунта и войти через Google заново.
-SQL: можно выполнить `supabase/schema_v48_admin_owner_access.sql` целиком, чтобы профиль владельца сразу стал admin в Supabase.
+`SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it in `NEXT_PUBLIC_*`.
 
+## SQL
 
-## v50 Auth Cleanup + Normal User UX
-
-- Вход работает только через Supabase Auth / Google Provider.
-- Обычный DEMO/FREE пользователь больше не видит активный LIVE-переключатель: только DEMO MODE + отдельное объяснение LIVE lock.
-- OWNER/ADMIN получает LIVE автоматически через platform API.
-- Локальные черновики остаются разделёнными по `user.id`.
-- `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` в Render больше не нужны для Supabase OAuth. Google Client ID/Secret должны храниться в Supabase → Authentication → Providers → Google.
-
-После замены файлов: redeploy Render. SQL для v50 не нужен, если профильный SQL repair уже выполнен.
-
----
-
-## v53 — PRO Own Keys Model
-
-- Убран публичный BYO/API/ADMIN wording.
-- Для обычного пользователя: DEMO → PRO.
-- PRO теперь означает: доступ к Studio + собственные API-ключи пользователя.
-- OWNER/ADMIN остаётся скрытым внутренним режимом владельца.
-- Platform API не должны использоваться обычными PRO-пользователями.
-- Добавлен SQL `supabase/schema_v53_pro_own_keys.sql` для подготовки полей API-key status.
-
-## NeuroCine v54 — Public UX + AI Key Vault + Access Guard
-
-- FREE UI очищен от dev-текста: обычный пользователь не видит OWNER/ADMIN/BYO/API internals.
-- PRO-модель: пользователь подключает собственный AI API key. В v54 поддержан OpenRouter как первый провайдер.
-- OWNER/ADMIN использует platform API из Render ENV.
-- Добавлены API routes: `/api/user-keys`, `/api/user-keys/test`, `/api/user-keys/delete`.
-- Добавлены server helpers: `lib/serverSupabase.js`, `lib/apiKeyCrypto.js`, `lib/apiAccess.js`.
-- Добавить Render ENV: `API_KEY_ENCRYPTION_SECRET`.
-- Выполнить SQL: `supabase/schema_v54_public_ux_key_vault_access_guard.sql`.
-
-Access model:
+Latest SQL:
 
 ```txt
-FREE  → preview / demo only
-PRO   → LIVE through user's own AI API key
-OWNER → LIVE through platform API in Render ENV
+supabase/schema_v55_60_core_saas_hardening.sql
 ```
+
+Old migration notes are archived in `docs/archive/`.
