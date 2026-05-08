@@ -365,7 +365,7 @@ function ProjectSetupPanelV40({
   const estimatedScenes = Math.max(1, Math.round(Number(duration || 60) / 3));
   const readyForStoryboard = !!script?.trim() || devMode;
   const busy = sBusy || sbBusy;
-  const statusText = sbStat || sStat || (devMode ? "DEMO MODE · API не используется" : "LIVE требует API / Google account");
+  const statusText = sbStat || sStat || (devMode ? "DEMO MODE · API не используется" : "LIVE доступен OWNER или PRO со своими API");
 
   return (
     <section id="setup" className="setup-v40">
@@ -565,7 +565,7 @@ export default function StudioPage() {
   const liveAllowed = isSignedIn && accountAccess.canLive;
   const effectiveDevMode = forceLiveForAdmin ? false : (!liveAllowed ? true : devMode);
   const canToggleLiveMode = isSignedIn && liveAllowed && !forceLiveForAdmin;
-  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? (accountAccess.isOwner ? "LIVE OWNER" : "LIVE ADMIN") : !liveAllowed ? "DEMO" : effectiveDevMode ? "DEMO" : "LIVE";
+  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? "LIVE OWNER" : !liveAllowed ? "DEMO" : effectiveDevMode ? "DEMO" : "PRO LIVE";
   const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
   const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
   const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
@@ -948,7 +948,7 @@ ${lines.join("\n")}` : "";
       return;
     }
     if (!liveAllowed) {
-      setSStat("err|LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO.");
+      setSStat("err|LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API.");
       return;
     }
     resetStoryboardOutputs({ keepAnchors: true });
@@ -1009,7 +1009,7 @@ ${lines.join("\n")}` : "";
       return;
     }
     if (!liveAllowed) {
-      setSbStat("err|LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO.");
+      setSbStat("err|LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API.");
       return;
     }
     setSbBusy(true); setSbStat("gen"); setValidation(null);
@@ -1091,7 +1091,7 @@ ${lines.join("\n")}` : "";
     if (!isSignedIn) { setExploreP("Ошибка: войдите через Google."); return; }
     if (!curFrame) return;
     if (effectiveDevMode) { setExploreP(buildExplorePrompt(curFrame, storyboard, styleProfile)); return; }
-    if (!liveAllowed) { setExploreP("Ошибка: LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
+    if (!liveAllowed) { setExploreP("Ошибка: LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
     setExpBusy(true); setExploreP("");
     try {
       // Build locally from engine — richer CHARACTER LOCK + full EN image_prompt_en
@@ -1175,7 +1175,7 @@ ${lines.join("\n")}` : "";
       setAnalysis({ sfx: "DEMO MODE · sample SFX: low drone, wind, distant rumble" });
       return;
     }
-    if (!liveAllowed) { setVideoP("Ошибка: LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
+    if (!liveAllowed) { setVideoP("Ошибка: LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
     setVidBusy(true); setVideoP(""); setAnalysis(null);
     try {
       const r2 = await fetch("/api/video", {
