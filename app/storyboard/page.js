@@ -247,7 +247,7 @@ const UI_TEXT = {
     navHome: "Главная", navChat: "Chat", navStudio: "Studio", save: "💾 Project", load: "⬆ Project", clear: "Очистить",
     railScript: "Script", railStoryboard: "Storyboard", railPipeline: "Pipeline", railPack: "Pack",
     statusScript: "SCRIPT", statusStoryboard: "STORYBOARD", statusPart: "PART", statusVideo: "VIDEO", statusCover: "COVER", statusSave: "SAVE",
-    ok: "✓", no: "—", focus: "Focus", compact: "Compact", open: "Открыть", close: "Свернуть", copy: "Копировать", copied: "✓ Скопировано", empty: "Пусто", devMode: "DEMO", liveMode: "PRO", devHint: "DEMO MODE · API не используется · можно протестировать студию бесплатно"
+    ok: "✓", no: "—", focus: "Focus", compact: "Compact", open: "Открыть", close: "Свернуть", copy: "Копировать", copied: "✓ Скопировано", empty: "Пусто", devMode: "DEMO", liveMode: "PRO", devHint: "FREE Preview · попробуйте Studio и сохраните до 3 проектов"
   },
   en: {
     lang: "EN", otherLang: "RU", ready: "READY", waiting: "WAITING", generating: "GENERATING", active: "ACTIVE", locked: "LOCKED", frames: "FRAMES",
@@ -258,7 +258,7 @@ const UI_TEXT = {
     navHome: "Home", navChat: "Chat", navStudio: "Studio", save: "💾 Project", load: "⬆ Project", clear: "Clear",
     railScript: "Script", railStoryboard: "Storyboard", railPipeline: "Pipeline", railPack: "Pack",
     statusScript: "SCRIPT", statusStoryboard: "STORYBOARD", statusPart: "PART", statusVideo: "VIDEO", statusCover: "COVER", statusSave: "SAVE",
-    ok: "✓", no: "—", focus: "Focus", compact: "Compact", open: "Open", close: "Collapse", copy: "Copy", copied: "✓ Copied", empty: "Empty", devMode: "DEMO", liveMode: "PRO", devHint: "DEMO MODE · API is not used · test the studio for free"
+    ok: "✓", no: "—", focus: "Focus", compact: "Compact", open: "Open", close: "Collapse", copy: "Copy", copied: "✓ Copied", empty: "Empty", devMode: "DEMO", liveMode: "PRO", devHint: "FREE Preview · try the Studio and save up to 3 projects"
   }
 };
 
@@ -365,7 +365,7 @@ function ProjectSetupPanelV40({
   const estimatedScenes = Math.max(1, Math.round(Number(duration || 60) / 3));
   const readyForStoryboard = !!script?.trim() || devMode;
   const busy = sBusy || sbBusy;
-  const statusText = sbStat || sStat || (devMode ? "DEMO MODE · API не используется" : "LIVE доступен OWNER или PRO со своими API");
+  const statusText = sbStat || sStat || (devMode ? "FREE Preview" : "LIVE генерация");
 
   return (
     <section id="setup" className="setup-v40">
@@ -565,7 +565,14 @@ export default function StudioPage() {
   const liveAllowed = isSignedIn && accountAccess.canLive;
   const effectiveDevMode = forceLiveForAdmin ? false : (!liveAllowed ? true : devMode);
   const canToggleLiveMode = isSignedIn && liveAllowed && !forceLiveForAdmin;
-  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? "LIVE OWNER" : !liveAllowed ? "DEMO" : effectiveDevMode ? "DEMO" : "PRO LIVE";
+  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? "LIVE OWNER" : !liveAllowed ? "FREE" : effectiveDevMode ? "FREE" : "PRO LIVE";
+  const authHeaders = useCallback(() => ({
+    "Content-Type": "application/json",
+    ...(account?.session?.access_token ? { Authorization: `Bearer ${account.session.access_token}` } : {}),
+  }), [account?.session?.access_token]);
+  const patchAccountProfile = useCallback((patch = {}) => {
+    setAccount(prev => prev ? { ...prev, profile: { ...(prev.profile || {}), ...patch } } : prev);
+  }, []);
   const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
   const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
   const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
@@ -944,11 +951,11 @@ ${lines.join("\n")}` : "";
       const mockScript = buildMockScript(topic || projectName || "DEMO topic");
       setScript(mockScript);
       setScriptValidation(validateScript(mockScript));
-      setSStat("ok|DEMO MODE · mock script · API не используется");
+      setSStat("ok|FREE Preview · пример сценария");
       return;
     }
     if (!liveAllowed) {
-      setSStat("err|LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API.");
+      setSStat("err|LIVE-генерация доступна в PRO после подключения AI-ключа.");
       return;
     }
     resetStoryboardOutputs({ keepAnchors: true });
@@ -956,8 +963,8 @@ ${lines.join("\n")}` : "";
     setSBusy(true); setSStat("gen"); setScriptValidation(null);
     try {
       const r = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, tone, duration })
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ topic, tone, duration, generationMode: "live" })
       });
       const d = await r.json();
       if (d.apiError || (!d.text && d.error)) {
@@ -1004,19 +1011,19 @@ ${lines.join("\n")}` : "";
       const sb = buildMockStoryboard({ projectName, topic: effectiveTopic, duration, aspectRatio, style: stylePreset });
       setScript(prev => prev?.trim() ? prev : buildMockScript(effectiveTopic));
       setSB(sb);
-      setValidation({ ok: true, errors: [], warnings: ["DEMO MODE: sample storyboard, API not used"] });
-      setSbStat(`ok|${sb.scenes?.length || 0} кадров · DEMO MODE · sample storyboard`);
+      setValidation({ ok: true, errors: [], warnings: ["FREE Preview: пример storyboard для знакомства со студией"] });
+      setSbStat(`ok|${sb.scenes?.length || 0} кадров · FREE Preview`);
       return;
     }
     if (!liveAllowed) {
-      setSbStat("err|LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API.");
+      setSbStat("err|LIVE-генерация доступна в PRO после подключения AI-ключа.");
       return;
     }
     setSbBusy(true); setSbStat("gen"); setValidation(null);
     try {
       // stream: true — SSE-режим. Заголовки уходят мгновенно, Render/Railway не рвут соединение.
       const r = await fetch("/api/storyboard", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: authHeaders(),
         body: JSON.stringify({
           script: src, duration,
           aspect_ratio: aspectRatio,
@@ -1091,15 +1098,15 @@ ${lines.join("\n")}` : "";
     if (!isSignedIn) { setExploreP("Ошибка: войдите через Google."); return; }
     if (!curFrame) return;
     if (effectiveDevMode) { setExploreP(buildExplorePrompt(curFrame, storyboard, styleProfile)); return; }
-    if (!liveAllowed) { setExploreP("Ошибка: LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
+    if (!liveAllowed) { setExploreP("Ошибка: LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setExpBusy(true); setExploreP("");
     try {
       // Build locally from engine — richer CHARACTER LOCK + full EN image_prompt_en
       const localPrompt = buildExplorePrompt(curFrame, storyboard, styleProfile);
       // Also try API for enhanced version
       const r = await fetch("/api/explore", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ frame: curFrame, storyboard, styleProfile, projectType, stylePreset })
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ frame: curFrame, storyboard, styleProfile, projectType, stylePreset, generationMode: "live" })
       });
       const d = await r.json();
       setExploreP(d.prompt || localPrompt);
@@ -1130,7 +1137,7 @@ ${lines.join("\n")}` : "";
 
       // 2. Analyze the cropped image to get real visual description
       const rA = await fetch("/api/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: authHeaders(),
         body: JSON.stringify({
           frame: curFrame, variant,
           imageDataUrl: cropped,
@@ -1172,15 +1179,15 @@ ${lines.join("\n")}` : "";
     if (!curFrame || !finalImg) return;
     if (devMode) {
       setVideoP(buildMockVideoPrompt(curFrame));
-      setAnalysis({ sfx: "DEMO MODE · sample SFX: low drone, wind, distant rumble" });
+      setAnalysis({ sfx: "Sample SFX: low drone, wind, distant rumble" });
       return;
     }
-    if (!liveAllowed) { setVideoP("Ошибка: LIVE доступен только в PRO после подключения API-ключей. DEMO работает без API."); return; }
+    if (!liveAllowed) { setVideoP("Ошибка: LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setVidBusy(true); setVideoP(""); setAnalysis(null);
     try {
       const r2 = await fetch("/api/video", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({
           frame: curFrame,
           analysis: null,
@@ -1191,7 +1198,8 @@ ${lines.join("\n")}` : "";
           target,
           promptMode: videoPromptMode,
           consistency: videoConsistency,
-          includeVo: autoIncludeVo
+          includeVo: autoIncludeVo,
+          generationMode: effectiveDevMode ? "demo" : "live"
         })
       });
       const d2 = await r2.json();
@@ -1455,12 +1463,12 @@ ${lines.join("\n")}` : "";
         <section className="auth-required-v46">
           <div className="auth-required-kicker-v46">NeuroCine Auth Gate · v46</div>
           <h2>Вход обязателен</h2>
-          <p>Гостевой режим отключён: без Google-аккаунта нельзя вводить тему, создавать сценарий, storyboard или вызывать API.</p>
-          <p><b>DEMO</b> работает только после входа и использует mock-данные без списания API.</p>
+          <p>Без Google-аккаунта рабочая зона закрыта: вход нужен для проектов, сценариев и storyboard.</p>
+          <p><b>FREE Preview</b> открывается после входа. PRO включает полный рабочий режим.</p>
         </section>
       )}
 
-      {isSignedIn && <UserDashboard account={account} devMode={effectiveDevMode} />}
+      {isSignedIn && <UserDashboard account={account} devMode={effectiveDevMode} onAccountPatch={patchAccountProfile} />}
 
       {isSignedIn && (
         <CloudProjectsPanel
@@ -2487,6 +2495,7 @@ ${lines.join("\n")}` : "";
             isSignedIn={isSignedIn}
             liveAllowed={liveAllowed}
             userId={account?.session?.user?.id || "guest"}
+            accessToken={account?.session?.access_token || ""}
           />
         ) : (
           <div className="step-section studio-step-card">
