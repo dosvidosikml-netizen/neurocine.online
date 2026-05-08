@@ -81,7 +81,7 @@ export default function AdminPanel({ account }) {
         <div>
           <div className="ap-kicker-v59">OWNER Admin Panel · v59 basic</div>
           <h2>Пользователи и доступы</h2>
-          <p>Служебная панель видна только владельцу. Можно быстро проверить роли и вручную выдать FREE / PRO / ADMIN.</p>
+          <p>Служебная панель видна только владельцу. Можно проверить роли, вручную выдать FREE / PRO / ADMIN и видеть billing-статус до подключения реальной платёжки.</p>
         </div>
         <button className="btn btn-sm" type="button" onClick={loadUsers} disabled={busy}>↻ Обновить</button>
       </div>
@@ -109,6 +109,7 @@ export default function AdminPanel({ account }) {
               <span>{user.default_mode || "demo"}</span>
               <span>projects: {user.project_count || 0}/{user.cloud_project_limit || 3}</span>
               <span>keys: {user.api_keys_connected ? "yes" : "no"}</span>
+              <span>billing: {user.billing_status || "none"}</span>
             </div>
             <div className="ap-actions-v59">
               <button type="button" disabled={busy} onClick={() => setPlan(user, "demo")}>FREE</button>
