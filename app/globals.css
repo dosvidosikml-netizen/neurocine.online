@@ -2126,3 +2126,40 @@ table.sb-t { width: 100%; min-width: 800px; border-collapse: separate; border-sp
   font-weight: 800;
   letter-spacing: .02em;
 }
+
+/* v46 — Auth Gate / DEMO no-API lock */
+.auth-required-v46{
+  margin: 28px auto;
+  max-width: 980px;
+  padding: 34px;
+  border-radius: 32px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(135deg, rgba(255,60,60,.12), rgba(15,22,36,.92));
+  box-shadow: 0 24px 80px rgba(0,0,0,.32);
+}
+.auth-required-kicker-v46{
+  color: #ff6b6b;
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  font-weight: 900;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.auth-required-v46 h2{
+  margin: 0 0 12px;
+  font-size: clamp(34px,7vw,76px);
+  line-height: .92;
+  color: #fff;
+}
+.auth-required-v46 p{
+  margin: 10px 0 0;
+  color: rgba(255,255,255,.72);
+  font-size: clamp(16px,3vw,22px);
+  line-height: 1.45;
+}
+button:disabled,
+textarea:disabled,
+input:disabled{
+  opacity: .55;
+  cursor: not-allowed !important;
+}
