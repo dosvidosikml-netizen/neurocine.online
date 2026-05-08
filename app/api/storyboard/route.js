@@ -14,6 +14,7 @@ import {
   getChunkPlan,
 } from "../../../engine/sceneEngine_v2";
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+import { requireOpenRouterAccess } from "../../../lib/apiAccess";
 import {
   splitScriptForChunks,
   buildChunkUserPrompt,
@@ -387,6 +388,12 @@ export async function POST(req) {
       return NextResponse.json({ error: "Сценарий слишком короткий." }, { status: 400 });
     }
 
+    const accessGuard = await requireOpenRouterAccess(req);
+    if (!accessGuard.ok) {
+      return NextResponse.json({ error: accessGuard.message || "LIVE доступ закрыт", apiError: true, accessDenied: true }, { status: accessGuard.status || 403 });
+    }
+    const apiKeyOverride = accessGuard.apiKey;
+
     // ── SSE STREAMING — всегда включён при stream: true ──────────────────────
     // Render рвёт соединение через ~100с если сервер молчит.
     // SSE отправляет заголовки мгновенно → Render ждёт сколько нужно.
@@ -410,7 +417,7 @@ export async function POST(req) {
                 message: `Long-form режим: ${chunks.length} chunk(s) по ~90 секунд`,
               });
 
-              if (!process.env.OPENROUTER_API_KEY) {
+              if (!apiKeyOverride) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
                 send("done", { storyboard: local, mode: "local_fallback_longform", target, validation: { ok: true, errors: [] } });
@@ -442,6 +449,7 @@ export async function POST(req) {
                   temperatureOverride: mode === "raw" ? 0.55 : 0.3,
                   responseFormat: { type: "json_object" },
                   appTitle: `NeuroCine Long-Form Chunk ${i + 1}/${chunks.length}`,
+                  apiKeyOverride,
                 });
 
                 if (!result.ok) {
@@ -476,7 +484,7 @@ export async function POST(req) {
               // "started" отправляется сразу — Render видит заголовки и не рвёт соединение
               send("started", { message: "Генерация storyboard..." });
 
-              if (!process.env.OPENROUTER_API_KEY) {
+              if (!apiKeyOverride) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
                 send("done", { storyboard: local, mode: "local_fallback", target, validation: { ok: true, errors: [] } });
@@ -491,6 +499,7 @@ export async function POST(req) {
                 temperatureOverride: mode === "raw" ? 0.55 : 0.3,
                 responseFormat: { type: "json_object" },
                 appTitle: "NeuroCine Storyboard Engine v2.2",
+                apiKeyOverride,
               });
 
               if (!result.ok) {
@@ -534,7 +543,7 @@ export async function POST(req) {
     }
 
     // Local fallback if no API key
-    if (!process.env.OPENROUTER_API_KEY) {
+    if (!apiKeyOverride) {
       const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
       const storyboard = buildLocalStoryboard({
         script,
@@ -562,6 +571,7 @@ export async function POST(req) {
       temperatureOverride: mode === "raw" ? 0.55 : 0.3,
       responseFormat: { type: "json_object" },
       appTitle: "NeuroCine Storyboard Engine v2.2",
+      apiKeyOverride,
     });
 
     if (!result.ok) {
