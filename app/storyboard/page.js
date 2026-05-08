@@ -19,6 +19,7 @@ import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
 import UserDashboard from "../../components/UserDashboard";
 import CloudProjectsPanel from "../../components/CloudProjectsPanel";
+import AdminPanel from "../../components/AdminPanel";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
@@ -555,6 +556,7 @@ export default function StudioPage() {
 
   const [hydrated, setHydrated]         = useState(false);
   const [snapshotStatus, setSnapshotStatus] = useState("");
+  const [productionCacheTick, setProductionCacheTick] = useState(0);
   const snapshotInputRef = useRef(null);
   const [uiLang, setUiLang] = useState("ru");
   const [account, setAccount] = useState(null);
@@ -746,6 +748,7 @@ ${lines.join("\n")}` : "";
       autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
       autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
       autoPartPrompt, autoVideoPack, autoAllPromptText,
+      production_cache_tick: productionCacheTick,
       production_pack_cache: collectProductionCache(storageOwnerId || "guest"),
       image_state: {
         gridImg: Boolean(gridImg), croppedFrame: Boolean(croppedFrame),
@@ -759,7 +762,7 @@ ${lines.join("\n")}` : "";
     videoP, videoPromptMode, videoConsistency, analysis,
     autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
     autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-    autoPartPrompt, autoVideoPack, autoAllPromptText,
+    autoPartPrompt, autoVideoPack, autoAllPromptText, productionCacheTick,
     gridImg, croppedFrame, variantImg, croppedVariant, finalImg
   ]);
 
@@ -1326,7 +1329,7 @@ ${lines.join("\n")}` : "";
   function buildProjectSnapshot() {
     return {
       neurocine_project_snapshot: true,
-      version: "v50",
+      version: "v55_60_core_saas_hardening",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
       project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
@@ -1469,6 +1472,7 @@ ${lines.join("\n")}` : "";
       )}
 
       {isSignedIn && <UserDashboard account={account} devMode={effectiveDevMode} onAccountPatch={patchAccountProfile} />}
+      {isSignedIn && (accountAccess.isOwner || accountAccess.isAdmin) && <AdminPanel account={account} />}
 
       {isSignedIn && (
         <CloudProjectsPanel
@@ -2496,6 +2500,7 @@ ${lines.join("\n")}` : "";
             liveAllowed={liveAllowed}
             userId={account?.session?.user?.id || "guest"}
             accessToken={account?.session?.access_token || ""}
+            onCacheChange={() => setProductionCacheTick(v => v + 1)}
           />
         ) : (
           <div className="step-section studio-step-card">
