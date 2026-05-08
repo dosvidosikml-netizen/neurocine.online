@@ -2,6 +2,7 @@
 // NeuroCine Music Director V2 — production-ready Suno prompt by scenario, mode and storyboard mood.
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
+import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +42,8 @@ JSON:
 export async function POST(req) {
   try {
     const body = await req.json();
+    const accessGuard = await requireOpenRouterAccess(req);
+    if (!accessGuard.ok) return guardErrorJson(accessGuard);
     const topic = String(body.topic || "").trim();
     const genre = String(body.genre || "").trim();
     const script = String(body.script || "").trim();
@@ -61,6 +64,7 @@ export async function POST(req) {
       userMessage: userMsg,
       maxTokensOverride: 2200,
       responseFormat: { type: "json_object" },
+      apiKeyOverride: accessGuard.apiKey,
       appTitle: "NeuroCine Music Director V2",
     });
     if (!r.ok) return Response.json({ error: r.error }, { status: 500 });
