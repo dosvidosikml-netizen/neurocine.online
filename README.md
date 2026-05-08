@@ -1,33 +1,27 @@
 # NeuroCine — SaaS Studio
 
-Current package: **v62–v63 Studio UI + Production Pack Polish**.
+Current build: **v61 Billing / PRO Activation Foundation** on top of v62–v63 Studio UI polish and v55–v60 Core SaaS Hardening.
 
-## Current foundation
-
-- Google/Supabase Auth
-- FREE / PRO / OWNER access model
-- PRO works through own AI API keys
-- OWNER uses platform API keys from Render ENV
-- Cloud Projects with save/open/search/rename/duplicate/delete
-- Production Pack stored in Cloud snapshot
-- AI Key Vault base
-- Basic OWNER Admin Panel
-
-## Latest update
-
-v62–v63 adds a cleaner Studio Flow panel and Production Pack polish:
+## Current access model
 
 ```txt
-01 Script → 02 Storyboard → 03 Pipeline → 04 Production Pack → 05 Export
+FREE / DEMO
+- preview access
+- Cloud Projects limited
+- no LIVE platform API
+
+PRO
+- full Studio workflow
+- LIVE only through user's own AI API key
+- no use of OWNER platform API
+
+OWNER / ADMIN
+- platform API from Render ENV
+- Admin Panel
+- manual PRO activation
 ```
 
-See:
-
-```txt
-README_v62_63_studio_ui_production_pack_polish.md
-```
-
-## Required Render ENV
+## Important ENV
 
 ```txt
 NEXT_PUBLIC_SUPABASE_URL=
@@ -35,16 +29,44 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 OPENROUTER_API_KEY=
 API_KEY_ENCRYPTION_SECRET=
-NEXT_PUBLIC_SITE_URL=https://neurocine.online
-ADMIN_EMAILS=dosvidosikml@gmail.com
-NEXT_PUBLIC_ADMIN_EMAILS=dosvidosikml@gmail.com
+
+# Optional billing foundation
+BILLING_CHECKOUT_URL=
+NEXT_PUBLIC_PRO_CHECKOUT_URL=
+BILLING_WEBHOOK_SECRET=
 ```
 
-## Deploy
+## Important SQL migrations
 
-```bash
-npm install
-npm run build
-npm start
+Latest optional billing migration:
+
+```txt
+supabase/schema_v61_billing_pro_activation.sql
 ```
 
+Core migrations already used:
+
+```txt
+supabase/schema_v54_public_ux_key_vault_access_guard.sql
+supabase/schema_v55_60_core_saas_hardening.sql
+supabase/schema_v62_63_studio_ui_production_pack_polish.sql
+```
+
+## Main files
+
+```txt
+app/storyboard/page.js
+components/UserDashboard.js
+components/BillingPanel.js
+components/AdminPanel.js
+components/CloudProjectsPanel.js
+components/ProductionPack.js
+components/StudioFlowPanel.js
+lib/accountRoles.js
+lib/apiAccess.js
+lib/serverSupabase.js
+```
+
+## Billing v61
+
+v61 does not force a payment provider. If `BILLING_CHECKOUT_URL` is empty, the PRO button creates/logs a manual request and OWNER can activate PRO from Admin Panel. A real provider can later call `/api/billing/webhook` with `BILLING_WEBHOOK_SECRET`.
