@@ -3,12 +3,15 @@
 // Instant deterministic thumbnail director: script -> viral text hierarchy -> 9:16 cover prompts.
 
 import { buildCoverDirectorPack } from "../../../engine/coverEngine";
+import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
+    const guard = await requireSignedInAccess(req);
+    if (!guard.ok) return guardErrorJson(guard);
     const body = await req.json();
     const topic = String(body.topic || "").trim();
     const script = String(body.script || "").trim();
@@ -22,7 +25,7 @@ export async function POST(req) {
     }
 
     const cover = buildCoverDirectorPack({ topic, script, storyboard, mode, style, platform });
-    return Response.json({ cover, mode: "cover-director-v2" });
+    return Response.json({ cover, mode: "cover-director-v2", access_source: guard.access?.apiSource || "local_signed_in" });
   } catch (e) {
     return Response.json({ error: e.message || "Cover Director error" }, { status: 500 });
   }
