@@ -339,6 +339,7 @@ function ProjectSetupPanelV40({
   sBusy, sbBusy, doScript, doStoryboard,
   sStat, sbStat, storyboard,
   clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
+  authLocked = false,
 }) {
   const durationOptions = [30, 60, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
@@ -380,21 +381,22 @@ function ProjectSetupPanelV40({
             className="setup-topic-v40"
             value={topic}
             onChange={(e) => handleTopicChange(e.target.value)}
+            disabled={authLocked}
             placeholder="Например: Ты бы не выжил в Средневековье — вот почему"
           />
           <div className="setup-mini-actions-v41">
-            <button type="button" onClick={clearTopicOnly} disabled={!topic?.trim()}>Очистить тему</button>
-            <button type="button" onClick={clearSetupText} disabled={!topic?.trim() && !script?.trim()}>Очистить тему + сценарий</button>
+            <button type="button" onClick={clearTopicOnly} disabled={authLocked || !topic?.trim()}>Очистить тему</button>
+            <button type="button" onClick={clearSetupText} disabled={authLocked || (!topic?.trim() && !script?.trim())}>Очистить тему + сценарий</button>
           </div>
 
           <div className="setup-row-v40">
             <div className="setup-field-v40">
               <label className="setup-label-v40">Название проекта</label>
-              <input className="setup-input-v40" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="NeuroCine Project" />
+              <input className="setup-input-v40" value={projectName} onChange={(e) => setProjectName(e.target.value)} disabled={authLocked} placeholder="NeuroCine Project" />
             </div>
             <div className="setup-field-v40">
               <label className="setup-label-v40">Тон / жанр</label>
-              <input className="setup-input-v40" value={tone} onChange={(e) => setTone(e.target.value)} placeholder="cinematic documentary thriller" />
+              <input className="setup-input-v40" value={tone} onChange={(e) => setTone(e.target.value)} disabled={authLocked} placeholder="cinematic documentary thriller" />
             </div>
           </div>
 
@@ -404,11 +406,12 @@ function ProjectSetupPanelV40({
               className="setup-script-v40"
               value={script}
               onChange={(e) => setScript(e.target.value)}
+              disabled={authLocked}
               placeholder="Если текст уже есть — вставь сюда и сразу жми «Создать storyboard»."
             />
             <div className="setup-mini-actions-v41">
-              <button type="button" onClick={clearScriptOnly} disabled={!script?.trim()}>Очистить сценарий</button>
-              <button type="button" onClick={clearEverything}>Сбросить всё</button>
+              <button type="button" onClick={clearScriptOnly} disabled={authLocked || !script?.trim()}>Очистить сценарий</button>
+              <button type="button" onClick={clearEverything} disabled={authLocked}>Сбросить всё</button>
             </div>
           </div>
         </div>
@@ -418,7 +421,7 @@ function ProjectSetupPanelV40({
             <div className="setup-label-v40">Длительность</div>
             <div className="setup-pills-v40">
               {durationOptions.map((v) => (
-                <button key={v} className={Number(duration) === v ? "active" : ""} onClick={() => setDuration(v)} type="button">
+                <button key={v} className={Number(duration) === v ? "active" : ""} onClick={() => setDuration(v)} disabled={authLocked} type="button">
                   {v < 60 ? `${v}с` : v === 60 ? "60с" : v < 300 ? `${v / 60}м` : `${v / 60}м`}
                 </button>
               ))}
@@ -429,7 +432,7 @@ function ProjectSetupPanelV40({
             <div className="setup-label-v40">Формат</div>
             <div className="setup-pills-v40">
               {formatOptions.map((v) => (
-                <button key={v} className={aspectRatio === v ? "active" : ""} onClick={() => setAspect(v)} type="button">{v}</button>
+                <button key={v} className={aspectRatio === v ? "active" : ""} onClick={() => setAspect(v)} disabled={authLocked} type="button">{v}</button>
               ))}
             </div>
           </div>
@@ -438,7 +441,7 @@ function ProjectSetupPanelV40({
             <div className="setup-label-v40">Видео-модель</div>
             <div className="setup-cards-v40 two">
               {targetOptions.map((x) => (
-                <button key={x.id} className={target === x.id ? "active" : ""} onClick={() => setTarget(x.id)} type="button">
+                <button key={x.id} className={target === x.id ? "active" : ""} onClick={() => setTarget(x.id)} disabled={authLocked} type="button">
                   <strong>{x.label}</strong><span>{x.hint}</span>
                 </button>
               ))}
@@ -449,7 +452,7 @@ function ProjectSetupPanelV40({
             <div className="setup-label-v40">Режим контента</div>
             <div className="setup-cards-v40 two">
               {modeOptions.map((x) => (
-                <button key={x.id} className={sbMode === x.id ? "active" : ""} onClick={() => setSbMode(x.id)} type="button">
+                <button key={x.id} className={sbMode === x.id ? "active" : ""} onClick={() => setSbMode(x.id)} disabled={authLocked} type="button">
                   <strong>{x.label}</strong><span>{x.hint}</span>
                 </button>
               ))}
@@ -460,7 +463,7 @@ function ProjectSetupPanelV40({
             <div className="setup-label-v40">Стиль</div>
             <div className="setup-style-grid-v40">
               {styleCards.map((key) => (
-                <button key={key} className={stylePreset === key ? "active" : ""} onClick={() => setStylePreset(key)} type="button">
+                <button key={key} className={stylePreset === key ? "active" : ""} onClick={() => setStylePreset(key)} disabled={authLocked} type="button">
                   {STYLE_PRESETS[key].label}
                 </button>
               ))}
@@ -477,11 +480,11 @@ function ProjectSetupPanelV40({
           <span>Режим: <b>{String(sbMode || "safe").toUpperCase()}</b></span>
         </div>
         <div className="setup-buttons-v40">
-          <button className="setup-btn-v40 ghost" onClick={clearEverything} type="button">Очистить всё</button>
-          <button className="setup-btn-v40 secondary" onClick={doScript} disabled={busy || (!topic.trim() && !script.trim() && !devMode)} type="button">
+          <button className="setup-btn-v40 ghost" onClick={clearEverything} disabled={authLocked} type="button">Очистить всё</button>
+          <button className="setup-btn-v40 secondary" onClick={doScript} disabled={authLocked || busy || (!topic.trim() && !script.trim() && !devMode)} type="button">
             {sBusy ? "Генерация..." : "01 · Создать сценарий"}
           </button>
-          <button className="setup-btn-v40 primary" onClick={doStoryboard} disabled={busy || !readyForStoryboard} type="button">
+          <button className="setup-btn-v40 primary" onClick={doStoryboard} disabled={authLocked || busy || !readyForStoryboard} type="button">
             {sbBusy ? "Storyboard..." : "02 · Создать storyboard"}
           </button>
         </div>
@@ -548,8 +551,9 @@ export default function StudioPage() {
   const [account, setAccount] = useState(null);
   const [devMode, setDevMode] = useState(true);
   const accountAccess = getAccountAccess(account?.profile, account?.session);
-  const liveAllowed = accountAccess.canLive;
-  const modeLabel = devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
+  const isSignedIn = Boolean(account?.session?.user);
+  const liveAllowed = isSignedIn && accountAccess.canLive;
+  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
@@ -865,6 +869,10 @@ ${lines.join("\n")}` : "";
   }
 
   async function doScript() {
+    if (!isSignedIn) {
+      setSStat("err|Войдите через Google. Гостевой запуск сценария отключён.");
+      return;
+    }
     // Готовый сценарий — пропускаем генерацию (но валидируем!)
     if (script.trim() && !topic.trim()) {
       setScriptValidation(validateScript(script));
@@ -878,6 +886,10 @@ ${lines.join("\n")}` : "";
       setScript(MOCK_SCRIPT_RU);
       setScriptValidation(validateScript(MOCK_SCRIPT_RU));
       setSStat("ok|DEMO MODE · sample script");
+      return;
+    }
+    if (!liveAllowed) {
+      setSStat("err|LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO.");
       return;
     }
     resetStoryboardOutputs({ keepAnchors: true });
@@ -914,6 +926,10 @@ ${lines.join("\n")}` : "";
   }, [hydrated, script]);
 
   async function doStoryboard() {
+    if (!isSignedIn) {
+      setSbStat("err|Войдите через Google. Гостевой storyboard отключён.");
+      return;
+    }
     let src = script.trim();
     // New script always wins. Manual JSON is used only when script is empty.
     if (!src && jsonIn.trim()) {
@@ -928,6 +944,10 @@ ${lines.join("\n")}` : "";
       setSB(sb);
       setValidation({ ok: true, errors: [], warnings: ["DEMO MODE: sample storyboard, API not used"] });
       setSbStat(`ok|${sb.scenes?.length || 0} кадров · DEMO MODE · sample storyboard`);
+      return;
+    }
+    if (!liveAllowed) {
+      setSbStat("err|LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO.");
       return;
     }
     setSbBusy(true); setSbStat("gen"); setValidation(null);
@@ -1006,7 +1026,10 @@ ${lines.join("\n")}` : "";
   }
 
   async function doExplore() {
+    if (!isSignedIn) { setExploreP("Ошибка: войдите через Google."); return; }
     if (!curFrame) return;
+    if (devMode) { setExploreP(buildExplorePrompt(curFrame, storyboard, styleProfile)); return; }
+    if (!liveAllowed) { setExploreP("Ошибка: LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setExpBusy(true); setExploreP("");
     try {
       // Build locally from engine — richer CHARACTER LOCK + full EN image_prompt_en
@@ -1026,6 +1049,7 @@ ${lines.join("\n")}` : "";
 
   /* ── SELECT VARIANT: crop → analyze → build accurate 2K prompt ── */
   const handleSelectVariant = useCallback(async (variant) => {
+    if (!isSignedIn) { setP2k("Ошибка: войдите через Google."); return; }
     if (!variantImg || !curFrame) return;
     setSelVariant(variant);
     setCropped(null);
@@ -1036,6 +1060,11 @@ ${lines.join("\n")}` : "";
       // 1. Crop the selected quadrant from the 2×2 grid
       const cropped = await cropQuadrant(variantImg, variant);
       setCropped(cropped);
+
+      if (devMode || !liveAllowed) {
+        setP2k(build2KPrompt(curFrame, variant, storyboard, styleProfile));
+        return;
+      }
 
       // 2. Analyze the cropped image to get real visual description
       const rA = await fetch("/api/analyze", {
@@ -1074,15 +1103,17 @@ ${lines.join("\n")}` : "";
     } finally {
       setP2kBusy(false);
     }
-  }, [variantImg, curFrame, storyboard, styleProfile, projectType, stylePreset]);
+  }, [isSignedIn, devMode, liveAllowed, variantImg, curFrame, storyboard, styleProfile, projectType, stylePreset]);
 
   async function doVideoPrompt() {
+    if (!isSignedIn) { setVideoP("Ошибка: войдите через Google."); return; }
     if (!curFrame || !finalImg) return;
     if (devMode) {
       setVideoP(buildMockVideoPrompt(curFrame));
       setAnalysis({ sfx: "DEMO MODE · sample SFX: low drone, wind, distant rumble" });
       return;
     }
+    if (!liveAllowed) { setVideoP("Ошибка: LIVE заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setVidBusy(true); setVideoP(""); setAnalysis(null);
     try {
       const r2 = await fetch("/api/video", {
@@ -1342,7 +1373,7 @@ ${lines.join("\n")}` : "";
           <a href="#script" className="top-pill-v40">01 Сценарий</a>
           <a href="#storyboard" className="top-pill-v40">02 Storyboard</a>
           <a href="#production" className="top-pill-v40">03 Pipeline</a>
-          <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={() => setDevMode(v => !v)} type="button">
+          <button className={`top-pill-v40 mode ${devMode ? "demo" : "live"}`} onClick={() => isSignedIn && setDevMode(v => !v)} type="button" disabled={!isSignedIn}>
             {modeLabel}
           </button>
           <button className="top-pill-v40" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")} type="button">🌐 {uiLang.toUpperCase()}</button>
@@ -1356,19 +1387,30 @@ ${lines.join("\n")}` : "";
         onChange={e => importProjectSnapshot(e.target.files?.[0])}
       />
 
-      <AuthPanel devMode={devMode} onModeToggle={() => setDevMode(v => !v)} onAccountChange={setAccount} />
+      <AuthPanel devMode={devMode} onModeToggle={() => isSignedIn && setDevMode(v => !v)} onAccountChange={setAccount} />
 
-      <UserDashboard account={account} devMode={devMode} />
+      {!isSignedIn && (
+        <section className="auth-required-v46">
+          <div className="auth-required-kicker-v46">NeuroCine Auth Gate · v46</div>
+          <h2>Вход обязателен</h2>
+          <p>Гостевой режим отключён: без Google-аккаунта нельзя вводить тему, создавать сценарий, storyboard или вызывать API.</p>
+          <p><b>DEMO</b> работает только после входа и использует mock-данные без списания API.</p>
+        </section>
+      )}
 
-      <CloudProjectsPanel
-        account={account}
-        projectName={projectName}
-        buildSnapshot={buildProjectSnapshot}
-        applySnapshot={applyProjectSnapshot}
-        onStatus={setSnapshotStatus}
-        autoSaveKey={cloudAutoSaveKey}
-        autoSaveEnabled={true}
-      />
+      {isSignedIn && <UserDashboard account={account} devMode={devMode} />}
+
+      {isSignedIn && (
+        <CloudProjectsPanel
+          account={account}
+          projectName={projectName}
+          buildSnapshot={buildProjectSnapshot}
+          applySnapshot={applyProjectSnapshot}
+          onStatus={setSnapshotStatus}
+          autoSaveKey={cloudAutoSaveKey}
+          autoSaveEnabled={true}
+        />
+      )}
 
       {devMode && <div className="demo-banner-v35">{t.devHint}</div>}
       {snapshotStatus && (
@@ -1410,6 +1452,7 @@ ${lines.join("\n")}` : "";
         clearScriptOnly={clearScriptOnly}
         clearSetupText={clearSetupText}
         clearEverything={clearEverything}
+        authLocked={!isSignedIn}
       />
 
       <ProductionStatusBar
@@ -2369,7 +2412,7 @@ ${lines.join("\n")}` : "";
 
       {/* ─── 04 PRODUCTION PACK V30 ──────────────────────── */}
       <section id="pack" className="studio-pack-anchor">
-        {(script.trim() || storyboard) ? (
+        {isSignedIn && (script.trim() || storyboard) ? (
           <ProductionPack
             topic={topic}
             script={script}
@@ -2377,6 +2420,8 @@ ${lines.join("\n")}` : "";
             storyboard={storyboard}
             lang={uiLang}
             devMode={devMode}
+            isSignedIn={isSignedIn}
+            liveAllowed={liveAllowed}
           />
         ) : (
           <div className="step-section studio-step-card">
