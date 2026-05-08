@@ -2113,3 +2113,16 @@ table.sb-t { width: 100%; min-width: 800px; border-collapse: separate; border-sp
   .cp-item-v43 { grid-template-columns: 1fr; }
   .cp-item-actions-v43 { display: grid; grid-template-columns: 1fr 1fr; }
 }
+
+/* NeuroCine v45 — Cloud autosave status */
+.cp-autosave-v45 {
+  margin: -4px 0 14px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(67,217,173,.18);
+  background: rgba(67,217,173,.07);
+  color: rgba(183,255,230,.86);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
