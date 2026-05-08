@@ -132,7 +132,7 @@ function ApiKeyVault({ account, access, onAccountPatch }) {
     <div className="ud-card-v43 wide pro-own-keys-v53 key-vault-v54">
       <div className="ud-label-v43">AI API Keys</div>
       <strong className="ud-big-v43">Подключение LIVE</strong>
-      <p>Добавьте собственный AI API-ключ. В v54 подключён OpenRouter как первый рекомендуемый провайдер: один ключ даёт доступ к GPT, Claude, Gemini и другим моделям через общий роутер.</p>
+      <p>Добавьте собственный AI API-ключ. Рекомендуемый провайдер — OpenRouter: один ключ даёт доступ к GPT, Claude, Gemini и другим моделям через общий роутер.</p>
 
       <div className="key-vault-status-v54">
         <div className="ud-role-row-v43"><span>OpenRouter</span><b>{openrouter?.connected ? `подключён ${openrouter.masked || ""}` : "не подключён"}</b></div>
@@ -192,9 +192,9 @@ export default function UserDashboard({ account, devMode, onAccountPatch }) {
     <section className="user-dashboard-v43" id="account">
       <div className="ud-head-v43">
         <div>
-          <div className="ud-kicker-v43">User Control Center · v55 {isOwnerView ? "· OWNER" : ""}</div>
+          <div className="ud-kicker-v43">Account Center {isOwnerView ? "· OWNER" : ""}</div>
           <h2>Профиль и доступ</h2>
-          <p>{isOwnerView ? "Служебный доступ владельца платформы." : "FREE для знакомства. PRO для полного production-пайплайна и LIVE-генерации."}</p>
+          <p>{isOwnerView ? "Служебный доступ владельца платформы." : "FREE для знакомства. PRO открывает полный production-пайплайн, Cloud workflow и LIVE через собственный AI-ключ."}</p>
         </div>
         <div className={`ud-access-badge-v43 role-${access.role}`}>
           <span>{isOwnerView ? "OWNER FULL ACCESS" : isProView ? "PRO STUDIO" : "FREE PREVIEW"}</span>

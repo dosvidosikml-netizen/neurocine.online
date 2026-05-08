@@ -312,17 +312,17 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     <section className="cloud-projects-v43" id="cloud-projects">
       <div className="cp-head-v43">
         <div>
-          <div className="cp-kicker-v43">Supabase Cloud Projects · v57</div>
+          <div className="cp-kicker-v43">Project Library</div>
           <h2>Мои проекты</h2>
-          <p>Сохраняет весь NeuroCine snapshot: сценарий, storyboard, PART pipeline и Production Pack cache. Теперь есть поиск, rename, duplicate и delete.</p>
+          <p>Cloud-библиотека проектов: сценарий, storyboard, PART pipeline, Production Pack и exports в одном snapshot. Есть поиск, переименование, дублирование и удаление.</p>
         </div>
         <div className="cp-quota-v43"><span>{used}/{projectLimit}</span><b>{access.label}</b></div>
       </div>
 
       <div className="cp-actions-v43 cp-actions-v57">
-        <button onClick={saveCloudProject} disabled={busy || !canUseCloud || (full && !selectedId)} type="button">💾 Сохранить в Cloud</button>
-        <button onClick={loadList} disabled={busy || !canUseCloud} type="button">↻ Обновить список</button>
-        {selectedId && <button onClick={() => setSelectedId(null)} disabled={busy} type="button">＋ Сохранить как новый</button>}
+        <button onClick={saveCloudProject} disabled={busy || !canUseCloud || (full && !selectedId)} type="button">💾 Сохранить проект</button>
+        <button onClick={loadList} disabled={busy || !canUseCloud} type="button">↻ Обновить</button>
+        {selectedId && <button onClick={() => setSelectedId(null)} disabled={busy} type="button">＋ Сохранить копией</button>}
         <input className="cp-search-v57" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск проектов" />
       </div>
 
@@ -343,8 +343,8 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
             </div>
             <div className="cp-item-actions-v43">
               <button onClick={() => openCloudProject(item.id)} disabled={busy} type="button">Открыть</button>
-              <button onClick={() => renameCloudProject(item)} disabled={busy} type="button">Rename</button>
-              <button onClick={() => duplicateCloudProject(item)} disabled={busy || full} type="button">Duplicate</button>
+              <button onClick={() => renameCloudProject(item)} disabled={busy} type="button">Переименовать</button>
+              <button onClick={() => duplicateCloudProject(item)} disabled={busy || full} type="button">Дублировать</button>
               <button onClick={() => deleteCloudProject(item.id)} disabled={busy} type="button">Удалить</button>
             </div>
           </article>

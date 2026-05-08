@@ -906,8 +906,8 @@ function VisualExplainerTab({ topic, script, cacheKey }) {
 const PACK_I18N = {
   ru: {
     title: "Production Pack",
-    desc: "TTS · Cover Director · Музыка · SEO · Social Visual Export · Visual Explainer — результаты сохраняются после обновления браузера",
-    version: "v3.4",
+    desc: "TTS · Cover Director · Музыка · SEO · Social Visual Export · Visual Explainer. Всё сохраняется в Cloud snapshot проекта.",
+    version: "CLOUD READY",
     tabs: {
       tts: ["TTS Studio", "озвучка", "VOICE"],
       cover: ["Cover Director", "CTR превью", "CTR READY"],
@@ -918,8 +918,8 @@ const PACK_I18N = {
   },
   en: {
     title: "Production Pack",
-    desc: "TTS · Cover Director · Music · SEO · Social Visual Export · Visual Explainer — DEMO/PRO Own Keys mode, results persist after refresh",
-    version: "v3.4",
+    desc: "TTS · Cover Director · Music · SEO · Social Visual Export · Visual Explainer. Всё сохраняется в Cloud snapshot проекта.",
+    version: "CLOUD READY",
     tabs: {
       tts: ["TTS Studio", "voiceover", "VOICE"],
       cover: ["Cover Director", "CTR thumbnail", "CTR READY"],
@@ -964,9 +964,15 @@ export default function ProductionPack({ topic = "", script = "", genre = "ИС�
           <div className="step-title">{t.title}</div>
           <div className="step-desc">{t.desc}</div>
         </div>
-        <span className="step-badge">{devMode ? "DEMO PREVIEW" : t.version}</span>
+        <span className="step-badge">{devMode ? "PREVIEW" : liveAllowed ? "LIVE READY" : t.version}</span>
       </div>
       <div className="step-body">
+        <div className="pack-status-v62" aria-label="Production Pack status">
+          <span><b>Script</b>{script ? "готов" : "нужен текст"}</span>
+          <span><b>Storyboard</b>{storyboard?.scenes?.length ? `${storyboard.scenes.length} кадров` : "опционально"}</span>
+          <span><b>Access</b>{devMode ? "Preview" : liveAllowed ? "LIVE" : "ожидает ключ"}</span>
+          <span><b>Cloud</b>сохраняется в snapshot</span>
+        </div>
         <div className="pack-v31-grid" role="tablist" aria-label="Production Pack modules">
           {tabs.map(t => {
             const isActive = activeTab === t.id;
