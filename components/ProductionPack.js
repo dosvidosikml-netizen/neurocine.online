@@ -923,10 +923,11 @@ const PACK_I18N = {
   }
 };
 
-export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false }) {
+export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false, userId = "guest" }) {
   const sourceKey = useMemo(() => hashString(`${topic}|${script?.slice(0, 1200)}|${storyboard?.scenes?.length || 0}`), [topic, script, storyboard]);
-  const cacheKey = `neurocine:production:v35:${devMode ? "demo" : "pro"}:${sourceKey}`;
-  const [activeTab, setActiveTab] = useStoredString(`neurocine:production:activeTab`, "cover");
+  const ownerKey = String(userId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const cacheKey = `neurocine:production:v49:${ownerKey}:${devMode ? "demo" : "pro"}:${sourceKey}`;
+  const [activeTab, setActiveTab] = useStoredString(`neurocine:production:v49:${ownerKey}:activeTab`, "cover");
   const t = PACK_I18N[lang] || PACK_I18N.ru;
 
   const tabs = [
