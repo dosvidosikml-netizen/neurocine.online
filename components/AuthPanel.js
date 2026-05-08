@@ -74,7 +74,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
       const { data, error: profileError } = await supabase
         .from("profiles")
-        .select("id,email,full_name,avatar_url,role,plan,created_at,updated_at,default_mode,monthly_generation_limit,cloud_project_limit")
+        .select("id,email,full_name,avatar_url,role,plan,created_at,updated_at,default_mode,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used")
         .eq("id", user.id)
         .maybeSingle();
 
