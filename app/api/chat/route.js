@@ -7,6 +7,7 @@
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { validateScript, buildRetryHint } from "../../../lib/scriptValidator";
+import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -218,21 +219,14 @@ ${retryHint}
 export async function POST(req) {
   try {
     const body = await req.json();
+    const accessGuard = await requireOpenRouterAccess(req);
+    if (!accessGuard.ok) return guardErrorJson(accessGuard);
     const topic = String(body.topic || "").trim();
     const tone = String(body.tone || "cinematic documentary thriller").trim();
     const duration = Number(body.duration || 60);
 
     const wordsTarget = Math.round(duration * 2.2);
     const maxTokensForScript = Math.max(2000, Math.ceil(wordsTarget * 2.5 * 1.2));
-
-    if (!process.env.OPENROUTER_API_KEY) {
-      const fallback = fallbackScript({ topic, duration });
-      return Response.json({
-        text: fallback,
-        validation: validateScript(fallback),
-        warning: "OPENROUTER_API_KEY not set — using local fallback",
-      });
-    }
 
     // ── Попытка #1 ──
     let attempt = 1;
@@ -242,6 +236,7 @@ export async function POST(req) {
       userMessage: buildUserPrompt({ topic, tone, duration }),
       maxTokensOverride: maxTokensForScript,
       appTitle: "NeuroCine Script Writer v2.4",
+      apiKeyOverride: accessGuard.apiKey,
     });
 
     if (!result.ok) {
@@ -272,6 +267,7 @@ export async function POST(req) {
         maxTokensOverride: maxTokensForScript,
         temperatureOverride: 0.55, // чуть выше temp на ретрае для разнообразия
         appTitle: `NeuroCine Script Writer v2.4 (retry ${attempt})`,
+        apiKeyOverride: accessGuard.apiKey,
       });
 
       if (!retryResult.ok) break;
