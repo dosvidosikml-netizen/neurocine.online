@@ -32,6 +32,9 @@ function patchForPlan(plan) {
       default_mode: "live",
       monthly_generation_limit: 999999,
       cloud_project_limit: 100,
+      billing_status: "manual_pro",
+      billing_provider: "owner_admin",
+      pro_activated_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
   }
@@ -42,6 +45,11 @@ function patchForPlan(plan) {
     monthly_generation_limit: 10,
     cloud_project_limit: 3,
     api_keys_connected: false,
+    billing_status: "none",
+    billing_provider: "",
+    billing_subscription_id: "",
+    pro_activated_at: null,
+    pro_expires_at: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -64,7 +72,7 @@ export async function GET(req) {
   const projectCounts = await countProjectsByUser(adminSupabase);
   const { data, error } = await adminSupabase
     .from("profiles")
-    .select("id,email,full_name,avatar_url,role,plan,default_mode,api_keys_connected,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used,created_at,updated_at")
+    .select("id,email,full_name,avatar_url,role,plan,default_mode,api_keys_connected,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used,billing_status,billing_provider,pro_activated_at,pro_expires_at,created_at,updated_at")
     .order("created_at", { ascending: false })
     .limit(300);
 
@@ -94,9 +102,21 @@ export async function POST(req) {
 
     let query = guard.adminSupabase.from("profiles").update(patchForPlan(plan));
     query = userId ? query.eq("id", userId) : query.ilike("email", email);
-    const { data, error } = await query.select("id,email,plan,role,default_mode,api_keys_connected,cloud_project_limit,updated_at").maybeSingle();
+    const { data, error } = await query.select("id,email,plan,role,default_mode,api_keys_connected,cloud_project_limit,billing_status,billing_provider,updated_at").maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 500 });
     if (!data) return Response.json({ error: "Профиль не найден." }, { status: 404 });
+
+    try {
+      await guard.adminSupabase.from("billing_events").insert({
+        user_id: data.id,
+        email: data.email,
+        provider: "owner_admin",
+        event_type: "manual_plan_change",
+        status: "applied",
+        plan,
+        metadata: { changed_by: guard.account?.profile?.email || guard.account?.user?.email || "owner" },
+      });
+    } catch {}
 
     return Response.json({ ok: true, user: data });
   } catch (e) {
