@@ -33,7 +33,7 @@ export async function POST(req) {
     const body = await req.json();
     const provider = String(body.provider || "openrouter").toLowerCase();
     const apiKey = String(body.apiKey || body.api_key || "").trim();
-    if (provider !== "openrouter") return Response.json({ error: "В v54 подключён только OpenRouter как первый AI provider." }, { status: 400 });
+    if (provider !== "openrouter") return Response.json({ error: "Сейчас подключён только OpenRouter как первый AI provider." }, { status: 400 });
     const result = await testOpenRouterKey(apiKey);
     return Response.json({ ...result, provider, masked: result.ok ? maskKey(apiKey) : "" }, { status: result.ok ? 200 : 400 });
   } catch (e) {
