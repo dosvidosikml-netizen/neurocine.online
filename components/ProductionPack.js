@@ -275,7 +275,7 @@ function SocialExportButtons({ carousel = [], slides = [], topic = "neurocine" }
 }
 
 // ─────── 🎙 TTS STUDIO TAB ────────────────────────────────────────
-function TtsStudioTab({ topic, script, genre, cacheKey, devMode }) {
+function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = false }) {
   const [data, setData] = useStoredState(`${cacheKey}:tts:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -284,6 +284,7 @@ function TtsStudioTab({ topic, script, genre, cacheKey, devMode }) {
   async function run() {
     if (!script?.trim() && !devMode) { setErr("Сначала создай сценарий в шаге 01"); return; }
     if (devMode) { setErr(""); setData(buildMockTtsPack({ topic, script })); return; }
+    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/tts-studio", {
@@ -372,7 +373,7 @@ function TtsStudioTab({ topic, script, genre, cacheKey, devMode }) {
 }
 
 // ─────── 🖼 COVER DIRECTOR TAB ───────────────────────────────────
-function CoverTab({ topic, script, storyboard, cacheKey, devMode }) {
+function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = false }) {
   const [data, setData] = useStoredState(`${cacheKey}:cover:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -382,6 +383,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode }) {
 
   async function run() {
     if (devMode) { setErr(""); setData(buildMockCoverPack({ topic, script, storyboard })); return; }
+    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/cover", {
@@ -499,7 +501,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode }) {
 }
 
 // ─────── 🎵 MUSIC + 🚀 SEO TAB ────────────────────────────────────
-function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode }) {
+function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode, liveAllowed = false }) {
   const [music, setMusic] = useStoredState(`${cacheKey}:music:data`, null);
   const [seo, setSeo] = useStoredState(`${cacheKey}:seo:data`, null);
   const [musicMode, setMusicMode] = useStoredString(`${cacheKey}:music:mode`, "cinematic_thriller");
@@ -509,6 +511,7 @@ function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode }) {
 
   async function run() {
     if (devMode) { setErr(""); setMusic(buildMockMusicPack({ topic, script, genre, storyboard })); setSeo(buildMockSeoPack({ topic, script, genre })); return; }
+    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setBusy(true); setErr(""); setMusic(null); setSeo(null);
     try {
       const [m, s] = await Promise.all([
@@ -616,7 +619,7 @@ function MusicSeoTab({ topic, script, genre, storyboard, cacheKey, devMode }) {
 }
 
 // ─────── 📘 SOCIAL PACK TAB ───────────────────────────────────────
-function SocialPackTab({ topic, script, genre, cacheKey, devMode }) {
+function SocialPackTab({ topic, script, genre, cacheKey, devMode, liveAllowed = false }) {
   const [data, setData] = useStoredState(`${cacheKey}:social:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -624,6 +627,7 @@ function SocialPackTab({ topic, script, genre, cacheKey, devMode }) {
   async function run() {
     if (!script?.trim() && !devMode) { setErr("Сначала создай сценарий"); return; }
     if (devMode) { setErr(""); setData(buildMockSocialPack({ topic, script, genre })); return; }
+    if (!liveAllowed) { setErr("LIVE/API заблокирован для текущего аккаунта. Включите DEMO или PRO/BYO."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
       const r = await fetch("/api/social-pack", {
@@ -919,17 +923,17 @@ const PACK_I18N = {
   }
 };
 
-export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false }) {
+export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false }) {
   const sourceKey = useMemo(() => hashString(`${topic}|${script?.slice(0, 1200)}|${storyboard?.scenes?.length || 0}`), [topic, script, storyboard]);
   const cacheKey = `neurocine:production:v35:${devMode ? "demo" : "pro"}:${sourceKey}`;
   const [activeTab, setActiveTab] = useStoredString(`neurocine:production:activeTab`, "cover");
   const t = PACK_I18N[lang] || PACK_I18N.ru;
 
   const tabs = [
-    { id: "tts", icon: "🎙️", label: t.tabs.tts[0], sub: t.tabs.tts[1], status: t.tabs.tts[2], comp: <TtsStudioTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} /> },
-    { id: "cover", icon: "🧲", label: t.tabs.cover[0], sub: t.tabs.cover[1], status: t.tabs.cover[2], comp: <CoverTab topic={topic} script={script} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} /> },
-    { id: "music", icon: "🎧", label: t.tabs.music[0], sub: t.tabs.music[1], status: t.tabs.music[2], comp: <MusicSeoTab topic={topic} script={script} genre={genre} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} /> },
-    { id: "social", icon: "📲", label: t.tabs.social[0], sub: t.tabs.social[1], status: t.tabs.social[2], comp: <SocialPackTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} /> },
+    { id: "tts", icon: "🎙️", label: t.tabs.tts[0], sub: t.tabs.tts[1], status: t.tabs.tts[2], comp: <TtsStudioTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
+    { id: "cover", icon: "🧲", label: t.tabs.cover[0], sub: t.tabs.cover[1], status: t.tabs.cover[2], comp: <CoverTab topic={topic} script={script} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
+    { id: "music", icon: "🎧", label: t.tabs.music[0], sub: t.tabs.music[1], status: t.tabs.music[2], comp: <MusicSeoTab topic={topic} script={script} genre={genre} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
+    { id: "social", icon: "📲", label: t.tabs.social[0], sub: t.tabs.social[1], status: t.tabs.social[2], comp: <SocialPackTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} /> },
     { id: "explainer", icon: "🗺️", label: t.tabs.explainer[0], sub: t.tabs.explainer[1], status: t.tabs.explainer[2], comp: <VisualExplainerTab topic={topic} script={script} cacheKey={cacheKey} /> },
   ];
 
