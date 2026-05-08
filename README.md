@@ -39,3 +39,26 @@ Added full user layer on top of Google Login + Supabase:
 - New SQL migration: `supabase/schema_v43_profiles_projects.sql`
 
 Run the SQL file in Supabase SQL Editor after deploy.
+
+
+## NeuroCine V44 Cloud Studio Update
+
+Added full Supabase Cloud Studio schema and hardened Cloud Projects save/load.
+
+Run this SQL once in Supabase SQL Editor after deploy:
+
+```txt
+supabase/schema_v44_full_cloud_studio.sql
+```
+
+This migration is safe to run multiple times. It creates or extends:
+- `profiles`
+- `projects`
+- `user_settings`
+- `usage_events`
+- `api_keys`
+- auth/profile triggers
+- updated_at triggers
+- RLS policies
+
+Cloud Projects now stores full NeuroCine project snapshots plus indexed fields: topic, script, storyboard, duration, aspect ratio, style preset, mode, target and Production Pack cache.
