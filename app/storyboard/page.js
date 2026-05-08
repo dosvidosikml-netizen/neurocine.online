@@ -18,6 +18,7 @@ import { validateScript } from "../../lib/scriptValidator";
 import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
 import UserDashboard from "../../components/UserDashboard";
+import BillingPanel from "../../components/BillingPanel";
 import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import AdminPanel from "../../components/AdminPanel";
 import StudioFlowPanel from "../../components/StudioFlowPanel";
@@ -1473,6 +1474,7 @@ ${lines.join("\n")}` : "";
       )}
 
       {isSignedIn && <UserDashboard account={account} devMode={effectiveDevMode} onAccountPatch={patchAccountProfile} />}
+      {isSignedIn && <BillingPanel account={account} />}
       {isSignedIn && (accountAccess.isOwner || accountAccess.isAdmin) && <AdminPanel account={account} />}
 
       {isSignedIn && (
