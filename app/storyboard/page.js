@@ -562,9 +562,10 @@ export default function StudioPage() {
   const accountAccess = getAccountAccess(account?.profile, account?.session);
   const isSignedIn = Boolean(account?.session?.user);
   const forceLiveForAdmin = shouldForceLiveForAccount(account?.profile, account?.session);
-  const effectiveDevMode = forceLiveForAdmin ? false : devMode;
   const liveAllowed = isSignedIn && accountAccess.canLive;
-  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? (accountAccess.isOwner ? "LIVE OWNER" : "LIVE ADMIN") : devMode ? "DEMO" : liveAllowed ? "LIVE / PRO" : "LIVE LOCK";
+  const effectiveDevMode = forceLiveForAdmin ? false : (!liveAllowed ? true : devMode);
+  const canToggleLiveMode = isSignedIn && liveAllowed && !forceLiveForAdmin;
+  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? (accountAccess.isOwner ? "LIVE OWNER" : "LIVE ADMIN") : !liveAllowed ? "DEMO" : effectiveDevMode ? "DEMO" : "LIVE";
   const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
   const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
   const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
@@ -574,7 +575,8 @@ export default function StudioPage() {
 
   useEffect(() => {
     if (forceLiveForAdmin && devMode) setDevMode(false);
-  }, [forceLiveForAdmin, devMode]);
+    if (isSignedIn && !liveAllowed && !devMode) setDevMode(true);
+  }, [forceLiveForAdmin, liveAllowed, isSignedIn, devMode]);
 
   // Chunk / continuation state
   const [chunkSize, setChunkSize]       = useState(4);
@@ -806,7 +808,7 @@ ${lines.join("\n")}` : "";
       if (text.videoP)      setVideoP(text.videoP);
       if (text.videoPromptMode) setVideoPromptMode(text.videoPromptMode);
       if (text.videoConsistency) setVideoConsistency(text.videoConsistency);
-      if (typeof text.devMode === "boolean") setDevMode(text.devMode);
+      if (typeof text.devMode === "boolean") setDevMode(liveAllowed ? text.devMode : true);
       if (text.analysis)    setAnalysis(text.analysis);
     }
 
@@ -904,7 +906,7 @@ ${lines.join("\n")}` : "";
   }
 
   function handleModeToggle() {
-    if (!isSignedIn) return;
+    if (!canToggleLiveMode) return;
     setSBusy(false);
     setSbBusy(false);
     setSStat("");
@@ -1316,7 +1318,7 @@ ${lines.join("\n")}` : "";
   function buildProjectSnapshot() {
     return {
       neurocine_project_snapshot: true,
-      version: "v49",
+      version: "v50",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
       project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
@@ -1433,7 +1435,7 @@ ${lines.join("\n")}` : "";
           <a href="#script" className="top-pill-v40">01 Сценарий</a>
           <a href="#storyboard" className="top-pill-v40">02 Storyboard</a>
           <a href="#production" className="top-pill-v40">03 Pipeline</a>
-          <button className={`top-pill-v40 mode ${effectiveDevMode ? "demo" : "live"}`} onClick={handleModeToggle} type="button" disabled={!isSignedIn || forceLiveForAdmin}>
+          <button className={`top-pill-v40 mode ${effectiveDevMode ? "demo" : "live"}`} onClick={handleModeToggle} type="button" disabled={!canToggleLiveMode}>
             {modeLabel}
           </button>
           <button className="top-pill-v40" onClick={() => setUiLang(v => v === "ru" ? "en" : "ru")} type="button">🌐 {uiLang.toUpperCase()}</button>
@@ -1447,7 +1449,7 @@ ${lines.join("\n")}` : "";
         onChange={e => importProjectSnapshot(e.target.files?.[0])}
       />
 
-      <AuthPanel devMode={effectiveDevMode} onModeToggle={() => isSignedIn && !forceLiveForAdmin && setDevMode(v => !v)} onAccountChange={setAccount} />
+      <AuthPanel devMode={effectiveDevMode} onModeToggle={handleModeToggle} onAccountChange={setAccount} />
 
       {!isSignedIn && (
         <section className="auth-required-v46">
