@@ -1,29 +1,15 @@
-# NeuroCine v46 — Auth Gate + DEMO No-API Lock
+# NeuroCine v47 — DEMO topic-safe mock + stuck generation fix
 
-## Что исправлено
-
-- Гость больше не может вводить тему и запускать генерацию.
-- Без Google-входа Studio показывает Auth Gate и блокирует рабочие поля.
-- DEMO режим теперь жёстко работает через mock-данные на фронте и не должен вызывать `/api/chat`, `/api/storyboard`, `/api/video`, `/api/cover`, `/api/music-suno`, `/api/seo-pack`, `/api/social-pack`, `/api/tts-studio`.
-- LIVE режим для FREE аккаунта блокируется сообщением `LIVE/API заблокирован`.
-- Production Pack также уважает DEMO/LIVE lock.
-
-## Файлы для замены
-
+Changed files:
 - `app/storyboard/page.js`
-- `components/ProductionPack.js`
-- `app/globals.css`
+- `lib/mockData.js`
 - `README.md`
 
-## SQL
+Fixes:
+- DEMO script no longer always returns old Tunguska text.
+- DEMO mock script is now generated from the current topic.
+- DEMO storyboard follows the current topic instead of old Siberia frames.
+- Switching DEMO/LIVE resets stuck generation flags.
+- DEMO script/storyboard branch force-stops busy state so UI cannot hang on “Генерация…”.
 
-Новый SQL не нужен, если v44/v45 schema уже успешно выполнена.
-
-## Проверка
-
-1. Выйти из аккаунта.
-2. Открыть `/storyboard`.
-3. Поля генерации должны быть заблокированы, вместо рабочего режима должен быть блок "Вход обязателен".
-4. Войти через Google.
-5. В DEMO создать сценарий/storyboard — API не должен списываться.
-6. Переключить LIVE на FREE — генерация должна блокироваться.
+No SQL changes required if v44/v45 schema was already applied.
