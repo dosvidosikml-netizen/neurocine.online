@@ -20,12 +20,12 @@ export default function UserDashboard({ account, devMode }) {
     <section className="user-dashboard-v43" id="account">
       <div className="ud-head-v43">
         <div>
-          <div className="ud-kicker-v43">User Control Center · v48 {access.isOwner ? "· OWNER" : access.isAdmin ? "· ADMIN" : ""}</div>
+          <div className="ud-kicker-v43">User Control Center · v50 {access.isOwner ? "· OWNER" : access.isAdmin ? "· ADMIN" : ""}</div>
           <h2>Профиль и доступ</h2>
           <p>Роли, тарифы, лимиты, режим генерации и будущий PRO/BYO/API доступ в одном месте.</p>
         </div>
         <div className={`ud-access-badge-v43 role-${access.role}`}>
-          <span>{access.isOwner ? "OWNER FULL ACCESS" : access.isAdmin ? "ADMIN FULL ACCESS" : devMode ? "DEMO MODE" : access.canLive ? "LIVE READY" : "LIVE LOCK"}</span>
+          <span>{access.isOwner ? "OWNER FULL ACCESS" : access.isAdmin ? "ADMIN FULL ACCESS" : access.canLive ? "LIVE READY" : "DEMO SANDBOX"}</span>
           <strong>{access.label}</strong>
         </div>
       </div>
@@ -50,13 +50,13 @@ export default function UserDashboard({ account, devMode }) {
         <div className="ud-card-v43">
           <div className="ud-label-v43">Тариф</div>
           <strong className="ud-big-v43">{access.label}</strong>
-          <p>{access.description}</p>
+          <p>{access.isOwner ? "Владелец: полный LIVE-доступ через API платформы, без BYO ключей и без лимитов." : access.isAdmin ? "ADMIN: LIVE открыт через API платформы." : "DEMO/FREE: только безопасный mock-режим без списания API."}</p>
         </div>
 
         <div className="ud-card-v43">
-          <div className="ud-label-v43">LIVE доступ</div>
-          <strong className={access.canLive ? "ud-ok-v43" : "ud-lock-v43"}>{access.canLive ? "Разрешён" : "Заблокирован"}</strong>
-          <p>{access.isOwner ? "Твой аккаунт всегда работает в PRO/LIVE без ввода ключей и без лимитов." : access.isAdmin ? "ADMIN всегда имеет LIVE через API платформы." : access.canLive ? "Можно запускать реальные API генерации." : "FREE/DEMO работает без списаний API. LIVE откроется через PRO, ADMIN или BYO API."}</p>
+          <div className="ud-label-v43">Доступ генерации</div>
+          <strong className={access.canLive ? "ud-ok-v43" : "ud-lock-v43"}>{access.canLive ? "LIVE открыт" : "DEMO только"}</strong>
+          <p>{access.canLive ? "Можно запускать реальные API генерации." : "LIVE скрыт и заблокирован. Реальные API не вызываются до PRO, ADMIN или BYO API."}</p>
         </div>
 
         <div className="ud-card-v43">
@@ -66,13 +66,20 @@ export default function UserDashboard({ account, devMode }) {
         </div>
 
         <div className="ud-card-v43 wide">
-          <div className="ud-label-v43">Матрица доступа</div>
-          <div className="ud-role-row-v43"><span>DEMO</span><b>mock без API</b></div>
-          <div className="ud-role-row-v43"><span>FREE</span><b>аккаунт + cloud projects, LIVE lock</b></div>
-          <div className="ud-role-row-v43"><span>PRO</span><b>LIVE через API платформы</b></div>
-          <div className="ud-role-row-v43"><span>BYO API</span><b>LIVE через ключи пользователя</b></div>
-          <div className="ud-role-row-v43"><span>ADMIN</span><b>полный доступ и управление ролями</b></div>
-          <div className="ud-role-row-v43"><span>OWNER</span><b>твой аккаунт: LIVE всегда, без лимитов, без BYO ключей</b></div>
+          <div className="ud-label-v43">Схема доступа</div>
+          {access.canLive ? (
+            <>
+              <div className="ud-role-row-v43"><span>Текущий режим</span><b>{devMode ? "DEMO без API" : "LIVE через API платформы"}</b></div>
+              <div className="ud-role-row-v43"><span>API</span><b>{access.isOwner || access.isAdmin ? "platform keys" : "PRO/BYO"}</b></div>
+              <div className="ud-role-row-v43"><span>Лимиты</span><b>{access.isOwner || access.isAdmin ? "безлимит" : "по тарифу"}</b></div>
+            </>
+          ) : (
+            <>
+              <div className="ud-role-row-v43"><span>DEMO</span><b>mock script / storyboard / prompts без API</b></div>
+              <div className="ud-role-row-v43"><span>LIVE</span><b>заблокирован до PRO / ADMIN / BYO API</b></div>
+              <div className="ud-role-row-v43"><span>Cloud</span><b>{access.storageProjects} проекта</b></div>
+            </>
+          )}
         </div>
       </div>
     </section>

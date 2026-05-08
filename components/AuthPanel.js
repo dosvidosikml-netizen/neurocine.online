@@ -159,12 +159,19 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       <div className="auth-status-grid-v42">
         <div className={`auth-chip-v42 ${access.isOwner ? "is-owner" : access.isAdmin ? "is-admin" : user ? "is-free" : "is-demo"}`}>
           <span>Статус</span>
-          <strong>{user ? access.label : "DEMO"}</strong>
+          <strong>{user ? access.label : "AUTH"}</strong>
         </div>
-        <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
-          <span>Режим</span>
-          <strong>{devMode ? "DEMO" : access.isOwner ? "LIVE OWNER" : access.isAdmin ? "LIVE ADMIN" : access.canLive ? "LIVE" : "LIVE LOCK"}</strong>
-        </button>
+        {user && access.canLive ? (
+          <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
+            <span>Режим генерации</span>
+            <strong>{access.isOwner ? "LIVE OWNER" : access.isAdmin ? "LIVE ADMIN" : devMode ? "DEMO" : "LIVE"}</strong>
+          </button>
+        ) : (
+          <div className="auth-chip-v42 auth-mode-v42 is-demo">
+            <span>Режим генерации</span>
+            <strong>{user ? "DEMO" : "Вход нужен"}</strong>
+          </div>
+        )}
       </div>
 
       <div className="auth-actions-v42">
