@@ -3,6 +3,7 @@
 
 import { getServerAccount } from "../../../../lib/serverSupabase";
 import { maskKey } from "../../../../lib/apiKeyCrypto";
+import { logUsageEvent, usageMeta } from "../../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export async function POST(req) {
     const apiKey = String(body.apiKey || body.api_key || "").trim();
     if (provider !== "openrouter") return Response.json({ error: "Сейчас подключён только OpenRouter как первый AI provider." }, { status: 400 });
     const result = await testOpenRouterKey(apiKey);
+    await logUsageEvent({ req, account, endpoint: "/api/user-keys/test", success: result.ok, apiSource: "key_vault", modelUsed: "openrouter_models_check", error: result.ok ? "" : result.message, metadata: usageMeta(body, { provider, action: "test_key" }) });
     return Response.json({ ...result, provider, masked: result.ok ? maskKey(apiKey) : "" }, { status: result.ok ? 200 : 400 });
   } catch (e) {
     return Response.json({ error: e.message || "Key test error" }, { status: 500 });
