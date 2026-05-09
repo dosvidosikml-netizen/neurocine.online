@@ -51,7 +51,7 @@ export default function BillingPanel({ account }) {
         return;
       }
       setRequested(true);
-      setStatus("ok|Заявка на PRO отправлена. OWNER сможет выдать PRO вручную в Admin Panel.");
+      setStatus(`ok|Заявка на PRO записана${d.event?.id ? ` · ID ${String(d.event.id).slice(0, 8)}` : ""}. OWNER увидит её в Admin Panel.`);
     } catch (e) {
       setStatus("err|" + (e.message || "Ошибка checkout"));
     } finally {
