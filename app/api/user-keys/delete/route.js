@@ -2,6 +2,7 @@
 // NeuroCine v54 — delete/deactivate user AI API key.
 
 import { getServerAccount } from "../../../../lib/serverSupabase";
+import { logUsageEvent, usageMeta } from "../../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export async function POST(req) {
       })
       .eq("id", account.user.id);
 
+    await logUsageEvent({ req, account, endpoint: "/api/user-keys/delete", success: true, apiSource: "key_vault", modelUsed: "local", metadata: usageMeta(body, { provider, action: "delete_key" }) });
     return Response.json({ ok: true, provider, profile_patch: { api_keys_connected: false, api_key_status: { [provider]: { connected: false } } } });
   } catch (e) {
     return Response.json({ error: e.message || "Key delete error" }, { status: 500 });
