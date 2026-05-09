@@ -8,6 +8,7 @@
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { validateScript, buildRetryHint } from "../../../lib/scriptValidator";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
+import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -240,6 +241,7 @@ export async function POST(req) {
     });
 
     if (!result.ok) {
+      await logUsageFromGuard(accessGuard, { req, endpoint: "/api/chat", success: false, modelUsed: result.model_used, error: result.error, metadata: usageMeta(body, { duration, tone }) });
       return Response.json({
         text: fallbackScript({ topic, duration }),
         validation: null,
@@ -284,6 +286,7 @@ export async function POST(req) {
       }
     }
 
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/chat", success: true, modelUsed, metadata: usageMeta(body, { duration, tone, attempts: attempts.length, validation_score: validation?.score }) });
     return Response.json({
       text: text || fallbackScript({ topic, duration }),
       validation,
