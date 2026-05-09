@@ -3,6 +3,7 @@
 
 import { getServerAccount } from "../../../lib/serverSupabase";
 import { encryptApiKey, getLast4, maskKey } from "../../../lib/apiKeyCrypto";
+import { logUsageEvent, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,6 +115,7 @@ export async function POST(req) {
       })
       .eq("id", account.user.id);
 
+    await logUsageEvent({ req, account, endpoint: "/api/user-keys", success: true, apiSource: "key_vault", modelUsed: "openrouter_models_check", metadata: usageMeta(body, { provider, action: "save_key", last4 }) });
     return Response.json({
       ok: true,
       provider,
