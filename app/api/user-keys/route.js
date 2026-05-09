@@ -109,6 +109,7 @@ export async function POST(req) {
       .update({
         api_keys_connected: true,
         api_key_status: { [provider]: { connected: true, last4, checked_at: status.checked_at } },
+        default_mode: "live",
         updated_at: new Date().toISOString(),
       })
       .eq("id", account.user.id);
@@ -119,7 +120,7 @@ export async function POST(req) {
       masked: maskKey(apiKey),
       last4,
       status,
-      profile_patch: { api_keys_connected: true, api_key_status: { [provider]: { connected: true, last4 } } },
+      profile_patch: { api_keys_connected: true, default_mode: "live", api_key_status: { [provider]: { connected: true, last4 } } },
     });
   } catch (e) {
     return Response.json({ error: e.message || "Key Vault save error" }, { status: 500 });
