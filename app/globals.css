@@ -2767,3 +2767,31 @@ input:disabled{
     grid-template-columns: 1fr;
   }
 }
+
+/* v63 Admin + Usage polish */
+.admin-panel-v63 .ap-stat-grid-v63 { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+.ap-usage-strip-v63 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+.ap-usage-strip-v63 > div {
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.035);
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+.ap-usage-strip-v63 span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.48);
+  margin-bottom: 5px;
+}
+.ap-usage-strip-v63 b { font-size: 22px; color: #fff; }
+.ap-usage-v63 { border-color: rgba(90, 255, 205, .14); }
+.ap-usage-v63 .ap-events-title-v621 { color: #8fffe0; }
+.ap-event-v621.usage-error { border-color: rgba(255, 88, 88, .28); background: rgba(255, 66, 66, .06); }
+.ap-event-v621.usage-error b { color: #ff8c7a; }
