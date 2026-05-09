@@ -569,7 +569,19 @@ export default function StudioPage() {
   const liveAllowed = isSignedIn && accountAccess.canLive;
   const effectiveDevMode = forceLiveForAdmin ? false : (!liveAllowed ? true : devMode);
   const canToggleLiveMode = isSignedIn && liveAllowed && !forceLiveForAdmin;
-  const modeLabel = !isSignedIn ? "AUTH REQUIRED" : forceLiveForAdmin ? "LIVE OWNER" : !liveAllowed ? "FREE" : effectiveDevMode ? "FREE" : "PRO LIVE";
+  const modeLabel = !isSignedIn
+    ? "AUTH REQUIRED"
+    : forceLiveForAdmin
+      ? "LIVE OWNER"
+      : accountAccess.role === "pro" && !liveAllowed
+        ? "PRO · KEY NEEDED"
+        : accountAccess.role === "pro" && liveAllowed
+          ? (effectiveDevMode ? "PRO PREVIEW" : "PRO LIVE")
+          : !liveAllowed
+            ? "FREE PREVIEW"
+            : effectiveDevMode
+              ? "PREVIEW"
+              : "LIVE";
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
     ...(account?.session?.access_token ? { Authorization: `Bearer ${account.session.access_token}` } : {}),
