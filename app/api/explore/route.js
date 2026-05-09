@@ -1,6 +1,7 @@
 import { buildExplorePrompt, getStyleProfile } from "../../../engine/directorEngine_v4";
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
+import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +54,7 @@ export async function POST(req) {
     } catch {}
 
     const prompt = api?.prompt || buildExplorePrompt(frame, storyboard, styleProfile, variantCount);
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/explore", success: true, modelUsed: api?._model_used || "local_only", metadata: usageMeta(body, { variantCount }) });
     return Response.json({ prompt, notes_ru: api?.notes_ru || "Промт для 2x2 сетки создан строго по выбранному кадру.", model_used: api?._model_used || "local_only" });
   } catch (e) {
     return Response.json({ error: e.message || "Explore API error" }, { status: 500 });
