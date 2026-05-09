@@ -1,14 +1,10 @@
-# NeuroCine v62.2 — Key Vault + Admin Panel Polish
+# NeuroCine v63 — Admin + Usage + Key Vault Final Check
 
-Актуальная сборка: SaaS Studio с FREE / PRO Own Keys / OWNER доступом, Cloud Projects, Billing Foundation, AI Key Vault и улучшенной OWNER Admin Panel.
+Актуальная сборка: SaaS Studio с FREE / PRO Own Keys / OWNER доступом, Cloud Projects, Billing Foundation, AI Key Vault, Admin Panel и usage analytics.
 
-См. также: `README_v62_1_key_vault_admin_polish.md`.
+См. также: `README_v63_admin_usage_key_vault_final.md`.
 
 ---
-
-# NeuroCine — SaaS Studio
-
-Current build: **v61 Billing / PRO Activation Foundation** on top of v62–v63 Studio UI polish and v55–v60 Core SaaS Hardening.
 
 ## Current access model
 
@@ -27,6 +23,7 @@ OWNER / ADMIN
 - platform API from Render ENV
 - Admin Panel
 - manual PRO activation
+- usage analytics
 ```
 
 ## Important ENV
@@ -37,19 +34,22 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 OPENROUTER_API_KEY=
 API_KEY_ENCRYPTION_SECRET=
+ADMIN_EMAILS=
+NEXT_PUBLIC_ADMIN_EMAILS=
+NEXT_PUBLIC_SITE_URL=
 
-# Optional billing foundation
+# Optional future billing provider
 BILLING_CHECKOUT_URL=
 NEXT_PUBLIC_PRO_CHECKOUT_URL=
 BILLING_WEBHOOK_SECRET=
 ```
 
-## Important SQL migrations
+## Latest SQL migration
 
-Latest optional billing migration:
+Run after deploy:
 
 ```txt
-supabase/schema_v61_billing_pro_activation.sql
+supabase/schema_v63_admin_usage_key_vault_final.sql
 ```
 
 Core migrations already used:
@@ -57,6 +57,7 @@ Core migrations already used:
 ```txt
 supabase/schema_v54_public_ux_key_vault_access_guard.sql
 supabase/schema_v55_60_core_saas_hardening.sql
+supabase/schema_v61_billing_pro_activation.sql
 supabase/schema_v62_63_studio_ui_production_pack_polish.sql
 ```
 
@@ -73,8 +74,13 @@ components/StudioFlowPanel.js
 lib/accountRoles.js
 lib/apiAccess.js
 lib/serverSupabase.js
+lib/usageLogger.js
 ```
 
-## Billing v61
+## v63 notes
 
-v61 does not force a payment provider. If `BILLING_CHECKOUT_URL` is empty, the PRO button creates/logs a manual request and OWNER can activate PRO from Admin Panel. A real provider can later call `/api/billing/webhook` with `BILLING_WEBHOOK_SECRET`.
+- Admin Panel shows recent `billing_events` and `usage_events`.
+- Usage events are best-effort; failed logging never breaks generation.
+- PRO users must connect their own AI API key for LIVE.
+- OWNER uses platform API from Render ENV.
+- FREE does not use real AI API.
