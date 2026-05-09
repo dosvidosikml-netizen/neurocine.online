@@ -15,6 +15,7 @@ import {
 } from "../../../engine/sceneEngine_v2";
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess } from "../../../lib/apiAccess";
+import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
 import {
   splitScriptForChunks,
   buildChunkUserPrompt,
@@ -393,6 +394,7 @@ export async function POST(req) {
       return NextResponse.json({ error: accessGuard.message || "LIVE доступ закрыт", apiError: true, accessDenied: true }, { status: accessGuard.status || 403 });
     }
     const apiKeyOverride = accessGuard.apiKey;
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/storyboard", success: true, modelUsed: "storyboard_requested", metadata: usageMeta(body, { stream: body.stream === true, duration, target, mode }) });
 
     // ── SSE STREAMING — всегда включён при stream: true ──────────────────────
     // Render рвёт соединение через ~100с если сервер молчит.
