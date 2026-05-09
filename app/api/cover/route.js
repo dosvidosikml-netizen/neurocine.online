@@ -4,6 +4,7 @@
 
 import { buildCoverDirectorPack } from "../../../engine/coverEngine";
 import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
+import { logUsageEvent, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ export async function POST(req) {
     }
 
     const cover = buildCoverDirectorPack({ topic, script, storyboard, mode, style, platform });
+    await logUsageEvent({ req, account: guard.account, endpoint: "/api/cover", success: true, apiSource: "local_signed_in", modelUsed: "local_cover_engine", metadata: usageMeta(body, { mode, style, platform }) });
     return Response.json({ cover, mode: "cover-director-v2", access_source: guard.access?.apiSource || "local_signed_in" });
   } catch (e) {
     return Response.json({ error: e.message || "Cover Director error" }, { status: 500 });
