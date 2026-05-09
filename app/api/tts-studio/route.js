@@ -5,6 +5,7 @@
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
+import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,10 @@ export async function POST(req) {
       apiKeyOverride: accessGuard.apiKey,
       appTitle: "NeuroCine TTS Studio v1",
     });
-    if (!r.ok) return Response.json({ error: r.error }, { status: 500 });
+    if (!r.ok) {
+      await logUsageFromGuard(accessGuard, { req, endpoint: "/api/tts-studio", success: false, modelUsed: r.model_used, error: r.error, metadata: usageMeta(body) });
+      return Response.json({ error: r.error }, { status: 500 });
+    }
 
     let parsed;
     try {
@@ -67,6 +71,7 @@ export async function POST(req) {
 
     const sv = GOOGLE_VOICES.find(v => v.id === parsed.voice_id);
     if (sv) parsed.voice_desc = sv.desc;
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/tts-studio", success: true, modelUsed: r.model_used, metadata: usageMeta(body) });
     return Response.json({ ttsStudio: parsed, voices: GOOGLE_VOICES, model_used: r.model_used });
   } catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
 }
