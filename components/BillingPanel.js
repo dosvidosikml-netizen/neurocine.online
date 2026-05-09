@@ -23,6 +23,7 @@ export default function BillingPanel({ account }) {
   const access = useMemo(() => getAccountAccess(profile, session), [profile, session]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [requested, setRequested] = useState(false);
 
   const isOwner = access.isOwner || access.isAdmin;
   const isPro = access.role === "pro" && !isOwner;
@@ -30,11 +31,12 @@ export default function BillingPanel({ account }) {
 
   async function startCheckout() {
     if (!token) {
-      setStatus("✗ Нужно войти через Google.");
+      setStatus("err|Нужно войти через Google.");
       return;
     }
+    if (busy) return;
     setBusy(true);
-    setStatus("⏳ Готовлю PRO checkout…");
+    setStatus("gen|Отправляю заявку на PRO…");
     try {
       const r = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -44,26 +46,30 @@ export default function BillingPanel({ account }) {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Checkout недоступен");
       if (d.checkout_url) {
-        setStatus("✓ Перехожу к оплате PRO…");
+        setStatus("ok|Открываю страницу оплаты PRO…");
         window.location.href = d.checkout_url;
         return;
       }
-      setStatus(d.message || "✓ Заявка на PRO создана. Платёжный провайдер пока не подключён — OWNER может выдать PRO вручную.");
+      setRequested(true);
+      setStatus("ok|Заявка на PRO отправлена. OWNER сможет выдать PRO вручную в Admin Panel.");
     } catch (e) {
-      setStatus("✗ " + (e.message || "Ошибка checkout"));
+      setStatus("err|" + (e.message || "Ошибка checkout"));
     } finally {
       setBusy(false);
     }
   }
 
+  const statusKind = status.startsWith("err|") ? "err" : status.startsWith("ok|") ? "ok" : "";
+  const cleanStatus = status.replace(/^ok\|?/, "✓ ").replace(/^gen\|?/, "⏳ ").replace(/^err\|?/, "✗ ");
+
   return (
     <section className="billing-panel-v61" id="billing">
       <div className="billing-head-v61">
         <div>
-          <div className="billing-kicker-v61">Billing · PRO activation · v61</div>
-          <h2>Тариф и оплата</h2>
+          <div className="billing-kicker-v61">Billing · PRO access</div>
+          <h2>Тариф и доступ</h2>
           <p>
-            FREE подходит для знакомства. PRO открывает полный рабочий режим NeuroCine Studio и LIVE через собственные AI-ключи.
+            FREE — чтобы познакомиться со студией. PRO открывает полный production-пайплайн и LIVE после подключения собственного AI-ключа.
           </p>
         </div>
         <div className={`billing-plan-badge-v61 ${isOwner ? "owner" : isPro ? "pro" : "free"}`}>
@@ -72,17 +78,17 @@ export default function BillingPanel({ account }) {
         </div>
       </div>
 
-      <div className="billing-grid-v61">
+      <div className={`billing-grid-v61 ${isOwner ? "owner-view" : "public-view"}`}>
         <article className="billing-card-v61 free">
           <div className="billing-card-top-v61">
             <span>FREE</span>
             <strong>$0</strong>
           </div>
-          <p>Познакомиться со студией, сохранить первые проекты и пройти workflow без риска расходов.</p>
+          <p>Попробовать NeuroCine Studio, сохранить первые проекты и пройти основной workflow.</p>
           <ul>
             <li>Preview-доступ к Studio</li>
             <li>Cloud Projects: {isOwner ? "∞" : 3}</li>
-            <li>LIVE-генерация закрыта</li>
+            <li>LIVE-генерация доступна в PRO</li>
           </ul>
         </article>
 
@@ -91,36 +97,41 @@ export default function BillingPanel({ account }) {
             <span>PRO Studio</span>
             <strong>own AI keys</strong>
           </div>
-          <p>Полный production-пайплайн: сценарий, storyboard, pipeline, Production Pack и LIVE через ключи пользователя.</p>
+          <p>Полный рабочий режим: сценарий, storyboard, pipeline, Production Pack, Cloud Library и LIVE через собственный AI-ключ.</p>
           <ul>
             <li>Полный Studio workflow</li>
             <li>Cloud Projects: 100</li>
             <li>LIVE после подключения AI-ключа</li>
           </ul>
           {isFree && (
-            <button className="btn" type="button" onClick={startCheckout} disabled={busy}>
-              Купить / активировать PRO
-            </button>
+            <div className="billing-action-box-v61">
+              <button className="btn" type="button" onClick={startCheckout} disabled={busy || requested}>
+                {busy ? "Отправляю…" : requested ? "Заявка отправлена" : "Купить / активировать PRO"}
+              </button>
+              {requested && <div className="billing-note-v61 ok">✓ Заявка записана. Владелец активирует PRO вручную.</div>}
+            </div>
           )}
           {isPro && <div className="billing-note-v61 ok">✓ PRO активен. Подключите AI-ключ, чтобы включить LIVE.</div>}
         </article>
 
-        <article className="billing-card-v61 owner">
-          <div className="billing-card-top-v61">
-            <span>OWNER</span>
-            <strong>platform</strong>
-          </div>
-          <p>Служебный доступ владельца: platform API, Admin Panel, тесты и управление пользователями.</p>
-          <ul>
-            <li>Видно только владельцу</li>
-            <li>PRO можно выдать вручную</li>
-            <li>Будущие webhook-платежи готовы</li>
-          </ul>
-          {isOwner && <div className="billing-note-v61 ok">✓ OWNER billing bypass активен.</div>}
-        </article>
+        {isOwner && (
+          <article className="billing-card-v61 owner">
+            <div className="billing-card-top-v61">
+              <span>OWNER</span>
+              <strong>platform</strong>
+            </div>
+            <p>Служебный доступ владельца: platform API, Admin Panel, тесты и управление пользователями.</p>
+            <ul>
+              <li>Видно только владельцу</li>
+              <li>PRO можно выдать вручную</li>
+              <li>Будущие webhook-платежи готовы</li>
+            </ul>
+            <div className="billing-note-v61 ok">✓ OWNER billing bypass активен.</div>
+          </article>
+        )}
       </div>
 
-      {status && <div className={`status-line ${status.startsWith("✗") ? "err" : status.startsWith("✓") ? "ok" : ""}`}>{status}</div>}
+      {status && <div className={`status-line ${statusKind}`}>{cleanStatus}</div>}
     </section>
   );
 }
