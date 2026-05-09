@@ -13,6 +13,7 @@ import {
 } from "../../../engine/videoPromptAgent";
 import { normalizeTarget } from "../../../engine/sceneEngine_v2";
 import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
+import { logUsageEvent, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +91,7 @@ export async function POST(req) {
       target,
     });
 
+    await logUsageEvent({ req, account: guard.account, endpoint: "/api/video", success: true, apiSource: "local_signed_in", modelUsed: "local_v2.8_minor_safe", metadata: usageMeta(body, { target, promptMode, consistency }) });
     return Response.json({
       video_prompt_en: finalVideo,
       image_prompt_en: finalImage,
