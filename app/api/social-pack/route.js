@@ -3,6 +3,7 @@
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
+import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,7 +85,10 @@ export async function POST(req) {
       apiKeyOverride: accessGuard.apiKey,
       appTitle: "NeuroCine Social Director V2",
     });
-    if (!r.ok) return Response.json({ error: r.error }, { status: 500 });
+    if (!r.ok) {
+      await logUsageFromGuard(accessGuard, { req, endpoint: "/api/social-pack", success: false, modelUsed: r.model_used, error: r.error, metadata: usageMeta(body) });
+      return Response.json({ error: r.error }, { status: 500 });
+    }
 
     let parsed;
     try {
@@ -92,6 +96,7 @@ export async function POST(req) {
       parsed = JSON.parse(c);
     } catch (e) { return Response.json({ error: "Невалидный JSON: " + e.message, raw: r.content?.slice(0,500) }, { status: 500 }); }
 
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/social-pack", success: true, modelUsed: r.model_used, metadata: usageMeta(body) });
     return Response.json({ social: parsed, model_used: r.model_used });
   } catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
 }
