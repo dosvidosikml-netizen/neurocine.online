@@ -2619,3 +2619,151 @@ input:disabled{
   .billing-plan-badge-v61{text-align:left;margin-top:16px;}
   .billing-grid-v61{grid-template-columns:1fr;}
 }
+
+/* ─── v62.1 · Key Vault + Admin Panel final polish ───────────────── */
+.key-vault-final-v621.state-pending {
+  border-color: rgba(255,107,53,.28) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255,107,53,.13), transparent 32%),
+    rgba(0,0,0,.34) !important;
+}
+.key-vault-final-v621.state-live {
+  border-color: rgba(67,217,173,.34) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(67,217,173,.13), transparent 32%),
+    rgba(0,0,0,.34) !important;
+}
+.kv-live-strip-v621 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+.kv-live-strip-v621 > div {
+  min-height: 74px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.25);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+}
+.kv-live-strip-v621 span,
+.kv-steps-v621 span,
+.kv-hint-v621,
+.kv-verified-v621 {
+  color: rgba(238,240,255,.55);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.kv-live-strip-v621 b { color: #fff; font-size: 13px; }
+.kv-live-strip-v621 .ok { border-color: rgba(67,217,173,.28); }
+.kv-live-strip-v621 .ok b { color: #43d9ad; }
+.kv-live-strip-v621 .wait { border-color: rgba(255,107,53,.24); }
+.kv-live-strip-v621 .wait b { color: #ff6b35; }
+.kv-hint-v621 {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+}
+.kv-verified-v621 {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(67,217,173,.18);
+  background: rgba(67,217,173,.07);
+  color: #9fffe1;
+  font-weight: 800;
+}
+.kv-verified-v621.muted {
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+  color: rgba(238,240,255,.56);
+  font-weight: 600;
+}
+.kv-steps-v621 {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.kv-steps-v621 span {
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.user-dashboard-final-v621 .ud-access-badge-v43.is-live-ready strong {
+  color: #43d9ad !important;
+}
+.ap-stat-grid-v621 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+.ap-stat-grid-v621 > div {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.24);
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+.ap-stat-grid-v621 span {
+  color: rgba(238,240,255,.50);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-weight: 900;
+}
+.ap-stat-grid-v621 b { color: #fff; font-size: 18px; }
+.ap-toolbar-v621 select {
+  min-height: 44px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.35);
+  color: #fff;
+  padding: 0 12px;
+  outline: none;
+}
+.ap-events-v621 {
+  margin: 12px 0 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(124,106,247,.22);
+  background: rgba(124,106,247,.055);
+  overflow: hidden;
+}
+.ap-events-title-v621 {
+  padding: 12px 14px;
+  color: #b9a7ff;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-weight: 900;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.ap-event-v621 {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.ap-event-v621:last-child { border-bottom: none; }
+.ap-event-v621 b { color: #fff; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-event-v621 span { color: rgba(238,240,255,.68); font-size: 12px; }
+.ap-event-v621 em { color: rgba(238,240,255,.46); font-size: 11px; font-style: normal; }
+.ap-user-v621.tone-pro-live { border-color: rgba(67,217,173,.22); }
+.ap-user-v621.tone-pro { border-color: rgba(124,106,247,.22); }
+.ap-user-v621.tone-admin { border-color: rgba(250,204,21,.25); }
+.ap-user-v621.tone-demo { border-color: rgba(255,255,255,.08); }
+@media (max-width: 860px) {
+  .kv-live-strip-v621,
+  .ap-stat-grid-v621,
+  .ap-event-v621 {
+    grid-template-columns: 1fr;
+  }
+}
