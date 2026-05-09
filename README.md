@@ -1,3 +1,11 @@
+# NeuroCine v62.2 — Key Vault + Admin Panel Polish
+
+Актуальная сборка: SaaS Studio с FREE / PRO Own Keys / OWNER доступом, Cloud Projects, Billing Foundation, AI Key Vault и улучшенной OWNER Admin Panel.
+
+См. также: `README_v62_1_key_vault_admin_polish.md`.
+
+---
+
 # NeuroCine — SaaS Studio
 
 Current build: **v61 Billing / PRO Activation Foundation** on top of v62–v63 Studio UI polish and v55–v60 Core SaaS Hardening.
