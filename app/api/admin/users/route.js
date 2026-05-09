@@ -1,5 +1,5 @@
 // app/api/admin/users/route.js
-// NeuroCine v55-60 — basic OWNER Admin Panel API.
+// NeuroCine v62.1 — OWNER Admin Panel API with billing requests and key status.
 
 import { requireOwnerAdminClient, ownerErrorJson } from "../../../../lib/ownerGuard";
 
@@ -45,6 +45,7 @@ function patchForPlan(plan) {
     monthly_generation_limit: 10,
     cloud_project_limit: 3,
     api_keys_connected: false,
+    api_key_status: {},
     billing_status: "none",
     billing_provider: "",
     billing_subscription_id: "",
@@ -64,12 +65,32 @@ async function countProjectsByUser(adminSupabase) {
   return map;
 }
 
+async function recentBillingEvents(adminSupabase) {
+  try {
+    const { data, error } = await adminSupabase
+      .from("billing_events")
+      .select("id,user_id,email,provider,event_type,status,plan,created_at,metadata")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function GET(req) {
   const guard = await requireOwnerAdminClient(req);
   if (!guard.ok) return ownerErrorJson(guard);
 
   const { adminSupabase } = guard;
   const projectCounts = await countProjectsByUser(adminSupabase);
+  const billingEvents = await recentBillingEvents(adminSupabase);
+  const lastRequestByUser = {};
+  for (const ev of billingEvents || []) {
+    if (ev?.user_id && !lastRequestByUser[ev.user_id]) lastRequestByUser[ev.user_id] = ev;
+  }
+
   const { data, error } = await adminSupabase
     .from("profiles")
     .select("id,email,full_name,avatar_url,role,plan,default_mode,api_keys_connected,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used,billing_status,billing_provider,pro_activated_at,pro_expires_at,created_at,updated_at")
@@ -80,8 +101,9 @@ export async function GET(req) {
   const users = (data || []).map((u) => ({
     ...u,
     project_count: projectCounts[u.id] || 0,
+    last_billing_event: lastRequestByUser[u.id] || null,
   }));
-  return Response.json({ users, total: users.length });
+  return Response.json({ users, total: users.length, billing_events: billingEvents });
 }
 
 export async function POST(req) {
