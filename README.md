@@ -90,3 +90,14 @@ lib/usageLogger.js
 Добавлена мобильная оболочка AI Video Factory: верхняя панель, нижняя навигация, центральная кнопка `+`, Create Hub, Side Drawer и Tools Registry. Это UX-фундамент для будущих инструментов: Motion Control, Lip Sync, AI Avatar, Text-to-Video, Smart Edit и Workflow Builder.
 
 SQL и ENV не требуются.
+
+## v65 — Quick Storygrid + Viral Shorts Tools
+
+Добавлен блок `Быстрый старт` для мобильной AI Video Factory:
+
+- Quick Storygrid: идея → длина → формат → сцены → стиль → storyboard
+- Viral Shorts: hook, структура, cover text, TTS, music, SEO и hashtags
+- новые карточки в Create Hub / Tools Registry
+- без новых API, SQL и ENV
+
+Подробности: `README_v65_quick_storygrid_viral_tools.md`
