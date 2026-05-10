@@ -26,6 +26,8 @@ import TopActionBar from "../../components/TopActionBar";
 import MobileBottomNav from "../../components/MobileBottomNav";
 import SideDrawer from "../../components/SideDrawer";
 import CreateHub from "../../components/CreateHub";
+import QuickStorygridTool from "../../components/QuickStorygridTool";
+import ViralShortsTool from "../../components/ViralShortsTool";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
@@ -1632,6 +1634,40 @@ ${lines.join("\n")}` : "";
         videoP={videoP}
         finalImg={finalImg}
       />
+
+      <section id="quick-tools" className="nc-quick-tools-anchor">
+        <div className="quick-tools-heading">
+          <span>AI VIDEO FACTORY · QUICK TOOLS</span>
+          <h2>Быстрый старт</h2>
+          <p>Лёгкие формы как в мобильных AI-приложениях: быстро собрать storygrid или вирусный shorts pack, а затем продолжить в основной Studio.</p>
+        </div>
+        <div className="quick-tools-layout">
+          <QuickStorygridTool
+            topic={topic}
+            setTopic={handleTopicChange}
+            setDuration={setDuration}
+            setAspect={setAspect}
+            setStylePreset={setStylePreset}
+            setTone={setTone}
+            setProjectType={setProjectType}
+            setSbMode={setSbMode}
+            setTarget={setTarget}
+            doScript={doScript}
+            doStoryboard={doStoryboard}
+            onStatus={setSnapshotStatus}
+          />
+          <ViralShortsTool
+            setTopic={handleTopicChange}
+            setScript={setScript}
+            setDuration={setDuration}
+            setAspect={setAspect}
+            setTone={setTone}
+            setStylePreset={setStylePreset}
+            setProjectType={setProjectType}
+            onStatus={setSnapshotStatus}
+          />
+        </div>
+      </section>
 
       <div className="studio-flow-shell">
         <aside className="studio-rail" aria-label="Production steps">
