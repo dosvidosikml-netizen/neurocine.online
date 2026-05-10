@@ -84,3 +84,9 @@ lib/usageLogger.js
 - PRO users must connect their own AI API key for LIVE.
 - OWNER uses platform API from Render ENV.
 - FREE does not use real AI API.
+
+## v64 — Mobile AI App Shell + Create Hub
+
+Добавлена мобильная оболочка AI Video Factory: верхняя панель, нижняя навигация, центральная кнопка `+`, Create Hub, Side Drawer и Tools Registry. Это UX-фундамент для будущих инструментов: Motion Control, Lip Sync, AI Avatar, Text-to-Video, Smart Edit и Workflow Builder.
+
+SQL и ENV не требуются.
