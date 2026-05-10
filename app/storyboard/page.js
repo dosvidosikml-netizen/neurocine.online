@@ -22,6 +22,10 @@ import BillingPanel from "../../components/BillingPanel";
 import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import AdminPanel from "../../components/AdminPanel";
 import StudioFlowPanel from "../../components/StudioFlowPanel";
+import TopActionBar from "../../components/TopActionBar";
+import MobileBottomNav from "../../components/MobileBottomNav";
+import SideDrawer from "../../components/SideDrawer";
+import CreateHub from "../../components/CreateHub";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
@@ -561,6 +565,8 @@ export default function StudioPage() {
   const [productionCacheTick, setProductionCacheTick] = useState(0);
   const snapshotInputRef = useRef(null);
   const [uiLang, setUiLang] = useState("ru");
+  const [createHubOpen, setCreateHubOpen] = useState(false);
+  const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
   const [account, setAccount] = useState(null);
   const [devMode, setDevMode] = useState(true);
   const accountAccess = getAccountAccess(account?.profile, account?.session);
@@ -1445,9 +1451,65 @@ ${lines.join("\n")}` : "";
     reader.readAsText(file);
   }
 
+  const navigateToStudioAnchor = useCallback((anchor = "setup") => {
+    const id = String(anchor || "setup").replace(/^#/, "");
+    setSideDrawerOpen(false);
+    setCreateHubOpen(false);
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        try { window.history.replaceState(null, "", `#${id}`); } catch {}
+      }
+    });
+  }, []);
+
+  const handleCreateToolSelect = useCallback((tool) => {
+    if (!tool) return;
+    const anchor = tool.anchor || String(tool.route || "").split("#")[1] || "setup";
+    navigateToStudioAnchor(anchor);
+    const label = tool.status === "active"
+      ? `Открыт модуль: ${tool.title}`
+      : tool.status === "ready_ui"
+        ? `${tool.title}: интерфейс подготовлен, полный AI-provider подключим в следующих версиях`
+        : `${tool.title}: добавлено в карту будущих инструментов NeuroCine`;
+    setSnapshotStatus(label);
+    setTimeout(() => setSnapshotStatus(""), 3600);
+  }, [navigateToStudioAnchor]);
+
+
   /* ── RENDER ── */
   return (
     <div className="studio">
+      <div className="nc-mobile-shell" id="tools">
+        <TopActionBar
+          account={account}
+          access={accountAccess}
+          uiLang={uiLang}
+          onToggleLang={() => setUiLang(v => v === "ru" ? "en" : "ru")}
+          onOpenMenu={() => setSideDrawerOpen(true)}
+          onOpenCreate={() => setCreateHubOpen(true)}
+          onNavigate={navigateToStudioAnchor}
+        />
+        <SideDrawer
+          open={sideDrawerOpen}
+          onClose={() => setSideDrawerOpen(false)}
+          onNavigate={navigateToStudioAnchor}
+          onSelectTool={handleCreateToolSelect}
+          access={accountAccess}
+        />
+        <CreateHub
+          open={createHubOpen}
+          onClose={() => setCreateHubOpen(false)}
+          onSelectTool={handleCreateToolSelect}
+          access={accountAccess}
+        />
+        <MobileBottomNav
+          onCreate={() => setCreateHubOpen(true)}
+          onNavigate={navigateToStudioAnchor}
+        />
+      </div>
 
       {/* TOP BAR */}
       <nav className="studio-topbar-v40">
@@ -1490,15 +1552,17 @@ ${lines.join("\n")}` : "";
       {isSignedIn && (accountAccess.isOwner || accountAccess.isAdmin) && <AdminPanel account={account} />}
 
       {isSignedIn && (
-        <CloudProjectsPanel
-          account={account}
-          projectName={projectName}
-          buildSnapshot={buildProjectSnapshot}
-          applySnapshot={applyProjectSnapshot}
-          onStatus={setSnapshotStatus}
-          autoSaveKey={cloudAutoSaveKey}
-          autoSaveEnabled={true}
-        />
+        <section id="projects" className="nc-projects-anchor">
+          <CloudProjectsPanel
+            account={account}
+            projectName={projectName}
+            buildSnapshot={buildProjectSnapshot}
+            applySnapshot={applyProjectSnapshot}
+            onStatus={setSnapshotStatus}
+            autoSaveKey={cloudAutoSaveKey}
+            autoSaveEnabled={true}
+          />
+        </section>
       )}
 
       {isSignedIn && (
