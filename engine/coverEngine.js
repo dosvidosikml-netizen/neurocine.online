@@ -1,5 +1,5 @@
 // engine/coverEngine.js
-// NeuroCine Cover Director Engine v2.5 — Cover DNA + CTR hierarchy + stronger typography rules
+// NeuroCine Cover Director Engine v2.6 — Cover DNA + CTR hierarchy + scenario-aware theme detection
 // Делает не просто image prompt, а полноценный вирусный thumbnail brief:
 // сценарий -> главный страх/тайна -> текстовая иерархия -> 9:16 poster composition -> готовый EN prompt.
 
@@ -40,6 +40,7 @@ export function detectCoverTheme(input = {}) {
   const source = low(textSource(input));
   const has = (words) => words.some((w) => source.includes(w));
 
+  if (has(["мерзлот", "mammoth", "мамонт", "мамонтёнок", "мамонтенок", "permafrost", "сибирской язвы", "anthrax", "щенк", "голов", "волк", "лед начал таять", "лёд начал таять", "древние могильники"])) return "permafrost";
   if (has(["тунгус", "тайга", "сибир", "метеорит", "осколк", "воронк"])) return "tunguska";
   if (has(["нло", "ufo", "alien", "иноплан", "не земн", "внезем", "аппарат", "розуэл", "roswell"])) return "alien";
   if (has(["убий", "маньяк", "crime", "преступ", "детектив", "полици", "фбр", "fbi", "след"])) return "crime";
@@ -55,6 +56,13 @@ export function detectCoverTheme(input = {}) {
 }
 
 const THEME_PRESETS = {
+  permafrost: {
+    title: "ГЛАЗ ПОДО\nЛЬДОМ?",
+    facts: ["МЕРЗЛОТЕ 40 000 ЛЕТ", "ИЗО ЛЬДА ВЫШЕЛ МАМОНТЁНОК", "ТРАВА ВНУТРИ БЫЛА ЗЕЛЁНОЙ", "СПОРЫ СИБИРСКОЙ ЯЗВЫ ЖИВЫ"],
+    hook: "ЭТО МОЖЕТ ВЕРНУТЬСЯ",
+    visual: "Siberian permafrost excavation trench, blue-white frozen wall split open, a glossy ancient eye visible under translucent ice, preserved baby mammoth emerging from frozen ground, scientists in heavy winter gear, excavator bucket in background, cold mist, biological threat atmosphere, documentary realism",
+    angle: "permafrost horror / ancient life returning / thawed biological danger",
+  },
   tunguska: {
     title: "ЧТО ВЗОРВАЛОСЬ\nНАД СИБИРЬЮ?",
     facts: ["ОКНА ВЫБИЛО ЗА СОТНИ КМ", "ТАЙГА ЛЕГЛА ЗА СЕКУНДЫ", "ЭКСПЕДИЦИЯ ЧЕРЕЗ 19 ЛЕТ", "НИ ВОРОНКИ. НИ ОСКОЛКОВ."],
@@ -159,6 +167,13 @@ function deriveFromScript(input = {}, preset) {
 
   const extractedFacts = [];
   const factRules = [
+    [/глаз[^.?!]{0,60}(лед|л[её]д|мерзлот)/i, "ГЛАЗ ПОДО ЛЬДОМ"],
+    [/(сорок\s*тысяч|40\s*тысяч)/i, "МЕРЗЛОТЕ 40 000 ЛЕТ"],
+    [/мамонт[её]нок|мамонтенок|мамонтёнок/i, "ИЗО ЛЬДА ВЫШЕЛ МАМОНТЁНОК"],
+    [/трав[ауы][^.?!]{0,80}зел[её]н/i, "ТРАВА ВНУТРИ БЫЛА ЗЕЛЁНОЙ"],
+    [/сибирской\s+язв|anthrax/i, "СПОРЫ СИБИРСКОЙ ЯЗВЫ ЖИВЫ"],
+    [/щенк/i, "МЕРЗЛОТА ВОЗВРАЩАЕТ ДАЖЕ ЩЕНКА"],
+    [/голов[ауы]\s+волк|волк[^.?!]{0,40}клык/i, "ДАЖЕ ГОЛОВА ВОЛКА СОХРАНИЛАСЬ"],
     [/окна[^.?!]{0,60}(выбил|выбило)[^.?!]{0,80}/i, "ОКНА ВЫБИЛО ЗА СОТНИ КМ"],
     [/экспедиц[^.?!]{0,80}(19|девятнадцать)[^.?!]{0,40}лет/i, "ЭКСПЕДИЦИЯ ЧЕРЕЗ 19 ЛЕТ"],
     [/ни\s+воронк/i, "НИ ВОРОНКИ. НИ ОСКОЛКОВ."],
@@ -178,6 +193,7 @@ function deriveFromScript(input = {}, preset) {
 
 function buildTitle({ topic = "", mode = "viral", preset }) {
   const t = upper(topic).replace(/\s+/g, " ");
+  if (t.includes("МАМОН") || t.includes("МЕРЗЛОТ") || t.includes("ЛЁД") || t.includes("ЛЕД")) return preset.title;
   if (t.includes("ТУНГУС") || t.includes("СИБИР")) return preset.title;
   if (topic && topic.length <= 42 && mode === "safe") return `${upper(topic)}\nЧТО СКРЫЛИ?`;
   return preset.title;
@@ -196,7 +212,7 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
   }[mode] || "viral curiosity gap";
 
   return {
-    version: "Cover Director v2.5",
+    version: "Cover Director v2.6",
     theme,
     mode,
     style,
@@ -274,8 +290,13 @@ export function buildCoverVariants({ topic = "", script = "", storyboard = null,
   };
 }
 
-
 export const COVER_DNA_PRESETS = {
+  permafrost_horror: {
+    palette: "ice blue black red warning",
+    typography: "cold distressed warning typography",
+    atmosphere: "ancient biological danger thawing from ice",
+    symbols: ["blue ice", "ancient eye", "mammoth", "warning stamp"],
+  },
   conspiracy_documentary: {
     palette: "red black orange",
     typography: "bold distressed warning typography",
@@ -304,6 +325,10 @@ export const COVER_DNA_PRESETS = {
 
 export function detectCoverDNA(script = "") {
   const s = script.toLowerCase();
+
+  if (s.includes("мерзлот") || s.includes("мамонт") || s.includes("сибирской язвы") || s.includes("anthrax")) {
+    return "permafrost_horror";
+  }
 
   if (s.includes("тунгус") || s.includes("ufo") || s.includes("не земной")) {
     return "conspiracy_documentary";
