@@ -26,8 +26,8 @@ import TopActionBar from "../../components/TopActionBar";
 import MobileBottomNav from "../../components/MobileBottomNav";
 import SideDrawer from "../../components/SideDrawer";
 import CreateHub from "../../components/CreateHub";
-import QuickStorygridTool from "../../components/QuickStorygridTool";
-import ViralShortsTool from "../../components/ViralShortsTool";
+import QuickStartHub from "../../components/QuickStartHub";
+import WizardSteps from "../../components/WizardSteps";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 import { MOCK_SCRIPT_RU, buildMockScript, buildMockStoryboard, buildMockVideoPrompt } from "../../lib/mockData";
 
@@ -369,8 +369,16 @@ function ProjectSetupPanelV40({
     { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
     { id: "grok", label: "Grok Imagine", hint: "короткий визуальный prompt" },
   ];
-  const styleCards = ["dark", "cinematic", "truecrime", "war", "animeDark", "animation25d", "graphicNovel", "stopmotion"]
-    .filter((k) => STYLE_PRESETS[k]);
+  const styleCards = [
+    "cinematic", "dark", "truecrime", "war",
+    "neonNoir", "synthwave80s", "cyberpunk",
+    "vhsRetro", "analogFilm",
+    "mysticHorror", "scifiAtmospheric", "fantasyEpic",
+    "westernGritty", "apocalyptic", "filmNoir", "brutalistMinimal",
+    "animation2d", "animation25d", "animation3d", "stopmotion", "cutoutPaper",
+    "animeDark", "animeShonenAction", "animeSliceOfLife", "ghibliInspired",
+    "graphicNovel", "comicHalftone", "musicVideo"
+  ].filter((k) => STYLE_PRESETS[k]);
   const estimatedScenes = Math.max(1, Math.round(Number(duration || 60) / 3));
   const readyForStoryboard = !!script?.trim() || devMode;
   const busy = sBusy || sbBusy;
@@ -1636,37 +1644,48 @@ ${lines.join("\n")}` : "";
       />
 
       <section id="quick-tools" className="nc-quick-tools-anchor">
-        <div className="quick-tools-heading">
-          <span>AI VIDEO FACTORY · QUICK TOOLS</span>
-          <h2>Быстрый старт</h2>
-          <p>Лёгкие формы как в мобильных AI-приложениях: быстро собрать storygrid или вирусный shorts pack, а затем продолжить в основной Studio.</p>
-        </div>
-        <div className="quick-tools-layout">
-          <QuickStorygridTool
-            topic={topic}
-            setTopic={handleTopicChange}
-            setDuration={setDuration}
-            setAspect={setAspect}
-            setStylePreset={setStylePreset}
-            setTone={setTone}
-            setProjectType={setProjectType}
-            setSbMode={setSbMode}
-            setTarget={setTarget}
-            doScript={doScript}
-            doStoryboard={doStoryboard}
-            onStatus={setSnapshotStatus}
-          />
-          <ViralShortsTool
-            setTopic={handleTopicChange}
-            setScript={setScript}
-            setDuration={setDuration}
-            setAspect={setAspect}
-            setTone={setTone}
-            setStylePreset={setStylePreset}
-            setProjectType={setProjectType}
-            onStatus={setSnapshotStatus}
-          />
-        </div>
+        <QuickStartHub
+          topic={topic}
+          setTopic={handleTopicChange}
+          setScript={setScript}
+          setDuration={setDuration}
+          setAspect={setAspect}
+          setStylePreset={setStylePreset}
+          setTone={setTone}
+          setProjectType={setProjectType}
+          setSbMode={setSbMode}
+          setTarget={setTarget}
+          doScript={doScript}
+          doStoryboard={doStoryboard}
+          onScrollToPack={() => {
+            if (typeof document !== "undefined") {
+              document.getElementById("pack")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }}
+          onScrollToStudio={() => {
+            if (typeof document !== "undefined") {
+              document.getElementById("production")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }}
+          onStatus={setSnapshotStatus}
+        />
+
+        <WizardSteps
+          topic={topic}
+          script={script}
+          storyboard={storyboard}
+          curFrame={curFrame}
+          finalImg={finalImg}
+          duration={duration}
+          aspectRatio={aspectRatio}
+          stylePreset={stylePreset}
+          stylePresets={STYLE_PRESETS}
+          onJumpTo={(anchor) => {
+            if (typeof document !== "undefined") {
+              document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }}
+        />
       </section>
 
       <div className="studio-flow-shell">
