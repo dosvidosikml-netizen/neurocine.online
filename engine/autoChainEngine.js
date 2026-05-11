@@ -1,7 +1,7 @@
-// NeuroCine Auto-Chain Strict Engine v2.2 — Legacy Live-Action Lock
-// Separate optional engine: does not replace storyboard/director engines.
-// Purpose: build chained storyboard PART prompts and video prompt packs strictly from existing storyboard scenes.
-// V2.2 fix: the visual core is forced back to the old successful live-action / camera-photographed style.
+// NeuroCine Auto-Chain Strict Engine v2.8 — Smart Continuity + Flow Compact
+// Purpose: build chained PART prompts strictly from storyboard scenes without inventing plot.
+// v2.8: adds adjacent-frame continuity links, keeps same reveal/entity across neighboring cells,
+// and avoids feeding bloated video prompts back into PART image prompts.
 
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -10,7 +10,11 @@ function cleanText(value = "") {
 function stripPromptPrefix(value = "") {
   return cleanText(value)
     .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
-    .replace(/^ANIMATE CURRENT FRAME:\s*/i, "");
+    .replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "")
+    .replace(/\bShot progression\s*:[\s\S]*?(?=\bCamera behavior\s*:|\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|$)/gi, "")
+    .replace(/\bCamera behavior\s*:[\s\S]*?(?=\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|$)/gi, "")
+    .replace(/\bAudio\s*:[\s\S]*?(?=\bSFX\s*:|$)/gi, "")
+    .replace(/\bSFX\s*:[\s\S]*$/gi, "");
 }
 
 function frameNumber(scene, index = 0) {
@@ -22,126 +26,58 @@ function frameLabel(scene, index = 0) {
   return `F${String(frameNumber(scene, index)).padStart(2, "0")}`;
 }
 
-// ── Appearance stripping ─────────────────────────────────────────────────────
-// Action triggers — слова с которых начинается ДЕЙСТВИЕ персонажа
-// (всё до них = внешность, всё после = действие + локация)
-// Триггеры — слова с которых начинается ДЕЙСТВИЕ персонажа (всё до них = внешность)
-const ACTION_TRIGGERS = [
-  // Present participles
-  "lying ", "kneeling ", "standing ", "sitting ", "running ", "walking ",
-  "crouching ", "reaching ", "carrying ", "dropping ", "staring ",
-  "pushing ", "pulling ", "dragging ", "watching ", "facing ",
-  "frozen ", "freezing ", "hunched ", "hunching ", "collapses ", "collapsing ",
-  "leaning ", "gazing ", "holding ", "moving ", "crossing ", "entering ",
-  "following ", "pressing ", "gripping ", "recoiling ", "stumbling ",
-  "turning ", "looking ", "waiting ", "kneeling ", "bowing ", "rising ",
-  "stepping ", "walking ", "climbing ", "descending ", "working ", "carrying ",
-  "lifting ", "dragging ", "digging ", "hauling ", "straining ",
-  // Simple present / other forms
-  "stands ", "sits ", "lies ", "kneels ", "faces ",
-  "enters ", "turns ", "moves ", "grips ", "freezes ", "recoils ",
-  "appears ", "appear ", "reaches ", "looks on", "bends ",
-  // Descriptive action phrases
-  "bent ", "seated ", "crouched ", "hunched ", "in final ",
-  // Edge cases
-  "mid-step", "mid-stride", "mid-motion", "in position",
-];
-
-// Простая транслитерация кириллицы → латиница для поиска имён в промтах
-function translitName(str) {
-  const map = {
-    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z",
-    "и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
-    "с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh",
-    "щ":"shch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya",
-    "А":"A","Б":"B","В":"V","Г":"G","Д":"D","Е":"E","Ё":"Yo","Ж":"Zh","З":"Z",
-    "И":"I","Й":"Y","К":"K","Л":"L","М":"M","Н":"N","О":"O","П":"P","Р":"R",
-    "С":"S","Т":"T","У":"U","Ф":"F","Х":"Kh","Ц":"Ts","Ч":"Ch","Ш":"Sh",
-    "Щ":"Shch","Ъ":"","Ы":"Y","Ь":"","Э":"E","Ю":"Yu","Я":"Ya"
-  };
-  return str.split("").map(c => map[c] !== undefined ? map[c] : c).join("");
-}
-
-function stripCharacterAppearance(text, characterLock = []) {
-  if (!characterLock.length || !text) return text;
-  let result = text;
-  for (const char of characterLock) {
-    const name = cleanText(char.name || "");
-    if (!name) continue;
-
-    // Ищем имя и его транслит-вариант (для кириллических имён в латинских промтах)
-    const nameTranslit = translitName(name);
-    const candidates = [name];
-    if (nameTranslit !== name) candidates.push(nameTranslit);
-    // Также пробуем только первое слово (имя без фамилии) на случай частичного совпадения
-    const firstName = name.split(" ")[0];
-    const firstNameTranslit = translitName(firstName);
-    if (!candidates.includes(firstName)) candidates.push(firstName);
-    if (!candidates.includes(firstNameTranslit)) candidates.push(firstNameTranslit);
-
-    let nameIdx = -1;
-    let foundName = "";
-    for (const candidate of candidates) {
-      const idx = result.indexOf(candidate);
-      if (idx !== -1 && (nameIdx === -1 || idx < nameIdx)) {
-        nameIdx = idx;
-        foundName = candidate;
-      }
-    }
-    if (nameIdx === -1) continue;
-
-    const afterName = result.slice(nameIdx + foundName.length);
-
-    // Если сразу после имени нет запятой — внешность уже убрана, пропускаем
-    const trimmedAfter = afterName.trimStart();
-    if (!trimmedAfter.startsWith(",")) continue;
-
-    let actionStart = -1;
-    const afterLower = afterName.toLowerCase();
-    for (const trigger of ACTION_TRIGGERS) {
-      const idx = afterLower.indexOf(trigger);
-      if (idx !== -1 && (actionStart === -1 || idx < actionStart)) {
-        actionStart = idx;
-      }
-    }
-
-    if (actionStart > 0 && actionStart < 600) {
-      // Нашли триггер — отрезаем описание внешности
-      result =
-        result.slice(0, nameIdx + foundName.length) +
-        " " +
-        afterName.slice(actionStart).trim();
-    } else {
-      // Fallback: триггер не найден, но есть запятые — берём от первой точки
-      const dotIdx = afterName.indexOf(". ");
-      if (dotIdx > 0 && dotIdx < 600) {
-        result =
-          result.slice(0, nameIdx + foundName.length) +
-          afterName.slice(dotIdx).trim();
-      }
-    }
-  }
-  return cleanText(result);
-}
-// ─────────────────────────────────────────────────────────────────────────────
-
 function sceneText(scene = {}, { characterLock = [], appearanceMode = "full" } = {}) {
   const raw = stripPromptPrefix(
     scene.image_prompt_en || scene.description_en || scene.description_ru || scene.vo_ru || ""
   );
   if (appearanceMode === "minimal" && characterLock.length) {
-    return stripCharacterAppearance(raw, characterLock);
+    return removeKnownCharacterAppearance(raw, characterLock);
   }
   return raw;
 }
 
 function sceneMotion(scene = {}) {
-  return stripPromptPrefix(scene.video_prompt_en || scene.motion || scene.description_ru || scene.vo_ru || "");
+  return stripPromptPrefix(
+    scene.story_action_en ||
+    scene.action_en ||
+    scene.motion ||
+    scene.action ||
+    scene.description_en ||
+    scene.description_ru ||
+    scene.vo_ru ||
+    scene.video_prompt_en ||
+    ""
+  );
 }
 
 function getShotType(scene = {}, i = 0) {
   const shots = ["wide establishing shot", "handheld medium shot", "close-up", "over-the-shoulder shot"];
   return cleanText(scene.shot_type || scene.camera || shots[i % shots.length]);
+}
+
+function removeKnownCharacterAppearance(text = "", characterLock = []) {
+  let out = cleanText(text);
+  for (const c of characterLock || []) {
+    const name = cleanText(c.name || "");
+    if (!name) continue;
+    const idx = out.toLowerCase().indexOf(name.toLowerCase());
+    if (idx < 0) continue;
+    const after = out.slice(idx + name.length);
+    const actionMatch = after.match(/\b(standing|sitting|walking|running|kneeling|holding|looking|turning|entering|crossing|dragging|lifting|reaching|watching|facing|moving|crouching|lying|staring|freezing|working|digging)\b/i);
+    if (actionMatch?.index != null && actionMatch.index < 500) {
+      out = `${out.slice(0, idx + name.length)} ${after.slice(actionMatch.index)}`;
+    }
+  }
+  return cleanText(out);
+}
+
+function getContinuityLink(partScenes = [], localIdx = 0, partIndex = 0, partSize = 4) {
+  if (localIdx === 0) {
+    return "CONTINUITY LINK: establish the first literal state of this event. If later frames stay in the same beat, preserve the same subject/entity and environment unless the scenario explicitly changes them.";
+  }
+  const prev = partScenes[localIdx - 1];
+  const prevLabel = frameLabel(prev, partIndex * partSize + localIdx - 1);
+  return `CONTINUITY LINK: if this frame continues the reveal or action from ${prevLabel}, preserve the same subject/entity, same environment and same event. Change only angle, distance, lens, emphasis or foreground layer unless the SCENARIO INPUT explicitly introduces a new subject.`;
 }
 
 const LEGACY_LIVE_ACTION_STYLE_LOCK = `CRITICAL VISUAL RULE — OLD NEUROCINE LIVE-ACTION LOOK:
@@ -163,9 +99,7 @@ NO parchment background, NO paper texture, NO old manuscript look, NO beige canv
 export function splitScenesIntoParts(scenes = [], partSize = 4) {
   const size = Math.max(1, Number(partSize) || 4);
   const parts = [];
-  for (let i = 0; i < scenes.length; i += size) {
-    parts.push(scenes.slice(i, i + size));
-  }
+  for (let i = 0; i < scenes.length; i += size) parts.push(scenes.slice(i, i + size));
   return parts;
 }
 
@@ -181,7 +115,7 @@ export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHer
 
 SOURCE OF TRUTH:
 Use ONLY the provided storyboard scenes from the existing Scenario/Storyboard.
-Do NOT invent new plot events, new locations, new actions, or new important objects.
+Do NOT invent new plot events, new locations, new actions, new animals, new important objects or new characters.
 If a detail is not present in a frame description, keep it neutral and minimal.
 Camera choice and composition may be cinematic, but story content must stay literal.
 
@@ -219,10 +153,10 @@ ${HARD_NEGATIVE_VISUAL_LOCK}`;
 function frameRoleHint(localIdx = 0, chainMode = "worldHero") {
   if (chainMode === "worldOnly") return "WORLD FRAME — prioritize the scenario environment/action; characters may change according to the script.";
   const roles = [
-    "HERO OR CORE ACTION FRAME — if the scenario contains the recurring hero, keep identity locked; otherwise follow the scenario literally.",
-    "WORLD FRAME — show the environment/event from the scenario; do not force the hero if not described.",
-    "DETAIL FRAME — show the exact object/body/detail from the scenario; keep live-action macro realism.",
-    "HERO / CONSEQUENCE FRAME — if the scenario returns to the hero, keep identity locked; otherwise show the described consequence/event."
+    "CORE ACTION FRAME — if the scenario contains the recurring hero, keep identity locked; otherwise follow the scenario literally.",
+    "WORLD / CONTEXT FRAME — show the environment/event from the scenario; do not force the hero if not described.",
+    "DETAIL / EVIDENCE FRAME — show the exact object/body/detail from the scenario; keep live-action macro realism.",
+    "CONSEQUENCE FRAME — if the scenario returns to the hero, keep identity locked; otherwise show the described consequence/event."
   ];
   return roles[localIdx % roles.length];
 }
@@ -235,8 +169,8 @@ export function buildAutoChainPartPrompt({
   if (!partScenes.length) return "";
   const characterLock = storyboard?.character_lock || [];
   const start = frameNumber(partScenes[0], partIndex * partSize);
-  const end   = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
-  const rows  = Math.ceil(partScenes.length / 2);
+  const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
+  const rows = Math.ceil(partScenes.length / 2);
   const isFirstPart = partIndex === 0;
 
   const refText = isFirstPart
@@ -249,17 +183,17 @@ export function buildAutoChainPartPrompt({
         ? "Use the uploaded HERO ANCHOR image only for recurring hero identity and style DNA. Do not force the hero into frames where the scenario does not include him/her."
         : "Use the uploaded PREVIOUS PART image as visual reference for world/style continuity. Do not copy the same composition.";
 
-  // Подсказка для режима minimal
   const appearanceNote = appearanceMode === "minimal"
     ? "\nAPPEARANCE MODE — ANCHOR PRIORITY:\nCharacter physical appearance is intentionally omitted from frame descriptions. Use the uploaded HERO ANCHOR image as the sole source of truth for character faces, proportions and visual identity. Do NOT invent a new face based on text.\n"
     : "";
 
   const frameBlocks = partScenes.map((s, localIdx) => {
     const globalIdx = partIndex * partSize + localIdx;
-    const label     = frameLabel(s, globalIdx);
-    const sceneTxt  = sceneText(s, { characterLock, appearanceMode });
+    const label = frameLabel(s, globalIdx);
+    const sceneTxt = sceneText(s, { characterLock, appearanceMode });
     return `${label}:
 ${frameRoleHint(localIdx, chainMode)}
+${getContinuityLink(partScenes, localIdx, partIndex, partSize)}
 MANDATORY VISUAL PREFIX: camera-photographed live-action image, NOT illustration, NOT 2D art, NOT painting, NOT concept art.
 SCENARIO INPUT (STRICT): ${sceneTxt}
 VO MEANING: ${cleanText(s.vo_ru || "")}
@@ -293,10 +227,15 @@ The PART should feel like a sequence cut from the same film.
 Maintain timeline order left-to-right, top-to-bottom.
 No teleportation unless the scenario itself changes location.
 Scene changes are allowed ONLY when the scenario frame describes a new place/action.
+If a reveal spans adjacent frames, keep the same discovered subject/entity across those frames until the scenario explicitly changes to a new subject.
+
+SMART CONTINUITY — STYLE LOCKED, COMPOSITION FREE:
+Preserve style/world/hero DNA, but change shot design between cells: angle, distance, focal length, foreground/midground/background relationship, body placement and visual emphasis.
+Do NOT copy previous composition. Do NOT introduce new plot content.
 
 NETFLIX-STYLE RHYTHM WITHOUT INVENTING:
 Use the scenario as written, but keep the rhythm readable:
-- core hero/action frames return to the recurring hero only if the scene includes him/her;
+- core action frames return to the recurring hero only if the scene includes him/her;
 - world frames expand the same universe;
 - detail frames show exact details from the scenario;
 - no new plot content.
@@ -317,7 +256,7 @@ export function buildAutoChainAllParts({
   strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full"
 } = {}) {
   const scenes = storyboard?.scenes || [];
-  const parts  = splitScenesIntoParts(scenes, partSize);
+  const parts = splitScenesIntoParts(scenes, partSize);
   return parts.map((partScenes, i) => buildAutoChainPartPrompt({
     storyboard, styleProfile, partScenes, partIndex: i, totalScenes: scenes.length,
     partSize, chainMode, strictLevel, referenceMode, appearanceMode
@@ -325,11 +264,11 @@ export function buildAutoChainAllParts({
 }
 
 export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero", includeVo = true } = {}) {
-  const label  = frameLabel(scene, 0);
+  const label = frameLabel(scene, 0);
   const visual = sceneText(scene);
   const motion = sceneMotion(scene);
-  const style  = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
-  return `ANIMATE CURRENT FRAME — ${label}
+  const style = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
+  return `ANIMATE CURRENT FRAME: ${label}
 
 SOURCE OF TRUTH:
 Animate ONLY what is present in this frame and its storyboard description. Do not invent new plot events.
@@ -366,10 +305,10 @@ export function buildAutoChainJson({
   strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full", includeVo = true
 } = {}) {
   const scenes = storyboard?.scenes || [];
-  const parts  = splitScenesIntoParts(scenes, partSize);
+  const parts = splitScenesIntoParts(scenes, partSize);
   return {
     engine: "NeuroCine Auto-Chain Strict Engine",
-    version: "2.6-order-fixed-strict-flow-prompt",
+    version: "2.8-smart-continuity-flow-prompt",
     project_name: storyboard?.project_name || "NeuroCine Project",
     mode: chainMode,
     strict_level: strictLevel,
@@ -397,7 +336,6 @@ export function buildAutoChainJson({
     }))
   };
 }
-
 
 export function buildFlowCompactPartPrompt({
   storyboard, styleProfile, partScenes = [], partIndex = 0, totalScenes = 0,
@@ -429,7 +367,7 @@ export function buildFlowCompactPartPrompt({
     const label = frameLabel(s, partIndex * partSize + localIdx);
     const text = sceneText(s, { characterLock, appearanceMode });
     const sfx = cleanText(s.sfx || "subtle ambience");
-    return `${label} — ${text}\nSFX mood: ${sfx}`;
+    return `${label} — ${text}\n${getContinuityLink(partScenes, localIdx, partIndex, partSize)}\nSFX mood: ${sfx}`;
   }).join("\n\n");
 
   return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
@@ -441,6 +379,7 @@ dark cinematic documentary realism, camera-photographed live-action film stills,
 CONTINUITY:
 ${refLine}
 Smart continuity: preserve atmosphere, lighting family, color grade and historical world texture, but every frame must be a new shot with a different composition, camera angle and focal point.
+If adjacent frames describe the same reveal or subject, keep it as the same exact entity and same event while only changing the shot design.
 
 ${chars ? `CHARACTER LOCK:\n${chars}\n\n` : ""}FRAMES:
 ${frames}
