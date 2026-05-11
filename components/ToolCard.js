@@ -2,8 +2,7 @@
 
 function statusLabel(status) {
   if (status === "active") return "Работает";
-  if (status === "ready_ui") return "UI-ready";
-  return "Скоро";
+  return "Работает";
 }
 
 export default function ToolCard({ tool, compact = false, onSelect }) {
@@ -20,7 +19,7 @@ export default function ToolCard({ tool, compact = false, onSelect }) {
         <em>{tool.subtitle}</em>
         {!compact && <small>{tool.description}</small>}
       </span>
-      <span className={`nc-tool-status ${tool.status}`}>{statusLabel(tool.status)}</span>
+      <span className={`nc-tool-status ${tool.status || "active"}`}>{statusLabel(tool.status)}</span>
     </button>
   );
 }
