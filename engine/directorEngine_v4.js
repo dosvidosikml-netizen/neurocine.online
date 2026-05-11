@@ -27,52 +27,203 @@ export const STYLE_PRESETS = {
   cinematic: {
     label: "Cinematic documentary",
     family: "film",
-    lock: STYLE_LOCKS.cinematic
+    lock: STYLE_LOCKS.cinematic,
+    accent: "#7c5cff",
+    tagline: "Кинореализм · Veo / Kling / Sora baseline"
   },
   dark: {
     label: "Dark history thriller",
     family: "film",
-    lock: STYLE_LOCKS.dark
+    lock: STYLE_LOCKS.dark,
+    accent: "#b35cff",
+    tagline: "Историческая мрачность, тревога"
   },
   truecrime: {
     label: "True crime",
     family: "film",
-    lock: STYLE_LOCKS.truecrime
+    lock: STYLE_LOCKS.truecrime,
+    accent: "#ff5b6c",
+    tagline: "Forensic-документалистика"
   },
   war: {
     label: "War documentary",
     family: "film",
-    lock: STYLE_LOCKS.war
+    lock: STYLE_LOCKS.war,
+    accent: "#c79b5c",
+    tagline: "Грязь, длиннофокус, репортажный взгляд"
   },
+  // === 2026 PREMIUM ===
+  neonNoir: {
+    label: "Neon Noir",
+    family: "film",
+    lock: STYLE_LOCKS.neonNoir,
+    accent: "#ff45e2",
+    tagline: "Blade Runner · мокрый асфальт · неон"
+  },
+  synthwave80s: {
+    label: "Synthwave 80s",
+    family: "film",
+    lock: STYLE_LOCKS.synthwave80s,
+    accent: "#ff3eb5",
+    tagline: "Retrowave grid · закат · хром"
+  },
+  cyberpunk: {
+    label: "Cyberpunk megacity",
+    family: "film",
+    lock: STYLE_LOCKS.cyberpunk,
+    accent: "#3ee0ff",
+    tagline: "Голограммы · мегаполис · ночь"
+  },
+  vhsRetro: {
+    label: "VHS / Super 8",
+    family: "film",
+    lock: STYLE_LOCKS.vhsRetro,
+    accent: "#ff8a5c",
+    tagline: "Зерно, тёплая ламповая ностальгия"
+  },
+  analogFilm: {
+    label: "Analog film Kodak",
+    family: "film",
+    lock: STYLE_LOCKS.analogFilm,
+    accent: "#e9b35c",
+    tagline: "Portra 400 · золотой час"
+  },
+  mysticHorror: {
+    label: "Mystic horror",
+    family: "film",
+    lock: STYLE_LOCKS.mysticHorror,
+    accent: "#5cffd3",
+    tagline: "Туман, свечи, сдержанный ужас"
+  },
+  scifiAtmospheric: {
+    label: "Sci-Fi atmospheric",
+    family: "film",
+    lock: STYLE_LOCKS.scifiAtmospheric,
+    accent: "#5c9aff",
+    tagline: "Hard sci-fi · лаборатория · анаморф"
+  },
+  fantasyEpic: {
+    label: "Fantasy epic",
+    family: "film",
+    lock: STYLE_LOCKS.fantasyEpic,
+    accent: "#ffb05c",
+    tagline: "Эпос · золотой свет · масштаб"
+  },
+  westernGritty: {
+    label: "Western gritty",
+    family: "film",
+    lock: STYLE_LOCKS.westernGritty,
+    accent: "#d97a4a",
+    tagline: "Пыль, солнце, пот"
+  },
+  apocalyptic: {
+    label: "Post-apocalypse",
+    family: "film",
+    lock: STYLE_LOCKS.apocalyptic,
+    accent: "#7a8a5c",
+    tagline: "Зарастающий бетон, ржавчина"
+  },
+  filmNoir: {
+    label: "Film Noir B&W",
+    family: "film",
+    lock: STYLE_LOCKS.filmNoir,
+    accent: "#a8a8a8",
+    tagline: "1940s · контрастный ч/б · жалюзи"
+  },
+  brutalistMinimal: {
+    label: "Brutalist minimal",
+    family: "film",
+    lock: STYLE_LOCKS.brutalistMinimal,
+    accent: "#a39a8a",
+    tagline: "Бетон, объёмы, минимализм"
+  },
+  // === ANIMATION FAMILY ===
   animation2d: {
     label: "2D animation",
     family: "animation",
-    lock: "2D cinematic animation, hand-painted backgrounds, expressive but grounded acting, clean shapes, consistent character sheet, no live-action photo realism"
+    lock: "2D cinematic animation, hand-painted backgrounds, expressive but grounded acting, clean shapes, consistent character sheet, no live-action photo realism",
+    accent: "#7cd6ff",
+    tagline: "Кадровая анимация, чистые формы"
   },
   animation25d: {
     label: "2.5D layered animation",
     family: "animation",
-    lock: "2.5D animation, layered parallax-ready backgrounds, cinematic depth, painted textures, controlled character model, clean readable motion"
+    lock: "2.5D animation, layered parallax-ready backgrounds, cinematic depth, painted textures, controlled character model, clean readable motion",
+    accent: "#9ee0ff",
+    tagline: "Параллакс, живопись, объём"
   },
   animation3d: {
-    label: "3D cartoon",
+    label: "3D cartoon premium",
     family: "animation",
-    lock: "high-end 3D animated film look, stylized realistic materials, cinematic lighting, consistent character model, expressive posing"
+    lock: "high-end 3D animated film look, stylized realistic materials, cinematic lighting, consistent character model, expressive posing",
+    accent: "#ffb960",
+    tagline: "Pixar-уровень кинематографии"
   },
   stopmotion: {
-    label: "Stop motion",
+    label: "Stop motion craft",
     family: "animation",
-    lock: "stop-motion miniature set look, handmade tactile materials, real fabric texture, imperfect physical puppets, cinematic tabletop lighting"
+    lock: "stop-motion miniature set look, handmade tactile materials, real fabric texture, imperfect physical puppets, cinematic tabletop lighting",
+    accent: "#b88a5c",
+    tagline: "Хендмейд, ткань, миниатюра"
   },
+  cutoutPaper: {
+    label: "Cutout paper craft",
+    family: "animation",
+    lock: "cutout paper craft animation, scanned paper and cardboard textures, hand-drawn elements, simple flat shadows, layered collage feel, magazine clipping motion, playful handmade pacing",
+    accent: "#ff9966",
+    tagline: "Бумага, коллаж, ножницы"
+  },
+  // === ANIME FAMILY ===
   animeDark: {
     label: "Dark anime",
     family: "anime",
-    lock: "dark cinematic anime, dramatic shadows, detailed backgrounds, mature tone, consistent character sheet, filmic composition"
+    lock: "dark cinematic anime, dramatic shadows, detailed backgrounds, mature tone, consistent character sheet, filmic composition",
+    accent: "#c84cff",
+    tagline: "Мрачное аниме, кинокомпозиция"
   },
+  animeShonenAction: {
+    label: "Shonen action",
+    family: "anime",
+    lock: "high-energy shonen action anime, dynamic motion lines, intense impact frames, vibrant saturated palette, dramatic angles, consistent character sheet, expressive eyes",
+    accent: "#ff5c4c",
+    tagline: "Динамика, импакт-кадры, экшен"
+  },
+  animeSliceOfLife: {
+    label: "Slice-of-life anime",
+    family: "anime",
+    lock: "soft pastel slice-of-life anime, warm key light, painterly background detail, gentle character acting, consistent character sheet, no aggressive shadows",
+    accent: "#ffb6c8",
+    tagline: "Тёплая повседневность, пастель"
+  },
+  ghibliInspired: {
+    label: "Ghibli-inspired",
+    family: "anime",
+    lock: "Studio-Ghibli-influenced painterly anime, lush hand-painted nature, soft warm lighting, watercolor cloud detail, expressive subtle character animation, consistent character sheet",
+    accent: "#8fd9b6",
+    tagline: "Живописная природа, мягкость"
+  },
+  // === COMIC FAMILY ===
   graphicNovel: {
     label: "Graphic novel",
     family: "comic",
-    lock: "dark graphic novel illustration, inked cinematic panels, textured shadows, strong silhouettes, controlled panel composition"
+    lock: "dark graphic novel illustration, inked cinematic panels, textured shadows, strong silhouettes, controlled panel composition",
+    accent: "#a8a8a8",
+    tagline: "Чернильная графика, силуэты"
+  },
+  comicHalftone: {
+    label: "Comic halftone pop",
+    family: "comic",
+    lock: "classic comic halftone print style, Ben-Day dot texture, bold ink outlines, flat saturated color fills, dynamic action posing, pop-art panel framing",
+    accent: "#ffd23e",
+    tagline: "Pop-art, точки, плакат"
+  },
+  // === MUSIC FAMILY ===
+  musicVideo: {
+    label: "Music video drive",
+    family: "music",
+    lock: "music-video visual rhythm, stylized cinematic pacing, dynamic camera energy, strong atmosphere, controlled color grade",
+    accent: "#ff5c9e",
+    tagline: "Клиповая динамика и грейд"
   }
 };
 

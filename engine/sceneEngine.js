@@ -59,7 +59,32 @@ export const STYLE_LOCKS = {
   truecrime:
     `${ULTRA_REALISM} Premium true crime reconstruction — low-key natural lighting, forensic atmosphere, controlled shadow depth, realistic crime scene texture, unposed documentary framing, no subtitles, no UI, no watermark`,
   war:
-    `${ULTRA_REALISM} Gritty war documentary — long lens compression, 200mm f/2.8 telephoto, mud splatter with realistic drying patterns, smoke volumetric density, cold diffused natural light, handheld urgent tension, Kodak Vision3 grain, no subtitles, no UI, no watermark`
+    `${ULTRA_REALISM} Gritty war documentary — long lens compression, 200mm f/2.8 telephoto, mud splatter with realistic drying patterns, smoke volumetric density, cold diffused natural light, handheld urgent tension, Kodak Vision3 grain, no subtitles, no UI, no watermark`,
+  // === 2026 PREMIUM STYLE EXPANSION PACK ===
+  neonNoir:
+    `${ULTRA_REALISM} Neon Noir cinematic atmosphere — rain-soaked asphalt with high-contrast neon reflections, magenta and cyan light scatter through haze, deep shadow silhouettes against glowing storefront signs, wet surfaces with mirror-grade specular, Blade Runner-style smoke and steam volumetrics, anamorphic lens streaks, no subtitles, no UI, no watermark`,
+  synthwave80s:
+    `${ULTRA_REALISM} 80s synthwave retrofuturism — neon grid horizon, oversized retro sunset with horizontal stripe gradient magenta-to-amber, chrome reflections, VHS chromatic aberration on edges, slight scan-line texture, hot pink and electric cyan dominant palette, palm tree silhouettes, no subtitles, no UI, no watermark`,
+  cyberpunk:
+    `${ULTRA_REALISM} Dense cyberpunk megacity at night — towering holographic billboards casting colored light on faces, layered light pollution, vertical wet alley reflections, rim lights from neon kanji and Cyrillic signage, atmospheric particulate, low-angle architectural compression, no subtitles, no UI, no watermark`,
+  vhsRetro:
+    `${ULTRA_REALISM} Retro VHS/Super 8 home-video aesthetic — film grain heavy, slight tape jitter, soft chromatic bleed, faded warm tungsten color palette, light leaks at frame edges, slight overexposure on highlights, lifted shadow detail, 4:3-feeling crop tension even in wide aspect, no subtitles, no UI, no watermark`,
+  analogFilm:
+    `${ULTRA_REALISM} Analog Kodak Portra 400 film grain — warm highlights, desaturated shadows, natural skin tones, soft halation on light sources, slight gate weave, organic imperfection, golden-hour key light, no subtitles, no UI, no watermark`,
+  mysticHorror:
+    `${ULTRA_REALISM} Atmospheric horror documentary — fog dense enough to obscure mid-ground, candle and oil-lamp practical key lights flickering, deep cold blue ambient shadow fill, faces partially obscured, breath visible, damp stone and mossy wood texture, restrained framing avoiding direct shock, no subtitles, no UI, no watermark`,
+  scifiAtmospheric:
+    `${ULTRA_REALISM} Hard sci-fi atmospheric realism — practical lab and spacecraft lighting with cool teal LED accents, volumetric haze in beam paths, brushed metal and matte composite surface texture, condensation on cold surfaces, slightly desaturated palette, anamorphic flare on bright sources, no subtitles, no UI, no watermark`,
+  fantasyEpic:
+    `${ULTRA_REALISM} Epic fantasy realism — golden-hour rim light through atmospheric haze, weathered leather and chainmail with individual link detail, dust motes in shafts of light, painterly cloud formations, deep valley compression, naturalistic costume aged with use, no subtitles, no UI, no watermark`,
+  westernGritty:
+    `${ULTRA_REALISM} Gritty western frontier realism — sun-bleached wood and bone-dry earth, harsh midday sun with deep shadow contrast, dust kicked into air, sweat-stained fabric with salt crystals, weathered hands with sun damage, warm amber dust palette, no subtitles, no UI, no watermark`,
+  apocalyptic:
+    `${ULTRA_REALISM} Post-apocalyptic realism — overgrown urban decay with plant intrusion through concrete, oxidized rust patina with realistic flaking, ash fall in air, abandoned vehicles with weathered paint, low overcast cold ambient light, muted desaturated palette with occasional rust orange accent, no subtitles, no UI, no watermark`,
+  filmNoir:
+    `${ULTRA_REALISM} Classic film noir — black-and-white high-contrast Venetian blind shadows across faces, hard side key light at 45 degrees, cigarette smoke volumetric in shaft of light, fedora-shadowed eyes, wet street with reflective puddles, 1940s wardrobe texture, no subtitles, no UI, no watermark`,
+  brutalistMinimal:
+    `${ULTRA_REALISM} Brutalist minimal architectural drama — raw concrete texture with form-tie holes, oversized geometric voids, single hard sunlight beam through architectural cutout, monochromatic gray-beige palette with single accent color, human figure dwarfed by structure, no subtitles, no UI, no watermark`
 };
 
 export const VIDEO_LOCK =
