@@ -19,6 +19,23 @@ function readInitialTheme() {
   return "dark";
 }
 
+/* Маппинг локали → флаг + следующий язык в цикле */
+const LANG_FLAGS = {
+  ru: { flag: "🇷🇺", next: "en", title: "Switch to English" },
+  en: { flag: "🇬🇧", next: "ru", title: "Переключить на русский" }
+};
+
+/* Вычисляем инициалы для аватарки */
+function getInitials(name, email) {
+  const source = (name || email || "").trim();
+  if (!source) return "U";
+  const parts = source.split(/[\s@._-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return source.slice(0, 2).toUpperCase();
+}
+
 export default function TopActionBar({
   account,
   access,
@@ -31,19 +48,24 @@ export default function TopActionBar({
 }) {
   const email = account?.profile?.email || account?.session?.user?.email || "";
   const isSignedIn = Boolean(account?.session?.user);
-  const plan = access?.isOwner || access?.isAdmin
-    ? "OWNER"
-    : access?.role === "pro"
-    ? "PRO"
-    : isSignedIn
-    ? "FREE"
-    : "AUTH";
-  const keyState = access?.role === "pro" ? (access?.hasOwnApiKeys ? "LIVE" : "KEY") : plan;
   const displayName = account?.profile?.display_name || (email ? email.split("@")[0] : "Гость");
-  const planLabel = access?.isOwner ? "Owner аккаунт" : access?.role === "pro" ? "Pro аккаунт" : isSignedIn ? "Бесплатный аккаунт" : "Гость";
+  const avatarUrl = account?.profile?.avatar_url || account?.session?.user?.user_metadata?.avatar_url || "";
+  const planLabel = access?.isOwner
+    ? "Owner аккаунт"
+    : access?.role === "pro"
+    ? "Pro аккаунт"
+    : isSignedIn
+    ? "Бесплатный аккаунт"
+    : "Гость";
+  const planBadge = access?.isOwner ? "OWN" : access?.role === "pro" ? "PRO" : isSignedIn ? "FREE" : "";
+
+  const langKey = String(uiLang || "ru").toLowerCase();
+  const langInfo = LANG_FLAGS[langKey] || LANG_FLAGS.ru;
+  const initials = getInitials(displayName, email);
 
   const [theme, setTheme] = useState("dark");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const profileRef = useRef(null);
 
   useEffect(() => {
@@ -72,6 +94,9 @@ export default function TopActionBar({
     };
   }, [profileOpen]);
 
+  // Сброс ошибки картинки если URL поменялся
+  useEffect(() => { setImgError(false); }, [avatarUrl]);
+
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -90,6 +115,12 @@ export default function TopActionBar({
     else onNavigate?.("auth");
   }
 
+  function handleLangToggle() {
+    if (onToggleLang) onToggleLang();
+  }
+
+  const showAvatarImg = avatarUrl && !imgError;
+
   return (
     <header className="nc-top-action-bar">
       <button className="nc-top-icon" type="button" onClick={onOpenMenu} aria-label="Меню">☰</button>
@@ -98,26 +129,32 @@ export default function TopActionBar({
         <span>N</span>
       </button>
 
-      <button className="nc-top-credit" type="button" onClick={onOpenCreate} title="Создать">
-        <b>+</b>
-      </button>
+      <div className="nc-top-spacer" aria-hidden></div>
 
-      <button className="nc-top-icon" type="button" onClick={() => onNavigate?.("setup")} aria-label="Настройки">⚙</button>
-
-      <button className="nc-lang" type="button" onClick={onToggleLang} aria-label="Сменить язык">
-        {uiLang.toUpperCase()}
+      <button className="nc-lang nc-lang-flag" type="button" onClick={handleLangToggle} aria-label={langInfo.title} title={langInfo.title}>
+        <span className="nc-lang-flag-emoji" role="img" aria-hidden>{langInfo.flag}</span>
       </button>
 
       <div className="nc-profile-wrap" ref={profileRef}>
         <button
-          className="nc-profile"
+          className={"nc-profile nc-profile-avatar" + (showAvatarImg ? " has-image" : "")}
           type="button"
           onClick={() => setProfileOpen(o => !o)}
           aria-haspopup="menu"
           aria-expanded={profileOpen}
           title={email || "Профиль"}
         >
-          <span>{String(keyState || "U").slice(0, 3)}</span>
+          {showAvatarImg ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              onError={() => setImgError(true)}
+              draggable="false"
+            />
+          ) : (
+            <span className="nc-profile-initials">{initials}</span>
+          )}
+          {planBadge && <span className={"nc-profile-plan-dot plan-" + planBadge.toLowerCase()} aria-hidden>{planBadge[0]}</span>}
         </button>
 
         {profileOpen && (
