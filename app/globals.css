@@ -3320,3 +3320,645 @@ input:disabled{
   .quick-grid-2,.quick-grid-3{ grid-template-columns:1fr; gap:0; }
   .quick-actions .btn{ width:100%; }
 }
+/* ============================================================
+   v66 — Theme toggle + Profile dropdown
+   Добавь этот блок В КОНЕЦ файла app/globals.css
+   ============================================================ */
+
+/* --- Theme toggle button (солнце/луна рядом с языком) --- */
+.nc-theme-toggle {
+  font-size: 19px;
+  line-height: 1;
+}
+
+/* --- Profile dropdown wrapper --- */
+.nc-profile-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* --- Profile dropdown menu --- */
+.nc-profile-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 264px;
+  max-width: 92vw;
+  z-index: 4000;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(14, 14, 22, .98);
+  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55), 0 2px 0 rgba(255, 255, 255, .03) inset;
+  backdrop-filter: blur(22px);
+  animation: nc-profile-menu-in .14s ease-out;
+}
+
+@keyframes nc-profile-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.nc-profile-menu-head {
+  padding: 12px 14px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  margin-bottom: 6px;
+}
+
+.nc-profile-menu-plan {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .5);
+  margin-bottom: 4px;
+}
+
+.nc-profile-menu-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.nc-profile-menu-email {
+  font-size: 12px;
+  color: rgba(255, 255, 255, .55);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nc-profile-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, .88);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+
+.nc-profile-menu-item:hover,
+.nc-profile-menu-item:focus-visible {
+  background: rgba(255, 255, 255, .06);
+  outline: none;
+}
+
+.nc-profile-menu-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .07);
+  color: rgba(255, 255, 255, .72);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.nc-profile-menu-danger {
+  color: #ff7a6a;
+}
+.nc-profile-menu-danger .nc-profile-menu-icon {
+  background: rgba(255, 90, 80, .12);
+  color: #ff7a6a;
+}
+.nc-profile-menu-danger:hover {
+  background: rgba(255, 90, 80, .08);
+}
+
+/* ============================================================
+   LIGHT THEME — активируется атрибутом data-theme="light" на <html>
+   Базовые переменные. Если у тебя в проекте уже есть CSS-vars —
+   просто подставь свои, имена не критичны.
+   ============================================================ */
+
+html[data-theme="light"] {
+  background: #f6f6f8;
+  color: #16161c;
+}
+
+html[data-theme="light"] body {
+  background: #f6f6f8;
+  color: #16161c;
+}
+
+html[data-theme="light"] .nc-top-action-bar {
+  background: rgba(255, 255, 255, .92);
+  border-bottom: 1px solid rgba(0, 0, 0, .08);
+}
+
+html[data-theme="light"] .nc-top-icon {
+  background: rgba(0, 0, 0, .04);
+  color: rgba(0, 0, 0, .72);
+}
+
+html[data-theme="light"] .nc-lang {
+  background: rgba(0, 0, 0, .05);
+  color: #16161c;
+}
+
+html[data-theme="light"] .nc-profile {
+  background: rgba(0, 0, 0, .08);
+}
+html[data-theme="light"] .nc-profile span {
+  color: rgba(0, 0, 0, .8);
+}
+
+html[data-theme="light"] .nc-profile-menu {
+  background: rgba(255, 255, 255, .98);
+  border: 1px solid rgba(0, 0, 0, .08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .18);
+}
+html[data-theme="light"] .nc-profile-menu-head {
+  border-bottom-color: rgba(0, 0, 0, .08);
+}
+html[data-theme="light"] .nc-profile-menu-plan {
+  color: rgba(0, 0, 0, .5);
+}
+html[data-theme="light"] .nc-profile-menu-name {
+  color: #16161c;
+}
+html[data-theme="light"] .nc-profile-menu-email {
+  color: rgba(0, 0, 0, .55);
+}
+html[data-theme="light"] .nc-profile-menu-item {
+  color: rgba(0, 0, 0, .82);
+}
+html[data-theme="light"] .nc-profile-menu-item:hover,
+html[data-theme="light"] .nc-profile-menu-item:focus-visible {
+  background: rgba(0, 0, 0, .05);
+}
+html[data-theme="light"] .nc-profile-menu-icon {
+  background: rgba(0, 0, 0, .06);
+  color: rgba(0, 0, 0, .68);
+}
+
+/* Bottom nav в светлой теме */
+html[data-theme="light"] .nc-bottom-nav {
+  background: rgba(255, 255, 255, .92);
+  border-top: 1px solid rgba(0, 0, 0, .08);
+}
+
+/* ============================================================
+   v66/v67 — QuickStartHub + Wizard + Top Premium Styles
+   ============================================================ */
+
+/* ───────── QuickStartHub ───────── */
+.qsh-card {
+  --qsh-accent: #7c5cff;
+  position: relative;
+  margin: 24px auto;
+  padding: 24px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--qsh-accent) 14%, transparent) 0%, transparent 45%),
+    linear-gradient(180deg, rgba(18,18,28,.88), rgba(10,10,16,.94));
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 24px 64px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+  overflow: hidden;
+  transition: --qsh-accent .3s ease;
+}
+.qsh-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--qsh-accent), transparent);
+  opacity: .6;
+}
+
+.qsh-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.qsh-head-info { flex: 1 1 auto; }
+.qsh-kicker {
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--qsh-accent);
+  font-weight: 700;
+  display: block;
+  margin-bottom: 8px;
+}
+.qsh-head h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: #fff;
+}
+.qsh-head p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255,255,255,.65);
+}
+.qsh-mode-badge {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  background: color-mix(in srgb, var(--qsh-accent) 18%, transparent);
+  color: var(--qsh-accent);
+  border: 1px solid color-mix(in srgb, var(--qsh-accent) 35%, transparent);
+  white-space: nowrap;
+}
+
+.qsh-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.qsh-mode-card {
+  --card-accent: #7c5cff;
+  padding: 14px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all .18s ease;
+}
+.qsh-mode-card:hover {
+  background: rgba(255,255,255,.06);
+  border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
+  transform: translateY(-1px);
+}
+.qsh-mode-card.is-active {
+  background: color-mix(in srgb, var(--card-accent) 15%, transparent);
+  border-color: var(--card-accent);
+  box-shadow: 0 0 0 1px var(--card-accent), 0 8px 24px color-mix(in srgb, var(--card-accent) 25%, transparent);
+}
+.qsh-mode-card-label {
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+.qsh-mode-card-tag {
+  font-size: 11px;
+  color: rgba(255,255,255,.55);
+  line-height: 1.35;
+}
+.qsh-mode-card.is-active .qsh-mode-card-tag {
+  color: rgba(255,255,255,.78);
+}
+
+.qsh-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.qsh-field-full { display: block; }
+.qsh-field > span {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.6);
+  font-weight: 600;
+}
+.qsh-field textarea,
+.qsh-field input,
+.qsh-field select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.32);
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.qsh-field textarea:focus,
+.qsh-field input:focus,
+.qsh-field select:focus {
+  border-color: var(--qsh-accent);
+  background: rgba(0,0,0,.45);
+}
+.qsh-field textarea { min-height: 70px; line-height: 1.5; }
+
+.qsh-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.qsh-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+@media (max-width: 640px) {
+  .qsh-grid-3 { grid-template-columns: 1fr 1fr; }
+  .qsh-grid-2 { grid-template-columns: 1fr; }
+}
+
+.qsh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255,255,255,.82);
+}
+.qsh-toggle-block { margin-bottom: 16px; }
+.qsh-toggle input[type="checkbox"] {
+  width: 18px; height: 18px;
+  accent-color: var(--qsh-accent);
+  cursor: pointer;
+}
+
+.qsh-preview {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.32);
+  border: 1px dashed rgba(255,255,255,.10);
+  font-size: 12px;
+  color: rgba(255,255,255,.72);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.qsh-preview b { color: var(--qsh-accent); font-weight: 700; }
+
+.qsh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+.qsh-btn {
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s ease;
+  flex: 1 1 auto;
+  min-width: 130px;
+}
+.qsh-btn:hover {
+  background: rgba(255,255,255,.10);
+  transform: translateY(-1px);
+}
+.qsh-btn-ghost { background: transparent; }
+.qsh-btn-primary {
+  background: var(--qsh-accent);
+  border-color: var(--qsh-accent);
+  color: #fff;
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--qsh-accent) 38%, transparent);
+}
+.qsh-btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+/* ───────── WizardSteps ───────── */
+.wiz-shell {
+  margin: 24px auto;
+  padding: 24px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(16,16,24,.78), rgba(8,8,14,.92));
+  border: 1px solid rgba(255,255,255,.07);
+  box-shadow: 0 20px 50px rgba(0,0,0,.4);
+}
+.wiz-head { margin-bottom: 16px; }
+.wiz-kicker {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #7c5cff;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.wiz-head h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+}
+.wiz-head p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255,255,255,.6);
+}
+
+.wiz-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wiz-card {
+  border-radius: 16px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.07);
+  overflow: hidden;
+  transition: all .18s ease;
+}
+.wiz-card.is-active {
+  background: rgba(124, 92, 255, .06);
+  border-color: rgba(124, 92, 255, .35);
+}
+.wiz-card.is-done {
+  background: rgba(64, 200, 140, .04);
+  border-color: rgba(64, 200, 140, .22);
+}
+.wiz-card.is-open {
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.16);
+}
+.wiz-card.is-locked .wiz-card-head { opacity: .55; }
+
+.wiz-card-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 28px 38px 1fr 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.wiz-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.wiz-dot-done {
+  background: rgba(64, 200, 140, .15);
+  color: #5cd9a0;
+  border: 1px solid rgba(64, 200, 140, .35);
+}
+.wiz-dot-active {
+  background: rgba(124, 92, 255, .15);
+  color: #b39dff;
+  border: 1px solid rgba(124, 92, 255, .45);
+  animation: wiz-pulse 2s ease-in-out infinite;
+}
+@keyframes wiz-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, .3); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 92, 255, 0); }
+}
+.wiz-dot-idle {
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.4);
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.wiz-card-num {
+  font-size: 11px;
+  letter-spacing: .08em;
+  font-weight: 800;
+  color: rgba(255,255,255,.45);
+}
+.wiz-card-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wiz-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+.wiz-card-summary {
+  font-size: 12px;
+  color: rgba(255,255,255,.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wiz-card-chevron {
+  font-size: 14px;
+  color: rgba(255,255,255,.5);
+  text-align: right;
+}
+
+.wiz-card-body {
+  padding: 0 16px 16px 78px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  animation: wiz-card-in .18s ease-out;
+}
+@keyframes wiz-card-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.wiz-card-hint {
+  margin: 12px 0 12px;
+  font-size: 13px;
+  color: rgba(255,255,255,.65);
+  line-height: 1.5;
+}
+.wiz-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.wiz-btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.wiz-btn:hover { background: rgba(255,255,255,.10); }
+.wiz-btn-primary {
+  background: #7c5cff;
+  border-color: #7c5cff;
+  box-shadow: 0 6px 20px rgba(124, 92, 255, .35);
+}
+.wiz-btn-primary:hover { filter: brightness(1.08); }
+
+@media (max-width: 640px) {
+  .wiz-card-head { padding: 14px 12px; gap: 8px; }
+  .wiz-card-body { padding: 0 12px 14px 62px; }
+}
+
+/* ───────── Профиль · пункт темы ───────── */
+.nc-profile-menu-theme {
+  position: relative;
+}
+.nc-profile-menu-theme .nc-profile-menu-arrow {
+  margin-left: auto;
+  color: rgba(255,255,255,.4);
+  font-size: 14px;
+}
+
+/* ───────── Стили в Setup — расширенная сетка ───────── */
+.setup-style-grid-v40 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+/* ───────── LIGHT theme — кодовая полировка ───────── */
+html[data-theme="light"] .qsh-card {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--qsh-accent) 12%, transparent) 0%, transparent 50%),
+    linear-gradient(180deg, #fff, #f6f6fa);
+  border-color: rgba(0,0,0,.08);
+  box-shadow: 0 18px 48px rgba(0,0,0,.10);
+}
+html[data-theme="light"] .qsh-head h2,
+html[data-theme="light"] .qsh-mode-card-label,
+html[data-theme="light"] .wiz-head h2,
+html[data-theme="light"] .wiz-card-title { color: #14141c; }
+html[data-theme="light"] .qsh-head p,
+html[data-theme="light"] .wiz-head p,
+html[data-theme="light"] .wiz-card-summary,
+html[data-theme="light"] .wiz-card-hint,
+html[data-theme="light"] .qsh-field > span { color: rgba(0,0,0,.6); }
+html[data-theme="light"] .qsh-field textarea,
+html[data-theme="light"] .qsh-field input,
+html[data-theme="light"] .qsh-field select {
+  background: #fff;
+  color: #14141c;
+  border-color: rgba(0,0,0,.10);
+}
+html[data-theme="light"] .qsh-mode-card,
+html[data-theme="light"] .qsh-toggle,
+html[data-theme="light"] .wiz-card,
+html[data-theme="light"] .qsh-btn,
+html[data-theme="light"] .wiz-btn {
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.08);
+  color: #14141c;
+}
+html[data-theme="light"] .qsh-preview {
+  background: rgba(0,0,0,.03);
+  color: rgba(0,0,0,.7);
+  border-color: rgba(0,0,0,.10);
+}
+html[data-theme="light"] .wiz-shell {
+  background: linear-gradient(180deg, #fff, #f6f6fa);
+  border-color: rgba(0,0,0,.08);
+  box-shadow: 0 18px 48px rgba(0,0,0,.10);
+}
+
