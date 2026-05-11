@@ -1,10 +1,12 @@
 // engine/sceneEngine_v2.js
-// NeuroCine Storyboard Engine v2.1
+// NeuroCine Storyboard Engine v2.2
 // Обновлено под Veo 3 + Grok Imagine pipeline.
 // - Убраны мусорные image-теги (8k texture fidelity, no plastic skin)
 // - image_prompt и video_prompt теперь строятся через videoPromptAgent
 // - Введён параметр target: "veo3" | "grok" вместо/в дополнение к safe/raw
 // - safe/raw остаётся для контроля контента (sanitize wording)
+// - v2.2: videoPromptAgent больше не получает старый video_prompt_en как готовый prompt,
+//   а получает чистый motion/story_action, чтобы не было recursive prompt bloat.
 //
 // Совместимость: старый API сохраняется. Если target не передан — дефолт "veo3".
 
@@ -217,7 +219,6 @@ export function buildStoryboardUserPrompt({
   const arInfo = arMap[aspectRatio] || arMap["9:16"];
   const isObserverMode = detectObserverMode(script);
 
-  // Specialized character_lock instruction depending on script style
   const characterLockInstruction = isObserverMode
     ? `
 🎯 SCRIPT MODE DETECTED: OBSERVER / SECOND-PERSON ("ты"-обращение)
@@ -296,14 +297,6 @@ Return JSON only.`;
 // ────────────────────────────────────────────────────────────────────────────
 // Helper functions
 // ────────────────────────────────────────────────────────────────────────────
-function appendUniqueText(base = "", addition = "") {
-  const b = String(base || "").trim();
-  const a = String(addition || "").trim();
-  if (!a) return b;
-  if (b.toLowerCase().includes(a.toLowerCase().slice(0, 48))) return b;
-  return `${b}${b ? ", " : ""}${a}`.trim();
-}
-
 function getCutEnergy(scene = {}, index = 0) {
   const raw = String(scene.cut_energy || "").toLowerCase();
   if (["low", "medium", "high"].includes(raw)) return raw;
@@ -354,6 +347,19 @@ function ensurePromptPrefixes(scene) {
       ? video
       : `${video}\nMaintain EXACT same character appearance, face, clothing, and condition as previous frame.`.trim(),
   };
+}
+
+function cleanMotionSource(scene = {}) {
+  return stripBannedWords(
+    scene.story_action_en ||
+    scene.action_en ||
+    scene.motion ||
+    scene.action ||
+    scene.camera_movement ||
+    scene.description_en ||
+    scene.description_ru ||
+    ""
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -421,6 +427,9 @@ export function normalizeStoryboard(
       beat_type:
         s.beat_type || s.beat || (i === 0 ? "hook" : i === sceneCount - 1 ? "ending" : "escalation"),
       description_ru: s.description_ru || s.ru_description || s.description || "",
+      description_en: s.description_en || "",
+      story_action_en: s.story_action_en || s.action_en || "",
+      action_en: s.action_en || "",
       image_prompt_en: stripBannedWords(s.image_prompt_en || s.image_prompt || ""),
       video_prompt_en: stripBannedWords(s.video_prompt_en || s.video_prompt || ""),
       vo_ru: s.vo_ru || s.voice || s.vo || "",
@@ -442,10 +451,14 @@ export function normalizeStoryboard(
       : baseScene.image_prompt_en;
 
     // Перестраиваем image_prompt и video_prompt через videoPromptAgent
-    // под выбранный TARGET (veo3 или grok)
+    // под выбранный TARGET (veo3 или grok).
+    // ВАЖНО: не передаём старый video_prompt_en как готовый motion,
+    // иначе новый agent начинает чистить собственный старый output и получает recursive bloat.
     const frameForAgent = {
       ...baseScene,
       image_prompt_en: imageWithFraming,
+      motion: cleanMotionSource(s),
+      video_prompt_en: "",
     };
 
     const agentPrompts = buildFramePromptsForTarget({
@@ -498,7 +511,7 @@ export function normalizeStoryboard(
       mode,
       target,
       model: modelUsed,
-      version: "neurocine_storyboard_v2_1",
+      version: "neurocine_storyboard_v2_2",
       auto_safe_to_grok: mode === "safe",
       postprocess: { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     },
