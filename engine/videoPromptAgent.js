@@ -1,7 +1,7 @@
 // engine/videoPromptAgent.js
-// NeuroCine Video Prompt Agent v3.0 — cinematic pacing, shot progression memory, stronger I2V continuity
+// NeuroCine Video Prompt Agent v3.1 — clean action extraction, no recursive prompt bloat, stronger I2V continuity
 // Purpose: build clean image/video prompts with separate compact Grok mode,
-// no VO by default, no "No No" garbage, and safer wording for minor-related scenes.
+// no VO by default, no duplicated Action/Audio/Shot sections, and safer wording for minor-related scenes.
 
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -67,6 +67,26 @@ function cleanAudioText(text = "") {
     .replace(/no no/gi, "no")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function stripGeneratedPromptSections(text = "") {
+  let out = String(text || "");
+  out = out.replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "");
+  out = out.replace(/^SCENE PRIMARY FOCUS[:\s—-]*/i, "");
+  out = out.replace(/\bShot progression\s*:[\s\S]*?(?=\bCamera behavior\s*:|\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
+  out = out.replace(/\bCamera behavior\s*:[\s\S]*?(?=\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
+  out = out.replace(/\bLighting\s*:[\s\S]*?(?=\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
+  out = out.replace(/\bColor grade\s*:[\s\S]*?(?=\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
+  out = out.replace(/\bPhysics\s*:[\s\S]*?(?=\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
+  out = out.replace(/\bAudio\s*:[\s\S]*?(?=\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
+  out = out.replace(/\bSFX\s*:[\s\S]*$/gi, "");
+  out = out.replace(/\bMaintain exact[^.]*\./gi, "");
+  out = out.replace(/\bMaintain EXACT[^.]*\./gi, "");
+  out = out.replace(/\bUltra consistency[^.]*\./gi, "");
+  out = out.replace(/\bNo Maintain\b/gi, "");
+  out = out.replace(/\bAction\s*:\s*Action\s*:/gi, "Action:");
+  out = out.replace(/^Action\s*:/i, "");
+  return cleanText(out);
 }
 
 function removeGeneratedNames(text = "", storyboard = {}) {
@@ -174,13 +194,21 @@ export function buildCharacterBlock(characterLock = [], { compact = false, omitN
 }
 
 function getFrameAction(frame = {}) {
-  return cleanText(String(frame.video_prompt_en || frame.image_prompt_en || frame.description_en || frame.description_ru || "")
-    .replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "")
-    .replace(/^SCENE PRIMARY FOCUS[:\s—-]*/i, "")
-    .replace(/\s*SFX\s*:.*$/is, "")
-    .replace(/\s*Maintain EXACT same character appearance[^.]*\./gi, "")
-    .replace(/\s*Ultra consistency[^.]*\./gi, "")
-    .trim());
+  const preferred = [
+    frame.story_action_en,
+    frame.action_en,
+    frame.motion,
+    frame.action,
+    frame.video_prompt_en,
+    frame.description_en,
+    frame.image_prompt_en,
+    frame.description_ru,
+  ];
+  for (const value of preferred) {
+    const cleaned = stripGeneratedPromptSections(value || "");
+    if (cleaned && cleaned.length > 12) return cleaned;
+  }
+  return "";
 }
 
 export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" } = {}) {
@@ -213,7 +241,6 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
   ].filter(Boolean).join(". "));
 }
 
-
 function getShotProgression(frame = {}) {
   const id = String(frame?.id || "");
   const n = Number(id.match(/\d+/)?.[0] || frame?.index || 1);
@@ -234,7 +261,6 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
   action = removeGeneratedNames(action, storyboard);
   action = sanitizeSensitiveMinorTerms(action, minorSafe);
 
-  // Keep only the first strong sentence for Grok Cheap.
   const firstSentence = action.split(/(?<=[.!?])\s+/)[0] || action;
   const noVoice = includeVo
     ? ""
@@ -376,6 +402,7 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
   out = stripNoVoiceGarbage(out, includeVo);
   out = cleanAudioText(out);
   out = sanitizeSensitiveMinorTerms(out, minorSafe);
+  out = stripGeneratedPromptSections(out);
   out = out.replace(/\bNo\s+No\b/gi, "No").replace(/no no/gi, "no");
   if (!includeVo) {
     const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
@@ -415,11 +442,13 @@ export function validateFramePrompts({ frame, storyboard, target = "veo3" }) {
   if (frame.image_prompt_en && !/^SCENE PRIMARY FOCUS:/i.test(frame.image_prompt_en)) errors.push("image prompt missing SCENE PRIMARY FOCUS prefix");
   if (frame.video_prompt_en && !/^ANIMATE CURRENT FRAME:/i.test(frame.video_prompt_en)) errors.push("video prompt missing ANIMATE CURRENT FRAME prefix");
   if (frame.video_prompt_en && !/\bSFX\s*:/i.test(frame.video_prompt_en)) errors.push("video prompt missing embedded SFX block");
+  if (/Action:\s*Action:|No Maintain|Shot progression:[\s\S]*Shot progression:|Audio:[\s\S]*Audio:/i.test(frame.video_prompt_en || "")) {
+    errors.push("video prompt contains duplicated generated sections");
+  }
   if (target === "grok") {
     const wordCount = cleanText(frame.video_prompt_en || "").split(/\s+/).length;
     if (wordCount > 130) errors.push(`Grok video prompt too long: ${wordCount} words (max ~130)`);
     if (/human voices|voiceover|dialogue|narration/i.test(frame.video_prompt_en || "")) {
-      // Only flag if no hard prohibition exists.
       if (!/^ANIMATE CURRENT FRAME:\s*NO SPEECH/i.test(frame.video_prompt_en || "")) errors.push("Grok prompt may allow voices/dialogue");
     }
   }
