@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /* ─────────────────────────────────────────────────────────
    QuickStartHub
@@ -178,6 +178,7 @@ export default function QuickStartHub({
   const [language, setLanguage] = useState("RU");
   const [detailed, setDetailed] = useState(true);
   const [withViralPack, setWithViralPack] = useState(false);
+  const [pendingRun, setPendingRun] = useState(null);
 
   const mode = useMemo(() => MODES.find(m => m.id === modeId) || MODES[0], [modeId]);
   const sceneHint = useMemo(() => buildSceneHint(sceneCount, durationSec), [sceneCount, durationSec]);
@@ -206,14 +207,24 @@ export default function QuickStartHub({
     onStatus?.(statusText || `Применён режим: ${mode.label}`);
   }
 
+  useEffect(() => {
+    if (!pendingRun) return;
+    const action = pendingRun;
+    setPendingRun(null);
+    window.requestAnimationFrame(() => {
+      if (action === "script") doScript?.();
+      if (action === "storyboard") doStoryboard?.();
+    });
+  }, [pendingRun, doScript, doStoryboard]);
+
   function applyAndRunScript() {
     applySetup(`${mode.label} · запускаю сценарий`);
-    setTimeout(() => doScript?.(), 120);
+    setPendingRun("script");
   }
 
   function applyAndRunStoryboard() {
     applySetup(`${mode.label} · запускаю storyboard`);
-    setTimeout(() => doStoryboard?.(), 140);
+    setPendingRun("storyboard");
   }
 
   function applyAndOpenStudio() {
