@@ -138,7 +138,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   const generationModeText = !user
     ? "Вход нужен"
     : access.isOwner || access.isAdmin
-      ? "LIVE OWNER"
+      ? "DIRECTOR LIVE"
       : access.role === "pro"
         ? (access.hasOwnApiKeys ? "PRO LIVE" : "PRO · ключ нужен")
         : "FREE PREVIEW";
@@ -148,7 +148,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   return (
     <section className="auth-panel-v42">
       <div className="auth-panel-main-v42">
-        <div className="auth-label-v42">Аккаунт NeuroCine {access.isOwner || access.isAdmin ? "· OWNER" : ""}</div>
+        <div className="auth-label-v42">Аккаунт NeuroCine {access.isOwner || access.isAdmin ? "· DIRECTOR" : ""}</div>
         {loading ? (
           <div className="auth-muted-v42">Проверяю вход...</div>
         ) : user ? (
@@ -167,7 +167,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       <div className="auth-status-grid-v42">
         <div className={`auth-chip-v42 ${access.isOwner ? "is-owner" : access.isAdmin ? "is-admin" : access.role === "pro" ? "is-pro" : user ? "is-free" : "is-demo"}`}>
           <span>Статус</span>
-          <strong>{user ? (access.isOwner || access.isAdmin ? "OWNER" : access.role === "pro" ? "PRO" : "FREE") : "AUTH"}</strong>
+          <strong>{user ? (access.isOwner || access.isAdmin ? "DIRECTOR" : access.role === "pro" ? "PRO" : "FREE") : "AUTH"}</strong>
         </div>
         {canSwitchMode ? (
           <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
