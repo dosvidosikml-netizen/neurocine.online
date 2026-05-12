@@ -13,6 +13,36 @@ function getUserMeta(user) {
   };
 }
 
+function clearLocalAuthFallback() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const low = key.toLowerCase();
+      if (
+        low.includes("supabase") ||
+        low.includes("sb-") ||
+        low.includes("auth-token") ||
+        low.includes("nc_account") ||
+        low.includes("neurocine:account")
+      ) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {}
+
+  try {
+    const keys = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      const low = key.toLowerCase();
+      if (low.includes("supabase") || low.includes("auth-token") || low.includes("neurocine")) keys.push(key);
+    }
+    keys.forEach((key) => sessionStorage.removeItem(key));
+  } catch {}
+}
+
 export default function AuthPanel({ devMode = true, onModeToggle, onAccountChange }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -127,12 +157,20 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   }
 
   async function logout() {
-    if (!supabase) return;
     setBusy(true);
     setError("");
-    const { error: signOutError } = await supabase.auth.signOut();
-    if (signOutError) setError(signOutError.message);
-    setBusy(false);
+    try {
+      if (isSupabaseConfigured && supabase?.auth?.signOut) {
+        const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });
+        if (signOutError) throw signOutError;
+      }
+    } catch (e) {
+      setError(e?.message || "Не удалось выйти из аккаунта");
+    } finally {
+      clearLocalAuthFallback();
+      if (typeof window !== "undefined") window.location.assign("/?signed_out=1");
+      else setBusy(false);
+    }
   }
 
   const generationModeText = !user
@@ -189,7 +227,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
           </button>
         ) : (
           <button className="auth-logout-btn-v42" onClick={logout} disabled={busy} type="button">
-            Выйти
+            {busy ? "Выходим..." : "Выйти"}
           </button>
         )}
       </div>
