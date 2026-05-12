@@ -3,6 +3,7 @@ import "./public-landing.css";
 import "./public-landing-v3.css";
 import "./style-engine-patch.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
+import StyleEngineRuntimePatch from "../components/StyleEngineRuntimePatch";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
@@ -14,6 +15,7 @@ export default function RootLayout({ children }) {
     <html lang="ru">
       <body>
         <AuthSignOutPatch />
+        <StyleEngineRuntimePatch />
         {children}
       </body>
     </html>
