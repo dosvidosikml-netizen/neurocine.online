@@ -19,24 +19,20 @@ function readInitialTheme() {
   return "dark";
 }
 
-/* Маппинг локали → флаг + следующий язык в цикле */
 const LANG_FLAGS = {
   ru: { flag: "🇷🇺", next: "en", title: "Switch to English" },
   en: { flag: "🇬🇧", next: "ru", title: "Переключить на русский" }
 };
 
-/* Вычисляем инициалы для аватарки */
 function getInitials(name, email) {
   const source = (name || email || "").trim();
   if (!source) return "U";
   const parts = source.split(/[\s@._-]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return source.slice(0, 2).toUpperCase();
 }
 
-function StyleCarouselSkin() {
+function StudioShellSkin() {
   return (
     <style jsx global>{`
       .setup-style-grid-v40 {
@@ -97,8 +93,196 @@ function StyleCarouselSkin() {
         box-shadow: 0 0 0 1px rgba(255,138,76,.18), 0 18px 44px rgba(255,92,42,.14) !important;
       }
       .setup-style-grid-v40 button.active::after { content: "SELECTED · Director style lock"; color: rgba(255,210,180,.72); }
-      @media (max-width: 720px) {
+
+      @media (max-width: 760px) {
+        html, body { overflow-x: hidden !important; }
+        body { padding-bottom: calc(108px + env(safe-area-inset-bottom)) !important; }
         .setup-style-grid-v40 button { flex-basis: 148px !important; min-height: 168px !important; }
+
+        .col, .step-body, .pack-body, .production-pack, .step-section {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          overflow: visible !important;
+        }
+
+        .frow,
+        .frow.frow2 {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: stretch !important;
+          grid-template-columns: none !important;
+          gap: 14px !important;
+          width: 100% !important;
+          min-width: 0 !important;
+        }
+
+        .frow > *,
+        .frow.frow2 > * {
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .out-box,
+        .out-box-v31 {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          border-radius: 18px !important;
+          overflow: hidden !important;
+          margin-inline: 0 !important;
+          background: rgba(5, 7, 13, .74) !important;
+        }
+
+        .out-head {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 10px !important;
+          min-height: 58px !important;
+          padding: 14px !important;
+        }
+
+        .out-label {
+          flex: 1 1 auto !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
+          font-size: 11px !important;
+          line-height: 1.35 !important;
+          letter-spacing: .24em !important;
+          overflow-wrap: anywhere !important;
+          word-break: normal !important;
+        }
+
+        .out-actions {
+          display: flex !important;
+          flex: 0 0 auto !important;
+          gap: 8px !important;
+          align-items: center !important;
+        }
+
+        .out-actions .btn,
+        .out-actions button {
+          min-height: 38px !important;
+          padding: 0 12px !important;
+          border-radius: 11px !important;
+          font-size: 13px !important;
+          white-space: nowrap !important;
+        }
+
+        .out-body {
+          padding: 16px 14px !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+        }
+
+        .out-box-v31.is-compact .out-body {
+          max-height: 224px !important;
+          overflow: hidden !important;
+          position: relative !important;
+        }
+
+        .out-box-v31.is-compact .out-body::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 44px;
+          background: linear-gradient(to bottom, rgba(5,7,13,0), rgba(5,7,13,.96));
+          pointer-events: none;
+        }
+
+        .out-box-v31.is-open .out-body {
+          max-height: none !important;
+          overflow: visible !important;
+        }
+
+        .out-box-v31.is-open .out-body::after { display: none !important; }
+
+        .out-pre,
+        .out-pre.compact,
+        .out-pre.mono,
+        .out-pre.mono.compact {
+          max-width: 100% !important;
+          white-space: pre-wrap !important;
+          overflow-wrap: anywhere !important;
+          word-break: break-word !important;
+          font-size: 14px !important;
+          line-height: 1.58 !important;
+          letter-spacing: 0 !important;
+          font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        }
+
+        .frame-card-row {
+          display: block !important;
+          padding: 14px !important;
+          min-width: 0 !important;
+        }
+
+        .frame-card-lbl {
+          margin-bottom: 8px !important;
+          font-size: 10px !important;
+          line-height: 1.35 !important;
+          letter-spacing: .28em !important;
+        }
+
+        .frame-card-val {
+          max-width: 100% !important;
+          font-size: 17px !important;
+          line-height: 1.45 !important;
+          overflow-wrap: anywhere !important;
+          word-break: break-word !important;
+        }
+
+        .frame-btns {
+          display: flex !important;
+          align-items: center !important;
+          gap: 10px !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+          padding: 2px 0 12px !important;
+          scroll-snap-type: x proximity;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .frame-btns .fb {
+          flex: 0 0 auto !important;
+          min-height: 44px !important;
+          padding: 0 18px !important;
+          border-radius: 13px !important;
+          white-space: nowrap !important;
+          font-size: 12px !important;
+        }
+
+        .brow {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          gap: 10px !important;
+          padding-bottom: 8px !important;
+        }
+
+        .brow .btn,
+        .brow a.btn {
+          flex: 1 1 180px !important;
+          min-height: 44px !important;
+          justify-content: center !important;
+          white-space: normal !important;
+        }
+
+        .nc-bottom-nav {
+          padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+        }
+
+        main,
+        .studio-page,
+        .page,
+        .wrap,
+        .app-shell,
+        .storyboard-page {
+          padding-bottom: calc(140px + env(safe-area-inset-bottom)) !important;
+        }
       }
     `}</style>
   );
@@ -145,9 +329,7 @@ export default function TopActionBar({
   useEffect(() => {
     if (!profileOpen) return;
     function handleClick(e) {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setProfileOpen(false);
-      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
     }
     function handleKey(e) {
       if (e.key === "Escape") setProfileOpen(false);
@@ -182,15 +364,11 @@ export default function TopActionBar({
     else onNavigate?.("auth");
   }
 
-  function handleLangToggle() {
-    if (onToggleLang) onToggleLang();
-  }
-
   const showAvatarImg = avatarUrl && !imgError;
 
   return (
     <>
-      <StyleCarouselSkin />
+      <StudioShellSkin />
       <header className="nc-top-action-bar">
         <button className="nc-top-icon" type="button" onClick={onOpenMenu} aria-label="Меню">☰</button>
 
@@ -200,7 +378,7 @@ export default function TopActionBar({
 
         <div className="nc-top-spacer" aria-hidden></div>
 
-        <button className="nc-lang nc-lang-flag" type="button" onClick={handleLangToggle} aria-label={langInfo.title} title={langInfo.title}>
+        <button className="nc-lang nc-lang-flag" type="button" onClick={onToggleLang} aria-label={langInfo.title} title={langInfo.title}>
           <span className="nc-lang-flag-emoji" role="img" aria-hidden>{langInfo.flag}</span>
         </button>
 
@@ -214,12 +392,7 @@ export default function TopActionBar({
             title={email || "Профиль"}
           >
             {showAvatarImg ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                onError={() => setImgError(true)}
-                draggable="false"
-              />
+              <img src={avatarUrl} alt={displayName} onError={() => setImgError(true)} draggable="false" />
             ) : (
               <span className="nc-profile-initials">{initials}</span>
             )}
@@ -234,64 +407,34 @@ export default function TopActionBar({
                 {email && <div className="nc-profile-menu-email">{email}</div>}
               </div>
 
-              <button
-                type="button"
-                className="nc-profile-menu-item nc-profile-menu-theme"
-                onClick={toggleTheme}
-                role="menuitem"
-              >
+              <button type="button" className="nc-profile-menu-item nc-profile-menu-theme" onClick={toggleTheme} role="menuitem">
                 <span className="nc-profile-menu-icon" aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
                 <span>Тема: {theme === "dark" ? "тёмная" : "светлая"}</span>
                 <span className="nc-profile-menu-arrow" aria-hidden>→</span>
               </button>
 
-              <button
-                type="button"
-                className="nc-profile-menu-item"
-                onClick={() => handleProfileNav("pack")}
-                role="menuitem"
-              >
+              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")} role="menuitem">
                 <span className="nc-profile-menu-icon" aria-hidden>◆</span>
                 <span>Партнёрская программа</span>
               </button>
 
-              <button
-                type="button"
-                className="nc-profile-menu-item"
-                onClick={() => handleProfileNav("setup")}
-                role="menuitem"
-              >
+              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("setup")} role="menuitem">
                 <span className="nc-profile-menu-icon" aria-hidden>⚙</span>
                 <span>Настройки</span>
               </button>
 
-              <button
-                type="button"
-                className="nc-profile-menu-item"
-                onClick={() => handleProfileNav("pack")}
-                role="menuitem"
-              >
+              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")} role="menuitem">
                 <span className="nc-profile-menu-icon" aria-hidden>♦</span>
                 <span>Биллинг и тариф</span>
               </button>
 
               {isSignedIn ? (
-                <button
-                  type="button"
-                  className="nc-profile-menu-item nc-profile-menu-danger"
-                  onClick={handleSignOut}
-                  role="menuitem"
-                >
+                <button type="button" className="nc-profile-menu-item nc-profile-menu-danger" onClick={handleSignOut} role="menuitem">
                   <span className="nc-profile-menu-icon" aria-hidden>↪</span>
                   <span>Выйти</span>
                 </button>
               ) : (
-                <button
-                  type="button"
-                  className="nc-profile-menu-item"
-                  onClick={() => handleProfileNav("auth")}
-                  role="menuitem"
-                >
+                <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("auth")} role="menuitem">
                   <span className="nc-profile-menu-icon" aria-hidden>↩</span>
                   <span>Войти</span>
                 </button>
