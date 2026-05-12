@@ -13,6 +13,11 @@ function getUserMeta(user) {
   };
 }
 
+function getStudioRedirectTo() {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.origin}/storyboard`;
+}
+
 function clearLocalAuthFallback() {
   try {
     const keys = [];
@@ -139,19 +144,41 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   }, [session, user?.id, profile?.id, profile?.role, profile?.plan, access.role, isSupabaseConfigured]);
 
   async function loginWithGoogle() {
+    setError("");
     if (!isSupabaseConfigured || !supabase) {
       setError("Supabase ENV не настроены на Render");
       return;
     }
+
     setBusy(true);
-    setError("");
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/storyboard` : undefined;
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: getStudioRedirectTo(),
+          skipBrowserRedirect: true,
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
+        },
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        setBusy(false);
+        return;
+      }
+
+      if (data?.url && typeof window !== "undefined") {
+        window.location.assign(data.url);
+        return;
+      }
+
+      setError("Google не вернул ссылку входа. Проверь Supabase Auth Redirect URLs.");
+      setBusy(false);
+    } catch (e) {
+      setError(e?.message || "Google login failed");
       setBusy(false);
     }
   }
