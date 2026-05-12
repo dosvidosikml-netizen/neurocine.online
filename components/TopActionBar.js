@@ -34,7 +34,7 @@ function getInitials(name, email) {
 function StudioShellSkin() {
   return (
     <style jsx global>{`
-      /* v69 — mobile-safe real carousel override for app/storyboard/page.js */
+      /* v70 — mobile-safe real carousel override for app/storyboard/page.js */
       .setup-v40,
       .setup-grid-v40,
       .setup-options-v40,
@@ -255,9 +255,7 @@ function StudioShellSkin() {
         }
 
         .setup-v40 .setup-style-grid-v40 button::before,
-        .setup-style-grid-v40 button::before {
-          height: 84px !important;
-        }
+        .setup-style-grid-v40 button::before { height: 84px !important; }
 
         .col, .step-body, .pack-body, .production-pack, .step-section { min-width: 0 !important; max-width: 100% !important; overflow: visible !important; }
         .frow, .frow.frow2 { display: flex !important; flex-direction: column !important; align-items: stretch !important; grid-template-columns: none !important; gap: 14px !important; width: 100% !important; min-width: 0 !important; }
