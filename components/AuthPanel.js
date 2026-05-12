@@ -20,6 +20,7 @@ function getStudioRedirectTo() {
 
 function clearLocalAuthFallback() {
   try {
+    localStorage.removeItem("nc-auth-loading");
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -58,28 +59,48 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   const user = session?.user || null;
   const meta = useMemo(() => getUserMeta(user), [user]);
   const access = getAccountAccess(profile, session);
-  
+
   useEffect(() => {
     let mounted = true;
-    if (!isSupabaseConfigured || !supabase) {
-      setLoading(false);
-      return;
+
+    async function bootAuth() {
+      if (!isSupabaseConfigured || !supabase) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const timeout = setTimeout(() => {
+          if (mounted) setLoading(false);
+        }, 3000);
+
+        const { data, error: sessionError } = await supabase.auth.getSession();
+
+        clearTimeout(timeout);
+
+        if (!mounted) return;
+
+        if (sessionError) {
+          console.warn("Auth restore failed", sessionError);
+          setError(sessionError.message);
+        }
+
+        setSession(data?.session || null);
+      } catch (e) {
+        console.warn("Auth bootstrap failed", e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
 
-    async function loadSession() {
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (sessionError) setError(sessionError.message);
-      setSession(data?.session || null);
-      setLoading(false);
-    }
-
-    loadSession();
+    bootAuth();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession || null);
       setBusy(false);
+      setLoading(false);
+      try { localStorage.removeItem("nc-auth-loading"); } catch {}
     });
 
     return () => {
@@ -90,48 +111,51 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
   useEffect(() => {
     let mounted = true;
+
     if (!isSupabaseConfigured || !supabase || !user?.id) {
       setProfile(null);
       return;
     }
 
     async function syncProfile() {
-      const owner = isOwnerEmail(meta.email);
-      const nextProfile = {
-        id: user.id,
-        email: meta.email,
-        full_name: meta.name,
-        avatar_url: meta.avatar,
-        updated_at: new Date().toISOString(),
-        ...(owner ? {
-          role: "admin",
-          plan: "admin",
-          default_mode: "live",
-          monthly_generation_limit: 999999,
-          cloud_project_limit: 9999,
-        } : {}),
-      };
+      try {
+        const owner = isOwnerEmail(meta.email);
+        const nextProfile = {
+          id: user.id,
+          email: meta.email,
+          full_name: meta.name,
+          avatar_url: meta.avatar,
+          updated_at: new Date().toISOString(),
+          ...(owner ? {
+            role: "admin",
+            plan: "admin",
+            default_mode: "live",
+            monthly_generation_limit: 999999,
+            cloud_project_limit: 9999,
+          } : {}),
+        };
 
-      await supabase.from("profiles").upsert(nextProfile, { onConflict: "id" });
+        await supabase.from("profiles").upsert(nextProfile, { onConflict: "id" });
 
-      const { data, error: profileError } = await supabase
-        .from("profiles")
-        .select("id,email,full_name,avatar_url,role,plan,created_at,updated_at,default_mode,monthly_generation_limit,generations_used,cloud_project_limit,cloud_projects_used,api_keys_connected,api_key_status,pro_api_note,billing_status,billing_provider,billing_subscription_id,pro_activated_at,pro_expires_at")
-        .eq("id", user.id)
-        .maybeSingle();
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
 
-      if (!mounted) return;
-      if (profileError) {
-        setError(profileError.message);
-        setProfile({ ...nextProfile, role: "free", plan: "free" });
-      } else {
-        setProfile(data || { ...nextProfile, role: "free", plan: "free" });
+        if (!mounted) return;
+        setProfile(data || nextProfile);
+      } catch (e) {
+        console.warn("Profile sync failed", e);
       }
     }
 
     syncProfile();
-    return () => { mounted = false; };
-  }, [user?.id, meta.email, meta.name, meta.avatar]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     onAccountChange?.({
@@ -142,21 +166,26 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       isSignedIn: Boolean(user),
       isSupabaseConfigured,
     });
-  }, [session, user?.id, profile?.id, profile?.role, profile?.plan, access.role, isSupabaseConfigured]);
+  }, [session, user?.id, profile?.id]);
 
   async function loginWithGoogle() {
     setError("");
+
     if (!isSupabaseConfigured || !supabase) {
       setError("Supabase ENV не настроены на Render");
       return;
     }
 
     setBusy(true);
+
     try {
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
+      localStorage.setItem("nc-auth-loading", "1");
+
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: getStudioRedirectTo(),
+          skipBrowserRedirect: true,
           queryParams: {
             access_type: "offline",
             prompt: "select_account",
@@ -165,29 +194,37 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       });
 
       if (signInError) {
-        setError(signInError.message);
         setBusy(false);
+        setError(signInError.message);
+        return;
       }
-    } catch (e) {
-      setError(e?.message || "Google login failed");
+
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
       setBusy(false);
+      setError("OAuth URL missing");
+    } catch (e) {
+      setBusy(false);
+      setError(e?.message || "Google login failed");
     }
   }
 
   async function logout() {
     setBusy(true);
     setError("");
+
     try {
       if (isSupabaseConfigured && supabase?.auth?.signOut) {
-        const { error: signOutError } = await supabase.auth.signOut();
-        if (signOutError) throw signOutError;
+        await supabase.auth.signOut();
       }
     } catch (e) {
-      setError(e?.message || "Не удалось выйти из аккаунта");
+      console.warn("Logout failed", e);
     } finally {
       clearLocalAuthFallback();
-      if (typeof window !== "undefined") window.location.assign("/?signed_out=1");
-      else setBusy(false);
+      window.location.assign("/?signed_out=1");
     }
   }
 
@@ -205,6 +242,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
     <section className="auth-panel-v42">
       <div className="auth-panel-main-v42">
         <div className="auth-label-v42">Аккаунт NeuroCine {access.isOwner || access.isAdmin ? "· DIRECTOR" : ""}</div>
+
         {loading ? (
           <div className="auth-muted-v42">Проверяю вход...</div>
         ) : user ? (
@@ -216,7 +254,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
             </div>
           </div>
         ) : (
-          <div className="auth-muted-v42">Войди через Google, чтобы сохранять проекты. FREE — попробовать студию, PRO — полный рабочий режим.</div>
+          <div className="auth-muted-v42">Войди через Google, чтобы сохранять проекты.</div>
         )}
       </div>
 
@@ -225,6 +263,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
           <span>Статус</span>
           <strong>{user ? (access.isOwner || access.isAdmin ? "DIRECTOR" : access.role === "pro" ? "PRO" : "FREE") : "AUTH"}</strong>
         </div>
+
         {canSwitchMode ? (
           <button className={`auth-chip-v42 auth-mode-v42 ${devMode ? "is-demo" : "is-live"}`} onClick={onModeToggle} type="button">
             <span>Режим генерации</span>
