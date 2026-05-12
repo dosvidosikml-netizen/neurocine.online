@@ -1,5 +1,5 @@
 // app/api/video/route.js
-// NeuroCine Video Prompt API v2.8 — deterministic V2.7+ layer
+// NeuroCine Video Prompt API v2.9 — deterministic clean I2V prompt layer
 // /api/video отвечает ТОЛЬКО за video prompt. analyze отключён.
 
 import {
@@ -25,22 +25,8 @@ function normalizePromptPrefix(text = "", prefix) {
   return `${prefix} ${out}`.replace(/\s+/g, " ").trim();
 }
 
-function ensureSfxInsideVideoPrompt(videoPrompt = "", sfx = "") {
-  const cleanSfx = String(sfx || "subtle realistic ambience").trim();
-  let out = String(videoPrompt || "").trim().replace(/\bNo\s+SFX\s*:/gi, "SFX:");
-  if (!/\bSFX\s*:/i.test(out)) out = `${out} SFX: ${cleanSfx}.`;
-  return out.replace(/\s+/g, " ").trim();
-}
-
-function ensureContinuityLine(videoPrompt = "", frame = {}) {
-  const first = String(frame?.id || "").match(/0?1\b/) || String(frame?.id || "") === "frame_01";
-  const prevLine = "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
-  const firstLine = "Maintain exact character appearance, clothing, lighting and condition from the uploaded frame.";
-  let out = String(videoPrompt || "").trim()
-    .replace(/Maintain EXACT same character appearance, face, clothing, and condition as previous frame\.?/gi, "")
-    .replace(/Maintain exact character appearance, clothing, lighting and condition from the uploaded frame\.?/gi, "")
-    .trim();
-  return `${out} ${first ? firstLine : prevLine}`.replace(/\s+/g, " ").trim();
+function cleanText(value = "") {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function buildSegmentPlan(frame = {}) {
@@ -57,6 +43,15 @@ function buildSegmentPlan(frame = {}) {
   };
 }
 
+function readDominantSfx(videoPrompt = "", fallback = "") {
+  const text = cleanText(videoPrompt || "");
+  const primary = text.match(/PRIMARY SFX\s*—\s*([^.]*)\./i)?.[1];
+  if (primary) return cleanText(primary);
+  const sfx = text.match(/\bSFX\s*:\s*([^.]*)\./i)?.[1];
+  if (sfx) return cleanText(sfx);
+  return cleanText(fallback || "subtle realistic ambience");
+}
+
 export async function POST(req) {
   try {
     const guard = await requireSignedInAccess(req);
@@ -70,37 +65,48 @@ export async function POST(req) {
     const consistency = body.consistency || body.videoConsistency || body.video_consistency || "ultra";
     const minorSafe = hasMinorContext(frame, storyboard);
 
-    let imagePrompt = stripBannedWords(buildImagePrompt({ frame, storyboard, target }));
-    let videoPrompt = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
-    const sfx = frame.sfx || body?.analysis?.sfx || "subtle realistic ambience";
+    const imagePrompt = normalizePromptPrefix(
+      stripBannedWords(buildImagePrompt({ frame, storyboard, target })),
+      "SCENE PRIMARY FOCUS:"
+    );
 
-    videoPrompt = finalizePromptCleaners(videoPrompt, { frame, storyboard, includeVo, target });
-    videoPrompt = ensureSfxInsideVideoPrompt(videoPrompt, sfx);
-    videoPrompt = ensureContinuityLine(videoPrompt, frame);
+    // The agent now owns Action/Audio/SFX/Continuity assembly.
+    // Do NOT append SFX or continuity again here, otherwise prompt duplicates return.
+    const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
+    const cleanedVideo = finalizePromptCleaners(rawVideo, { frame, storyboard, includeVo, target });
+    const finalVideo = normalizePromptPrefix(cleanedVideo, "ANIMATE CURRENT FRAME:");
+    const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx);
 
-    const finalVideo = normalizePromptPrefix(videoPrompt, "ANIMATE CURRENT FRAME:");
-    const finalImage = normalizePromptPrefix(imagePrompt, "SCENE PRIMARY FOCUS:");
     const finalNegative = [
       NEGATIVE_PROMPT_BASE,
       "subtitles, captions, on-screen text, UI overlay, watermark, logo, deformed face, identity drift, clothing drift",
     ].join(", ").replace(/\s+/g, " ").trim();
 
     const validation = validateFramePrompts({
-      frame: { ...frame, video_prompt_en: finalVideo, image_prompt_en: finalImage },
+      frame: { ...frame, video_prompt_en: finalVideo, image_prompt_en: imagePrompt },
       storyboard,
       target,
     });
 
-    await logUsageEvent({ req, account: guard.account, endpoint: "/api/video", success: true, apiSource: "local_signed_in", modelUsed: "local_v2.8_minor_safe", metadata: usageMeta(body, { target, promptMode, consistency }) });
+    await logUsageEvent({
+      req,
+      account: guard.account,
+      endpoint: "/api/video",
+      success: true,
+      apiSource: "local_signed_in",
+      modelUsed: "local_v2.9_clean_audio_priority",
+      metadata: usageMeta(body, { target, promptMode, consistency }),
+    });
+
     return Response.json({
       video_prompt_en: finalVideo,
-      image_prompt_en: finalImage,
-      sfx,
+      image_prompt_en: imagePrompt,
+      sfx: dominantSfx,
       negative_prompt: finalNegative,
       validation,
       segment_plan: buildSegmentPlan(frame),
       target,
-      model_used: "local_v2.8_minor_safe",
+      model_used: "local_v2.9_clean_audio_priority",
       access_source: guard.access?.apiSource || "local_signed_in",
       pipeline_contract: {
         image_prefix: "SCENE PRIMARY FOCUS:",
@@ -109,6 +115,7 @@ export async function POST(req) {
         consistency,
         minor_safe_mode: minorSafe,
         sfx_embedded_in_video_prompt: true,
+        dominant_sfx_promoted: /alarm|siren|alert|warning/i.test(finalVideo),
         vo_dialogue_enabled: includeVo,
         analysis_disabled: true,
         continuity_lock: true,
