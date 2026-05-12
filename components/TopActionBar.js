@@ -6,8 +6,7 @@ const THEME_STORAGE_KEY = "neurocine.theme";
 
 function applyTheme(theme) {
   if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  root.setAttribute("data-theme", theme === "light" ? "light" : "dark");
+  document.documentElement.setAttribute("data-theme", theme === "light" ? "light" : "dark");
 }
 
 function readInitialTheme() {
@@ -20,8 +19,8 @@ function readInitialTheme() {
 }
 
 const LANG_FLAGS = {
-  ru: { flag: "🇷🇺", next: "en", title: "Switch to English" },
-  en: { flag: "🇬🇧", next: "ru", title: "Переключить на русский" }
+  ru: { flag: "🇷🇺", title: "Switch to English" },
+  en: { flag: "🇬🇧", title: "Переключить на русский" },
 };
 
 function getInitials(name, email) {
@@ -35,69 +34,147 @@ function getInitials(name, email) {
 function StudioShellSkin() {
   return (
     <style jsx global>{`
+      /* v68 — hard override for the real style selector in app/storyboard/page.js */
+      .setup-v40 .setup-options-v40 .setup-block-v40:has(.setup-style-grid-v40) {
+        overflow: visible !important;
+      }
+
+      .setup-v40 .setup-options-v40 .setup-block-v40 .setup-style-grid-v40,
       .setup-style-grid-v40 {
         display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
         grid-template-columns: none !important;
+        align-items: stretch !important;
         gap: 12px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         overflow-x: auto !important;
-        padding: 2px 2px 14px !important;
-        scroll-snap-type: x proximity;
+        overflow-y: hidden !important;
+        padding: 4px 2px 16px !important;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;
       }
+
+      .setup-v40 .setup-style-grid-v40::-webkit-scrollbar,
       .setup-style-grid-v40::-webkit-scrollbar { height: 7px; }
+      .setup-v40 .setup-style-grid-v40::-webkit-scrollbar-thumb,
       .setup-style-grid-v40::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; }
+
+      .setup-v40 .setup-options-v40 .setup-block-v40 .setup-style-grid-v40 button,
       .setup-style-grid-v40 button {
-        flex: 0 0 164px !important;
-        min-height: 178px !important;
-        border-radius: 20px !important;
-        padding: 98px 12px 12px !important;
+        flex: 0 0 166px !important;
+        width: 166px !important;
+        max-width: 166px !important;
+        min-width: 166px !important;
+        min-height: 184px !important;
+        border-radius: 22px !important;
+        padding: 102px 13px 34px !important;
         position: relative !important;
         overflow: hidden !important;
         text-align: left !important;
         scroll-snap-align: start;
-        background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025)) !important;
+        white-space: normal !important;
+        line-height: 1.1 !important;
+        background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025)) !important;
+        border: 1px solid rgba(255,255,255,.12) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 12px 34px rgba(0,0,0,.20) !important;
       }
+
+      .setup-v40 .setup-style-grid-v40 button::before,
       .setup-style-grid-v40 button::before {
         content: "";
         position: absolute;
         left: 10px;
         right: 10px;
         top: 10px;
-        height: 76px;
-        border-radius: 15px;
+        height: 78px;
+        border-radius: 16px;
         background:
-          radial-gradient(circle at 24% 24%, rgba(255,255,255,.34), transparent 24%),
-          radial-gradient(circle at 78% 28%, rgba(255,120,72,.38), transparent 28%),
-          linear-gradient(135deg, #161821, #41251f 52%, #050507);
-        border: 1px solid rgba(255,255,255,.08);
+          radial-gradient(circle at 22% 24%, rgba(255,255,255,.32), transparent 24%),
+          radial-gradient(circle at 78% 26%, rgba(255,94,54,.38), transparent 28%),
+          linear-gradient(135deg, #151620, #3d201e 52%, #050507);
+        border: 1px solid rgba(255,255,255,.10);
       }
+
+      .setup-v40 .setup-style-grid-v40 button::after,
       .setup-style-grid-v40 button::after {
-        content: "Style DNA · visual lock";
+        content: "STYLE DNA · VISUAL LOCK";
         position: absolute;
-        left: 12px;
-        right: 12px;
+        left: 13px;
+        right: 13px;
         bottom: 12px;
         color: rgba(255,255,255,.42);
-        font-size: 10px;
-        font-weight: 700;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .11em;
         line-height: 1.25;
         pointer-events: none;
       }
-      .setup-style-grid-v40 button:nth-child(3n+1)::before { background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.30), transparent 25%), linear-gradient(135deg,#070514,#1c0a3d 44%,#003e54); }
-      .setup-style-grid-v40 button:nth-child(3n+2)::before { background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.22), transparent 25%), linear-gradient(135deg,#130408,#3a0711 50%,#050507); }
-      .setup-style-grid-v40 button:nth-child(3n+3)::before { background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.20), transparent 25%), linear-gradient(135deg,#15160d,#4b3b1f 45%,#111); }
-      .setup-style-grid-v40 button:hover { transform: translateY(-2px); }
-      .setup-style-grid-v40 button.active {
-        border-color: rgba(255,138,76,.82) !important;
-        background: linear-gradient(180deg, rgba(255,138,76,.16), rgba(255,255,255,.035)) !important;
-        box-shadow: 0 0 0 1px rgba(255,138,76,.18), 0 18px 44px rgba(255,92,42,.14) !important;
+
+      .setup-v40 .setup-style-grid-v40 button:nth-child(3n+1)::before,
+      .setup-style-grid-v40 button:nth-child(3n+1)::before {
+        background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.30), transparent 25%), linear-gradient(135deg,#070514,#1c0a3d 44%,#003e54);
       }
-      .setup-style-grid-v40 button.active::after { content: "SELECTED · Director style lock"; color: rgba(255,210,180,.72); }
+      .setup-v40 .setup-style-grid-v40 button:nth-child(3n+2)::before,
+      .setup-style-grid-v40 button:nth-child(3n+2)::before {
+        background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.22), transparent 25%), linear-gradient(135deg,#130408,#3a0711 50%,#050507);
+      }
+      .setup-v40 .setup-style-grid-v40 button:nth-child(3n+3)::before,
+      .setup-style-grid-v40 button:nth-child(3n+3)::before {
+        background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.20), transparent 25%), linear-gradient(135deg,#15160d,#4b3b1f 45%,#111);
+      }
+
+      .setup-v40 .setup-style-grid-v40 button:hover,
+      .setup-style-grid-v40 button:hover { transform: translateY(-2px); }
+
+      .setup-v40 .setup-style-grid-v40 button.active,
+      .setup-style-grid-v40 button.active {
+        border-color: rgba(255,138,76,.86) !important;
+        background: linear-gradient(180deg, rgba(255,138,76,.18), rgba(255,255,255,.035)) !important;
+        box-shadow: 0 0 0 1px rgba(255,138,76,.20), 0 18px 44px rgba(255,92,42,.16) !important;
+      }
+      .setup-v40 .setup-style-grid-v40 button.active::after,
+      .setup-style-grid-v40 button.active::after {
+        content: "SELECTED · DIRECTOR LOCK";
+        color: rgba(255,214,186,.78);
+      }
 
       @media (max-width: 760px) {
         html, body { overflow-x: hidden !important; }
         body { padding-bottom: calc(108px + env(safe-area-inset-bottom)) !important; }
-        .setup-style-grid-v40 button { flex-basis: 148px !important; min-height: 168px !important; }
+
+        .setup-v40 .setup-options-v40 {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          overflow: visible !important;
+        }
+
+        .setup-v40 .setup-options-v40 .setup-block-v40:has(.setup-style-grid-v40) {
+          width: 100% !important;
+          max-width: 100% !important;
+          padding-inline: 16px !important;
+          overflow: visible !important;
+        }
+
+        .setup-v40 .setup-style-grid-v40,
+        .setup-style-grid-v40 {
+          margin-inline: -2px !important;
+          padding-inline: 2px !important;
+        }
+
+        .setup-v40 .setup-style-grid-v40 button,
+        .setup-style-grid-v40 button {
+          flex-basis: 154px !important;
+          width: 154px !important;
+          max-width: 154px !important;
+          min-width: 154px !important;
+          min-height: 170px !important;
+          padding-top: 94px !important;
+          font-size: 14px !important;
+        }
 
         .col, .step-body, .pack-body, .production-pack, .step-section {
           min-width: 0 !important;
@@ -116,15 +193,13 @@ function StudioShellSkin() {
           min-width: 0 !important;
         }
 
-        .frow > *,
-        .frow.frow2 > * {
+        .frow > *, .frow.frow2 > * {
           width: 100% !important;
           min-width: 0 !important;
           max-width: 100% !important;
         }
 
-        .out-box,
-        .out-box-v31 {
+        .out-box, .out-box-v31 {
           width: 100% !important;
           max-width: 100% !important;
           min-width: 0 !important;
@@ -161,8 +236,7 @@ function StudioShellSkin() {
           align-items: center !important;
         }
 
-        .out-actions .btn,
-        .out-actions button {
+        .out-actions .btn, .out-actions button {
           min-height: 38px !important;
           padding: 0 12px !important;
           border-radius: 11px !important;
@@ -194,17 +268,10 @@ function StudioShellSkin() {
           pointer-events: none;
         }
 
-        .out-box-v31.is-open .out-body {
-          max-height: none !important;
-          overflow: visible !important;
-        }
-
+        .out-box-v31.is-open .out-body { max-height: none !important; overflow: visible !important; }
         .out-box-v31.is-open .out-body::after { display: none !important; }
 
-        .out-pre,
-        .out-pre.compact,
-        .out-pre.mono,
-        .out-pre.mono.compact {
+        .out-pre, .out-pre.compact, .out-pre.mono, .out-pre.mono.compact {
           max-width: 100% !important;
           white-space: pre-wrap !important;
           overflow-wrap: anywhere !important;
@@ -215,26 +282,9 @@ function StudioShellSkin() {
           font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         }
 
-        .frame-card-row {
-          display: block !important;
-          padding: 14px !important;
-          min-width: 0 !important;
-        }
-
-        .frame-card-lbl {
-          margin-bottom: 8px !important;
-          font-size: 10px !important;
-          line-height: 1.35 !important;
-          letter-spacing: .28em !important;
-        }
-
-        .frame-card-val {
-          max-width: 100% !important;
-          font-size: 17px !important;
-          line-height: 1.45 !important;
-          overflow-wrap: anywhere !important;
-          word-break: break-word !important;
-        }
+        .frame-card-row { display: block !important; padding: 14px !important; min-width: 0 !important; }
+        .frame-card-lbl { margin-bottom: 8px !important; font-size: 10px !important; line-height: 1.35 !important; letter-spacing: .28em !important; }
+        .frame-card-val { max-width: 100% !important; font-size: 17px !important; line-height: 1.45 !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
 
         .frame-btns {
           display: flex !important;
@@ -246,7 +296,6 @@ function StudioShellSkin() {
           scroll-snap-type: x proximity;
           -webkit-overflow-scrolling: touch;
         }
-
         .frame-btns .fb {
           flex: 0 0 auto !important;
           min-height: 44px !important;
@@ -256,33 +305,11 @@ function StudioShellSkin() {
           font-size: 12px !important;
         }
 
-        .brow {
-          display: flex !important;
-          flex-wrap: wrap !important;
-          gap: 10px !important;
-          padding-bottom: 8px !important;
-        }
+        .brow { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; padding-bottom: 8px !important; }
+        .brow .btn, .brow a.btn { flex: 1 1 180px !important; min-height: 44px !important; justify-content: center !important; white-space: normal !important; }
 
-        .brow .btn,
-        .brow a.btn {
-          flex: 1 1 180px !important;
-          min-height: 44px !important;
-          justify-content: center !important;
-          white-space: normal !important;
-        }
-
-        .nc-bottom-nav {
-          padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
-        }
-
-        main,
-        .studio-page,
-        .page,
-        .wrap,
-        .app-shell,
-        .storyboard-page {
-          padding-bottom: calc(140px + env(safe-area-inset-bottom)) !important;
-        }
+        .nc-bottom-nav { padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important; }
+        main, .studio-page, .page, .wrap, .app-shell, .storyboard-page { padding-bottom: calc(140px + env(safe-area-inset-bottom)) !important; }
       }
     `}</style>
   );
@@ -294,7 +321,6 @@ export default function TopActionBar({
   uiLang = "ru",
   onToggleLang,
   onOpenMenu,
-  onOpenCreate,
   onNavigate,
   onSignOut,
 }) {
@@ -302,17 +328,9 @@ export default function TopActionBar({
   const isSignedIn = Boolean(account?.session?.user);
   const displayName = account?.profile?.display_name || (email ? email.split("@")[0] : "Гость");
   const avatarUrl = account?.profile?.avatar_url || account?.session?.user?.user_metadata?.avatar_url || "";
-  const planLabel = access?.isOwner
-    ? "Director аккаунт"
-    : access?.role === "pro"
-    ? "Pro аккаунт"
-    : isSignedIn
-    ? "Бесплатный аккаунт"
-    : "Гость";
+  const planLabel = access?.isOwner ? "Director аккаунт" : access?.role === "pro" ? "Pro аккаунт" : isSignedIn ? "Бесплатный аккаунт" : "Гость";
   const planBadge = access?.isOwner ? "DIR" : access?.role === "pro" ? "PRO" : isSignedIn ? "FREE" : "";
-
-  const langKey = String(uiLang || "ru").toLowerCase();
-  const langInfo = LANG_FLAGS[langKey] || LANG_FLAGS.ru;
+  const langInfo = LANG_FLAGS[String(uiLang || "ru").toLowerCase()] || LANG_FLAGS.ru;
   const initials = getInitials(displayName, email);
 
   const [theme, setTheme] = useState("dark");
@@ -371,34 +389,16 @@ export default function TopActionBar({
       <StudioShellSkin />
       <header className="nc-top-action-bar">
         <button className="nc-top-icon" type="button" onClick={onOpenMenu} aria-label="Меню">☰</button>
-
-        <button className="nc-top-logo" type="button" onClick={() => onNavigate?.("setup")} aria-label="NeuroCine">
-          <span>N</span>
-        </button>
-
+        <button className="nc-top-logo" type="button" onClick={() => onNavigate?.("setup")} aria-label="NeuroCine"><span>N</span></button>
         <div className="nc-top-spacer" aria-hidden></div>
-
         <button className="nc-lang nc-lang-flag" type="button" onClick={onToggleLang} aria-label={langInfo.title} title={langInfo.title}>
           <span className="nc-lang-flag-emoji" role="img" aria-hidden>{langInfo.flag}</span>
         </button>
-
         <div className="nc-profile-wrap" ref={profileRef}>
-          <button
-            className={"nc-profile nc-profile-avatar" + (showAvatarImg ? " has-image" : "")}
-            type="button"
-            onClick={() => setProfileOpen(o => !o)}
-            aria-haspopup="menu"
-            aria-expanded={profileOpen}
-            title={email || "Профиль"}
-          >
-            {showAvatarImg ? (
-              <img src={avatarUrl} alt={displayName} onError={() => setImgError(true)} draggable="false" />
-            ) : (
-              <span className="nc-profile-initials">{initials}</span>
-            )}
+          <button className={"nc-profile nc-profile-avatar" + (showAvatarImg ? " has-image" : "")} type="button" onClick={() => setProfileOpen(o => !o)} aria-haspopup="menu" aria-expanded={profileOpen} title={email || "Профиль"}>
+            {showAvatarImg ? <img src={avatarUrl} alt={displayName} onError={() => setImgError(true)} draggable="false" /> : <span className="nc-profile-initials">{initials}</span>}
             {planBadge && <span className={"nc-profile-plan-dot plan-" + planBadge.toLowerCase()} aria-hidden>{planBadge[0]}</span>}
           </button>
-
           {profileOpen && (
             <div className="nc-profile-menu" role="menu">
               <div className="nc-profile-menu-head">
@@ -406,38 +406,16 @@ export default function TopActionBar({
                 <div className="nc-profile-menu-name">{displayName}</div>
                 {email && <div className="nc-profile-menu-email">{email}</div>}
               </div>
-
               <button type="button" className="nc-profile-menu-item nc-profile-menu-theme" onClick={toggleTheme} role="menuitem">
-                <span className="nc-profile-menu-icon" aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
-                <span>Тема: {theme === "dark" ? "тёмная" : "светлая"}</span>
-                <span className="nc-profile-menu-arrow" aria-hidden>→</span>
+                <span className="nc-profile-menu-icon" aria-hidden>{theme === "dark" ? "☀" : "☾"}</span><span>Тема: {theme === "dark" ? "тёмная" : "светлая"}</span><span className="nc-profile-menu-arrow" aria-hidden>→</span>
               </button>
-
-              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")} role="menuitem">
-                <span className="nc-profile-menu-icon" aria-hidden>◆</span>
-                <span>Партнёрская программа</span>
-              </button>
-
-              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("setup")} role="menuitem">
-                <span className="nc-profile-menu-icon" aria-hidden>⚙</span>
-                <span>Настройки</span>
-              </button>
-
-              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")} role="menuitem">
-                <span className="nc-profile-menu-icon" aria-hidden>♦</span>
-                <span>Биллинг и тариф</span>
-              </button>
-
+              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")} role="menuitem"><span className="nc-profile-menu-icon" aria-hidden>◆</span><span>Партнёрская программа</span></button>
+              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("setup")} role="menuitem"><span className="nc-profile-menu-icon" aria-hidden>⚙</span><span>Настройки</span></button>
+              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")} role="menuitem"><span className="nc-profile-menu-icon" aria-hidden>♦</span><span>Биллинг и тариф</span></button>
               {isSignedIn ? (
-                <button type="button" className="nc-profile-menu-item nc-profile-menu-danger" onClick={handleSignOut} role="menuitem">
-                  <span className="nc-profile-menu-icon" aria-hidden>↪</span>
-                  <span>Выйти</span>
-                </button>
+                <button type="button" className="nc-profile-menu-item nc-profile-menu-danger" onClick={handleSignOut} role="menuitem"><span className="nc-profile-menu-icon" aria-hidden>↪</span><span>Выйти</span></button>
               ) : (
-                <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("auth")} role="menuitem">
-                  <span className="nc-profile-menu-icon" aria-hidden>↩</span>
-                  <span>Войти</span>
-                </button>
+                <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("auth")} role="menuitem"><span className="nc-profile-menu-icon" aria-hidden>↩</span><span>Войти</span></button>
               )}
             </div>
           )}
