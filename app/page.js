@@ -1,5 +1,5 @@
-import PublicLandingV3 from "../components/PublicLandingV3";
+import PublicLandingOriginalAuth from "../components/PublicLandingOriginalAuth";
 
 export default function Home() {
-  return <PublicLandingV3 />;
+  return <PublicLandingOriginalAuth />;
 }
