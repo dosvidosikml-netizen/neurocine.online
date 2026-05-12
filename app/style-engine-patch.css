@@ -1,4 +1,4 @@
-/* NeuroCine Style Engine Patch v1 — mobile interactive style selector */
+/* NeuroCine Style Engine Patch v2 — commercial thumbnail style selector */
 
 .setup-style-grid-v40,
 .style-grid-v40,
@@ -10,7 +10,15 @@
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
+.setup-style-grid-v40::-webkit-scrollbar,
+.style-grid-v40::-webkit-scrollbar,
+.style-carousel-v40::-webkit-scrollbar,
+.style-dna-grid::-webkit-scrollbar,
+.style-dna-carousel::-webkit-scrollbar,
+[class*="style-grid"]::-webkit-scrollbar,
+[class*="style-carousel"]::-webkit-scrollbar { display: none; }
 
 .setup-style-grid-v40 button,
 .style-grid-v40 button,
@@ -19,6 +27,7 @@
 .style-dna-carousel button,
 [class*="style-grid"] button,
 [class*="style-carousel"] button {
+  --nc-card-img: linear-gradient(135deg, #171b25, #08090d);
   pointer-events: auto !important;
   cursor: pointer;
   touch-action: manipulation;
@@ -27,13 +36,22 @@
   scroll-snap-align: center;
   position: relative;
   isolation: isolate;
-  min-height: 168px;
+  min-height: 184px;
+  aspect-ratio: 1 / 1.08;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 4px;
   overflow: hidden;
-  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  padding: 12px !important;
+  border-radius: 24px !important;
+  border: 2px solid rgba(255,255,255,.10) !important;
+  background: #0b0d12 !important;
+  color: #fff !important;
+  box-shadow: 0 12px 42px rgba(0,0,0,.30), inset 0 0 0 1px rgba(255,255,255,.04);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+  text-align: left;
+  font-weight: 900;
 }
 
 .setup-style-grid-v40 button::before,
@@ -45,18 +63,16 @@
 [class*="style-carousel"] button::before {
   content: "";
   position: absolute;
-  left: 18px;
-  right: 18px;
-  top: 18px;
-  height: 74px;
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 75% 42%, rgba(255,80,80,.42), transparent 0 18%, transparent 34%),
-    linear-gradient(115deg, rgba(255,255,255,.20), transparent 9% 100%),
-    linear-gradient(135deg, rgba(229,53,53,.18), rgba(124,92,255,.10), rgba(0,0,0,.50));
-  border: 1px solid rgba(255,255,255,.08);
-  box-shadow: inset 0 0 40px rgba(0,0,0,.38);
-  z-index: -1;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  bottom: 42px;
+  border-radius: 20px;
+  background: var(--nc-card-img);
+  background-size: cover;
+  background-position: center;
+  z-index: -2;
+  box-shadow: inset 0 -55px 70px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.08);
 }
 
 .setup-style-grid-v40 button::after,
@@ -66,14 +82,24 @@
 .style-dna-carousel button::after,
 [class*="style-grid"] button::after,
 [class*="style-carousel"] button::after {
-  content: "STYLE DNA · TAP TO SELECT";
-  display: block;
-  margin-top: 6px;
-  font-size: 10px;
-  font-weight: 950;
-  letter-spacing: .20em;
-  color: rgba(255,255,255,.42);
-  text-transform: uppercase;
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to top, rgba(0,0,0,.74) 0 31%, rgba(0,0,0,.10) 56%, transparent 100%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.setup-style-grid-v40 button > *,
+.style-grid-v40 button > *,
+.style-carousel-v40 button > *,
+.style-dna-grid button > *,
+.style-dna-carousel button > *,
+[class*="style-grid"] button > *,
+[class*="style-carousel"] button > * {
+  position: relative;
+  z-index: 2;
 }
 
 .setup-style-grid-v40 button:hover,
@@ -90,10 +116,10 @@
 [class*="style-carousel"] button:hover,
 [class*="style-grid"] button:focus-visible,
 [class*="style-carousel"] button:focus-visible {
-  transform: translateY(-2px) scale(1.015);
+  transform: translateY(-3px) scale(1.018);
   outline: none;
-  border-color: rgba(255,255,255,.32) !important;
-  box-shadow: 0 18px 70px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.44) !important;
+  box-shadow: 0 20px 70px rgba(0,0,0,.42), 0 0 0 1px rgba(255,255,255,.12) inset;
 }
 
 .setup-style-grid-v40 button.active,
@@ -105,12 +131,9 @@
 [class*="style-carousel"] button.active,
 [aria-pressed="true"],
 [data-active="true"] {
-  border-color: rgba(255,82,82,.95) !important;
-  background:
-    linear-gradient(135deg, rgba(229,53,53,.22), rgba(124,92,255,.13)),
-    rgba(255,255,255,.055) !important;
-  box-shadow: 0 0 0 1px rgba(255,82,82,.35) inset, 0 0 34px rgba(255,82,82,.20), 0 20px 80px rgba(0,0,0,.36) !important;
-  transform: translateY(-2px) scale(1.02);
+  border-color: #ff665f !important;
+  box-shadow: 0 0 0 3px rgba(255,102,95,.20), 0 0 38px rgba(255,80,80,.34), 0 22px 80px rgba(0,0,0,.48) !important;
+  transform: translateY(-3px) scale(1.035);
 }
 
 .setup-style-grid-v40 button.active::after,
@@ -122,46 +145,142 @@
 [class*="style-carousel"] button.active::after,
 [aria-pressed="true"]::after,
 [data-active="true"]::after {
-  content: "✓ SELECTED · STYLE LOCK ACTIVE";
-  color: #ffb4b4;
+  content: "✓";
+  display: grid;
+  place-items: start end;
+  padding: 10px;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 950;
+  text-shadow: 0 2px 12px rgba(0,0,0,.70);
+  background:
+    radial-gradient(circle at calc(100% - 26px) 26px, #ff665f 0 20px, transparent 21px),
+    linear-gradient(to top, rgba(0,0,0,.74) 0 31%, rgba(0,0,0,.10) 56%, transparent 100%);
 }
 
-.setup-style-grid-v40 button:nth-child(1)::before,
-[class*="style-grid"] button:nth-child(1)::before,
-[class*="style-carousel"] button:nth-child(1)::before {
-  background:
-    radial-gradient(circle at 66% 45%, rgba(255,229,165,.48), transparent 0 15%, transparent 32%),
-    linear-gradient(120deg, rgba(255,255,255,.18), transparent 12% 100%),
-    linear-gradient(135deg, rgba(90,70,40,.30), rgba(0,0,0,.62));
+/* Card thumbnail looks by order — replaces empty gradients with poster-like previews. */
+.setup-style-grid-v40 button:nth-child(1),
+[class*="style-grid"] button:nth-child(1),
+[class*="style-carousel"] button:nth-child(1) {
+  --nc-card-img:
+    radial-gradient(circle at 52% 26%, rgba(255,242,210,.82) 0 9%, transparent 10%),
+    linear-gradient(115deg, transparent 0 32%, rgba(255,255,255,.18) 33% 37%, transparent 38%),
+    linear-gradient(180deg, #313947 0%, #161a22 45%, #07080c 100%);
 }
-.setup-style-grid-v40 button:nth-child(2)::before,
-[class*="style-grid"] button:nth-child(2)::before,
-[class*="style-carousel"] button:nth-child(2)::before {
-  background:
-    radial-gradient(circle at 72% 38%, rgba(166,85,255,.42), transparent 0 17%, transparent 32%),
-    linear-gradient(135deg, rgba(65,35,95,.38), rgba(0,0,0,.70));
+.setup-style-grid-v40 button:nth-child(2),
+[class*="style-grid"] button:nth-child(2),
+[class*="style-carousel"] button:nth-child(2) {
+  --nc-card-img:
+    radial-gradient(circle at 72% 30%, rgba(137,69,255,.72) 0 13%, transparent 14%),
+    radial-gradient(circle at 35% 48%, rgba(255,163,69,.28) 0 18%, transparent 19%),
+    linear-gradient(180deg, #2c1438 0%, #120d1c 52%, #050509 100%);
 }
-.setup-style-grid-v40 button:nth-child(3)::before,
-[class*="style-grid"] button:nth-child(3)::before,
-[class*="style-carousel"] button:nth-child(3)::before {
-  background:
-    radial-gradient(circle at 78% 43%, rgba(255,30,45,.50), transparent 0 14%, transparent 31%),
-    linear-gradient(105deg, rgba(255,255,255,.25) 0 4%, transparent 4% 100%),
-    linear-gradient(135deg, rgba(120,20,30,.26), rgba(0,0,0,.72));
+.setup-style-grid-v40 button:nth-child(3),
+[class*="style-grid"] button:nth-child(3),
+[class*="style-carousel"] button:nth-child(3) {
+  --nc-card-img:
+    linear-gradient(90deg, transparent 0 42%, rgba(255,255,255,.20) 43% 45%, transparent 46% 100%),
+    radial-gradient(circle at 72% 35%, rgba(255,20,35,.82) 0 12%, transparent 13%),
+    linear-gradient(180deg, #421015 0%, #18080a 55%, #050505 100%);
 }
-.setup-style-grid-v40 button:nth-child(4)::before,
-[class*="style-grid"] button:nth-child(4)::before,
-[class*="style-carousel"] button:nth-child(4)::before {
-  background:
-    radial-gradient(circle at 74% 45%, rgba(215,170,92,.45), transparent 0 17%, transparent 34%),
-    linear-gradient(135deg, rgba(90,62,35,.34), rgba(0,0,0,.68));
+.setup-style-grid-v40 button:nth-child(4),
+[class*="style-grid"] button:nth-child(4),
+[class*="style-carousel"] button:nth-child(4) {
+  --nc-card-img:
+    radial-gradient(circle at 70% 34%, rgba(255,186,91,.68) 0 15%, transparent 16%),
+    linear-gradient(155deg, rgba(110,80,44,.40), transparent 55%),
+    linear-gradient(180deg, #40331d 0%, #16150e 48%, #060604 100%);
 }
-.setup-style-grid-v40 button:nth-child(5)::before,
-[class*="style-grid"] button:nth-child(5)::before,
-[class*="style-carousel"] button:nth-child(5)::before {
-  background:
-    radial-gradient(circle at 76% 40%, rgba(255,70,222,.52), transparent 0 16%, transparent 34%),
-    linear-gradient(135deg, rgba(0,225,255,.22), rgba(0,0,0,.70));
+.setup-style-grid-v40 button:nth-child(5),
+[class*="style-grid"] button:nth-child(5),
+[class*="style-carousel"] button:nth-child(5) {
+  --nc-card-img:
+    radial-gradient(circle at 68% 30%, rgba(255,43,222,.75) 0 13%, transparent 14%),
+    radial-gradient(circle at 30% 62%, rgba(0,229,255,.55) 0 18%, transparent 19%),
+    linear-gradient(180deg, #13154b 0%, #070818 52%, #030306 100%);
+}
+.setup-style-grid-v40 button:nth-child(6),
+[class*="style-grid"] button:nth-child(6),
+[class*="style-carousel"] button:nth-child(6) {
+  --nc-card-img:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at 62% 36%, rgba(255,140,88,.55) 0 14%, transparent 15%),
+    linear-gradient(180deg, #5b3926 0%, #20150f 55%, #070504 100%);
+}
+.setup-style-grid-v40 button:nth-child(7),
+[class*="style-grid"] button:nth-child(7),
+[class*="style-carousel"] button:nth-child(7) {
+  --nc-card-img:
+    radial-gradient(circle at 50% 26%, rgba(116,255,219,.55) 0 12%, transparent 13%),
+    linear-gradient(180deg, #16352f 0%, #081713 50%, #030605 100%);
+}
+.setup-style-grid-v40 button:nth-child(8),
+[class*="style-grid"] button:nth-child(8),
+[class*="style-carousel"] button:nth-child(8) {
+  --nc-card-img:
+    radial-gradient(circle at 62% 32%, rgba(184,184,184,.68) 0 13%, transparent 14%),
+    linear-gradient(180deg, #363636 0%, #151515 54%, #050505 100%);
+}
+
+.style-dna-preview-v1 {
+  margin: 14px 8px 4px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(135deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 14px 46px rgba(0,0,0,.22);
+  color: #fff;
+}
+.style-dna-preview-kicker {
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .22em;
+  color: rgba(185,170,255,.78);
+  margin-bottom: 8px;
+}
+.style-dna-preview-v1 strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+.style-dna-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.style-dna-preview-grid span {
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(0,0,0,.26);
+  color: rgba(255,255,255,.72);
+  font-size: 11px;
+  line-height: 1.25;
+}
+.style-dna-preview-grid b {
+  display: block;
+  color: rgba(255,255,255,.95);
+  margin-bottom: 4px;
+}
+.style-dna-preview-v1 em {
+  display: block;
+  margin-top: 10px;
+  color: rgba(255,255,255,.50);
+  font-size: 12px;
+  font-style: normal;
+}
+
+/* Mobile overflow hardening for project cards and panels */
+html, body { max-width: 100%; overflow-x: hidden; }
+.out-box, .frame-card, .project-card, .cloud-project-card, .step-section, .setup-v40, .studio-flow-v62, .auth-panel-v42, .billing-card, .user-dashboard-card {
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+.out-head, .frame-card-row, .project-card, .cloud-project-card { min-width: 0 !important; }
+.out-body, .out-pre, .frame-card-val, .project-card p, .cloud-project-card p {
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word;
 }
 
 @media (max-width: 720px) {
@@ -174,11 +293,11 @@
   [class*="style-carousel"] {
     display: grid !important;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(210px, 76vw);
+    grid-auto-columns: minmax(142px, 38vw);
     overflow-x: auto !important;
     overflow-y: hidden;
-    gap: 14px;
-    padding: 4px 10px 14px;
+    gap: 12px;
+    padding: 4px 10px 18px;
   }
 
   .setup-style-grid-v40 button,
@@ -188,10 +307,13 @@
   .style-dna-carousel button,
   [class*="style-grid"] button,
   [class*="style-carousel"] button {
-    min-width: 210px;
-    min-height: 220px;
-    padding: 18px !important;
+    min-width: 142px;
+    min-height: 172px;
+    padding: 12px !important;
     border-radius: 24px !important;
-    text-align: left;
+    font-size: 15px !important;
+    line-height: 1.05;
   }
+
+  .style-dna-preview-grid { grid-template-columns: 1fr; }
 }
