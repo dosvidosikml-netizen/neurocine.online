@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./public-landing.css";
 import "./public-landing-v3.css";
+import "./style-engine-patch.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
 
 export const metadata = {
