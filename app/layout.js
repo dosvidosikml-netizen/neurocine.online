@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./public-landing.css";
 import "./public-landing-v3.css";
+import AuthSignOutPatch from "../components/AuthSignOutPatch";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
@@ -10,7 +11,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <AuthSignOutPatch />
+        {children}
+      </body>
     </html>
   );
 }
