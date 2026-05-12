@@ -102,26 +102,6 @@
   z-index: 2;
 }
 
-.setup-style-grid-v40 button:hover,
-.style-grid-v40 button:hover,
-.style-carousel-v40 button:hover,
-.style-dna-grid button:hover,
-.style-dna-carousel button:hover,
-.setup-style-grid-v40 button:focus-visible,
-.style-grid-v40 button:focus-visible,
-.style-carousel-v40 button:focus-visible,
-.style-dna-grid button:focus-visible,
-.style-dna-carousel button:focus-visible,
-[class*="style-grid"] button:hover,
-[class*="style-carousel"] button:hover,
-[class*="style-grid"] button:focus-visible,
-[class*="style-carousel"] button:focus-visible {
-  transform: translateY(-3px) scale(1.018);
-  outline: none;
-  border-color: rgba(255,255,255,.44) !important;
-  box-shadow: 0 20px 70px rgba(0,0,0,.42), 0 0 0 1px rgba(255,255,255,.12) inset;
-}
-
 .setup-style-grid-v40 button.active,
 .style-grid-v40 button.active,
 .style-carousel-v40 button.active,
@@ -158,129 +138,150 @@
     linear-gradient(to top, rgba(0,0,0,.74) 0 31%, rgba(0,0,0,.10) 56%, transparent 100%);
 }
 
-/* Card thumbnail looks by order — replaces empty gradients with poster-like previews. */
 .setup-style-grid-v40 button:nth-child(1),
 [class*="style-grid"] button:nth-child(1),
-[class*="style-carousel"] button:nth-child(1) {
-  --nc-card-img:
-    radial-gradient(circle at 52% 26%, rgba(255,242,210,.82) 0 9%, transparent 10%),
-    linear-gradient(115deg, transparent 0 32%, rgba(255,255,255,.18) 33% 37%, transparent 38%),
-    linear-gradient(180deg, #313947 0%, #161a22 45%, #07080c 100%);
-}
+[class*="style-carousel"] button:nth-child(1) { --nc-card-img: radial-gradient(circle at 52% 26%, rgba(255,242,210,.82) 0 9%, transparent 10%), linear-gradient(115deg, transparent 0 32%, rgba(255,255,255,.18) 33% 37%, transparent 38%), linear-gradient(180deg, #313947 0%, #161a22 45%, #07080c 100%); }
 .setup-style-grid-v40 button:nth-child(2),
 [class*="style-grid"] button:nth-child(2),
-[class*="style-carousel"] button:nth-child(2) {
-  --nc-card-img:
-    radial-gradient(circle at 72% 30%, rgba(137,69,255,.72) 0 13%, transparent 14%),
-    radial-gradient(circle at 35% 48%, rgba(255,163,69,.28) 0 18%, transparent 19%),
-    linear-gradient(180deg, #2c1438 0%, #120d1c 52%, #050509 100%);
-}
+[class*="style-carousel"] button:nth-child(2) { --nc-card-img: radial-gradient(circle at 72% 30%, rgba(137,69,255,.72) 0 13%, transparent 14%), radial-gradient(circle at 35% 48%, rgba(255,163,69,.28) 0 18%, transparent 19%), linear-gradient(180deg, #2c1438 0%, #120d1c 52%, #050509 100%); }
 .setup-style-grid-v40 button:nth-child(3),
 [class*="style-grid"] button:nth-child(3),
-[class*="style-carousel"] button:nth-child(3) {
-  --nc-card-img:
-    linear-gradient(90deg, transparent 0 42%, rgba(255,255,255,.20) 43% 45%, transparent 46% 100%),
-    radial-gradient(circle at 72% 35%, rgba(255,20,35,.82) 0 12%, transparent 13%),
-    linear-gradient(180deg, #421015 0%, #18080a 55%, #050505 100%);
-}
+[class*="style-carousel"] button:nth-child(3) { --nc-card-img: linear-gradient(90deg, transparent 0 42%, rgba(255,255,255,.20) 43% 45%, transparent 46% 100%), radial-gradient(circle at 72% 35%, rgba(255,20,35,.82) 0 12%, transparent 13%), linear-gradient(180deg, #421015 0%, #18080a 55%, #050505 100%); }
 .setup-style-grid-v40 button:nth-child(4),
 [class*="style-grid"] button:nth-child(4),
-[class*="style-carousel"] button:nth-child(4) {
-  --nc-card-img:
-    radial-gradient(circle at 70% 34%, rgba(255,186,91,.68) 0 15%, transparent 16%),
-    linear-gradient(155deg, rgba(110,80,44,.40), transparent 55%),
-    linear-gradient(180deg, #40331d 0%, #16150e 48%, #060604 100%);
-}
+[class*="style-carousel"] button:nth-child(4) { --nc-card-img: radial-gradient(circle at 70% 34%, rgba(255,186,91,.68) 0 15%, transparent 16%), linear-gradient(155deg, rgba(110,80,44,.40), transparent 55%), linear-gradient(180deg, #40331d 0%, #16150e 48%, #060604 100%); }
 .setup-style-grid-v40 button:nth-child(5),
 [class*="style-grid"] button:nth-child(5),
-[class*="style-carousel"] button:nth-child(5) {
-  --nc-card-img:
-    radial-gradient(circle at 68% 30%, rgba(255,43,222,.75) 0 13%, transparent 14%),
-    radial-gradient(circle at 30% 62%, rgba(0,229,255,.55) 0 18%, transparent 19%),
-    linear-gradient(180deg, #13154b 0%, #070818 52%, #030306 100%);
-}
+[class*="style-carousel"] button:nth-child(5) { --nc-card-img: radial-gradient(circle at 68% 30%, rgba(255,43,222,.75) 0 13%, transparent 14%), radial-gradient(circle at 30% 62%, rgba(0,229,255,.55) 0 18%, transparent 19%), linear-gradient(180deg, #13154b 0%, #070818 52%, #030306 100%); }
 .setup-style-grid-v40 button:nth-child(6),
 [class*="style-grid"] button:nth-child(6),
-[class*="style-carousel"] button:nth-child(6) {
-  --nc-card-img:
-    repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 5px),
-    radial-gradient(circle at 62% 36%, rgba(255,140,88,.55) 0 14%, transparent 15%),
-    linear-gradient(180deg, #5b3926 0%, #20150f 55%, #070504 100%);
-}
+[class*="style-carousel"] button:nth-child(6) { --nc-card-img: repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 5px), radial-gradient(circle at 62% 36%, rgba(255,140,88,.55) 0 14%, transparent 15%), linear-gradient(180deg, #5b3926 0%, #20150f 55%, #070504 100%); }
 .setup-style-grid-v40 button:nth-child(7),
 [class*="style-grid"] button:nth-child(7),
-[class*="style-carousel"] button:nth-child(7) {
-  --nc-card-img:
-    radial-gradient(circle at 50% 26%, rgba(116,255,219,.55) 0 12%, transparent 13%),
-    linear-gradient(180deg, #16352f 0%, #081713 50%, #030605 100%);
-}
+[class*="style-carousel"] button:nth-child(7) { --nc-card-img: radial-gradient(circle at 50% 26%, rgba(116,255,219,.55) 0 12%, transparent 13%), linear-gradient(180deg, #16352f 0%, #081713 50%, #030605 100%); }
 .setup-style-grid-v40 button:nth-child(8),
 [class*="style-grid"] button:nth-child(8),
-[class*="style-carousel"] button:nth-child(8) {
-  --nc-card-img:
-    radial-gradient(circle at 62% 32%, rgba(184,184,184,.68) 0 13%, transparent 14%),
-    linear-gradient(180deg, #363636 0%, #151515 54%, #050505 100%);
+[class*="style-carousel"] button:nth-child(8) { --nc-card-img: radial-gradient(circle at 62% 32%, rgba(184,184,184,.68) 0 13%, transparent 14%), linear-gradient(180deg, #363636 0%, #151515 54%, #050505 100%); }
+
+/* Project library overflow fix: desktop + tablet + mobile */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
-.style-dna-preview-v1 {
-  margin: 14px 8px 4px;
-  padding: 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: linear-gradient(135deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 14px 46px rgba(0,0,0,.22);
-  color: #fff;
-}
-.style-dna-preview-kicker {
-  font-size: 10px;
-  font-weight: 950;
-  letter-spacing: .22em;
-  color: rgba(185,170,255,.78);
-  margin-bottom: 8px;
-}
-.style-dna-preview-v1 strong {
-  display: block;
-  font-size: 18px;
-  line-height: 1.1;
-  margin-bottom: 10px;
-}
-.style-dna-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-.style-dna-preview-grid span {
-  padding: 10px;
-  border-radius: 14px;
-  background: rgba(0,0,0,.26);
-  color: rgba(255,255,255,.72);
-  font-size: 11px;
-  line-height: 1.25;
-}
-.style-dna-preview-grid b {
-  display: block;
-  color: rgba(255,255,255,.95);
-  margin-bottom: 4px;
-}
-.style-dna-preview-v1 em {
-  display: block;
-  margin-top: 10px;
-  color: rgba(255,255,255,.50);
-  font-size: 12px;
-  font-style: normal;
+.cloud-projects-v43,
+.cloud-projects-v43 *,
+.cp-head-v43,
+.cp-actions-v43,
+.cp-list-v43,
+.cp-item-v43,
+.cp-item-v43 > div,
+.cp-item-actions-v43 {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 
-/* Mobile overflow hardening for project cards and panels */
-html, body { max-width: 100%; overflow-x: hidden; }
-.out-box, .frame-card, .project-card, .cloud-project-card, .step-section, .setup-v40, .studio-flow-v62, .auth-panel-v42, .billing-card, .user-dashboard-card {
-  max-width: 100% !important;
-  box-sizing: border-box;
+.cloud-projects-v43 {
+  width: min(100%, 1120px) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  overflow: hidden !important;
 }
-.out-head, .frame-card-row, .project-card, .cloud-project-card { min-width: 0 !important; }
-.out-body, .out-pre, .frame-card-val, .project-card p, .cloud-project-card p {
+
+.cp-list-v43 {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.cp-item-v43 {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, auto) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+}
+
+.cp-item-v43 strong,
+.cp-item-v43 span,
+.cp-item-v43 em {
+  display: block !important;
   max-width: 100% !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-word;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.cp-item-actions-v43 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(104px, 1fr)) !important;
+  gap: 10px !important;
+  justify-self: end !important;
+  width: min(100%, 300px) !important;
+}
+
+.cp-item-actions-v43 button,
+.cp-actions-v43 button,
+.cp-actions-v43 input {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+.cp-actions-v43,
+.cp-actions-v57 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(130px, max-content)) minmax(180px, 1fr) !important;
+  gap: 10px !important;
+  align-items: center !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.cp-search-v57 {
+  width: 100% !important;
+}
+
+@media (max-width: 900px) {
+  .cp-actions-v43,
+  .cp-actions-v57 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .cp-search-v57 {
+    grid-column: 1 / -1 !important;
+  }
+  .cp-item-v43 {
+    grid-template-columns: 1fr !important;
+  }
+  .cp-item-actions-v43 {
+    justify-self: stretch !important;
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .cloud-projects-v43 {
+    width: 100% !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .cp-actions-v43,
+  .cp-actions-v57,
+  .cp-item-actions-v43 {
+    grid-template-columns: 1fr !important;
+  }
+  .cp-item-v43 strong,
+  .cp-item-v43 span,
+  .cp-item-v43 em {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
 }
 
 @media (max-width: 720px) {
@@ -314,6 +315,4 @@ html, body { max-width: 100%; overflow-x: hidden; }
     font-size: 15px !important;
     line-height: 1.05;
   }
-
-  .style-dna-preview-grid { grid-template-columns: 1fr; }
 }
