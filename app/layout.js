@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./public-landing.css";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
