@@ -1,5 +1,5 @@
-import PublicLanding from "../components/PublicLanding";
+import PublicLandingV2 from "../components/PublicLandingV2";
 
 export default function Home() {
-  return <PublicLanding />;
+  return <PublicLandingV2 />;
 }
