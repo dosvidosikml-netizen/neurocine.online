@@ -1,7 +1,7 @@
 // engine/videoPromptAgent.js
-// NeuroCine Video Prompt Agent v3.1 — clean action extraction, no recursive prompt bloat, stronger I2V continuity
-// Purpose: build clean image/video prompts with separate compact Grok mode,
-// no VO by default, no duplicated Action/Audio/Shot sections, and safer wording for minor-related scenes.
+// NeuroCine Video Prompt Agent v3.2 — dominant SFX planner + final de-duplicator
+// Purpose: build clean image/video prompts with no recursive prompt bloat,
+// one Action block, one Audio block, one SFX block, and scene-logical primary sound cues.
 
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -12,14 +12,6 @@ function ensurePromptPrefix(text = "", prefix) {
   if (prefix === "SCENE PRIMARY FOCUS:") out = out.replace(/^SCENE PRIMARY FOCUS[:\s-]*/i, "").trim();
   if (prefix === "ANIMATE CURRENT FRAME:") out = out.replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "").trim();
   return `${prefix} ${out}`.replace(/\s+/g, " ").trim();
-}
-
-function ensureSfxLine(text = "", sfx = "") {
-  const finalSfx = cleanAudioText(sfx || "subtle realistic ambience");
-  let out = cleanText(text);
-  out = out.replace(/\bNo\s+SFX\s*:/gi, "SFX:");
-  if (!/\bSFX\s*:/i.test(out)) out = `${out} SFX: ${finalSfx}.`;
-  return cleanText(out);
 }
 
 function limitWords(text = "", max = 80) {
@@ -45,7 +37,9 @@ function collectContext(frame = {}, storyboard = {}) {
     frame.sfx,
     storyboard?.topic,
     storyboard?.script,
-    ...(Array.isArray(storyboard?.character_lock) ? storyboard.character_lock.map((c) => [c.name, c.age, c.description, c.face_features, c.clothing, c.physical_condition].filter(Boolean).join(" ")) : []),
+    ...(Array.isArray(storyboard?.character_lock)
+      ? storyboard.character_lock.map((c) => [c.name, c.age, c.description, c.face_features, c.clothing, c.physical_condition].filter(Boolean).join(" "))
+      : []),
   ].filter(Boolean).join(" "));
 }
 
@@ -54,19 +48,103 @@ export function hasMinorContext(frame = {}, storyboard = {}) {
   return /(\bchild\b|\bboy\b|\bgirl\b|\bkid\b|\bminor\b|\bteen\b|\bteenager\b|\b9\s*y|\b10\s*y|\b11\s*y|\b12\s*y|\b13\s*y|\b14\s*y|\b15\s*y|\b16\s*y|\b17\s*y|реб[её]нок|мальчик|девочк|несовершеннолет|дитина|хлопчик|дівчин)/i.test(text);
 }
 
-function cleanAudioText(text = "") {
+function cleanAudioCue(text = "") {
   return cleanText(text)
     .replace(/crowd murmur/gi, "distant non-verbal crowd ambience")
     .replace(/human voices/gi, "non-verbal human ambience")
-    .replace(/voices/gi, "non-verbal ambience")
-    .replace(/dialogue/gi, "no dialogue")
-    .replace(/speech/gi, "no speech")
-    .replace(/narration/gi, "no narration")
-    .replace(/voiceover/gi, "no voiceover")
+    .replace(/\bvoices\b/gi, "non-verbal ambience")
+    .replace(/\bdialogue\b/gi, "no dialogue")
+    .replace(/\bspeech\b/gi, "no speech")
+    .replace(/\bnarration\b/gi, "no narration")
+    .replace(/\bvoiceover\b/gi, "no voiceover")
     .replace(/\bNo\s+No\b/gi, "No")
     .replace(/no no/gi, "no")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractSection(text = "", label = "Audio") {
+  const re = new RegExp(`\\b${label}\\s*:\\s*([\\s\\S]*?)(?=\\bAudio\\s*:|\\bSFX\\s*:|\\bShot progression\\s*:|\\bCamera behavior\\s*:|\\bLighting\\s*:|\\bColor grade\\s*:|\\bPhysics\\s*:|\\bMaintain\\b|\\bUltra consistency\\b|$)`, "i");
+  return cleanText(String(text || "").match(re)?.[1] || "");
+}
+
+function splitCues(text = "") {
+  return cleanText(text)
+    .replace(/\.+/g, ".")
+    .split(/[,;|/]|\band\b|\+|\.\s+/i)
+    .map((x) => cleanAudioCue(x).replace(/^SFX\s*:/i, "").replace(/^Audio\s*:/i, "").trim())
+    .filter((x) => x && x.length > 2);
+}
+
+function dedupeList(list = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const value = cleanText(item).replace(/\.+$/, "");
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function hasAny(text = "", words = []) {
+  const lower = String(text || "").toLowerCase();
+  return words.some((w) => lower.includes(w));
+}
+
+function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
+  const context = cleanText([
+    frame.sfx,
+    frame.audio,
+    frame.sound,
+    frame.description_ru,
+    frame.description_en,
+    frame.image_prompt_en,
+    frame.video_prompt_en,
+    action,
+    storyboard?.topic,
+  ].filter(Boolean).join(" "));
+
+  const extracted = [
+    frame.sfx,
+    frame.audio,
+    frame.sound,
+    extractSection(frame.video_prompt_en, "Audio"),
+    extractSection(frame.video_prompt_en, "SFX"),
+  ].flatMap(splitCues);
+
+  const cues = [];
+
+  if (hasAny(context, ["alarm", "siren", "alert", "warning", "beacon", "red alarm", "тревог", "сирен", "маяк"])) {
+    cues.push("loud rotating alarm siren synchronized with the flashing red beacon");
+  }
+  if (hasAny(context, ["ventilation", "ventilator", "air duct", "вентиляц", "вытяж"])) {
+    cues.push("bunker ventilation rumble");
+  }
+  if (hasAny(context, ["electrical hum", "electric hum", "monitor", "console", "control panel", "электр", "гул", "монитор", "пульт"])) {
+    cues.push("low electrical hum from monitors and control panels");
+  }
+  if (hasAny(context, ["cable", "hanging cables", "кабел", "провод"])) {
+    cues.push("faint cable vibration");
+  }
+  if (hasAny(context, ["dust", "smoke", "пыль", "дым"])) {
+    cues.push("soft dust movement in stale air");
+  }
+
+  const finalCues = dedupeList([...cues, ...extracted]);
+  if (!finalCues.length) finalCues.push("subtle realistic ambience");
+
+  const primary = finalCues.find((x) => /alarm|siren|alert|warning|тревог|сирен/i.test(x)) || finalCues[0];
+  const background = finalCues.filter((x) => x !== primary).slice(0, 4);
+
+  return {
+    primary,
+    background,
+    sfxLine: dedupeList([primary, ...background]).join(", "),
+    hasDominantAlarm: /alarm|siren|alert|warning|тревог|сирен/i.test(primary),
+  };
 }
 
 function stripGeneratedPromptSections(text = "") {
@@ -126,20 +204,69 @@ function stripNoVoiceGarbage(text = "", includeVo = false) {
   let out = cleanText(text)
     .replace(/No dialogue, no No dialogue, no voiceover;?/gi, "No dialogue, no voiceover;")
     .replace(/No dialogue, no no dialogue, no voiceover;?/gi, "No dialogue, no voiceover;")
+    .replace(/No dialogue, No voiceover/gi, "No dialogue, no voiceover")
     .replace(/\bNo\s+No\b/gi, "No")
-    .replace(/no no/gi, "no");
+    .replace(/no no/gi, "no")
+    .replace(/\bNo Maintain\b/gi, "Maintain");
 
   if (!includeVo) {
     out = out
-      .replace(/\bvoiceover\b[^.]*\./gi, "")
+      .replace(/\bVoice\/no dialogue allowed by user only if needed\.?/gi, "")
+      .replace(/\bVoice\/dialogue allowed by user only if needed\.?/gi, "")
+      .replace(/\bvoiceover\b(?!; ambient sound)[^.]*\./gi, "")
       .replace(/\bVO\b[^.]*\./gi, "")
       .replace(/\bnarration\b[^.]*\./gi, "")
-      .replace(/\bdialogue\b[^.]*\./gi, "")
       .replace(/\bspoken line\b[^.]*\./gi, "")
       .replace(/\bspeech\b[^.]*\./gi, "");
   }
 
   return cleanText(out);
+}
+
+function keepOneSection(text = "", label = "Audio") {
+  const src = String(text || "");
+  const re = new RegExp(`\\b${label}\\s*:[\\s\\S]*?(?=\\bShot progression\\s*:|\\bCamera behavior\\s*:|\\bLighting\\s*:|\\bColor grade\\s*:|\\bPhysics\\s*:|\\bAudio\\s*:|\\bSFX\\s*:|\\bMaintain\\b|\\bUltra consistency\\b|\\bFormat\\s*:|$)`, "gi");
+  const matches = src.match(re) || [];
+  if (matches.length <= 1) return cleanText(src);
+  let first = true;
+  return cleanText(src.replace(re, (m) => {
+    if (first) {
+      first = false;
+      return m;
+    }
+    return "";
+  }));
+}
+
+function dedupeFinalPrompt(text = "") {
+  let out = cleanText(text)
+    .replace(/\bAction\s*:\s*Action\s*:/gi, "Action:")
+    .replace(/\.\./g, ".")
+    .replace(/\s+\./g, ".")
+    .replace(/\bNo Maintain\b/gi, "Maintain");
+
+  out = keepOneSection(out, "Shot progression");
+  out = keepOneSection(out, "Camera behavior");
+  out = keepOneSection(out, "Lighting");
+  out = keepOneSection(out, "Color grade");
+  out = keepOneSection(out, "Physics");
+  out = keepOneSection(out, "Audio");
+  out = keepOneSection(out, "SFX");
+
+  const maintainFirst = out.match(/Maintain exact character appearance, clothing and condition from the uploaded frame\.?/i)?.[0]
+    || out.match(/Maintain exact character appearance, clothing, lighting and condition from the uploaded frame\.?/i)?.[0]
+    || out.match(/Maintain EXACT same character appearance, face, clothing, and condition as previous frame\.?/i)?.[0];
+
+  out = out
+    .replace(/Maintain exact character appearance, clothing and condition from the uploaded frame\.?/gi, "")
+    .replace(/Maintain exact character appearance, clothing, lighting and condition from the uploaded frame\.?/gi, "")
+    .replace(/Maintain EXACT same character appearance, face, clothing, and condition as previous frame\.?/gi, "");
+  if (maintainFirst) out = `${out} ${maintainFirst.replace(/\.?$/, ".")}`;
+
+  return cleanText(out)
+    .replace(/No dialogue,\s*No voiceover/gi, "No dialogue, no voiceover")
+    .replace(/\bNo\s+No\b/gi, "No")
+    .replace(/\.\s*\./g, ".");
 }
 
 export const REALISM_ANCHORS_SKIN = [
@@ -199,10 +326,10 @@ function getFrameAction(frame = {}) {
     frame.action_en,
     frame.motion,
     frame.action,
-    frame.video_prompt_en,
     frame.description_en,
     frame.image_prompt_en,
     frame.description_ru,
+    frame.video_prompt_en,
   ];
   for (const value of preferred) {
     const cleaned = stripGeneratedPromptSections(value || "");
@@ -256,15 +383,10 @@ function getShotProgression(frame = {}) {
 
 function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
-  const sfx = cleanAudioText(frame.sfx || "mud, fabric, wind, distant non-verbal ambience");
-  let action = getFrameAction(frame) || "the subject holds position with subtle movement";
-  action = removeGeneratedNames(action, storyboard);
-  action = sanitizeSensitiveMinorTerms(action, minorSafe);
-
+  const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "the subject holds position with subtle movement";
   const firstSentence = action.split(/(?<=[.!?])\s+/)[0] || action;
-  const noVoice = includeVo
-    ? ""
-    : "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
+  const audio = buildAudioPlan({ frame, storyboard, action });
+  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
   const continuity = isFirstFrame(frame)
     ? "Maintain the exact appearance from the uploaded frame."
     : "Maintain exact character appearance, clothing, lighting and historical setting; do not clone previous composition.";
@@ -272,25 +394,26 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
     ? "Do not change face, age, clothing, dirt level, lighting, or period."
     : "Keep visual continuity.";
 
-  return limitWords(cleanText([
+  return limitWords(dedupeFinalPrompt([
     noVoice,
     "Animate only the uploaded frame. Do not recompose, add characters, change framing, add subtitles, UI or watermark.",
     "6-second subtle image-to-video shot:",
     firstSentence,
+    audio.hasDominantAlarm ? "Audio priority: make the alarm siren clearly audible and dominant from the first frame." : "",
     "Use only micro-motion: handheld drift, breathing, fabric movement, smoke or wind if visible.",
-    `SFX: ${sfx}.`,
+    `SFX: ${audio.sfxLine}.`,
     continuity,
     ultra,
     minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
-  ].filter(Boolean).join(" ")), 95);
+  ].filter(Boolean).join(" ")), 105);
 }
 
 function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
-  const sfx = cleanAudioText(frame.sfx || "subtle realistic ambience");
   let action = removeGeneratedNames(getFrameAction(frame), storyboard);
-  action = sanitizeSensitiveMinorTerms(action, minorSafe);
+  action = sanitizeSensitiveMinorTerms(action, minorSafe) || "the visible scene holds tension with subtle physical motion";
   const camera = cleanText(frame.camera || "subtle handheld documentary camera movement");
+  const audio = buildAudioPlan({ frame, storyboard, action });
   const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
   const shot = getShotProgression(frame);
   const continuity = isFirstFrame(frame)
@@ -300,18 +423,19 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
     ? "Ultra consistency: keep face structure, age, clothing, dirt level, lighting style, color grade and historical period stable."
     : "Keep continuity stable.";
 
-  return limitWords(cleanText([
+  return limitWords(dedupeFinalPrompt([
     noVoice,
     "ANIMATE ONLY THE UPLOADED FRAME. Do not recompose or add characters.",
     `${camera}.`,
     action,
     `Shot progression: ${shot.phase} — ${shot.rhythm}.`,
+    audio.hasDominantAlarm ? "Audio priority: loud alarm siren must dominate over background room tone." : "",
     "Natural overcast light, damp historical realism, subtle 35mm grain, real weight and inertia.",
-    `SFX: ${sfx}.`,
+    `SFX: ${audio.sfxLine}.`,
     continuity,
     ultra,
     minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
-  ].filter(Boolean).join(" ")), 125);
+  ].filter(Boolean).join(" ")), 135);
 }
 
 export function buildVideoPromptFor({
@@ -337,16 +461,16 @@ export function buildVideoPromptFor({
   const shot = getShotProgression(frame);
   const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "subtle movement only";
   const camera = cleanText(frame.camera || "static documentary shot with subtle handheld drift");
-  const sfx = cleanAudioText(frame.sfx || "subtle realistic ambience");
+  const audio = buildAudioPlan({ frame, storyboard, action });
   const characterBlock = buildCharacterBlock(storyboard.character_lock, { compact: false, omitNames: true });
   const audioBlock = includeVo && frame.vo_ru
-    ? `Audio: ${sfx}. Voice/dialogue allowed by user only if needed.`
-    : `Audio: ${sfx}. No dialogue, no voiceover; ambient sound and SFX only.`;
+    ? `Audio: primary ${audio.primary}; background ${audio.background.join(", ") || "subtle realistic ambience"}. Voice/dialogue allowed by user only if needed.`
+    : `Audio: PRIMARY SFX — ${audio.primary}. Background: ${audio.background.join(", ") || "subtle realistic ambience"}. No dialogue, no voiceover; ambient sound and SFX only.`;
   const continuity = isFirstFrame(frame)
     ? "Maintain exact character appearance, clothing and condition from the uploaded frame."
     : "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
 
-  const pro = cleanText([
+  const pro = dedupeFinalPrompt([
     `${camera}, ${duration}-second shot.`,
     characterBlock ? `Subject: ${characterBlock}.` : "",
     `Action: ${action}.`,
@@ -356,13 +480,14 @@ export function buildVideoPromptFor({
     "Color grade: lifted blacks, desaturated shadows, natural skin tones, subtle 35mm film grain.",
     "Physics: realistic inertia, grounded contact with surfaces, fabric reacting to movement.",
     audioBlock,
+    `SFX: ${audio.sfxLine}.`,
     `Format: ${aspectRatio}, 24fps, live-action photographic realism.`,
     continuity,
     consistency === "ultra" ? "Ultra consistency: do not change face structure, age, clothing, dirt level, lighting style, color grade, or historical period; do not clone the previous composition. Maintain story rhythm from previous frame while varying the camera angle naturally." : "",
     minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
   ].filter(Boolean).join(" "));
 
-  if (promptMode === "cheap") return limitWords(pro, 95);
+  if (promptMode === "cheap") return limitWords(pro, 105);
   return pro;
 }
 
@@ -400,10 +525,9 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
   const minorSafe = hasMinorContext(frame, storyboard);
   let out = stripBannedWords(text);
   out = stripNoVoiceGarbage(out, includeVo);
-  out = cleanAudioText(out);
   out = sanitizeSensitiveMinorTerms(out, minorSafe);
-  out = stripGeneratedPromptSections(out);
-  out = out.replace(/\bNo\s+No\b/gi, "No").replace(/no no/gi, "no");
+  out = dedupeFinalPrompt(out);
+
   if (!includeVo) {
     const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
     if (String(target).toLowerCase() === "grok" && !out.startsWith("NO SPEECH")) out = `${hardNoVoice} ${out}`;
@@ -411,7 +535,17 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
       out = `${out} No dialogue, no voiceover; ambient sound and SFX only.`;
     }
   }
-  return cleanText(out);
+  return dedupeFinalPrompt(out);
+}
+
+function ensureSfxLine(text = "", frame = {}, storyboard = {}) {
+  let out = dedupeFinalPrompt(text).replace(/\bNo\s+SFX\s*:/gi, "SFX:");
+  if (!/\bSFX\s*:/i.test(out)) {
+    const action = getFrameAction(frame);
+    const audio = buildAudioPlan({ frame, storyboard, action });
+    out = `${out} SFX: ${audio.sfxLine}.`;
+  }
+  return dedupeFinalPrompt(out);
 }
 
 export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3", includeVo = false, promptMode = "pro", consistency = "ultra" }) {
@@ -419,10 +553,9 @@ export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3",
     stripBannedWords(buildImagePrompt({ frame, storyboard, target })),
     "SCENE PRIMARY FOCUS:"
   );
-  const videoPrompt = ensurePromptPrefix(
-    ensureSfxLine(finalizePromptCleaners(buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency }), { frame, storyboard, includeVo, target }), frame?.sfx),
-    "ANIMATE CURRENT FRAME:"
-  );
+  const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
+  const cleanedVideo = ensureSfxLine(finalizePromptCleaners(rawVideo, { frame, storyboard, includeVo, target }), frame, storyboard);
+  const videoPrompt = ensurePromptPrefix(cleanedVideo, "ANIMATE CURRENT FRAME:");
 
   return {
     image_prompt_en: imagePrompt,
@@ -442,12 +575,15 @@ export function validateFramePrompts({ frame, storyboard, target = "veo3" }) {
   if (frame.image_prompt_en && !/^SCENE PRIMARY FOCUS:/i.test(frame.image_prompt_en)) errors.push("image prompt missing SCENE PRIMARY FOCUS prefix");
   if (frame.video_prompt_en && !/^ANIMATE CURRENT FRAME:/i.test(frame.video_prompt_en)) errors.push("video prompt missing ANIMATE CURRENT FRAME prefix");
   if (frame.video_prompt_en && !/\bSFX\s*:/i.test(frame.video_prompt_en)) errors.push("video prompt missing embedded SFX block");
-  if (/Action:\s*Action:|No Maintain|Shot progression:[\s\S]*Shot progression:|Audio:[\s\S]*Audio:/i.test(frame.video_prompt_en || "")) {
+  if (/Action:\s*Action:|No Maintain|Shot progression:[\s\S]*Shot progression:|Audio:[\s\S]*Audio:|SFX:[\s\S]*SFX:/i.test(frame.video_prompt_en || "")) {
     errors.push("video prompt contains duplicated generated sections");
+  }
+  if (/alarm|siren|alert|warning/i.test(`${frame.sfx || ""} ${frame.video_prompt_en || ""}`) && !/PRIMARY SFX\s*—\s*[^.]*alarm|PRIMARY SFX\s*—\s*[^.]*siren|Audio priority/i.test(frame.video_prompt_en || "")) {
+    errors.push("alarm/siren cue is not promoted as primary audio event");
   }
   if (target === "grok") {
     const wordCount = cleanText(frame.video_prompt_en || "").split(/\s+/).length;
-    if (wordCount > 130) errors.push(`Grok video prompt too long: ${wordCount} words (max ~130)`);
+    if (wordCount > 150) errors.push(`Grok video prompt too long: ${wordCount} words (max ~150)`);
     if (/human voices|voiceover|dialogue|narration/i.test(frame.video_prompt_en || "")) {
       if (!/^ANIMATE CURRENT FRAME:\s*NO SPEECH/i.test(frame.video_prompt_en || "")) errors.push("Grok prompt may allow voices/dialogue");
     }
