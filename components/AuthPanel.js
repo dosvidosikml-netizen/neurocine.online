@@ -79,6 +79,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession || null);
+      setBusy(false);
     });
 
     return () => {
@@ -152,11 +153,10 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
     setBusy(true);
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: getStudioRedirectTo(),
-          skipBrowserRedirect: true,
           queryParams: {
             access_type: "offline",
             prompt: "select_account",
@@ -167,16 +167,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       if (signInError) {
         setError(signInError.message);
         setBusy(false);
-        return;
       }
-
-      if (data?.url && typeof window !== "undefined") {
-        window.location.assign(data.url);
-        return;
-      }
-
-      setError("Google не вернул ссылку входа. Проверь Supabase Auth Redirect URLs.");
-      setBusy(false);
     } catch (e) {
       setError(e?.message || "Google login failed");
       setBusy(false);
@@ -188,7 +179,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
     setError("");
     try {
       if (isSupabaseConfigured && supabase?.auth?.signOut) {
-        const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });
+        const { error: signOutError } = await supabase.auth.signOut();
         if (signOutError) throw signOutError;
       }
     } catch (e) {
