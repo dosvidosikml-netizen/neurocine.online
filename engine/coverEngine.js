@@ -1,14 +1,9 @@
 // engine/coverEngine.js
-// NeuroCine Cover Director Engine v2.6 — Cover DNA + CTR hierarchy + scenario-aware theme detection
-// Делает не просто image prompt, а полноценный вирусный thumbnail brief:
+// NeuroCine Cover Director Engine v2.7 — scenario-aware Cover DNA + CTR hierarchy
 // сценарий -> главный страх/тайна -> текстовая иерархия -> 9:16 poster composition -> готовый EN prompt.
 
 function str(v = "") { return String(v || "").trim(); }
 function low(v = "") { return str(v).toLowerCase(); }
-function clampText(v = "", max = 64) {
-  const s = str(v).replace(/\s+/g, " ");
-  return s.length > max ? s.slice(0, max - 1).trim() + "…" : s;
-}
 function upper(v = "") { return str(v).toUpperCase(); }
 function uniq(arr = []) {
   const out = [];
@@ -36,26 +31,50 @@ function textSource({ topic = "", script = "", storyboard = null } = {}) {
   ].filter(Boolean).join("\n");
 }
 
+function hasAny(source = "", words = []) {
+  return words.some((w) => source.includes(w));
+}
+
 export function detectCoverTheme(input = {}) {
   const source = low(textSource(input));
-  const has = (words) => words.some((w) => source.includes(w));
 
-  if (has(["мерзлот", "mammoth", "мамонт", "мамонтёнок", "мамонтенок", "permafrost", "сибирской язвы", "anthrax", "щенк", "голов", "волк", "лед начал таять", "лёд начал таять", "древние могильники"])) return "permafrost";
-  if (has(["тунгус", "тайга", "сибир", "метеорит", "осколк", "воронк"])) return "tunguska";
-  if (has(["нло", "ufo", "alien", "иноплан", "не земн", "внезем", "аппарат", "розуэл", "roswell"])) return "alien";
-  if (has(["убий", "маньяк", "crime", "преступ", "детектив", "полици", "фбр", "fbi", "след"])) return "crime";
-  if (has(["заговор", "секрет", "секретн", "classified", "redacted", "архив", "документ", "правительство", "гриф", "скрывал"])) return "conspiracy";
-  if (has(["тюрьм", "остров дьявола", "каторг", "побег", "заключ", "камера", "лагерь", "гулат", "гулаг"])) return "prison";
-  if (has(["чум", "болезн", "эпидем", "лихорад", "москит", "зараж", "карантин"])) return "plague";
-  if (has(["ужас", "хоррор", "призрак", "демон", "монстр", "страх", "horror", "creature", "nightmare"])) return "horror";
-  if (has(["война", "солдат", "танк", "battle", "war", "military", "армия", "ракета", "взрыв", "битва"])) return "war";
-  if (has(["катастроф", "disaster", "авар", "цунами", "землетр", "пожар", "шторм", "самолет", "корабль"])) return "disaster";
-  if (has(["древн", "археолог", "фараон", "рим", "history", "истори", "импер", "артефакт", "средневек"])) return "history";
-  if (has(["ai", "ии", "нейро", "робот", "эксперимент", "наука", "учен", "технолог", "science"])) return "science";
+  // Must run before generic crime / conspiracy / war.
+  // Petrov-style Cold War false alert is NOT true crime and NOT detective evidence.
+  if (hasAny(source, [
+    "петров", "ссср", "советск", "бункер", "сирен", "тревог", "ложная тревога", "ложн",
+    "спутник", "солнечный блик", "блик", "не нажал", "кнопк", "конца мира", "до конца мира",
+    "компьютеры показали", "один человек", "система"
+  ])) return "cold_war_alert";
+
+  if (hasAny(source, ["мерзлот", "mammoth", "мамонт", "мамонтёнок", "мамонтенок", "permafrost", "сибирской язвы", "anthrax", "щенк", "голов", "волк", "лед начал таять", "лёд начал таять", "древние могильники"])) return "permafrost";
+  if (hasAny(source, ["тунгус", "тайга", "сибир", "метеорит", "осколк", "воронк"])) return "tunguska";
+  if (hasAny(source, ["нло", "ufo", "alien", "иноплан", "не земн", "внезем", "аппарат", "розуэл", "roswell"])) return "alien";
+  if (hasAny(source, ["убий", "маньяк", "crime", "преступ", "детектив", "полици", "фбр", "fbi", "след"])) return "crime";
+  if (hasAny(source, ["заговор", "секрет", "секретн", "classified", "redacted", "архив", "документ", "правительство", "гриф", "скрывал"])) return "conspiracy";
+  if (hasAny(source, ["тюрьм", "остров дьявола", "каторг", "побег", "заключ", "камера", "лагерь", "гулат", "гулаг"])) return "prison";
+  if (hasAny(source, ["чум", "болезн", "эпидем", "лихорад", "москит", "зараж", "карантин"])) return "plague";
+  if (hasAny(source, ["ужас", "хоррор", "призрак", "демон", "монстр", "страх", "horror", "creature", "nightmare"])) return "horror";
+  if (hasAny(source, ["война", "солдат", "танк", "battle", "war", "military", "армия", "ракета", "взрыв", "битва"])) return "war";
+  if (hasAny(source, ["катастроф", "disaster", "авар", "цунами", "землетр", "пожар", "шторм", "самолет", "корабль"])) return "disaster";
+  if (hasAny(source, ["древн", "археолог", "фараон", "рим", "history", "истори", "импер", "артефакт", "средневек"])) return "history";
+  if (hasAny(source, ["ai", "ии", "нейро", "робот", "эксперимент", "наука", "учен", "технолог", "science"])) return "science";
   return "general";
 }
 
 const THEME_PRESETS = {
+  cold_war_alert: {
+    title: "ОН НЕ ПОВЕРИЛ\nСИСТЕМЕ",
+    facts: ["СССР • КРАСНАЯ ТРЕВОГА", "МИНУТЫ ДО КАТАСТРОФЫ", "ЛОЖНЫЙ СИГНАЛ", "ОДИН ЧЕЛОВЕК РЕШИЛ"],
+    hook: "ОН СПАС МИР?",
+    visual: "Soviet Cold War underground command room at night, flashing red alarm beacon, CRT warning screens, Soviet duty officer frozen at a console, hand hovering above a report phone, red emergency light washing over steel walls, analog control panels, classified global panic atmosphere, one decision before catastrophe",
+    angle: "false Cold War alert / one man refused the system / minutes before global catastrophe",
+    forbiddenVisuals: "crime evidence board, police tape, witness silhouette, forensic markers, detective case file, courtroom, suspect wall, red string investigation board",
+    variantLabels: {
+      poster: "RED ALERT POSTER",
+      evidence: "CONTROL ROOM + ALERT",
+      human: "ONE MAN / ONE DECISION",
+    },
+  },
   permafrost: {
     title: "ГЛАЗ ПОДО\nЛЬДОМ?",
     facts: ["МЕРЗЛОТЕ 40 000 ЛЕТ", "ИЗО ЛЬДА ВЫШЕЛ МАМОНТЁНОК", "ТРАВА ВНУТРИ БЫЛА ЗЕЛЁНОЙ", "СПОРЫ СИБИРСКОЙ ЯЗВЫ ЖИВЫ"],
@@ -157,16 +176,29 @@ const STYLE_PRESETS = {
   conspiracy: "classified conspiracy poster, warning stamps, redacted documents, black and red palette, top secret evidence board, paranoid thriller atmosphere",
 };
 
-function pickStyle(style = "viral") {
+function pickStyle(style = "viral", theme = "general") {
+  if (theme === "cold_war_alert" && style === "truecrime") {
+    return "Cold War classified documentary poster, red emergency typography, Soviet control room atmosphere, bold readable Russian text, no detective or police aesthetic";
+  }
   return STYLE_PRESETS[style] || STYLE_PRESETS.viral;
 }
 
 function deriveFromScript(input = {}, preset) {
   const source = textSource(input);
   const compact = source.replace(/\s+/g, " ");
-
   const extractedFacts = [];
   const factRules = [
+    [/петров/i, "ПЕТРОВ НЕ ПОВЕРИЛ СИСТЕМЕ"],
+    [/не\s+нажал[^.?!]{0,30}кнопк|кнопк[^.?!]{0,30}не\s+нажал/i, "ОН НЕ НАЖАЛ КНОПКУ"],
+    [/ссср/i, "СССР • НОЧНАЯ СМЕНА"],
+    [/минут[^.?!]{0,50}(конца|катастроф|мира)/i, "МИНУТЫ ДО КОНЦА МИРА"],
+    [/ложн[^.?!]{0,20}тревог|тревог[^.?!]{0,40}ложн/i, "ЛОЖНАЯ ТРЕВОГА"],
+    [/спутник[^.?!]{0,80}(блик|пуск)/i, "СПУТНИК ОШИБСЯ"],
+    [/солнечн[^.?!]{0,40}блик/i, "СОЛНЕЧНЫЙ БЛИК"],
+    [/сирен/i, "СИРЕНЫ РЕЗАЛИ УШИ"],
+    [/бункер/i, "КРАСНЫЙ БУНКЕР"],
+    [/один\s+человек/i, "ОДИН ЧЕЛОВЕК РЕШИЛ"],
+
     [/глаз[^.?!]{0,60}(лед|л[её]д|мерзлот)/i, "ГЛАЗ ПОДО ЛЬДОМ"],
     [/(сорок\s*тысяч|40\s*тысяч)/i, "МЕРЗЛОТЕ 40 000 ЛЕТ"],
     [/мамонт[её]нок|мамонтенок|мамонтёнок/i, "ИЗО ЛЬДА ВЫШЕЛ МАМОНТЁНОК"],
@@ -186,13 +218,16 @@ function deriveFromScript(input = {}, preset) {
     [/управляем[а-яё\s-]{0,20}аппарат/i, "УПРАВЛЯЕМЫЙ АППАРАТ?"],
   ];
   for (const [rx, label] of factRules) if (rx.test(compact)) extractedFacts.push(label);
-
-  const facts = uniq([...extractedFacts, ...(preset.facts || [])]).slice(0, 4);
-  return { facts };
+  return { facts: uniq([...extractedFacts, ...(preset.facts || [])]).slice(0, 4) };
 }
 
-function buildTitle({ topic = "", mode = "viral", preset }) {
-  const t = upper(topic).replace(/\s+/g, " ");
+function buildTitle({ topic = "", script = "", mode = "viral", preset, theme = "general" }) {
+  const t = upper(`${topic} ${script}`).replace(/\s+/g, " ");
+  if (theme === "cold_war_alert") {
+    if (t.includes("НЕ НАЖАЛ") || t.includes("КНОПК")) return "ОН НЕ НАЖАЛ\nКНОПКУ";
+    if (t.includes("КОНЦА МИРА")) return "ДО КОНЦА МИРА\nБЫЛИ МИНУТЫ";
+    return preset.title;
+  }
   if (t.includes("МАМОН") || t.includes("МЕРЗЛОТ") || t.includes("ЛЁД") || t.includes("ЛЕД")) return preset.title;
   if (t.includes("ТУНГУС") || t.includes("СИБИР")) return preset.title;
   if (topic && topic.length <= 42 && mode === "safe") return `${upper(topic)}\nЧТО СКРЫЛИ?`;
@@ -203,8 +238,7 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
   const theme = detectCoverTheme({ topic, script, storyboard });
   const preset = THEME_PRESETS[theme] || THEME_PRESETS.general;
   const derived = deriveFromScript({ topic, script, storyboard }, preset);
-  const title = buildTitle({ topic, mode, preset });
-
+  const title = buildTitle({ topic, script, mode, preset, theme });
   const modeLine = {
     safe: "credible documentary, no cheap clickbait, still high curiosity",
     viral: "viral curiosity gap, strong fear/mystery hook, bold but believable",
@@ -212,7 +246,7 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
   }[mode] || "viral curiosity gap";
 
   return {
-    version: "Cover Director v2.6",
+    version: "Cover Director v2.7",
     theme,
     mode,
     style,
@@ -223,8 +257,12 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
     side_facts: derived.facts,
     bottom_hook: mode === "safe" ? preset.hook.replace("ЗАПРЕЩЁННАЯ", "ГЛАВНАЯ") : preset.hook,
     visual_symbol: preset.visual,
-    psychology: ["тайна без полного ответа", "запретная версия", "масштабный шок", "один невозможный визуальный символ", "сначала читается главный заголовок"],
-    ctr_score: mode === "extreme" ? 92 : mode === "viral" ? 84 : 71,
+    forbidden_visuals: preset.forbiddenVisuals || "",
+    variant_labels: preset.variantLabels || null,
+    psychology: theme === "cold_war_alert"
+      ? ["один человек против системы", "минуты до конца мира", "ложная тревога", "решение не нажать", "сначала читается главный заголовок"]
+      : ["тайна без полного ответа", "запретная версия", "масштабный шок", "один невозможный визуальный символ", "сначала читается главный заголовок"],
+    ctr_score: mode === "extreme" ? 92 : mode === "viral" ? 86 : 73,
     typography_system: "3-level hierarchy: huge top headline, small evidence facts, bottom red-stamp hook",
     readability_rule: "all key text readable on a phone in under 1 second",
     mode_line: modeLine,
@@ -232,12 +270,17 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
 }
 
 function composePrompt(brief, variant = "poster") {
-  const style = pickStyle(brief.style);
-  const variantBlock = {
+  const style = pickStyle(brief.style, brief.theme);
+  const isColdWar = brief.theme === "cold_war_alert";
+  const variantBlock = isColdWar ? ({
+    poster: "Red-alert command-room poster: the flashing siren and Soviet bunker screens dominate the upper and center zones; the officer decision moment is visible but not generic crime evidence.",
+    evidence: "Control-room alert poster: emphasize CRT warning screens, red alarm beacon, analog control panels, countdown feeling, classified Cold War room geometry.",
+    human: "One-man decision poster: foreground a Soviet duty officer frozen at the console with a hand near a report phone; red warning light reflects on his face; no police or detective imagery.",
+  }[variant]) : ({
     poster: "Event-first poster: the impossible event dominates the upper half, evidence landscape dominates the center, text zones are integrated like a professional thumbnail poster.",
     evidence: "Evidence-board poster: include icons, stamped labels, red warning frame, documentary facts arranged on the left side, dramatic event still visible in background.",
     human: "Human + evidence poster: add a tense investigator or eyewitness in the lower/side foreground, direct eye contact, evidence reflected in glasses or held as a document, event visible behind.",
-  }[variant] || "Event-first poster.";
+  }[variant]);
 
   const titleOneLine = brief.main_title.replace(/\n/g, " / ");
   const factsText = brief.side_facts.map((f) => `"${f}"`).join(", ");
@@ -252,20 +295,30 @@ function composePrompt(brief, variant = "poster") {
     `ADD LEFT-SIDE FACT BLOCKS: ${factsText}. Use compact white/yellow text with small documentary icons.`,
     `ADD BOTTOM HOOK / RED STAMP TEXT: "${brief.bottom_hook}".`,
     `STYLE: ${style}, cinematic realism, high contrast, dramatic lighting, sharp details, dark atmosphere, professional poster design, mobile readability first.`,
+    isColdWar ? "COLD WAR LOCK: Soviet bunker, red siren, CRT screens, analog panels, officer decision, global panic atmosphere. No modern smartphone, no crime board, no police tape." : "",
     "TYPOGRAPHY SYSTEM: use a strict three-level hierarchy only — 1) giant top headline, 2) compact evidence facts, 3) bottom red stamp. Do not create extra captions, random labels, fake UI, channel names, or small unreadable text.",
     "CTR POLISH: one impossible visual symbol must dominate; keep clean negative space behind the headline; make the bottom hook feel like a forbidden-file stamp; sharpen contrast around the central object.",
+    isColdWar ? `THEME NEGATIVE: ${brief.forbidden_visuals}. Do not make a police case, detective board, suspect wall, courtroom, true crime poster, forensic board or witness mystery.` : "",
     "NEGATIVE: no watermark, no logo, no subtitles, no random extra text, no misspelled extra labels, no cartoon, no flat illustration, no gore, no UI elements, no duplicated Russian words."
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 export function buildCoverDirectorPack(input = {}) {
   const { topic = "", script = "", storyboard = null, mode = "viral", style = "viral", platform = "shorts" } = input;
   const brief = buildBrief({ topic, script, storyboard, mode, style, platform });
+  const labels = brief.variant_labels || {
+    poster: "MAIN VIRAL POSTER",
+    evidence: "EVIDENCE + FACTS",
+    human: "WITNESS + MYSTERY",
+  };
   const variants = [
-    { id: "poster", title: "MAIN VIRAL POSTER", prompt_EN: composePrompt(brief, "poster") },
-    { id: "evidence", title: "EVIDENCE + FACTS", prompt_EN: composePrompt(brief, "evidence") },
-    { id: "human", title: "WITNESS + MYSTERY", prompt_EN: composePrompt(brief, "human") },
+    { id: "poster", title: labels.poster, prompt_EN: composePrompt(brief, "poster") },
+    { id: "evidence", title: labels.evidence, prompt_EN: composePrompt(brief, "evidence") },
+    { id: "human", title: labels.human, prompt_EN: composePrompt(brief, "human") },
   ];
+  const negativeExtra = brief.theme === "cold_war_alert"
+    ? ", crime evidence board, police tape, witness silhouette, forensic markers, detective case file, courtroom, suspect wall, red string investigation board, modern office"
+    : "";
 
   return {
     ...brief,
@@ -277,11 +330,10 @@ export function buildCoverDirectorPack(input = {}) {
     },
     variants,
     best_prompt_EN: variants[0].prompt_EN,
-    negative_prompt_EN: "wrong aspect ratio, horizontal poster, tiny unreadable text, random letters, watermark, logo, UI, subtitles, cartoon, flat vector art, gore",
+    negative_prompt_EN: `wrong aspect ratio, horizontal poster, tiny unreadable text, random letters, watermark, logo, UI, subtitles, cartoon, flat vector art, gore${negativeExtra}`,
   };
 }
 
-// Backward compatibility for старого API/UI.
 export function buildCoverVariants({ topic = "", script = "", storyboard = null, hook = "" } = {}) {
   const pack = buildCoverDirectorPack({ topic: topic || hook, script, storyboard, mode: "viral", style: "viral" });
   return {
@@ -291,6 +343,12 @@ export function buildCoverVariants({ topic = "", script = "", storyboard = null,
 }
 
 export const COVER_DNA_PRESETS = {
+  cold_war_alert_command: {
+    palette: "red black cold gray warning",
+    typography: "bold Soviet emergency warning typography",
+    atmosphere: "Cold War red alert command bunker",
+    symbols: ["red siren", "CRT alert screen", "Soviet officer", "report decision"],
+  },
   permafrost_horror: {
     palette: "ice blue black red warning",
     typography: "cold distressed warning typography",
@@ -325,26 +383,11 @@ export const COVER_DNA_PRESETS = {
 
 export function detectCoverDNA(script = "") {
   const s = script.toLowerCase();
-
-  if (s.includes("мерзлот") || s.includes("мамонт") || s.includes("сибирской язвы") || s.includes("anthrax")) {
-    return "permafrost_horror";
-  }
-
-  if (s.includes("тунгус") || s.includes("ufo") || s.includes("не земной")) {
-    return "conspiracy_documentary";
-  }
-
-  if (s.includes("казнь") || s.includes("средневек") || s.includes("ведьм")) {
-    return "historical_horror";
-  }
-
-  if (s.includes("тюрьм") || s.includes("остров дьявола")) {
-    return "prison_survival";
-  }
-
-  if (s.includes("чума") || s.includes("эпидем")) {
-    return "plague_nightmare";
-  }
-
+  if (s.includes("петров") || s.includes("ссср") || s.includes("ложная тревога") || s.includes("не нажал")) return "cold_war_alert_command";
+  if (s.includes("мерзлот") || s.includes("мамонт") || s.includes("сибирской язвы") || s.includes("anthrax")) return "permafrost_horror";
+  if (s.includes("тунгус") || s.includes("ufo") || s.includes("не земной")) return "conspiracy_documentary";
+  if (s.includes("казнь") || s.includes("средневек") || s.includes("ведьм")) return "historical_horror";
+  if (s.includes("тюрьм") || s.includes("остров дьявола")) return "prison_survival";
+  if (s.includes("чума") || s.includes("эпидем")) return "plague_nightmare";
   return "conspiracy_documentary";
 }
