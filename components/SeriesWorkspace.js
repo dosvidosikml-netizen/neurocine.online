@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
+import SeriesCharacterStudio from "./SeriesCharacterStudio";
 
 const STORE_KEY = "neurocine:series:v1";
 const CAST_KEY = "neurocine:character-bible:v1";
@@ -269,27 +270,6 @@ export default function SeriesWorkspace() {
     }
   }
 
-  function addCast() {
-    const name = prompt("Имя или роль героя");
-    if (!name?.trim()) return;
-    const role = prompt("Роль в истории", "главный герой") || "герой";
-    const character = {
-      id: `char_${String((draft?.cast?.length || 0) + 1).padStart(2, "0")}`,
-      name: name.trim(),
-      ui_label_ru: name.trim(),
-      role,
-      importance: (draft?.cast?.length || 0) === 0 ? "main" : "supporting",
-      face_lock_en: "stable realistic face, natural asymmetry, visible pores, cinematic documentary realism",
-      body_lock_en: "natural documentary posture and body language",
-      clothing_lock_en: "costume follows series world and role",
-      emotion_lock_en: "emotionally believable, not model-like",
-      continuity_notes_en: "Keep the same identity in every episode and storyboard frame where this character appears.",
-      reference_mode: "manual",
-      reference_image: null,
-    };
-    updateDraft({ cast: [...(draft?.cast || []), character], charactersMode: "hybrid" });
-  }
-
   function updateEpisode(index, patch) {
     const next = episodesPreview.map((ep, i) => i === index ? { ...ep, ...patch } : ep);
     updateDraft({ episodes: next });
@@ -383,11 +363,7 @@ export default function SeriesWorkspace() {
             {["диктор", "диалоги", "смешанный"].map((x) => <button key={x} type="button" className={draft.format === x ? "active" : ""} onClick={() => updateDraft({ format: x })}><b>{x}</b><span>{x === "диктор" ? "История через voice-over" : x === "диалоги" ? "Сцены через реплики" : "Диктор + реплики"}</span></button>)}
           </div>}
 
-          {step === 3 && <div className="nc-series-choice-grid">
-            {[{id:"auto",t:"Авто из сценария",d:"NeuroCine сам найдёт героев"},{id:"manual",t:"Свои референсы",d:"Ты сам задаёшь лица и костюмы"},{id:"hybrid",t:"Авто + свои",d:"Лучший режим для сериалов"}].map((x) => <button key={x.id} type="button" className={draft.charactersMode === x.id ? "active" : ""} onClick={() => updateDraft({ charactersMode: x.id })}><b>{x.t}</b><span>{x.d}</span></button>)}
-            <button type="button" className="nc-series-wide" onClick={addCast}>＋ Добавить героя сериала</button>
-            {(draft.cast || []).map((c) => <div className="nc-series-cast-mini" key={c.id}><b>{c.ui_label_ru || c.name}</b><span>{c.role} · {c.importance === "main" ? "главный" : "второстепенный"}</span></div>)}
-          </div>}
+          {step === 3 && <SeriesCharacterStudio draft={draft} updateDraft={updateDraft} episodes={episodesPreview} />}
 
           {step === 4 && <div className="nc-series-form">
             <label>Мир / локации<textarea value={draft.world} onChange={(e) => updateDraft({ world: e.target.value })} placeholder="Город, эпоха, правила мира, визуальный стиль, ключевые места" /></label>
