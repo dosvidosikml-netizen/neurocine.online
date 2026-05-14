@@ -3,12 +3,14 @@ import "./public-landing.css";
 import "./public-landing-v3.css";
 import "./style-engine-patch.css";
 import "./generation-overlay.css";
+import "./character-bible.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
 import ScriptPolishPatch from "../components/ScriptPolishPatch";
 import GenerationCinematicOverlay from "../components/GenerationCinematicOverlay";
 import VisualPromptQualityPatch from "../components/VisualPromptQualityPatch";
 import StoryboardStatusPatch from "../components/StoryboardStatusPatch";
 import StoryboardResetPatch from "../components/StoryboardResetPatch";
+import CharacterBiblePatch from "../components/CharacterBiblePatch";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
@@ -21,6 +23,7 @@ export default function RootLayout({ children }) {
       <body>
         <AuthSignOutPatch />
         <ScriptPolishPatch />
+        <CharacterBiblePatch />
         <VisualPromptQualityPatch />
         <StoryboardStatusPatch />
         <StoryboardResetPatch />
