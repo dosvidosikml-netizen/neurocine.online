@@ -1,0 +1,71 @@
+.nc-series-page {
+  min-height: 100vh;
+  padding: 22px clamp(18px, 4vw, 56px) 64px;
+  color: #f5f5f7;
+  background:
+    radial-gradient(circle at 70% 8%, rgba(239,68,68,.22), transparent 28%),
+    radial-gradient(circle at 20% 28%, rgba(124,106,247,.12), transparent 34%),
+    #05060b;
+}
+.nc-series-topbar { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:34px; }
+.nc-series-brand { width:58px; height:58px; border-radius:22px; display:grid; place-items:center; font-weight:950; background:linear-gradient(135deg,#ef4444,#7c6af7); box-shadow:0 0 42px rgba(239,68,68,.28); }
+.nc-series-menu, .nc-series-hero button, .nc-series-empty button, .nc-series-card button, .nc-series-final button, .nc-series-nav button {
+  border:1px solid rgba(255,255,255,.14); border-radius:18px; color:#fff; background:rgba(255,255,255,.07); padding:13px 16px; font-weight:900;
+}
+.nc-series-hero { display:grid; grid-template-columns:1fr auto; gap:20px; align-items:center; margin-bottom:28px; }
+.nc-series-kicker { color:#fb7185; letter-spacing:.26em; font-size:11px; font-weight:950; }
+.nc-series-hero h1 { font-size:clamp(44px, 11vw, 112px); line-height:.86; margin:8px 0 18px; letter-spacing:-.08em; }
+.nc-series-hero p { max-width:680px; color:rgba(245,245,247,.68); font-size:clamp(17px,3vw,24px); line-height:1.35; }
+.nc-series-hero button, .nc-series-empty button { background:#ef4444; border-color:transparent; box-shadow:0 18px 60px rgba(239,68,68,.24); min-width:220px; }
+.nc-series-empty, .nc-series-guide, .nc-series-wizard, .nc-series-card {
+  border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.045); border-radius:32px; box-shadow:0 24px 90px rgba(0,0,0,.35);
+}
+.nc-series-empty { min-height:420px; display:grid; place-items:center; text-align:center; padding:42px 24px; margin-bottom:28px; }
+.nc-series-empty-icon, .nc-series-guide-icon { width:126px; height:126px; border-radius:999px; display:grid; place-items:center; margin:auto; color:#ef4444; font-size:42px; background:radial-gradient(circle,rgba(239,68,68,.26),rgba(239,68,68,.05)); }
+.nc-series-empty h2 { font-size:clamp(28px,6vw,42px); margin:18px 0 8px; }
+.nc-series-empty p { max-width:560px; color:rgba(245,245,247,.65); font-size:18px; line-height:1.45; }
+.nc-series-list { display:grid; gap:14px; margin-bottom:28px; }
+.nc-series-card { padding:20px; display:flex; justify-content:space-between; gap:18px; align-items:center; }
+.nc-series-card span { color:#fb7185; font-size:12px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
+.nc-series-card h3 { font-size:26px; margin:8px 0; }
+.nc-series-card p { color:rgba(245,245,247,.62); }
+.nc-series-guide { padding:28px; display:grid; grid-template-columns:96px 1fr; gap:22px; margin-bottom:28px; }
+.nc-series-guide h2 { font-size:clamp(26px,5vw,42px); margin:0 0 18px; }
+.nc-series-guide-step { background:rgba(255,255,255,.055); border-radius:22px; padding:18px; margin:12px 0; }
+.nc-series-guide-step b { color:#fb7185; }
+.nc-series-guide-step p { color:rgba(245,245,247,.66); line-height:1.5; }
+.nc-series-wizard { padding:22px; }
+.nc-series-wizard-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:18px; }
+.nc-series-wizard-head h2 { font-size:clamp(32px,7vw,64px); margin:0; letter-spacing:-.06em; }
+.nc-series-wizard-head button { border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#fff; width:48px; height:48px; border-radius:18px; font-size:28px; }
+.nc-series-steps { display:flex; gap:8px; overflow:auto; padding:8px 0 18px; }
+.nc-series-steps button { white-space:nowrap; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:rgba(255,255,255,.75); border-radius:999px; padding:10px 13px; font-weight:900; }
+.nc-series-steps button.active, .nc-series-choice-grid button.active { background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.72); color:#fff; }
+.nc-series-form { display:grid; gap:14px; }
+.nc-series-form label { display:grid; gap:8px; color:rgba(245,245,247,.7); font-weight:900; }
+.nc-series-form input, .nc-series-form textarea { width:100%; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.34); color:#fff; border-radius:18px; padding:15px; font-size:16px; outline:none; }
+.nc-series-form textarea { min-height:160px; resize:vertical; }
+.nc-series-choice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.nc-series-choice-grid button { border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.055); color:#fff; border-radius:22px; padding:20px; text-align:left; }
+.nc-series-choice-grid b { display:block; font-size:20px; margin-bottom:8px; }
+.nc-series-choice-grid span { color:rgba(245,245,247,.62); line-height:1.35; }
+.nc-series-wide { grid-column:1/-1; }
+.nc-episode-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+.nc-episode-grid div { border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.045); border-radius:18px; padding:14px; }
+.nc-episode-grid p { color:rgba(245,245,247,.55); }
+.nc-series-final { text-align:center; padding:40px 16px; }
+.nc-series-final h3 { font-size:36px; margin:0 0 10px; }
+.nc-series-final p { color:rgba(245,245,247,.65); max-width:640px; margin:0 auto 18px; line-height:1.5; }
+.nc-series-final div { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; }
+.nc-series-final button:last-child { background:#ef4444; border-color:transparent; }
+.nc-series-nav { display:flex; justify-content:space-between; gap:12px; margin-top:18px; }
+.nc-series-nav button:disabled { opacity:.35; }
+@media (max-width: 720px) {
+  .nc-series-page { padding:18px 16px 54px; }
+  .nc-series-hero { grid-template-columns:1fr; }
+  .nc-series-hero button { width:100%; }
+  .nc-series-guide { grid-template-columns:1fr; }
+  .nc-series-choice-grid { grid-template-columns:1fr; }
+  .nc-series-card { flex-direction:column; align-items:flex-start; }
+  .nc-series-card button { width:100%; }
+}
