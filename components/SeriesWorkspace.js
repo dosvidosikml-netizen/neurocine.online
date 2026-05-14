@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 const STORE_KEY = "neurocine:series:v1";
+const CAST_KEY = "neurocine:character-bible:v1";
 
 function safeJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
@@ -19,7 +20,21 @@ function newSeriesDraft() {
     episodeCount: 5,
     charactersMode: "hybrid",
     episodes: [],
+    cast: [],
     createdAt: new Date().toISOString(),
+  };
+}
+
+function emptyCastBible(draft) {
+  return {
+    version: "1.1-series",
+    mode: draft?.charactersMode || "hybrid",
+    project_type: "series",
+    source_used: draft?.logline ? "series" : "none",
+    source_preview: draft?.logline || draft?.title || "",
+    max_characters: 8,
+    world_notes_en: draft?.world || "Maintain consistent world, period, lighting, costume logic and documentary realism.",
+    characters: draft?.cast || [],
   };
 }
 
@@ -31,6 +46,14 @@ function loadSeriesList() {
 
 function saveSeriesList(list) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); } catch {}
+}
+
+function saveCastForStudio(draft) {
+  try {
+    const bible = emptyCastBible(draft);
+    localStorage.setItem(CAST_KEY, JSON.stringify(bible));
+    window.dispatchEvent(new CustomEvent("neurocine:character-bible-updated", { detail: bible }));
+  } catch {}
 }
 
 export default function SeriesWorkspace() {
@@ -49,7 +72,7 @@ export default function SeriesWorkspace() {
     const count = Number(draft?.episodeCount || 5);
     return Array.from({ length: Math.max(1, Math.min(20, count)) }, (_, i) => ({
       id: `ep_${String(i + 1).padStart(2, "0")}`,
-      title: `Серия ${i + 1}`,
+      title: draft?.episodes?.[i]?.title || `Серия ${i + 1}`,
       beat: draft?.episodes?.[i]?.beat || "Ключевое событие серии пока не задано",
     }));
   }, [draft]);
@@ -66,24 +89,55 @@ export default function SeriesWorkspace() {
 
   function saveDraft() {
     if (!draft) return;
-    const next = [draft, ...seriesList.filter((x) => x.id !== draft.id)];
+    const finalDraft = { ...draft, episodes: episodesPreview };
+    const next = [finalDraft, ...seriesList.filter((x) => x.id !== finalDraft.id)];
     setSeriesList(next);
     saveSeriesList(next);
+    saveCastForStudio(finalDraft);
     setDraft(null);
     setStep(1);
   }
 
   function openStudioWithSeries() {
     if (!draft) return;
+    const finalDraft = { ...draft, episodes: episodesPreview };
+    const firstEpisode = episodesPreview[0];
     const payload = {
-      projectName: draft.title,
-      topic: draft.logline || draft.title,
-      tone: draft.genre,
+      projectName: finalDraft.title,
+      topic: `${finalDraft.title}. ${finalDraft.logline || ""}\n\nСерия 1: ${firstEpisode?.beat || firstEpisode?.title || ""}`.trim(),
+      tone: finalDraft.genre,
       projectType: "series",
-      seriesDraft: draft,
+      seriesDraft: finalDraft,
     };
+    saveCastForStudio(finalDraft);
     try { sessionStorage.setItem("neurocine:series-to-studio:v1", JSON.stringify(payload)); } catch {}
     window.location.href = "/storyboard?fromSeries=1";
+  }
+
+  function addCast() {
+    const name = prompt("Имя или роль героя");
+    if (!name?.trim()) return;
+    const role = prompt("Роль в истории", "главный герой") || "герой";
+    const character = {
+      id: `char_${String((draft?.cast?.length || 0) + 1).padStart(2, "0")}`,
+      name: name.trim(),
+      ui_label_ru: name.trim(),
+      role,
+      importance: (draft?.cast?.length || 0) === 0 ? "main" : "supporting",
+      face_lock_en: "stable realistic face, natural asymmetry, visible pores, cinematic documentary realism",
+      body_lock_en: "natural documentary posture and body language",
+      clothing_lock_en: "costume follows series world and role",
+      emotion_lock_en: "emotionally believable, not model-like",
+      continuity_notes_en: "Keep the same identity in every episode and storyboard frame where this character appears.",
+      reference_mode: "manual",
+      reference_image: null,
+    };
+    updateDraft({ cast: [...(draft?.cast || []), character], charactersMode: "hybrid" });
+  }
+
+  function updateEpisode(index, patch) {
+    const next = episodesPreview.map((ep, i) => i === index ? { ...ep, ...patch } : ep);
+    updateDraft({ episodes: next });
   }
 
   if (!mounted) return null;
@@ -169,7 +223,8 @@ export default function SeriesWorkspace() {
 
           {step === 3 && <div className="nc-series-choice-grid">
             {[{id:"auto",t:"Авто из сценария",d:"NeuroCine сам найдёт героев"},{id:"manual",t:"Свои референсы",d:"Ты сам задаёшь лица и костюмы"},{id:"hybrid",t:"Авто + свои",d:"Лучший режим для сериалов"}].map((x) => <button key={x.id} type="button" className={draft.charactersMode === x.id ? "active" : ""} onClick={() => updateDraft({ charactersMode: x.id })}><b>{x.t}</b><span>{x.d}</span></button>)}
-            <button type="button" className="nc-series-wide" onClick={() => alert("Следующий этап: сюда будет встроен полноценный блок героев проекта с ref face/full body/costume.")}>🎭 Открыть героев проекта</button>
+            <button type="button" className="nc-series-wide" onClick={addCast}>＋ Добавить героя сериала</button>
+            {(draft.cast || []).map((c) => <div className="nc-series-cast-mini" key={c.id}><b>{c.ui_label_ru || c.name}</b><span>{c.role} · {c.importance === "main" ? "главный" : "второстепенный"}</span></div>)}
           </div>}
 
           {step === 4 && <div className="nc-series-form">
@@ -178,12 +233,12 @@ export default function SeriesWorkspace() {
 
           {step === 5 && <div className="nc-series-form">
             <label>Количество серий<input type="number" min="1" max="20" value={draft.episodeCount} onChange={(e) => updateDraft({ episodeCount: Number(e.target.value) })} /></label>
-            <div className="nc-episode-grid">{episodesPreview.map((ep) => <div key={ep.id}><b>{ep.title}</b><p>{ep.beat}</p></div>)}</div>
+            <div className="nc-episode-grid">{episodesPreview.map((ep, index) => <div key={ep.id}><input value={ep.title} onChange={(e) => updateEpisode(index, { title: e.target.value })} /><textarea value={ep.beat} onChange={(e) => updateEpisode(index, { beat: e.target.value })} /></div>)}</div>
           </div>}
 
           {step === 6 && <div className="nc-series-final">
             <h3>Готово к storyboard</h3>
-            <p>Сохрани сериал или отправь текущую серию в Studio. Следующим этапом подключим генерацию эпизодов и отдельный storyboard grid внутри сериала.</p>
+            <p>Сохрани сериал или отправь первую серию в Studio. Герои сериала будут переданы в Character Bible, а идея серии — в storyboard setup.</p>
             <div><button type="button" onClick={saveDraft}>Сохранить сериал</button><button type="button" onClick={openStudioWithSeries}>Открыть в Studio</button></div>
           </div>}
 
