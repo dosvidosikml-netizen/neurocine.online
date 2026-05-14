@@ -50,6 +50,32 @@
 .nc-series-choice-grid b { display:block; font-size:20px; margin-bottom:8px; }
 .nc-series-choice-grid span { color:rgba(245,245,247,.62); line-height:1.35; }
 .nc-series-wide { grid-column:1/-1; }
+.nc-series-cast-studio { display:grid; gap:16px; }
+.nc-series-cast-head { display:grid; grid-template-columns:1fr auto; gap:14px; align-items:start; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.045); border-radius:24px; padding:18px; }
+.nc-series-cast-head h3 { font-size:clamp(30px,6vw,52px); margin:0 0 8px; letter-spacing:-.055em; }
+.nc-series-cast-head p { color:rgba(245,245,247,.62); line-height:1.45; }
+.nc-series-cast-head button, .nc-series-cast-add-row button { border:0; background:#ef4444; color:#fff; border-radius:16px; padding:13px 15px; font-weight:950; box-shadow:0 16px 50px rgba(239,68,68,.18); }
+.nc-series-cast-head button:disabled { opacity:.55; }
+.nc-series-cast-add-row { display:grid; grid-template-columns:1fr 1fr auto; gap:10px; }
+.nc-series-cast-add-row input, .nc-series-character-card input, .nc-series-character-card select, .nc-series-character-card textarea { border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.32); color:#fff; border-radius:14px; padding:12px; outline:none; }
+.nc-series-cast-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+.nc-series-character-card { border:1px solid rgba(255,255,255,.11); background:linear-gradient(135deg,rgba(255,255,255,.065),rgba(255,255,255,.025)); border-radius:26px; padding:16px; display:grid; gap:12px; box-shadow:0 20px 70px rgba(0,0,0,.22); }
+.nc-series-character-top { display:grid; grid-template-columns:78px 1fr auto; gap:12px; align-items:center; }
+.nc-series-character-top button { border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#fff; border-radius:14px; padding:10px; font-weight:900; }
+.nc-series-character-avatar { width:78px; height:78px; border-radius:22px; display:grid; place-items:center; overflow:hidden; background:linear-gradient(135deg,rgba(239,68,68,.5),rgba(124,106,247,.45)); font-size:30px; font-weight:950; }
+.nc-series-character-avatar img { width:100%; height:100%; object-fit:cover; }
+.nc-series-character-card label { display:grid; gap:6px; color:rgba(245,245,247,.62); font-weight:850; }
+.nc-series-character-card textarea { min-height:74px; resize:vertical; }
+.nc-series-ref-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.nc-series-ref-row label { position:relative; min-height:92px; border:1px dashed rgba(255,255,255,.18); border-radius:18px; overflow:hidden; display:grid; place-items:center; color:rgba(245,245,247,.66); background:rgba(0,0,0,.22); text-align:center; }
+.nc-series-ref-row label.has-ref { border-style:solid; border-color:rgba(74,222,128,.35); }
+.nc-series-ref-row label img { width:100%; height:100%; object-fit:cover; }
+.nc-series-ref-row input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.nc-series-appear-grid { display:grid; gap:8px; border-top:1px solid rgba(255,255,255,.08); padding-top:10px; }
+.nc-series-appear-grid b { color:rgba(245,245,247,.7); }
+.nc-series-appear-grid div { display:flex; flex-wrap:wrap; gap:7px; }
+.nc-series-appear-grid button { border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#fff; width:38px; height:38px; border-radius:12px; font-weight:950; }
+.nc-series-appear-grid button.active { background:rgba(239,68,68,.28); border-color:rgba(239,68,68,.72); }
 .nc-series-cast-mini { grid-column:1/-1; border:1px solid rgba(255,255,255,.1); border-radius:18px; padding:14px; background:rgba(255,255,255,.045); }
 .nc-series-cast-mini b { display:block; margin-bottom:4px; }
 .nc-series-cast-mini span { color:rgba(245,245,247,.62); }
@@ -100,4 +126,9 @@
   .nc-series-card button { width:100%; }
   .nc-series-storyboard-head { grid-template-columns:1fr; }
   .nc-series-storyboard-head select { max-width:100%; }
+  .nc-series-cast-head { grid-template-columns:1fr; }
+  .nc-series-cast-add-row { grid-template-columns:1fr; }
+  .nc-series-character-top { grid-template-columns:64px 1fr; }
+  .nc-series-character-top button { grid-column:1/-1; }
+  .nc-series-character-avatar { width:64px; height:64px; border-radius:18px; }
 }
