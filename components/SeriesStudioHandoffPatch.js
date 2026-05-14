@@ -23,12 +23,13 @@ function setVal(el, value) {
 
 function buildText(payload) {
   const d = payload?.seriesDraft || {};
-  const ep = Array.isArray(d.episodes) ? d.episodes[0] : null;
+  const ep = payload?.episode || (Array.isArray(d.episodes) ? d.episodes[payload?.episodeIndex || 0] : null);
+  const epNo = Number(payload?.episodeIndex || 0) + 1;
   return [
     d.title ? `Название: ${d.title}` : "",
     d.logline ? `Идея: ${d.logline}` : "",
     d.world ? `Мир: ${d.world}` : "",
-    ep?.beat ? `Серия 1: ${ep.title || "Серия 1"}. ${ep.beat}` : "",
+    ep ? `Серия ${epNo}: ${ep.title || `Серия ${epNo}`}. ${ep.storyboard_seed_ru || ep.beat || ""}` : "",
     Array.isArray(d.cast) && d.cast.length ? `Герои: ${d.cast.map((c) => c.ui_label_ru || c.name).join(", ")}` : "",
   ].filter(Boolean).join("\n\n");
 }
@@ -60,6 +61,7 @@ export default function SeriesStudioHandoffPatch() {
       setVal(tone, payload.tone || payload.seriesDraft?.genre || "cinematic documentary thriller");
       sessionStorage.removeItem(KEY);
       setDone(true);
+      window.setTimeout(() => setDone(false), 4200);
       window.clearInterval(timer);
     }, 500);
 
@@ -67,5 +69,5 @@ export default function SeriesStudioHandoffPatch() {
   }, []);
 
   if (!done) return null;
-  return <div className="nc-series-handoff-banner"><b>🎞 Сериал передан в Studio</b><button type="button" onClick={() => setDone(false)}>×</button></div>;
+  return <div className="nc-series-handoff-banner"><b>🎞 Сериал передан в обычную Studio</b><button type="button" onClick={() => setDone(false)}>×</button></div>;
 }
