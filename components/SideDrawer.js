@@ -4,6 +4,28 @@ import { getToolsByGroup } from "../lib/toolsRegistry";
 
 const GROUP_ORDER = ["workflow", "pack", "system"];
 
+function navigateTool(tool, onNavigate) {
+  if (tool?.route && tool.route.startsWith("/")) {
+    const url = new URL(tool.route, window.location.origin);
+    const currentPath = window.location.pathname;
+
+    if (url.pathname !== currentPath) {
+      window.location.href = tool.route;
+      return true;
+    }
+
+    if (url.hash) {
+      const anchor = url.hash.replace(/^#/, "");
+      onNavigate?.(anchor);
+      window.history.replaceState(null, "", tool.route);
+      return true;
+    }
+  }
+
+  onNavigate?.(tool?.anchor || tool?.id);
+  return false;
+}
+
 export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access }) {
   const plan = access?.isOwner || access?.isAdmin ? "DIRECTOR" : access?.role === "pro" ? "PRO" : "FREE";
   const groups = GROUP_ORDER.map(id => ({
@@ -17,8 +39,9 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
       window.dispatchEvent(new CustomEvent("neurocine-open-pack-tab", { detail: { tab: tool.packTab } }));
     }
     onSelectTool?.(tool);
-    onNavigate?.(tool.anchor || tool.id);
-    onClose?.();
+    const routed = navigateTool(tool, onNavigate);
+    if (!routed) onClose?.();
+    else onClose?.();
   }
 
   return (
