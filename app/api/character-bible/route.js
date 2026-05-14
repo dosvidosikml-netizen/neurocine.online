@@ -1,6 +1,7 @@
 // app/api/character-bible/route.js
-// NeuroCine Character Bible API v1
-// Extracts recurring heroes/cast from script for series/film/music video continuity.
+// NeuroCine Character Bible API v1.1
+// Extracts recurring heroes/cast from script for visual continuity.
+// v1.1: source-aware, max-character limits, safer defaults for Shorts.
 
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
@@ -11,17 +12,18 @@ export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT = `
 You are NeuroCine Character Bible Director.
-Your job is to extract a clean cast bible from a script for visual continuity in a film/series/storyboard pipeline.
+Extract a clean cast bible from the user's CURRENT script/topic for visual continuity.
 Return ONLY valid JSON. No markdown. No comments. No prose.
 
 Rules:
-- Detect named characters and important unnamed recurring roles.
 - Do not invent plot events.
-- If the script is documentary and has no stable hero, create visual roles needed for continuity, e.g. "main witness", "hired mourner", "widow", "guard", "narrator subject".
+- Do not over-cast. For short/documentary videos, create only the visually necessary recurring people/roles.
+- Main and recurring visual subjects first. Background crowds should stay background unless the script needs a stable recurring person.
+- If the script is documentary and has no named hero, create useful visual roles, but keep the count low.
 - Keep descriptions visual and usable for image/video prompts.
 - Each character must have stable face, age, body, costume, emotional behavior, and continuity notes.
 - Use English for prompt-facing descriptions.
-- Use concise Russian labels only where helpful for UI.
+- Use Russian for ui_label_ru.
 `;
 
 function safeJsonFromText(text = "") {
@@ -34,12 +36,25 @@ function safeJsonFromText(text = "") {
   return null;
 }
 
-function fallbackBible({ script, topic, tone }) {
+function clampMaxCharacters(value, projectType = "film") {
+  const explicit = Number(value);
+  if (Number.isFinite(explicit) && explicit >= 1) return Math.max(1, Math.min(12, Math.round(explicit)));
+  const type = String(projectType || "").toLowerCase();
+  if (/short|reel|tiktok|youtube|док|documentary/.test(type)) return 4;
+  if (/clip|клип|music/.test(type)) return 5;
+  if (/series|сериал/.test(type)) return 8;
+  return 5;
+}
+
+function fallbackBible({ script, topic, tone, projectType, maxCharacters }) {
   const text = String(script || topic || "").slice(0, 280);
   return {
-    version: "1.0-fallback",
+    version: "1.1-fallback",
     mode: "auto",
-    project_type: "unknown",
+    project_type: projectType || "film",
+    source_used: script ? "script" : "topic",
+    source_preview: text,
+    max_characters: maxCharacters,
     cast_strategy: "auto_extract_then_manual_refine",
     characters: [
       {
@@ -58,7 +73,6 @@ function fallbackBible({ script, topic, tone }) {
         appears_in: "derive from storyboard scenes",
         reference_mode: "auto",
         reference_image: null,
-        source_hint: text,
       }
     ],
     world_notes_en: `Tone: ${tone || "cinematic documentary thriller"}. Keep cast grounded in the script world.`
@@ -66,15 +80,19 @@ function fallbackBible({ script, topic, tone }) {
 }
 
 function normalizeBible(data, input) {
-  const base = data && typeof data === "object" ? data : fallbackBible(input);
+  const max = clampMaxCharacters(input.maxCharacters, input.projectType);
+  const base = data && typeof data === "object" ? data : fallbackBible({ ...input, maxCharacters: max });
   const chars = Array.isArray(base.characters) ? base.characters : [];
   return {
-    version: base.version || "1.0",
+    version: base.version || "1.1",
     mode: base.mode || "auto",
     project_type: base.project_type || input.projectType || "film",
+    source_used: input.script ? "script" : "topic",
+    source_preview: String(input.script || input.topic || "").slice(0, 260),
+    max_characters: max,
     cast_strategy: base.cast_strategy || "auto_extract_then_manual_refine",
     world_notes_en: base.world_notes_en || "Maintain consistent world, period, lighting, costume logic and documentary realism.",
-    characters: chars.slice(0, 12).map((c, i) => ({
+    characters: chars.slice(0, max).map((c, i) => ({
       id: c.id || `char_${String(i + 1).padStart(2, "0")}`,
       name: String(c.name || c.ui_label_ru || `Character ${i + 1}`).trim(),
       ui_label_ru: String(c.ui_label_ru || c.name || `Герой ${i + 1}`).trim(),
@@ -94,20 +112,23 @@ function normalizeBible(data, input) {
   };
 }
 
-function buildPrompt({ script, topic, tone, projectType }) {
+function buildPrompt({ script, topic, tone, projectType, maxCharacters }) {
+  const sourceLabel = script ? "CURRENT SCRIPT" : "CURRENT TOPIC ONLY";
   return `
 Extract a Character Bible for NeuroCine.
 
 Project type: ${projectType || "film"}
 Tone/genre: ${tone || "cinematic documentary thriller"}
+Source used: ${sourceLabel}
+Maximum characters allowed: ${maxCharacters}
 Topic: ${topic || "not specified"}
 
-Script:
-${script || ""}
+Script/source:
+${script || topic || ""}
 
 Return JSON with this exact shape:
 {
-  "version": "1.0",
+  "version": "1.1",
   "mode": "auto",
   "project_type": "series|film|clip|documentary|shorts",
   "cast_strategy": "auto_extract_then_manual_refine",
@@ -134,7 +155,9 @@ Return JSON with this exact shape:
 }
 
 Important:
-- Max 12 characters.
+- ABSOLUTE MAX: ${maxCharacters} characters.
+- For shorts/documentary: prefer 1 main subject + 1-3 supporting visual roles.
+- Do not create separate characters for every crowd member or historical region.
 - Main recurring heroes first.
 - If no names exist, create useful role names from the story.
 - Every description must be visual, not literary.
@@ -151,44 +174,45 @@ export async function POST(req) {
     const script = String(body.script || "").trim();
     const topic = String(body.topic || "").trim();
     const tone = String(body.tone || "cinematic documentary thriller").trim();
-    const projectType = String(body.projectType || "film").trim();
+    const projectType = String(body.projectType || "shorts").trim();
+    const maxCharacters = clampMaxCharacters(body.maxCharacters, projectType);
 
     if (!script && !topic) {
-      return Response.json({ error: "Нужен сценарий или тема для создания Character Bible" }, { status: 400 });
+      return Response.json({ error: "Нужен сценарий или тема для создания героев" }, { status: 400 });
     }
 
     const result = await callOpenRouter({
       taskType: TASK_TYPES.SCRIPT_WRITING,
       systemPrompt: SYSTEM_PROMPT,
-      userMessage: buildPrompt({ script, topic, tone, projectType }),
-      maxTokensOverride: 3200,
-      temperatureOverride: 0.25,
+      userMessage: buildPrompt({ script, topic, tone, projectType, maxCharacters }),
+      maxTokensOverride: 2800,
+      temperatureOverride: 0.22,
       appTitle: "NeuroCine Character Bible",
       apiKeyOverride: accessGuard.apiKey,
     });
 
     if (!result.ok) {
-      const bible = fallbackBible({ script, topic, tone, projectType });
+      const bible = fallbackBible({ script, topic, tone, projectType, maxCharacters });
       await logUsageFromGuard(accessGuard, {
         req,
         endpoint: "/api/character-bible",
         success: false,
         modelUsed: result.model_used,
         error: result.error,
-        metadata: usageMeta(body, { tone, projectType }),
+        metadata: usageMeta(body, { tone, projectType, maxCharacters }),
       });
       return Response.json({ bible, warning: result.error, model_used: result.model_used });
     }
 
     const parsed = safeJsonFromText(result.content);
-    const bible = normalizeBible(parsed, { script, topic, tone, projectType });
+    const bible = normalizeBible(parsed, { script, topic, tone, projectType, maxCharacters });
 
     await logUsageFromGuard(accessGuard, {
       req,
       endpoint: "/api/character-bible",
       success: true,
       modelUsed: result.model_used,
-      metadata: usageMeta(body, { tone, projectType, character_count: bible.characters.length }),
+      metadata: usageMeta(body, { tone, projectType, maxCharacters, character_count: bible.characters.length }),
     });
 
     return Response.json({ bible, model_used: result.model_used });
