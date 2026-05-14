@@ -14,7 +14,7 @@ function fmtDateTime(value) {
 }
 
 function getPublicPlanLabel(access) {
-  if (access.isOwner || access.isAdmin) return "OWNER";
+  if (access.isOwner || access.isAdmin) return "DIRECTOR";
   if (access.role === "pro") return "PRO";
   return "FREE";
 }
@@ -167,9 +167,9 @@ function ApiKeyVault({ account, access, onAccountPatch }) {
   if (isOwnerView) {
     return (
       <div className="ud-card-v43 wide pro-own-keys-v53 key-vault-v54 owner key-vault-final-v621">
-        <div className="ud-label-v43">OWNER API</div>
+        <div className="ud-label-v43">DIRECTOR API</div>
         <strong className="ud-big-v43">Platform LIVE</strong>
-        <p>Служебный режим владельца. OWNER использует ключи из Render ENV. Пользовательские ключи нужны только PRO-аккаунтам.</p>
+        <p>Служебный режим режиссёра платформы. DIRECTOR использует ключи из Render ENV. Пользовательские ключи нужны только PRO-аккаунтам.</p>
         <div className="key-vault-status-v54">
           <div className="ud-role-row-v43"><span>Источник</span><b>Render ENV</b></div>
           <div className="ud-role-row-v43"><span>LIVE</span><b>включён</b></div>
@@ -246,19 +246,19 @@ export default function UserDashboard({ account, devMode, onAccountPatch }) {
   const proReady = isProView && access.hasOwnApiKeys;
 
   const liveText = isOwnerView
-    ? "LIVE включён для владельца платформы."
+    ? "LIVE включён для режиссёра платформы."
     : isProView
       ? (proReady ? "LIVE включён через собственный AI-ключ." : "PRO активен. Подключите AI-ключ, чтобы включить LIVE.")
       : "LIVE-генерация доступна в PRO.";
 
   const planDescription = isOwnerView
-    ? "Служебный режим владельца: полный доступ, управление и тесты."
+    ? "Служебный режим режиссёра: полный доступ, управление и тесты."
     : isProView
       ? "PRO — полный рабочий режим NeuroCine Studio с подключением собственных AI API-ключей."
       : "FREE — познакомьтесь с NeuroCine Studio и сохраните до 3 проектов.";
 
   const generationLabel = isOwnerView
-    ? "LIVE OWNER"
+    ? "DIRECTOR LIVE"
     : isProView
       ? (proReady ? "PRO LIVE" : "PRO · ключ нужен")
       : "FREE Preview";
@@ -267,12 +267,12 @@ export default function UserDashboard({ account, devMode, onAccountPatch }) {
     <section className="user-dashboard-v43 user-dashboard-final-v621" id="account">
       <div className="ud-head-v43">
         <div>
-          <div className="ud-kicker-v43">Account Center {isOwnerView ? "· OWNER" : isProView ? "· PRO" : "· FREE"}</div>
+          <div className="ud-kicker-v43">Account Center {isOwnerView ? "· DIRECTOR" : isProView ? "· PRO" : "· FREE"}</div>
           <h2>Профиль и доступ</h2>
-          <p>{isOwnerView ? "Служебный доступ владельца платформы." : "FREE для знакомства. PRO открывает полный production-пайплайн, Cloud workflow и LIVE через собственный AI-ключ."}</p>
+          <p>{isOwnerView ? "Служебный доступ режиссёра платформы." : "FREE для знакомства. PRO открывает полный production-пайплайн, Cloud workflow и LIVE через собственный AI-ключ."}</p>
         </div>
         <div className={`ud-access-badge-v43 role-${access.role} ${proReady ? "is-live-ready" : ""}`}>
-          <span>{isOwnerView ? "OWNER FULL ACCESS" : isProView ? (proReady ? "PRO LIVE READY" : "PRO KEY PENDING") : "FREE PREVIEW"}</span>
+          <span>{isOwnerView ? "DIRECTOR FULL ACCESS" : isProView ? (proReady ? "PRO LIVE READY" : "PRO KEY PENDING") : "FREE PREVIEW"}</span>
           <strong>{publicPlan}</strong>
         </div>
       </div>
@@ -313,7 +313,7 @@ export default function UserDashboard({ account, devMode, onAccountPatch }) {
           <div className="ud-label-v43">Схема доступа</div>
           <div className="ud-role-row-v43"><span>FREE</span><b>preview + 3 проекта</b></div>
           <div className="ud-role-row-v43"><span>PRO</span><b>полный pipeline + свои AI-ключи</b></div>
-          {isOwnerView && <div className="ud-role-row-v43"><span>OWNER</span><b>platform API + Admin Panel</b></div>}
+          {isOwnerView && <div className="ud-role-row-v43"><span>DIRECTOR</span><b>platform API + Admin Panel</b></div>}
         </div>
 
         <ApiKeyVault account={account} access={access} onAccountPatch={onAccountPatch} />
