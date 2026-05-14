@@ -7,6 +7,7 @@ import AuthSignOutPatch from "../components/AuthSignOutPatch";
 import ScriptPolishPatch from "../components/ScriptPolishPatch";
 import GenerationCinematicOverlay from "../components/GenerationCinematicOverlay";
 import VisualPromptQualityPatch from "../components/VisualPromptQualityPatch";
+import StoryboardStatusPatch from "../components/StoryboardStatusPatch";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
         <AuthSignOutPatch />
         <ScriptPolishPatch />
         <VisualPromptQualityPatch />
+        <StoryboardStatusPatch />
         <GenerationCinematicOverlay />
         {children}
       </body>
