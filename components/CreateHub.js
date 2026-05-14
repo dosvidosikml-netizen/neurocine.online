@@ -3,6 +3,26 @@
 import { CREATE_TOOLS, TOOL_GROUPS, getToolsByGroup } from "../lib/toolsRegistry";
 import ToolCard from "./ToolCard";
 
+function navigateTool(tool) {
+  if (tool?.route && tool.route.startsWith("/")) {
+    const url = new URL(tool.route, window.location.origin);
+    const current = window.location.pathname;
+
+    if (url.pathname !== current) {
+      window.location.href = tool.route;
+      return true;
+    }
+
+    if (url.hash) {
+      const anchor = url.hash.replace(/^#/, "");
+      document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.history.replaceState(null, "", tool.route);
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function CreateHub({ open, onClose, onSelectTool, access }) {
   if (!open) return null;
   const primary = CREATE_TOOLS.find(t => t.primary);
@@ -13,7 +33,11 @@ export default function CreateHub({ open, onClose, onSelectTool, access }) {
       window.dispatchEvent(new CustomEvent("neurocine-open-pack-tab", { detail: { tab: tool.packTab } }));
     }
     onSelectTool?.(tool);
+    const routed = navigateTool(tool);
     onClose?.();
+    if (!routed && tool?.anchor) {
+      document.getElementById(tool.anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   return (
@@ -24,7 +48,7 @@ export default function CreateHub({ open, onClose, onSelectTool, access }) {
           <div>
             <span>NeuroCine Factory</span>
             <h2>Создать</h2>
-            <p>Только реальные рабочие модули: сценарий, storyboard, pipeline и production pack.</p>
+            <p>Выбери рабочий модуль: Shorts, сериал, storyboard, production pack или публикационный пакет.</p>
           </div>
           <button className="nc-round-close" type="button" onClick={onClose}>×</button>
         </div>
@@ -33,7 +57,7 @@ export default function CreateHub({ open, onClose, onSelectTool, access }) {
 
         <div className="nc-hub-plan-strip">
           <strong>{plan}</strong>
-          <span>Показываются только активные инструменты, которые уже есть в текущем production-пайплайне.</span>
+          <span>Активные инструменты NeuroCine: сценарий, сериалы, storyboard, pipeline и production pack.</span>
         </div>
 
         <div className="nc-tool-grid">
