@@ -46,6 +46,24 @@ export async function POST(req) {
   if (plan !== "pro") return Response.json({ error: "Only PRO activation is supported." }, { status: 400 });
   if (!email && !userId) return Response.json({ error: "Нужен email или user_id." }, { status: 400 });
 
+  // ── Idempotency: webhook providers (Stripe, PayPal etc.) повторяют событие
+  // если получили 5xx или не ответили вовремя. Если мы уже обработали это
+  // событие — возвращаем тот же успех без повторного апдейта профиля,
+  // иначе pro_activated_at сбрасывается на каждом ретрае.
+  if (providerEventId) {
+    try {
+      const { data: existing } = await adminSupabase
+        .from("billing_events")
+        .select("id,status,plan")
+        .eq("provider", provider)
+        .eq("provider_event_id", providerEventId)
+        .maybeSingle();
+      if (existing) {
+        return Response.json({ ok: true, idempotent: true, provider, provider_event_id: providerEventId });
+      }
+    } catch {}
+  }
+
   try {
     await adminSupabase.from("billing_events").insert({
       user_id: userId || null,

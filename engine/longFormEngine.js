@@ -24,6 +24,14 @@ import { getDurationPreset, detectObserverMode } from "./sceneEngine_v2";
 /**
  * splitScriptForChunks — нарезает длинный сценарий на куски пропорционально
  * длительностям chunks. Старается резать на границах предложений.
+ *
+ * Edge cases:
+ *  - sentences == 0  → все чанки пустые (фолбэк генерации в API).
+ *  - chunks.length == 1 → весь скрипт целиком.
+ *  - sentences <= chunks → распределяем равномерно с дублированием хвостовых
+ *    предложений вместо пустых чанков (иначе LLM получает "" и галлюцинирует).
+ *  - sentences > chunks → пропорционально длительностям; защита от перегрузки
+ *    стартового бюджета когда первое предложение длиннее доли первого чанка.
  */
 export function splitScriptForChunks(script, chunks) {
   const totalDuration = chunks.reduce((s, c) => s + c.duration, 0);
@@ -35,23 +43,65 @@ export function splitScriptForChunks(script, chunks) {
   if (sentences.length === 0) return chunks.map(() => "");
   if (chunks.length === 1) return [script];
 
-  const weights = sentences.map((s) => s.split(/\s+/).length);
+  // Короткий скрипт: предложений меньше или столько же сколько чанков.
+  // Распределяем по пропорциональным позициям, пустые чанки заполняем
+  // ближайшим (предыдущим или следующим) предложением, чтобы LLM всегда
+  // получал ненулевой контекст.
+  if (sentences.length <= chunks.length) {
+    const buckets = chunks.map(() => []);
+    sentences.forEach((s, i) => {
+      const targetIdx = Math.min(
+        chunks.length - 1,
+        Math.floor((i * chunks.length) / sentences.length)
+      );
+      buckets[targetIdx].push(s);
+    });
+    // Forward-fill: пустые чанки берут предыдущее непустое содержимое.
+    let lastNonEmpty = "";
+    for (let c = 0; c < buckets.length; c++) {
+      if (buckets[c].length === 0) {
+        if (lastNonEmpty) buckets[c].push(lastNonEmpty);
+      } else {
+        lastNonEmpty = buckets[c][buckets[c].length - 1];
+      }
+    }
+    // Backward-fill: если первый чанк остался пустой — возьмём первое предложение.
+    if (buckets[0].length === 0 && sentences[0]) buckets[0].push(sentences[0]);
+    return buckets.map((arr) => arr.join(" "));
+  }
+
+  // Длинный скрипт: пропорциональное распределение по весам.
+  const weights = sentences.map((s) => s.split(/\s+/).filter(Boolean).length);
   const totalWeight = weights.reduce((a, b) => a + b, 0);
 
-  // Распределяем предложения по chunks пропорционально их длительностям
   const result = chunks.map(() => []);
   let chunkIdx = 0;
-  let chunkBudget = (chunks[0].duration / totalDuration) * totalWeight;
+  // Минимальный размер бюджета чанка = вес самого длинного предложения,
+  // чтобы одно непропорционально-длинное предложение не пустило весь чанк
+  // вперёд и не оставило стартовый чанк пустым.
+  const minBudget = Math.max(...weights);
+  let chunkBudget = Math.max(minBudget, (chunks[0].duration / totalDuration) * totalWeight);
   let used = 0;
 
   for (let i = 0; i < sentences.length; i++) {
-    if (used + weights[i] > chunkBudget && chunkIdx < chunks.length - 1) {
+    if (used + weights[i] > chunkBudget && chunkIdx < chunks.length - 1 && result[chunkIdx].length > 0) {
       chunkIdx += 1;
-      chunkBudget = (chunks[chunkIdx].duration / totalDuration) * totalWeight;
+      chunkBudget = Math.max(minBudget, (chunks[chunkIdx].duration / totalDuration) * totalWeight);
       used = 0;
     }
     result[chunkIdx].push(sentences[i]);
     used += weights[i];
+  }
+
+  // Safety net: если из-за округлений остались пустые чанки на хвосте —
+  // дублируем туда последнее непустое содержимое.
+  let lastNonEmpty = "";
+  for (let c = 0; c < result.length; c++) {
+    if (result[c].length === 0) {
+      if (lastNonEmpty) result[c].push(lastNonEmpty);
+    } else {
+      lastNonEmpty = result[c][result[c].length - 1];
+    }
   }
 
   return result.map((arr) => arr.join(" "));

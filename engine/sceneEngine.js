@@ -60,7 +60,6 @@ export const STYLE_LOCKS = {
     `${ULTRA_REALISM} Premium true crime reconstruction — low-key natural lighting, forensic atmosphere, controlled shadow depth, realistic crime scene texture, unposed documentary framing, no subtitles, no UI, no watermark`,
   war:
     `${ULTRA_REALISM} Gritty war documentary — long lens compression, 200mm f/2.8 telephoto, mud splatter with realistic drying patterns, smoke volumetric density, cold diffused natural light, handheld urgent tension, Kodak Vision3 grain, no subtitles, no UI, no watermark`,
-  // === 2026 PREMIUM STYLE EXPANSION PACK ===
   neonNoir:
     `${ULTRA_REALISM} Neon Noir cinematic atmosphere — rain-soaked asphalt with high-contrast neon reflections, magenta and cyan light scatter through haze, deep shadow silhouettes against glowing storefront signs, wet surfaces with mirror-grade specular, Blade Runner-style smoke and steam volumetrics, anamorphic lens streaks, no subtitles, no UI, no watermark`,
   synthwave80s:
@@ -101,6 +100,15 @@ export function cleanText(value = "") {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function ensureCharacterContinuityLine(video = "", continuity = "Preserve the same character identity, costume, lighting, historical texture and scene-to-scene continuity.") {
+  const raw = cleanText(video);
+  const line = `CHARACTER CONTINUITY: ${continuity}`;
+  if (!raw) return line;
+  if (/CHARACTER\s+CONTINUITY\s*:/i.test(raw)) return raw;
+  if (/SFX\s*:/i.test(raw)) return raw.replace(/\n*\s*SFX\s*:/i, `\n${line}\n\nSFX:`);
+  return `${raw}\n${line}`;
 }
 
 export function splitScript(script = "") {
@@ -221,7 +229,6 @@ export function buildLocalStoryboard({
 
   const styleLock = STYLE_LOCKS[style] || STYLE_LOCKS.cinematic;
   const count = beats.length;
-  const baseDuration = Math.max(2, Math.floor(plan.seconds / count));
   let rest = plan.seconds;
   let cursor = 0;
 
@@ -237,9 +244,12 @@ export function buildLocalStoryboard({
       `SHOT TYPE: ${shotType(index)}. COMPOSITION: foreground — key survival detail; midground — primary subject; background — atmospheric historical environment. ` +
       `ASPECT RATIO: ${aspectRatio}. NEGATIVE: ${NEGATIVE_LOCK}.`;
 
-    const videoPrompt =
+    const continuity = "Preserve the same subject identity, costume logic, lighting, historical texture and continuity across the full sequence.";
+    const videoPrompt = ensureCharacterContinuityLine(
       `ANIMATE CURRENT FRAME: ${cameraMove(index)}. Preserve the same subject, costume logic, lighting, historical texture and continuity. ` +
-      `${VIDEO_LOCK}. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`;
+      `${VIDEO_LOCK}. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`,
+      continuity
+    );
 
     const item = {
       id: pad(index),
@@ -255,7 +265,7 @@ export function buildLocalStoryboard({
       sfx,
       camera: cameraMove(index),
       transition: index === 0 ? "smash cut" : index % 4 === 0 ? "archival flicker" : "cut",
-      continuity_note: "Maintain one cinematic documentary style, no modern objects, no subtitles, stable historical texture.",
+      continuity_note: continuity,
       safety_note: "Non-graphic documentary framing; intensity through camera, atmosphere, sound and reactions."
     };
     cursor += dur;
@@ -300,6 +310,7 @@ export function normalizeStoryboard(input = {}, fallback = {}) {
     const vo = s.vo_ru || s.vo || s.voice || "";
     const image = s.image_prompt_en || s.image?.prompt || s.image || "";
     const video = s.video_prompt_en || s.video?.prompt || s.video || "";
+    const continuity = s.continuity_note || "Preserve the same character identity, costume, lighting, historical texture and scene-to-scene continuity.";
     const out = {
       id: s.id || pad(i),
       start: Number.isFinite(Number(s.start)) ? Number(s.start) : cursor,
@@ -314,17 +325,16 @@ export function normalizeStoryboard(input = {}, fallback = {}) {
       })(),
       video_prompt_en: (() => {
         const sfxLine = s.sfx ? `\n\nSFX: ${s.sfx}` : "";
-        if (video.startsWith("ANIMATE CURRENT FRAME:")) {
-          // Already has prefix — append SFX only if missing
-          return video.includes("SFX:") ? video : video + sfxLine;
-        }
-        return `ANIMATE CURRENT FRAME: ${video}${sfxLine}`;
+        const baseVideo = video.startsWith("ANIMATE CURRENT FRAME:")
+          ? (video.includes("SFX:") ? video : video + sfxLine)
+          : `ANIMATE CURRENT FRAME: ${video}${sfxLine}`;
+        return ensureCharacterContinuityLine(baseVideo, continuity);
       })(),
       vo_ru: vo,
       sfx: s.sfx || s.sound || "",
       camera: s.camera || cameraMove(i),
       transition: s.transition || "cut",
-      continuity_note: s.continuity_note || "Preserve continuity.",
+      continuity_note: continuity,
       safety_note: s.safety_note || "Non-graphic documentary framing."
     };
     cursor = out.end;

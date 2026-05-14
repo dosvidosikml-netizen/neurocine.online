@@ -22,11 +22,11 @@ export default function StudioFlowPanel({
   const hasStoryboard = Boolean(storyboard?.scenes?.length);
   const hasPartPrompt = Boolean(String(frameGridPrompt || "").trim());
   const hasVideoPrompt = Boolean(String(videoPrompt || "").trim());
-  const isOwner = Boolean(access?.isOwner || access?.isAdmin);
-  const isPro = access?.role === "pro" && !isOwner;
+  const isDirector = Boolean(access?.isOwner || access?.isAdmin);
+  const isPro = access?.role === "pro" && !isDirector;
 
-  const liveLabel = isOwner
-    ? "OWNER LIVE"
+  const liveLabel = isDirector
+    ? "DIRECTOR LIVE"
     : isPro
       ? (liveAllowed ? "PRO LIVE" : "PRO ждёт AI-ключ")
       : "FREE Preview";
@@ -54,7 +54,7 @@ export default function StudioFlowPanel({
       </div>
       <div className="sf-steps-v62">
         {steps.map((s) => (
-          <a key={s.n} className={`sf-step-v62 ${stepState(s.state)}`} href={s.n === "01" ? "#script" : s.n === "02" ? "#storyboard" : s.n === "03" ? "#production" : s.n === "04" ? "#pack" : "#cloud-projects"}>
+          <a key={s.n} className={`sf-step-v62 ${stepState(s.state)}`} href={s.n === "01" ? "#script" : s.n === "02" ? "#storyboard" : s.n === "03" ? "#production" : s.n === "04" ? "#pack" : "#projects"}>
             <span>{s.n}</span>
             <strong>{s.title}</strong>
             <em>{s.desc}</em>

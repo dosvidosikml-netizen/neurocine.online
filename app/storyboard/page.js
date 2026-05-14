@@ -1210,7 +1210,7 @@ ${lines.join("\n")}` : "";
   async function doVideoPrompt() {
     if (!isSignedIn) { setVideoP("Ошибка: войдите через Google."); return; }
     if (!curFrame || !finalImg) return;
-    if (devMode) {
+    if (effectiveDevMode) {
       setVideoP(buildMockVideoPrompt(curFrame));
       setAnalysis({ sfx: "Sample SFX: low drone, wind, distant rumble" });
       return;
@@ -1420,7 +1420,7 @@ ${lines.join("\n")}` : "";
     setAutoIncludeVo(pipe.autoIncludeVo ?? true);
     setCharOverrideEnabled(Boolean(pipe.charOverrideEnabled));
     setCharFaceLock(pipe.charFaceLock || "");
-    setCharModifiers(pipe.charModifiers || { clothing: "", body: "", age: "", hair: "", extra: "" });
+    setCharModifiers(pipe.charModifiers || { beard:false, scar:false, dirt:false, bruises:false, sweat:false, exhaustion:false, pale:false, blood:false });
     setAutoPartPrompt(pipe.autoPartPrompt || "");
     setAutoVideoPack(pipe.autoVideoPack || "");
     setAutoAllPromptText(pipe.autoAllPromptText || "");

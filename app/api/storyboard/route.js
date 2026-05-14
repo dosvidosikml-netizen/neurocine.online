@@ -401,11 +401,52 @@ export async function POST(req) {
     // SSE отправляет заголовки мгновенно → Render ждёт сколько нужно.
     if (body.stream === true) {
       const encoder = new TextEncoder();
+      const abortSignal = req.signal || null;
       const stream = new ReadableStream({
         async start(controller) {
+          let closed = false;
+          let heartbeatTimer = null;
+
           const send = (event, data) => {
-            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            if (closed) return;
+            try {
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            } catch {
+              closed = true;
+            }
           };
+
+          const pingHeartbeat = () => {
+            if (closed) return;
+            try {
+              // SSE comment line — игнорируется клиентом, но не даёт прокси
+              // (Cloudflare, nginx, корпоративные firewalls) закрыть idle-соединение.
+              controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`));
+            } catch {
+              closed = true;
+            }
+          };
+
+          const startHeartbeat = () => {
+            stopHeartbeat();
+            heartbeatTimer = setInterval(pingHeartbeat, 15_000);
+          };
+          const stopHeartbeat = () => {
+            if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+          };
+
+          // Реагируем на разрыв клиента — длинные long-form циклы могут идти
+          // 5+ минут впустую если пользователь закрыл вкладку.
+          const onAbort = () => {
+            closed = true;
+            stopHeartbeat();
+            try { controller.close(); } catch {}
+          };
+          if (abortSignal && !abortSignal.aborted) {
+            abortSignal.addEventListener("abort", onAbort, { once: true });
+          }
+
+          startHeartbeat();
 
           try {
             const isLongForm = duration > 180;
@@ -423,7 +464,6 @@ export async function POST(req) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
                 send("done", { storyboard: local, mode: "local_fallback_longform", target, validation: { ok: true, errors: [] } });
-                controller.close();
                 return;
               }
 
@@ -434,6 +474,8 @@ export async function POST(req) {
               let lastModelUsed = null;
 
               for (let i = 0; i < chunks.length; i++) {
+                if (abortSignal?.aborted || closed) break;
+
                 const ch = chunks[i];
                 send("chunk_started", { chunk_number: i + 1, total_chunks: chunks.length, chunk_duration: ch.duration });
 
@@ -452,7 +494,10 @@ export async function POST(req) {
                   responseFormat: { type: "json_object" },
                   appTitle: `NeuroCine Long-Form Chunk ${i + 1}/${chunks.length}`,
                   apiKeyOverride,
+                  signal: abortSignal,
                 });
+
+                if (result.aborted || closed) break;
 
                 if (!result.ok) {
                   send("chunk_failed", { chunk_number: i + 1, error: result.error || "OpenRouter chunk failed" });
@@ -473,6 +518,8 @@ export async function POST(req) {
                 send("chunk_completed", { chunk_number: i + 1, total_chunks: chunks.length, scenes_in_chunk: normalizedChunk.scenes?.length || 0, model_used: result.model_used });
               }
 
+              if (closed || abortSignal?.aborted) return;
+
               send("merging", { message: "Склеиваю chunks в единый storyboard JSON" });
               const mergedRaw = mergeChunks(chunkResults, duration);
               const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target);
@@ -490,7 +537,6 @@ export async function POST(req) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
                 send("done", { storyboard: local, mode: "local_fallback", target, validation: { ok: true, errors: [] } });
-                controller.close();
                 return;
               }
 
@@ -502,13 +548,15 @@ export async function POST(req) {
                 responseFormat: { type: "json_object" },
                 appTitle: "NeuroCine Storyboard Engine v2.2",
                 apiKeyOverride,
+                signal: abortSignal,
               });
+
+              if (result.aborted || closed) return;
 
               if (!result.ok) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const sbFallback = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
                 send("done", { storyboard: sbFallback, mode: `api_error_fallback: ${result.error}`, target });
-                controller.close();
                 return;
               }
 
@@ -521,6 +569,7 @@ export async function POST(req) {
             }
 
           } catch (e) {
+            if (closed || abortSignal?.aborted) return;
             // Последний шанс: local fallback через SSE
             try {
               const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
@@ -530,7 +579,12 @@ export async function POST(req) {
               send("error", { message: e.message || "Storyboard error" });
             }
           } finally {
-            controller.close();
+            stopHeartbeat();
+            if (abortSignal) {
+              try { abortSignal.removeEventListener("abort", onAbort); } catch {}
+            }
+            closed = true;
+            try { controller.close(); } catch {}
           }
         },
       });
@@ -540,6 +594,7 @@ export async function POST(req) {
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
           Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
         },
       });
     }

@@ -155,6 +155,11 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
           .eq("id", selectedId)
           .eq("user_id", user.id));
       } else {
+        // Re-check quota right before insert — items may have changed
+        // since the button was rendered (other tabs, autosave).
+        if (projectLimit > 0 && items.length >= projectLimit) {
+          throw new Error(`Лимит Cloud Projects: ${projectLimit}`);
+        }
         const res = await supabase
           .from("projects")
           .insert(payload)
@@ -276,12 +281,18 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
     autoSaveTimerRef.current = setTimeout(async () => {
+      // Mark this key as in-flight BEFORE awaiting the network call.
+      // Otherwise a fresh autoSaveKey arriving while we're saving would
+      // schedule another save that fires the moment this one resolves.
+      const inFlightKey = autoSaveKey;
+      lastAutoSaveKeyRef.current = inFlightKey;
       try {
         await updateSelectedCloudProject({ silent: true });
-        lastAutoSaveKeyRef.current = autoSaveKey;
         setBothStatus("✓ Autosave: проект обновлён в Supabase Cloud");
         await loadList();
       } catch (e) {
+        // Rollback so a retry can happen on next dirty event.
+        if (lastAutoSaveKeyRef.current === inFlightKey) lastAutoSaveKeyRef.current = "";
         const message = explainCloudError(e);
         if (isSchemaCacheError(e)) setSchemaWarning(message);
         setBothStatus(`✗ Autosave: ${message}`);

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import PublicLandingOriginalAuth from "../components/PublicLandingOriginalAuth";
 
 export default function Home() {
-  redirect("/storyboard");
+  return <PublicLandingOriginalAuth />;
 }

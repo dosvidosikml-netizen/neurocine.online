@@ -21,14 +21,16 @@ function dateShort(value) {
 
 function planTone(user) {
   const plan = String(user?.plan || "demo").toLowerCase();
-  if (plan === "admin") return "admin";
+  if (plan === "admin" || plan === "owner") return "admin";
   if (plan === "pro") return user?.api_keys_connected ? "pro-live" : "pro";
+  if (plan === "blocked") return "blocked";
   return "demo";
 }
 
 function planTitle(user) {
   const plan = String(user?.plan || "demo").toLowerCase();
-  if (plan === "admin") return "OWNER/ADMIN";
+  if (plan === "admin" || plan === "owner") return "DIRECTOR";
+  if (plan === "blocked") return "BLOCKED";
   if (plan === "pro") return user?.api_keys_connected ? "PRO LIVE" : "PRO KEY PENDING";
   return "FREE";
 }
@@ -55,11 +57,11 @@ export default function AdminPanel({ account }) {
   async function loadUsers() {
     if (!enabled) return;
     setBusy(true);
-    setStatus("Загружаю Admin Panel…");
+    setStatus("Загружаю Director Console…");
     try {
       const r = await fetch("/api/admin/users", { headers: headers(token) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || "Admin API error");
+      if (!r.ok) throw new Error(d.error || "Director API error");
       setUsers(d.users || []);
       setEvents(d.billing_events || []);
       setUsageEvents(d.usage_events || []);
@@ -74,7 +76,7 @@ export default function AdminPanel({ account }) {
 
   async function setPlan(user, plan) {
     if (!enabled || !user?.id) return;
-    const labels = { demo: "FREE", pro: "PRO", admin: "ADMIN" };
+    const labels = { demo: "FREE", pro: "PRO", admin: "DIRECTOR", blocked: "BLOCKED" };
     const ok = typeof window !== "undefined" ? window.confirm(`Переключить ${user.email} → ${labels[plan] || plan.toUpperCase()}?`) : true;
     if (!ok) return;
     setBusy(true);
@@ -96,14 +98,38 @@ export default function AdminPanel({ account }) {
     }
   }
 
+  async function deleteUser(user) {
+    if (!enabled || !user?.id) return;
+    const ok = typeof window !== "undefined" ? window.confirm(`Удалить ${user.email} из базы? Это действие нельзя отменить.`) : true;
+    if (!ok) return;
+    setBusy(true);
+    setStatus(`Удаляю ${user.email}…`);
+    try {
+      const r = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: headers(token),
+        body: JSON.stringify({ user_id: user.id, email: user.email }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Delete failed");
+      setStatus(`✓ ${user.email} удалён из базы`);
+      await loadUsers();
+    } catch (e) {
+      setStatus("✗ " + (e.message || "Ошибка удаления"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => { loadUsers(); }, [enabled]);
 
   const stats = useMemo(() => {
-    const base = { total: users.length, demo: 0, pro: 0, admin: 0, keys: 0, requests: events.length, usage: usageTotals.total || usageEvents.length };
+    const base = { total: users.length, demo: 0, pro: 0, admin: 0, blocked: 0, keys: 0, requests: events.length, usage: usageTotals.total || usageEvents.length };
     for (const u of users) {
       const p = String(u.plan || "demo").toLowerCase();
-      if (p === "admin") base.admin += 1;
+      if (p === "admin" || p === "owner") base.admin += 1;
       else if (p === "pro") base.pro += 1;
+      else if (p === "blocked") base.blocked += 1;
       else base.demo += 1;
       if (u.api_keys_connected) base.keys += 1;
     }
@@ -129,12 +155,12 @@ export default function AdminPanel({ account }) {
   if (!enabled) return null;
 
   return (
-    <section className="admin-panel-v59 admin-panel-v621 admin-panel-v63" id="owner-admin">
+    <section className="admin-panel-v59 admin-panel-v621 admin-panel-v63" id="director-console-content">
       <div className="ap-head-v59">
         <div>
-          <div className="ap-kicker-v59">OWNER Admin Panel · v63</div>
+          <div className="ap-kicker-v59">Director Console · v66</div>
           <h2>Пользователи, заявки и usage</h2>
-          <p>Служебная панель владельца: PRO-доступ, AI-ключи, billing-заявки, проекты и последние server-side события генерации.</p>
+          <p>Пульт главного режиссёра: PRO-доступ, AI-ключи, billing-заявки, проекты, блокировка и чистка базы.</p>
         </div>
         <button className="btn btn-sm" type="button" onClick={loadUsers} disabled={busy}>↻ Обновить</button>
       </div>
@@ -143,8 +169,8 @@ export default function AdminPanel({ account }) {
         <div><span>Всего</span><b>{stats.total}</b></div>
         <div><span>FREE</span><b>{stats.demo}</b></div>
         <div><span>PRO</span><b>{stats.pro}</b></div>
+        <div><span>Blocked</span><b>{stats.blocked}</b></div>
         <div><span>AI keys</span><b>{stats.keys}</b></div>
-        <div><span>Заявки</span><b>{stats.requests}</b></div>
         <div><span>Usage</span><b>{stats.usage}</b></div>
       </div>
 
@@ -161,7 +187,8 @@ export default function AdminPanel({ account }) {
           <option value="all">Все</option>
           <option value="demo">FREE</option>
           <option value="pro">PRO</option>
-          <option value="admin">ADMIN</option>
+          <option value="admin">DIRECTOR</option>
+          <option value="blocked">Blocked</option>
           <option value="keys">С AI-ключом</option>
           <option value="usage_errors">С usage errors</option>
         </select>
@@ -204,35 +231,40 @@ export default function AdminPanel({ account }) {
       </div>
 
       <div className="ap-list-v59">
-        {filtered.map(user => (
-          <article className={`ap-user-v59 ap-user-v621 tone-${planTone(user)}`} key={user.id}>
-            <div className="ap-user-main-v59">
-              {user.avatar_url ? <img src={user.avatar_url} alt="" /> : <div className="ap-avatar-v59">{String(user.email || "U").slice(0,1).toUpperCase()}</div>}
-              <div>
-                <strong>{user.email || "no email"}</strong>
-                <span>{user.full_name || "—"}</span>
-                <em>создан: {dateShort(user.created_at)} · обновлён: {dateShort(user.updated_at)}</em>
+        {filtered.map(user => {
+          const protectedDirector = String(user.plan || "").toLowerCase() === "admin" || String(user.role || "").toLowerCase() === "owner";
+          return (
+            <article className={`ap-user-v59 ap-user-v621 tone-${planTone(user)}`} key={user.id}>
+              <div className="ap-user-main-v59">
+                {user.avatar_url ? <img src={user.avatar_url} alt="" /> : <div className="ap-avatar-v59">{String(user.email || "U").slice(0,1).toUpperCase()}</div>}
+                <div>
+                  <strong>{user.email || "no email"}</strong>
+                  <span>{user.full_name || "—"}</span>
+                  <em>создан: {dateShort(user.created_at)} · обновлён: {dateShort(user.updated_at)}</em>
+                </div>
               </div>
-            </div>
-            <div className="ap-badges-v59">
-              <b>{planTitle(user)}</b>
-              <span>{user.role || "user"}</span>
-              <span>{user.default_mode || "demo"}</span>
-              <span>projects: {user.project_count || 0}/{user.cloud_project_limit || 3}</span>
-              <span>keys: {user.api_keys_connected ? "connected" : "no"}</span>
-              <span>billing: {user.billing_status || "none"}</span>
-              <span>usage: {user.usage_count || 0}{user.usage_error_count ? ` / errors ${user.usage_error_count}` : ""}</span>
-              {user.last_usage_event && <span>last: {endpointLabel(user.last_usage_event.endpoint)} · {dateShort(user.last_usage_event.created_at)}</span>}
-              {user.last_billing_event && <span>request: {user.last_billing_event.status || "pending"} · {dateShort(user.last_billing_event.created_at)}</span>}
-              {user.pro_activated_at && <span>PRO: {dateShort(user.pro_activated_at)}</span>}
-            </div>
-            <div className="ap-actions-v59">
-              <button type="button" disabled={busy || String(user.plan).toLowerCase() === "demo"} onClick={() => setPlan(user, "demo")}>Забрать PRO</button>
-              <button type="button" disabled={busy || String(user.plan).toLowerCase() === "pro"} onClick={() => setPlan(user, "pro")}>Выдать PRO</button>
-              <button type="button" disabled={busy || String(user.plan).toLowerCase() === "admin"} onClick={() => setPlan(user, "admin")}>ADMIN</button>
-            </div>
-          </article>
-        ))}
+              <div className="ap-badges-v59">
+                <b>{planTitle(user)}</b>
+                <span>{user.role || "user"}</span>
+                <span>{user.default_mode || "demo"}</span>
+                <span>projects: {user.project_count || 0}/{user.cloud_project_limit || 3}</span>
+                <span>keys: {user.api_keys_connected ? "connected" : "no"}</span>
+                <span>billing: {user.billing_status || "none"}</span>
+                <span>usage: {user.usage_count || 0}{user.usage_error_count ? ` / errors ${user.usage_error_count}` : ""}</span>
+                {user.last_usage_event && <span>last: {endpointLabel(user.last_usage_event.endpoint)} · {dateShort(user.last_usage_event.created_at)}</span>}
+                {user.last_billing_event && <span>request: {user.last_billing_event.status || "pending"} · {dateShort(user.last_billing_event.created_at)}</span>}
+                {user.pro_activated_at && <span>PRO: {dateShort(user.pro_activated_at)}</span>}
+              </div>
+              <div className="ap-actions-v59">
+                <button type="button" disabled={busy || String(user.plan).toLowerCase() === "demo" || protectedDirector} onClick={() => setPlan(user, "demo")}>Забрать PRO</button>
+                <button type="button" disabled={busy || String(user.plan).toLowerCase() === "pro" || protectedDirector} onClick={() => setPlan(user, "pro")}>Выдать PRO</button>
+                <button type="button" disabled={busy || String(user.plan).toLowerCase() === "blocked" || protectedDirector} onClick={() => setPlan(user, "blocked")}>Заблокировать</button>
+                <button type="button" disabled={busy || protectedDirector} onClick={() => deleteUser(user)}>Удалить с базы</button>
+                <button type="button" disabled={busy || protectedDirector} onClick={() => setPlan(user, "admin")}>DIRECTOR</button>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
