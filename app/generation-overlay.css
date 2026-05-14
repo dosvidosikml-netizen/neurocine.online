@@ -1,0 +1,140 @@
+.nc-gen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(229, 53, 53, 0.18), transparent 34%),
+    radial-gradient(circle at 50% 52%, rgba(124, 106, 247, 0.14), transparent 42%),
+    rgba(4, 5, 10, 0.38);
+  backdrop-filter: blur(5px);
+  animation: ncGenFade .28s ease both;
+}
+
+.nc-gen-card {
+  width: min(560px, calc(100vw - 34px));
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 30px;
+  padding: 22px;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.11), rgba(255,255,255,.035)),
+    rgba(7,8,15,.88);
+  box-shadow: 0 32px 120px rgba(0,0,0,.62), 0 0 80px rgba(229,53,53,.14);
+  pointer-events: none;
+  overflow: hidden;
+  position: relative;
+}
+
+.nc-gen-card::before {
+  content: "";
+  position: absolute;
+  inset: -70%;
+  background: conic-gradient(from 0deg, transparent, rgba(229,53,53,.18), transparent, rgba(124,106,247,.14), transparent);
+  animation: ncGenRotate 8s linear infinite;
+  opacity: .75;
+}
+
+.nc-gen-card::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 29px;
+  background: rgba(7,8,15,.88);
+}
+
+.nc-gen-orb, .nc-gen-copy { position: relative; z-index: 2; }
+
+.nc-gen-orb {
+  width: 102px;
+  height: 102px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(255,255,255,.13), rgba(229,53,53,.08) 46%, rgba(0,0,0,.38) 70%);
+  box-shadow: inset 0 0 22px rgba(255,255,255,.08), 0 0 42px rgba(229,53,53,.26);
+}
+.nc-gen-orb span {
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  border: 3px solid rgba(255,255,255,.18);
+  border-top-color: #fff;
+  border-right-color: #e53535;
+  animation: ncGenSpin 1.05s linear infinite;
+}
+.nc-gen-orb i {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #e53535;
+  box-shadow: 0 0 26px #e53535;
+  animation: ncGenPulse 1.35s ease-in-out infinite;
+}
+
+.nc-gen-kicker {
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .32em;
+  color: #fca5a5;
+  margin-bottom: 6px;
+}
+.nc-gen-title {
+  font-size: clamp(24px, 5vw, 42px);
+  line-height: 1;
+  letter-spacing: -.055em;
+  font-weight: 950;
+  margin-bottom: 10px;
+}
+.nc-gen-phase {
+  color: rgba(238,240,248,.78);
+  font-size: 14px;
+  font-weight: 750;
+  margin-bottom: 14px;
+}
+.nc-gen-bar {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.08);
+  margin-bottom: 12px;
+}
+.nc-gen-bar b {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e53535, #fca5a5, #7c6af7);
+  animation: ncGenBar 2.1s ease-in-out infinite;
+}
+.nc-gen-tip {
+  color: rgba(238,240,248,.56);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes ncGenFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ncGenSpin { to { transform: rotate(360deg); } }
+@keyframes ncGenRotate { to { transform: rotate(360deg); } }
+@keyframes ncGenPulse { 0%,100% { transform: scale(.72); opacity: .65; } 50% { transform: scale(1.15); opacity: 1; } }
+@keyframes ncGenBar { 0% { transform: translateX(-110%); } 50% { transform: translateX(85%); } 100% { transform: translateX(230%); } }
+
+@media (max-width: 520px) {
+  .nc-gen-card {
+    grid-template-columns: 1fr;
+    text-align: center;
+    justify-items: center;
+    padding: 20px;
+  }
+  .nc-gen-orb { width: 86px; height: 86px; }
+  .nc-gen-orb span { width: 50px; height: 50px; }
+  .nc-gen-kicker { letter-spacing: .22em; }
+}
