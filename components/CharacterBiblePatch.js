@@ -8,8 +8,22 @@ const STORE_KEY = "neurocine:character-bible:v1";
 const BIBLE_RE = /CHARACTER BIBLE LOCK — USE FOR ALL STORYBOARD GRID FRAMES:[\s\S]*?(?=\n\n(?:FRAMES:|FINAL CHECK:|SCRIPT JSON|\{|$))/gi;
 
 function safeJson(value, fallback = null) { try { return JSON.parse(value); } catch { return fallback; } }
-function isStudioRoute() { return typeof window !== "undefined" && window.location.pathname.startsWith("/storyboard"); }
-function isStudioReady() { return !!document.querySelector(".setup-v40, #storyboard, .studio-status-bar-v33"); }
+function isStudioRoute() { return typeof window !== "undefined" && window.location.pathname === "/storyboard"; }
+function isAccountOrModalActive() {
+  if (typeof document === "undefined") return false;
+  const active = document.querySelector("#account, .user-dashboard-v43, .user-dashboard-final-v621, .nc-create-hub, .nc-drawer-wrap.open, .billing-panel, .cloud-projects-panel, .admin-panel");
+  if (!active) return false;
+  const rect = active.getBoundingClientRect?.();
+  return !rect || rect.height > 40;
+}
+function isStudioReady() {
+  if (typeof document === "undefined") return false;
+  const setup = document.querySelector(".setup-v40");
+  const storyboard = document.querySelector("#storyboard");
+  const status = document.querySelector(".studio-status-bar-v33");
+  if (!setup && !storyboard && !status) return false;
+  return !isAccountOrModalActive();
+}
 function isVisualGridPrompt(text = "") { return /STORYBOARD GRID PART|FRAME GRID PROMPT|Generate exactly \d+ live-action cinematic frames|clean \d+×\d+ grid|FLOW COMPACT/i.test(String(text || "")); }
 function stripCharacterBible(text = "") { return String(text || "").replace(BIBLE_RE, "").trim(); }
 
@@ -121,13 +135,19 @@ export default function CharacterBiblePatch() {
 
   useEffect(() => {
     setMounted(true); setBible(loadBible()); cleanScriptPollution();
-    const check = () => setStudioReady(isStudioRoute() && isStudioReady());
-    check(); const timer = setInterval(check, 1200);
+    const check = () => {
+      const ready = isStudioRoute() && isStudioReady();
+      setStudioReady(ready);
+      if (!ready) setOpen(false);
+    };
+    check(); const timer = setInterval(check, 450);
     const obs = new MutationObserver(() => { check(); cleanScriptPollution(); });
     obs.observe(document.body, { childList: true, subtree: true, characterData: true });
     const onUpdate = () => setBible(loadBible());
+    const onRoute = () => window.setTimeout(check, 0);
     window.addEventListener("storage", onUpdate); window.addEventListener("neurocine:character-bible-updated", onUpdate);
-    return () => { clearInterval(timer); obs.disconnect(); window.removeEventListener("storage", onUpdate); window.removeEventListener("neurocine:character-bible-updated", onUpdate); };
+    window.addEventListener("popstate", onRoute); window.addEventListener("hashchange", onRoute);
+    return () => { clearInterval(timer); obs.disconnect(); window.removeEventListener("storage", onUpdate); window.removeEventListener("neurocine:character-bible-updated", onUpdate); window.removeEventListener("popstate", onRoute); window.removeEventListener("hashchange", onRoute); };
   }, []);
 
   const chars = useMemo(() => Array.isArray(bible.characters) ? bible.characters : [], [bible]);
