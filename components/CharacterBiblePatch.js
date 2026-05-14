@@ -9,12 +9,19 @@ const BIBLE_RE = /CHARACTER BIBLE LOCK — USE FOR ALL STORYBOARD GRID FRAMES:[\
 
 function safeJson(value, fallback = null) { try { return JSON.parse(value); } catch { return fallback; } }
 function isStudioRoute() { return typeof window !== "undefined" && window.location.pathname === "/storyboard"; }
+function isElementVisibleInViewport(el) {
+  if (!el?.getBoundingClientRect) return false;
+  const rect = el.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+  return rect.width > 20 && rect.height > 40 && rect.bottom > 0 && rect.right > 0 && rect.top < vh && rect.left < vw;
+}
 function isAccountOrModalActive() {
   if (typeof document === "undefined") return false;
-  const active = document.querySelector("#account, .user-dashboard-v43, .user-dashboard-final-v621, .nc-create-hub, .nc-drawer-wrap.open, .billing-panel, .cloud-projects-panel, .admin-panel");
-  if (!active) return false;
-  const rect = active.getBoundingClientRect?.();
-  return !rect || rect.height > 40;
+  const hardModal = document.querySelector(".nc-create-hub, .nc-drawer-wrap.open, .billing-panel, .cloud-projects-panel, .admin-panel");
+  if (hardModal && isElementVisibleInViewport(hardModal)) return true;
+  const accountPanels = Array.from(document.querySelectorAll("#account, .user-dashboard-v43, .user-dashboard-final-v621"));
+  return accountPanels.some(isElementVisibleInViewport);
 }
 function isStudioReady() {
   if (typeof document === "undefined") return false;
