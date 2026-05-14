@@ -3,10 +3,11 @@ import "./public-landing.css";
 import "./public-landing-v3.css";
 import "./style-engine-patch.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
+import ScriptPolishPatch from "../components/ScriptPolishPatch";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
-  description: "AI production pipeline: script → storyboard → frames → video prompts"
+  description: "AI production pipeline"
 };
 
 export default function RootLayout({ children }) {
@@ -14,6 +15,7 @@ export default function RootLayout({ children }) {
     <html lang="ru">
       <body>
         <AuthSignOutPatch />
+        <ScriptPolishPatch />
         {children}
       </body>
     </html>
