@@ -35,37 +35,47 @@ function isWatchedUrl(input) {
   return WATCH_ENDPOINTS.some((x) => raw.includes(x));
 }
 
-function shouldShowFromDom() {
-  const text = String(document.body?.innerText || "");
-  return /Генерация|Storyboard\.\.\.|Ждём\.\.\.|Создаю|Генерирую|generation/i.test(text);
-}
-
 export default function GenerationCinematicOverlay() {
   const [active, setActive] = useState(false);
   const [phase, setPhase] = useState(PHASES[0]);
   const [tip, setTip] = useState(TIPS[0]);
   const startedAtRef = useRef(0);
   const pendingRef = useRef(0);
+  const forceCloseTimerRef = useRef(null);
 
   useEffect(() => {
     const originalFetch = window.fetch;
     let disposed = false;
 
+    function clearForceCloseTimer() {
+      if (forceCloseTimerRef.current) {
+        window.clearTimeout(forceCloseTimerRef.current);
+        forceCloseTimerRef.current = null;
+      }
+    }
+
+    function closeOverlay() {
+      if (disposed) return;
+      pendingRef.current = 0;
+      startedAtRef.current = 0;
+      clearForceCloseTimer();
+      setActive(false);
+    }
+
     function setOn() {
       if (disposed) return;
       if (!startedAtRef.current) startedAtRef.current = Date.now();
       setActive(true);
+      clearForceCloseTimer();
+      forceCloseTimerRef.current = window.setTimeout(closeOverlay, 180000);
     }
 
     function setOffSoon() {
       if (disposed) return;
-      const elapsed = Date.now() - startedAtRef.current;
+      const elapsed = startedAtRef.current ? Date.now() - startedAtRef.current : 0;
       const delay = elapsed < 900 ? 900 - elapsed : 350;
       window.setTimeout(() => {
-        if (!disposed && pendingRef.current <= 0 && !shouldShowFromDom()) {
-          startedAtRef.current = 0;
-          setActive(false);
-        }
+        if (!disposed && pendingRef.current <= 0) closeOverlay();
       }, delay);
     }
 
@@ -85,12 +95,6 @@ export default function GenerationCinematicOverlay() {
       }
     };
 
-    const observer = new MutationObserver(() => {
-      if (pendingRef.current > 0 || shouldShowFromDom()) setOn();
-      else setOffSoon();
-    });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-
     const phaseTimer = window.setInterval(() => {
       const elapsed = startedAtRef.current ? Math.floor((Date.now() - startedAtRef.current) / 1000) : 0;
       setPhase(PHASES[Math.floor(elapsed / 12) % PHASES.length]);
@@ -100,8 +104,8 @@ export default function GenerationCinematicOverlay() {
     return () => {
       disposed = true;
       window.fetch = originalFetch;
-      observer.disconnect();
       window.clearInterval(phaseTimer);
+      clearForceCloseTimer();
     };
   }, []);
 
