@@ -4,6 +4,7 @@ import "./public-landing-v3.css";
 import "./style-engine-patch.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
 import ScriptPolishPatch from "../components/ScriptPolishPatch";
+import GenerationCinematicOverlay from "../components/GenerationCinematicOverlay";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
@@ -16,6 +17,7 @@ export default function RootLayout({ children }) {
       <body>
         <AuthSignOutPatch />
         <ScriptPolishPatch />
+        <GenerationCinematicOverlay />
         {children}
       </body>
     </html>
