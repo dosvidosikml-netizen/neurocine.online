@@ -12,6 +12,7 @@ import VisualPromptQualityPatch from "../components/VisualPromptQualityPatch";
 import StoryboardStatusPatch from "../components/StoryboardStatusPatch";
 import StoryboardResetPatch from "../components/StoryboardResetPatch";
 import CharacterBiblePatch from "../components/CharacterBiblePatch";
+import SeriesStudioHandoffPatch from "../components/SeriesStudioHandoffPatch";
 
 export const metadata = {
   title: "NeuroCine Director Studio",
@@ -28,6 +29,7 @@ export default function RootLayout({ children }) {
         <VisualPromptQualityPatch />
         <StoryboardStatusPatch />
         <StoryboardResetPatch />
+        <SeriesStudioHandoffPatch />
         <GenerationCinematicOverlay />
         {children}
       </body>
