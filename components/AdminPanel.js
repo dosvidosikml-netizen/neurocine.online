@@ -40,9 +40,16 @@ function endpointLabel(value = "") {
   return v.replace(/^\/api\//, "");
 }
 
+function isDirectorRoute() {
+  if (typeof window === "undefined") return false;
+  const path = window.location?.pathname || "";
+  return path === "/director/control-room" || path.startsWith("/director/control-room/");
+}
+
 export default function AdminPanel({ account }) {
   const access = getAccountAccess(account?.profile, account?.session);
   const token = account?.session?.access_token || "";
+  const [routeAllowed, setRouteAllowed] = useState(false);
   const [users, setUsers] = useState([]);
   const [events, setEvents] = useState([]);
   const [usageEvents, setUsageEvents] = useState([]);
@@ -52,12 +59,16 @@ export default function AdminPanel({ account }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
-  const enabled = Boolean(token && (access.isOwner || access.isAdmin));
+  useEffect(() => {
+    setRouteAllowed(isDirectorRoute());
+  }, []);
+
+  const enabled = Boolean(routeAllowed && token && (access.isOwner || access.isAdmin));
 
   async function loadUsers() {
     if (!enabled) return;
     setBusy(true);
-    setStatus("Загружаю Director Console…");
+    setStatus("Загружаю консоль режиссёра…");
     try {
       const r = await fetch("/api/admin/users", { headers: headers(token) });
       const d = await r.json().catch(() => ({}));
@@ -152,13 +163,13 @@ export default function AdminPanel({ account }) {
     });
   }, [users, query, filter]);
 
-  if (!enabled) return null;
+  if (!routeAllowed || !enabled) return null;
 
   return (
     <section className="admin-panel-v59 admin-panel-v621 admin-panel-v63" id="director-console-content">
       <div className="ap-head-v59">
         <div>
-          <div className="ap-kicker-v59">Director Console · v66</div>
+          <div className="ap-kicker-v59">Консоль режиссёра · v66</div>
           <h2>Пользователи, заявки и usage</h2>
           <p>Пульт главного режиссёра: PRO-доступ, AI-ключи, billing-заявки, проекты, блокировка и чистка базы.</p>
         </div>
