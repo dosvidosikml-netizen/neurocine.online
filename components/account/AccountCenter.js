@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import AuthPanel from "../AuthPanel";
-import UserDashboard from "../UserDashboard";
 import BillingPanel from "../BillingPanel";
+import AccountProfile from "./AccountProfile";
 
 function AccountCenterStyles() {
   return (
@@ -16,12 +16,7 @@ function AccountCenterStyles() {
           radial-gradient(circle at 90% 12%, rgba(255, 138, 76, .12), transparent 30%),
           #07080f;
       }
-      .nc-account-shell {
-        max-width: 1220px;
-        margin: 0 auto;
-        display: grid;
-        gap: 18px;
-      }
+      .nc-account-shell { max-width: 1220px; margin: 0 auto; display: grid; gap: 18px; }
       .nc-account-hero {
         display: flex;
         align-items: flex-start;
@@ -81,10 +76,6 @@ export default function AccountCenter() {
   const [devMode, setDevMode] = useState(true);
   const isSignedIn = Boolean(account?.session?.user);
 
-  const patchAccountProfile = useCallback((patch = {}) => {
-    setAccount(prev => prev ? { ...prev, profile: { ...(prev.profile || {}), ...patch } } : prev);
-  }, []);
-
   return (
     <main className="nc-account-page">
       <AccountCenterStyles />
@@ -104,7 +95,7 @@ export default function AccountCenter() {
 
         <AuthPanel devMode={devMode} onModeToggle={() => setDevMode(v => !v)} onAccountChange={setAccount} />
         {!isSignedIn && <div className="nc-account-note">Войди через Google, чтобы увидеть профиль, тариф и настройки доступа.</div>}
-        {isSignedIn && <UserDashboard account={account} devMode={devMode} onAccountPatch={patchAccountProfile} />}
+        {isSignedIn && <AccountProfile account={account} />}
         {isSignedIn && <BillingPanel account={account} />}
       </div>
     </main>
