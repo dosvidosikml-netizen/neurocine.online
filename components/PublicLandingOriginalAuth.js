@@ -12,13 +12,13 @@ function formatFestivalDate() {
   return `${weekday} · ${day} · ${month} · ${year}`;
 }
 
-function redirectToStoryboard() {
-  if (typeof window !== "undefined") window.location.assign("/storyboard");
+function redirectToStudio() {
+  if (typeof window !== "undefined") window.location.assign("/studio");
 }
 
 function getRedirectTo() {
   if (typeof window === "undefined") return undefined;
-  return `${window.location.origin}/storyboard`;
+  return `${window.location.origin}/studio`;
 }
 
 export default function PublicLandingOriginalAuth() {
@@ -51,8 +51,8 @@ export default function PublicLandingOriginalAuth() {
       if (!mounted) return;
       setSession(nextSession || null);
       setBusy(false);
-      if (nextSession?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
-        redirectToStoryboard();
+      if (nextSession?.user && event === "SIGNED_IN") {
+        redirectToStudio();
       }
     });
 
@@ -66,13 +66,13 @@ export default function PublicLandingOriginalAuth() {
     setError("");
 
     if (user) {
-      redirectToStoryboard();
+      redirectToStudio();
       return;
     }
 
     if (!isSupabaseConfigured || !supabase) {
       setError("Supabase ENV не настроены. Открываю Studio в preview-режиме.");
-      redirectToStoryboard();
+      redirectToStudio();
       return;
     }
 
@@ -186,7 +186,7 @@ export default function PublicLandingOriginalAuth() {
               <div className="p-info-pre">Quick Start</div>
               <h3>open<br /><span className="it">studio</span></h3>
               <div className="p-info-body">
-                /storyboard — твой режиссёрский пульт.
+                /studio — внутренняя главная. /storyboard — отдельный режиссёрский инструмент.
                 Autosave, SSE, hotkey ⌘ + ↵ на запуск.
               </div>
             </div>
@@ -197,22 +197,10 @@ export default function PublicLandingOriginalAuth() {
           </button>
 
           <div className="p-stats">
-            <div className="p-stat">
-              <div className="p-stat-k">avg cost</div>
-              <div className="p-stat-v">$0<span className="red">.14</span></div>
-            </div>
-            <div className="p-stat">
-              <div className="p-stat-k">checks</div>
-              <div className="p-stat-v">7<span className="sm">/7</span></div>
-            </div>
-            <div className="p-stat">
-              <div className="p-stat-k">retries · max</div>
-              <div className="p-stat-v"><span className="red">2</span><span className="sm">×</span></div>
-            </div>
-            <div className="p-stat">
-              <div className="p-stat-k">prompt size</div>
-              <div className="p-stat-v">2K<span className="sm">tok</span></div>
-            </div>
+            <div className="p-stat"><div className="p-stat-k">avg cost</div><div className="p-stat-v">$0<span className="red">.14</span></div></div>
+            <div className="p-stat"><div className="p-stat-k">checks</div><div className="p-stat-v">7<span className="sm">/7</span></div></div>
+            <div className="p-stat"><div className="p-stat-k">retries · max</div><div className="p-stat-v"><span className="red">2</span><span className="sm">×</span></div></div>
+            <div className="p-stat"><div className="p-stat-k">prompt size</div><div className="p-stat-v">2K<span className="sm">tok</span></div></div>
           </div>
         </section>
 
@@ -222,7 +210,6 @@ export default function PublicLandingOriginalAuth() {
             <h3>The <span className="it">four</span> acts</h3>
             <span className="section-bar-meta">Section · I / IV</span>
           </div>
-
           <div className="programme">
             {[
               ["01", "Hook", "script", "Тема → 4-актная структура. Валидатор проверяет hook, ритм, \"ты\"-обращения, climax, outro. Score 0–100 · до 2 ретраев.", "GPT-5.4", "r"],
@@ -244,40 +231,18 @@ export default function PublicLandingOriginalAuth() {
         <section className="manifesto">
           <div className="manifesto-text">
             <div className="manifesto-num">02<span className="it">.</span></div>
-            <h2 className="manifesto-h">
-              Гибридная <span className="it">машина</span>,<br />
-              а не одна <span className="it">модель</span>.
-            </h2>
+            <h2 className="manifesto-h">Гибридная <span className="it">машина</span>,<br />а не одна <span className="it">модель</span>.</h2>
             <div className="manifesto-body">
-              <p>
-                Главное возражение против AI-видео всегда одно: оно <em>не помнит</em>,
-                что снимало секунду назад. Лицо плывёт. Костюм исчезает. Между кадрами —
-                провал.
-              </p>
-              <p>
-                NeuroCine собран ровно против этого. <b>GPT-5.4</b> пишет сценарий,
-                <b>Haiku 4.5</b> переводит кадры в промт, <b>Sonnet 4.6</b> читает картинку.
-                Над всем — <b>strict validator</b> с семью проверками.
-              </p>
-              <p>
-                Это и есть гибрид: <em>скорость</em> AI плюс <em>дисциплина</em>
-                режиссёрского пульта.
-              </p>
+              <p>Главное возражение против AI-видео всегда одно: оно <em>не помнит</em>, что снимало секунду назад. Лицо плывёт. Костюм исчезает. Между кадрами — провал.</p>
+              <p>NeuroCine собран ровно против этого. <b>GPT-5.4</b> пишет сценарий, <b>Haiku 4.5</b> переводит кадры в промт, <b>Sonnet 4.6</b> читает картинку. Над всем — <b>strict validator</b> с семью проверками.</p>
+              <p>Это и есть гибрид: <em>скорость</em> AI плюс <em>дисциплина</em> режиссёрского пульта.</p>
             </div>
-            <div className="manifesto-stamp">
-              <span className="dot"></span>
-              <span>Approved · Director · {today}</span>
-            </div>
+            <div className="manifesto-stamp"><span className="dot"></span><span>Approved · Director · {today}</span></div>
           </div>
-
           <div className="manifesto-aside">
             <div>
               <div className="aside-pre">cast · the models</div>
-              <h3 className="aside-h">
-                Four <span className="it">actors.</span><br />
-                One <span className="it">stage.</span>
-              </h3>
-
+              <h3 className="aside-h">Four <span className="it">actors.</span><br />One <span className="it">stage.</span></h3>
               <div className="aside-list">
                 <div className="aside-row"><span className="id">A</span><span className="lb">GPT <span className="it">5.4</span></span><span className="meta">script · 92%</span></div>
                 <div className="aside-row"><span className="id">B</span><span className="lb">Haiku <span className="it">4.5</span></span><span className="meta">prompt · 78%</span></div>
@@ -289,14 +254,7 @@ export default function PublicLandingOriginalAuth() {
         </section>
 
         <section className="gallery">
-          {[
-            ["s1", "r", "HOOK", "act"],
-            ["s2", "", "BUILD", "scene"],
-            ["s3", "y", "RISE", "cut"],
-            ["s4", "r", "CLIMAX", "beat"],
-            ["s5", "", "FALL", "echo"],
-            ["s6", "y", "OUTRO", "final"],
-          ].map(([cls, tag, name, it], idx) => (
+          {[["s1", "r", "HOOK", "act"], ["s2", "", "BUILD", "scene"], ["s3", "y", "RISE", "cut"], ["s4", "r", "CLIMAX", "beat"], ["s5", "", "FALL", "echo"], ["s6", "y", "OUTRO", "final"]].map(([cls, tag, name, it], idx) => (
             <button className={`still ${cls}`} type="button" onClick={openStudio} key={cls}>
               <span className={`still-tag ${tag}`}>{String(idx + 1).padStart(2, "0")}</span>
               <span className="still-name">{name} <span className="it">{it}</span></span>
@@ -306,31 +264,16 @@ export default function PublicLandingOriginalAuth() {
 
         <section className="shout">
           <div className="shout-pre">Manifesto · <b>001</b></div>
-          <p className="shout-text">
-            AI НЕ ДОЛЖЕН<br />
-            <span className="it">галлюцинировать.</span><br />
-            ОН ДОЛЖЕН <span className="stk">РЕЖИССИРОВАТЬ</span>.
-          </p>
+          <p className="shout-text">AI НЕ ДОЛЖЕН<br /><span className="it">галлюцинировать.</span><br />ОН ДОЛЖЕН <span className="stk">РЕЖИССИРОВАТЬ</span>.</p>
           <div className="shout-foot">— NeuroCine · <b>Director&apos;s Note</b></div>
         </section>
 
         <section className="final">
           <div className="final-pre">Showtime · <b>00:00:14:08</b></div>
-          <h2 className="final-h">
-            ОДИН КАДР.<br />
-            <span className="it">один</span> ПРОГОН.<br />
-            <span className="stk">ОДИН</span> <span className="it">фильм.</span>
-          </h2>
+          <h2 className="final-h">ОДИН КАДР.<br /><span className="it">один</span> ПРОГОН.<br /><span className="stk">ОДИН</span> <span className="it">фильм.</span></h2>
           <div className="final-row">
-            <p className="final-p">
-              От темы до готовой раскадровки с промтами под <b>Veo 3</b> или
-              <b>Grok Imagine</b> — за минуты. Никаких сложных интерфейсов.
-              Только пайплайн, который понимает кино.
-            </p>
-            <button className="final-cta" type="button" onClick={openStudio} disabled={busy}>
-              {ctaLabel}
-              <span>→</span>
-            </button>
+            <p className="final-p">От темы до готовой раскадровки с промтами под <b>Veo 3</b> или <b>Grok Imagine</b> — за минуты. Никаких сложных интерфейсов. Только пайплайн, который понимает кино.</p>
+            <button className="final-cta" type="button" onClick={openStudio} disabled={busy}>{ctaLabel}<span>→</span></button>
           </div>
         </section>
 
