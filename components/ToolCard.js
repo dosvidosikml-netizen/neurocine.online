@@ -1,11 +1,16 @@
 "use client";
 
-function statusLabel(status) {
-  if (status === "active") return "Работает";
-  return "Работает";
+function pickLang(lang = "ru") {
+  return String(lang || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
 }
 
-export default function ToolCard({ tool, compact = false, onSelect }) {
+function statusLabel(status, lang = "ru") {
+  const isRu = pickLang(lang) === "ru";
+  if (status === "active") return isRu ? "Работает" : "Active";
+  return isRu ? "Работает" : "Active";
+}
+
+export default function ToolCard({ tool, compact = false, onSelect, uiLang = "ru" }) {
   if (!tool) return null;
   return (
     <button
@@ -19,7 +24,7 @@ export default function ToolCard({ tool, compact = false, onSelect }) {
         <em>{tool.subtitle}</em>
         {!compact && <small>{tool.description}</small>}
       </span>
-      <span className={`nc-tool-status ${tool.status || "active"}`}>{statusLabel(tool.status)}</span>
+      <span className={`nc-tool-status ${tool.status || "active"}`}>{statusLabel(tool.status, uiLang)}</span>
     </button>
   );
 }
