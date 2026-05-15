@@ -19,47 +19,201 @@ function redirectToControlRoom() {
   return `${window.location.origin}/director/control-room`;
 }
 
+function ControlRoomStyles() {
+  return (
+    <style jsx global>{`
+      .nc-admin-page {
+        min-height: 100vh;
+        padding: 22px;
+        background:
+          radial-gradient(circle at 12% 0%, rgba(168, 85, 247, 0.18), transparent 34%),
+          radial-gradient(circle at 90% 8%, rgba(229, 53, 53, 0.12), transparent 32%),
+          #07080f;
+      }
+      .nc-admin-gate {
+        min-height: calc(100vh - 44px);
+        display: grid;
+        place-items: center;
+      }
+      .nc-admin-card {
+        width: min(620px, 100%);
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.055);
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: 0 24px 90px rgba(0,0,0,.55);
+      }
+      .nc-admin-card span,
+      .nc-admin-hero p {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .28em;
+        text-transform: uppercase;
+        color: #c084fc;
+      }
+      .nc-admin-card h1,
+      .nc-admin-hero h1 {
+        margin: 0 0 10px;
+        font-size: clamp(28px, 5vw, 52px);
+        line-height: .96;
+        letter-spacing: -.06em;
+      }
+      .nc-admin-card p,
+      .nc-admin-hero span,
+      .nc-admin-rail small {
+        color: rgba(238,240,248,.66);
+        font-size: 14px;
+      }
+      .nc-admin-card em {
+        display: block;
+        margin-top: 14px;
+        color: #fca5a5;
+        font-style: normal;
+        font-size: 13px;
+      }
+      .nc-admin-card button,
+      .nc-admin-card a,
+      .nc-admin-hero a,
+      .nc-admin-hero button,
+      .nc-admin-rail a {
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.08);
+        color: #eef0f8;
+        border-radius: 14px;
+        padding: 11px 15px;
+        font-weight: 850;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .nc-admin-card button {
+        width: 100%;
+        margin-top: 20px;
+        background: linear-gradient(135deg, #a855f7, #e53535);
+        border-color: transparent;
+      }
+      .nc-admin-card a {
+        display: inline-flex;
+        margin-top: 12px;
+      }
+      .nc-admin-card.danger { border-color: rgba(229,53,53,.35); }
+      .nc-admin-gate-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+      .nc-admin-gate-actions button { width: auto; margin: 0; }
+      .nc-admin-gate-actions a { margin: 0; }
+      .nc-admin-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+        max-width: 1440px;
+        margin: 0 auto 20px;
+        border: 1px solid rgba(255,255,255,.1);
+        background: rgba(255,255,255,.045);
+        border-radius: 30px;
+        padding: 24px;
+      }
+      .nc-admin-hero nav {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .nc-admin-grid {
+        max-width: 1440px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+      .nc-admin-rail {
+        position: sticky;
+        top: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border: 1px solid rgba(255,255,255,.1);
+        background: rgba(0,0,0,.25);
+        border-radius: 24px;
+        padding: 16px;
+      }
+      .nc-admin-rail b {
+        margin-bottom: 6px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .22em;
+        color: rgba(238,240,248,.54);
+      }
+      .nc-admin-rail a {
+        display: block;
+        background: rgba(255,255,255,.045);
+      }
+      .nc-admin-content {
+        min-width: 0;
+      }
+      .nc-admin-content .admin-panel-v59 {
+        margin: 0;
+      }
+      @media (max-width: 900px) {
+        .nc-admin-page { padding: 12px; }
+        .nc-admin-hero { flex-direction: column; border-radius: 24px; }
+        .nc-admin-hero nav { justify-content: flex-start; }
+        .nc-admin-grid { grid-template-columns: 1fr; }
+        .nc-admin-rail { position: static; }
+      }
+    `}</style>
+  );
+}
+
 function AdminAccessGate({ account, loading, onLogin, onLogout, busy, error }) {
   const access = account?.access || {};
   const signedIn = Boolean(account?.session?.user);
   const allowed = Boolean(access.isOwner || access.isAdmin);
 
   if (loading) {
-    return <div className="nc-admin-gate"><div className="nc-admin-card"><b>Проверяю Director-доступ…</b><p>Загружаю сессию и профиль.</p></div></div>;
+    return <><ControlRoomStyles /><div className="nc-admin-gate"><div className="nc-admin-card"><b>Проверяю Director-доступ…</b><p>Загружаю сессию и профиль.</p></div></div></>;
   }
 
   if (!isSupabaseConfigured) {
-    return <div className="nc-admin-gate"><div className="nc-admin-card danger"><b>Supabase не настроен</b><p>Для Director Control Room нужны NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY.</p></div></div>;
+    return <><ControlRoomStyles /><div className="nc-admin-gate"><div className="nc-admin-card danger"><b>Supabase не настроен</b><p>Для Director Control Room нужны NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY.</p></div></div></>;
   }
 
   if (!signedIn) {
     return (
-      <div className="nc-admin-gate">
-        <div className="nc-admin-card">
-          <span>DIRECTOR CONTROL ROOM</span>
-          <h1>Закрытая панель управления</h1>
-          <p>Войди через аккаунт владельца или администратора NeuroCine. Storyboard Studio не загружается и не патчится.</p>
-          {error && <em>{error}</em>}
-          <button type="button" onClick={onLogin} disabled={busy}>{busy ? "Открываю Google…" : "Войти через Google"}</button>
-          <a href="/storyboard">← Вернуться в Storyboard Studio</a>
+      <>
+        <ControlRoomStyles />
+        <div className="nc-admin-gate">
+          <div className="nc-admin-card">
+            <span>DIRECTOR CONTROL ROOM</span>
+            <h1>Закрытая панель управления</h1>
+            <p>Войди через аккаунт владельца или администратора NeuroCine. Storyboard Studio не загружается и не патчится.</p>
+            {error && <em>{error}</em>}
+            <button type="button" onClick={onLogin} disabled={busy}>{busy ? "Открываю Google…" : "Войти через Google"}</button>
+            <a href="/storyboard">← Вернуться в Storyboard Studio</a>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (!allowed) {
     return (
-      <div className="nc-admin-gate">
-        <div className="nc-admin-card danger">
-          <span>403</span>
-          <h1>Director access required</h1>
-          <p>Этот раздел доступен только владельцу или администратору. Твой текущий план: {access.publicLabel || access.label || "USER"}.</p>
-          <div className="nc-admin-gate-actions">
-            <button type="button" onClick={onLogout} disabled={busy}>Выйти</button>
-            <a href="/storyboard">В Storyboard Studio</a>
+      <>
+        <ControlRoomStyles />
+        <div className="nc-admin-gate">
+          <div className="nc-admin-card danger">
+            <span>403</span>
+            <h1>Director access required</h1>
+            <p>Этот раздел доступен только владельцу или администратору. Твой текущий план: {access.publicLabel || access.label || "USER"}.</p>
+            <div className="nc-admin-gate-actions">
+              <button type="button" onClick={onLogout} disabled={busy}>Выйти</button>
+              <a href="/storyboard">В Storyboard Studio</a>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -182,6 +336,7 @@ export default function AdminControlRoom() {
 
   return (
     <main className="nc-admin-page">
+      <ControlRoomStyles />
       <header className="nc-admin-hero">
         <div>
           <p>DIRECTOR CONTROL ROOM</p>
