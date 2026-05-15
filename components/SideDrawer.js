@@ -6,6 +6,7 @@ const GROUP_ORDER = ["workflow", "pack", "system"];
 
 export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access }) {
   const plan = access?.isOwner || access?.isAdmin ? "DIRECTOR" : access?.role === "pro" ? "PRO" : "FREE";
+  const canOpenDirectorControl = Boolean(access?.isOwner || access?.isAdmin);
   const groups = GROUP_ORDER.map(id => ({
     id,
     title: id === "workflow" ? "Рабочий поток" : id === "pack" ? "Production Pack" : "Система",
@@ -19,6 +20,11 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
     onSelectTool?.(tool);
     onNavigate?.(tool.anchor || tool.id);
     onClose?.();
+  }
+
+  function openDirectorControl() {
+    onClose?.();
+    window.location.href = "/director/control-room";
   }
 
   return (
@@ -41,6 +47,15 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
             ))}
           </div>
         ))}
+
+        {canOpenDirectorControl && (
+          <div className="nc-drawer-section nc-director-control-section">
+            <h3>Director Control</h3>
+            <button type="button" onClick={openDirectorControl}>
+              🛡️ <span>Control Room</span>
+            </button>
+          </div>
+        )}
       </aside>
     </div>
   );
