@@ -3,11 +3,24 @@
 import { getCreateTools, getToolGroups, getToolsByGroup } from "../lib/toolsRegistry";
 import ToolCard from "./ToolCard";
 
-function pickLang(lang = "ru") {
-  return String(lang || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
+const UI_LANG_KEY = "neurocine.uiLang";
+
+function savedLang() {
+  if (typeof window === "undefined") return "ru";
+  try {
+    const v = window.localStorage.getItem(UI_LANG_KEY);
+    return v === "en" ? "en" : "ru";
+  } catch {
+    return "ru";
+  }
 }
 
-export default function CreateHub({ open, onClose, onSelectTool, access, uiLang = "ru" }) {
+function pickLang(lang) {
+  const value = lang || savedLang();
+  return String(value || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
+}
+
+export default function CreateHub({ open, onClose, onSelectTool, access, uiLang }) {
   if (!open) return null;
   const lang = pickLang(uiLang);
   const isRu = lang === "ru";
