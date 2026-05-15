@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 const STUDIO_PLANS = [
   {
     name: "FREE",
@@ -10,7 +8,7 @@ const STUDIO_PLANS = [
     sub: "preview",
     accent: "free",
     items: ["Google-вход", "локальный черновик", "до 3 проектов", "preview Studio"],
-    href: "#setup",
+    target: "setup",
   },
   {
     name: "PRO",
@@ -19,7 +17,7 @@ const STUDIO_PLANS = [
     sub: "в месяц",
     accent: "pro",
     items: ["Cloud Projects", "свои AI‑ключи", "полный pipeline", "экспорт пакета"],
-    href: "#pack",
+    target: "pack",
   },
   {
     name: "DIRECTOR",
@@ -28,42 +26,39 @@ const STUDIO_PLANS = [
     sub: "platform API",
     accent: "director",
     items: ["панель режиссёра", "пользователи", "usage и лимиты", "series modules"],
-    href: "#pack",
+    target: "pack",
   },
 ];
 
-function isPackageHomeHash() {
-  if (typeof window === "undefined") return true;
-  const hash = String(window.location.hash || "").replace(/^#/, "");
-  return !hash || hash === "studio-package" || hash === "tools";
+function openStoryboardAnchor(anchor = "setup") {
+  if (typeof window === "undefined") return;
+  const clean = String(anchor || "setup").replace(/^#/, "");
+  window.location.assign(`/storyboard#${clean}`);
 }
 
 function StudioPackageStyles() {
   return (
     <style jsx global>{`
-      body.nc-studio-package-home .setup-v40,
-      body.nc-studio-package-home .studio-status-bar-v33,
-      body.nc-studio-package-home .nc-quick-tools-anchor,
-      body.nc-studio-package-home .studio-flow-shell,
-      body.nc-studio-package-home .floating-dock-v33 {
-        display: none !important;
-      }
-
-      body.nc-studio-package-home .demo-banner-v35,
-      body.nc-studio-package-home .snapshot-status {
-        width: min(calc(100% - 18px), 1180px) !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-      }
-
       .nc-studio-pack-v1,
       .nc-studio-pack-v1 * { box-sizing: border-box; }
+
+      .nc-studio-home-page-v1 {
+        min-height: 100dvh;
+        padding-bottom: calc(136px + env(safe-area-inset-bottom));
+        color: #f8fafc;
+      }
+
+      .nc-studio-home-page-v1 .nc-mobile-shell {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
 
       .nc-studio-pack-v1 {
         position: relative;
         width: min(calc(100% - 18px), 1180px);
-        margin: 10px auto 14px;
-        padding: 12px;
+        margin: 14px auto calc(132px + env(safe-area-inset-bottom));
+        padding: 16px 11px 24px;
         overflow: hidden;
         border: 1px solid rgba(255,255,255,.10);
         border-radius: 24px;
@@ -103,7 +98,7 @@ function StudioPackageStyles() {
         min-width: 0;
         border: 1px solid rgba(255,255,255,.085);
         border-radius: 20px;
-        padding: 16px;
+        padding: 18px 15px 16px;
         background: rgba(255,255,255,.042);
       }
 
@@ -119,13 +114,13 @@ function StudioPackageStyles() {
       .nc-studio-pack-title-v1 {
         margin: 0;
         color: #f8fafc;
-        font-size: clamp(28px, 7vw, 44px);
-        line-height: 1.02;
+        font-size: clamp(30px, 8vw, 46px);
+        line-height: 1.08;
         letter-spacing: -.065em;
       }
 
       .nc-studio-pack-copy-v1 {
-        margin: 9px 0 0;
+        margin: 10px 0 0;
         max-width: 680px;
         color: rgba(238,240,248,.66);
         font-size: 14px;
@@ -174,7 +169,7 @@ function StudioPackageStyles() {
       }
 
       .nc-studio-pack-btn-v1 {
-        min-height: 42px;
+        min-height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -186,6 +181,7 @@ function StudioPackageStyles() {
         text-decoration: none;
         font-size: 12px;
         font-weight: 900;
+        cursor: pointer;
       }
 
       .nc-studio-pack-btn-v1.primary {
@@ -197,7 +193,7 @@ function StudioPackageStyles() {
       .nc-studio-pack-cards-v1 {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 9px;
+        gap: 10px;
         min-width: 0;
       }
 
@@ -207,12 +203,15 @@ function StudioPackageStyles() {
         display: grid;
         gap: 10px;
         min-width: 0;
+        min-height: 188px;
         border: 1px solid rgba(255,255,255,.085);
-        border-radius: 19px;
-        padding: 13px;
+        border-radius: 18px;
+        padding: 17px 14px 15px;
         background: rgba(0,0,0,.16);
         color: #eef0f8;
         text-decoration: none;
+        text-align: left;
+        cursor: pointer;
       }
 
       .nc-studio-pack-card-v1.pro {
@@ -240,7 +239,7 @@ function StudioPackageStyles() {
         display: block;
         color: #fff;
         font-size: 21px;
-        line-height: 1;
+        line-height: 1.08;
         letter-spacing: -.04em;
       }
 
@@ -258,8 +257,10 @@ function StudioPackageStyles() {
         display: flex;
         align-items: baseline;
         gap: 7px;
+        padding-top: 4px;
         color: #facc15;
-        font-size: 31px;
+        font-size: 32px;
+        line-height: 1.05;
         font-weight: 950;
         letter-spacing: -.055em;
       }
@@ -274,7 +275,7 @@ function StudioPackageStyles() {
       .nc-studio-pack-list-v1 {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 6px 10px;
+        gap: 7px 10px;
         margin: 0;
         padding: 0;
         list-style: none;
@@ -306,6 +307,8 @@ function StudioPackageStyles() {
       }
 
       .nc-studio-pack-note-v1 {
+        position: relative;
+        margin-top: 10px;
         border: 1px solid rgba(34,197,94,.22);
         border-radius: 17px;
         padding: 12px 13px;
@@ -317,8 +320,11 @@ function StudioPackageStyles() {
       }
 
       @media (min-width: 900px) {
+        .nc-studio-home-page-v1 { padding-bottom: 72px; }
         .nc-studio-pack-v1 {
           width: min(calc(100% - 36px), 1180px);
+          margin-top: 18px;
+          margin-bottom: 72px;
           padding: 18px;
           border-radius: 28px;
         }
@@ -350,72 +356,9 @@ function StudioPackageStyles() {
         .nc-studio-pack-list-v1 li { font-size: 12px; }
       }
 
-      @media (max-width: 760px) {
-        body.nc-studio-package-home {
-          padding-bottom: calc(142px + env(safe-area-inset-bottom)) !important;
-        }
-
-        .nc-studio-pack-v1 {
-          width: min(calc(100% - 18px), 1180px);
-          margin-top: 14px;
-          margin-bottom: calc(128px + env(safe-area-inset-bottom));
-          max-height: none !important;
-          overflow-y: visible !important;
-          overflow-x: hidden;
-          padding: 16px 11px 24px;
-          border-radius: 23px;
-          overscroll-behavior: auto;
-        }
-
-        .nc-studio-pack-head-v1 {
-          padding: 18px 15px 16px;
-          border-radius: 19px;
-        }
-
-        .nc-studio-pack-title-v1 {
-          font-size: clamp(28px, 8vw, 36px);
-          line-height: 1.08;
-        }
-
-        .nc-studio-pack-copy-v1 {
-          font-size: 13px;
-          line-height: 1.46;
-        }
-
-        .nc-studio-pack-cards-v1 {
-          gap: 10px;
-        }
-
-        .nc-studio-pack-card-v1 {
-          border-radius: 18px;
-          padding: 17px 14px 15px;
-          min-height: 188px;
-        }
-
-        .nc-studio-pack-card-top-v1 strong {
-          line-height: 1.08;
-        }
-
-        .nc-studio-pack-price-v1 {
-          line-height: 1.05;
-          padding-top: 4px;
-        }
-
-        .nc-studio-pack-list-v1 {
-          grid-template-columns: 1fr 1fr;
-          gap: 7px 10px;
-        }
-
-        .nc-studio-pack-note-v1 {
-          margin-top: 10px;
-          margin-bottom: 4px;
-        }
-      }
-
       @media (max-width: 390px) {
         .nc-studio-pack-v1 {
           width: min(calc(100% - 12px), 1180px);
-          max-height: none !important;
           padding: 15px 9px 24px;
         }
         .nc-studio-pack-head-v1 { padding: 17px 13px 15px; }
@@ -431,37 +374,13 @@ function StudioPackageStyles() {
   );
 }
 
-export default function StudioFlowPanel({ access = null, liveAllowed = false }) {
-  const [packageHome, setPackageHome] = useState(true);
+export default function StudioFlowPanel({ access = null, liveAllowed = false, force = false }) {
+  if (!force) return null;
+
   const isDirector = Boolean(access?.isOwner || access?.isAdmin);
   const isPro = access?.role === "pro" && !isDirector;
   const activePlan = isDirector ? "DIRECTOR" : isPro ? "PRO" : "FREE";
   const liveLabel = isDirector ? "РЕЖИССЁР LIVE" : isPro ? (liveAllowed ? "PRO LIVE" : "PRO") : "FREE Preview";
-
-  useEffect(() => {
-    function syncMode() {
-      const home = isPackageHomeHash();
-      setPackageHome(home);
-      document.body.classList.toggle("nc-studio-package-home", home);
-    }
-
-    syncMode();
-    window.addEventListener("hashchange", syncMode);
-    return () => {
-      window.removeEventListener("hashchange", syncMode);
-      document.body.classList.remove("nc-studio-package-home");
-    };
-  }, []);
-
-  function openAnchor(anchor) {
-    if (typeof window === "undefined") return;
-    window.location.hash = anchor;
-    setPackageHome(false);
-    document.body.classList.remove("nc-studio-package-home");
-    window.requestAnimationFrame(() => {
-      document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
 
   return (
     <section id="studio-package" className="nc-studio-pack-v1" aria-label="NeuroCine package and pricing">
@@ -472,7 +391,7 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false }) 
             <div className="nc-studio-pack-kicker-v1">NeuroCine Package</div>
             <h2 className="nc-studio-pack-title-v1">Пакет доступа Studio</h2>
             <p className="nc-studio-pack-copy-v1">
-              После входа Studio сначала показывает пакет, тарифы и описание. Storyboard не стартует сам — он открывается из левого меню, кнопки плюс или пункта Studio.
+              Это внутренняя главная Studio после входа. Storyboard теперь отдельный инструмент: он открывается из меню слева, кнопки плюс или пункта Studio.
             </p>
           </div>
 
@@ -486,15 +405,15 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false }) 
               <strong>{activePlan}</strong>
             </div>
             <div className="nc-studio-pack-actions-v1">
-              <button className="nc-studio-pack-btn-v1 primary" type="button" onClick={() => openAnchor("setup")}>＋ Создать</button>
-              <button className="nc-studio-pack-btn-v1" type="button" onClick={() => openAnchor("storyboard")}>Storyboard</button>
+              <button className="nc-studio-pack-btn-v1 primary" type="button" onClick={() => openStoryboardAnchor("setup")}>＋ Создать</button>
+              <button className="nc-studio-pack-btn-v1" type="button" onClick={() => openStoryboardAnchor("storyboard")}>Storyboard</button>
             </div>
           </div>
         </aside>
 
         <div className="nc-studio-pack-cards-v1">
           {STUDIO_PLANS.map((plan) => (
-            <button key={plan.name} className={`nc-studio-pack-card-v1 ${plan.accent}`} type="button" onClick={() => openAnchor(plan.name === "FREE" ? "setup" : "pack")}>
+            <button key={plan.name} className={`nc-studio-pack-card-v1 ${plan.accent}`} type="button" onClick={() => openStoryboardAnchor(plan.target)}>
               <div className="nc-studio-pack-card-top-v1">
                 <strong>{plan.name}</strong>
                 <span>{plan.tag}</span>
@@ -514,7 +433,7 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false }) 
         </div>
       </div>
       <div className="nc-studio-pack-note-v1">
-        ✓ Сейчас показан стартовый пакет Studio. Чтобы увидеть генератор, открой Storyboard из меню слева или нажми “＋ Создать”.
+        ✓ Сейчас открыта внутренняя главная Studio. Генератор Storyboard живёт отдельно на /storyboard и запускается из меню или кнопки “＋ Создать”.
       </div>
     </section>
   );
