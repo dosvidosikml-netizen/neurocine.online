@@ -18,6 +18,12 @@ function shortDate(value) {
   }
 }
 
+function isProjectsRoute() {
+  if (typeof window === "undefined") return false;
+  const path = window.location?.pathname || "";
+  return path === "/projects" || path.startsWith("/projects/");
+}
+
 function isSchemaCacheError(error) {
   const msg = String(error?.message || "");
   return msg.includes("schema cache") || msg.includes("does not exist") || msg.includes("Could not find the table");
@@ -31,11 +37,12 @@ function explainCloudError(error) {
   return msg;
 }
 
-export default function CloudProjectsPanel({ account, projectName, buildSnapshot, applySnapshot, onStatus, autoSaveKey, autoSaveEnabled = true }) {
+export default function CloudProjectsPanel({ account, projectName, buildSnapshot, applySnapshot, onStatus, autoSaveKey, autoSaveEnabled = true, allowInStudio = false }) {
   const session = account?.session || null;
   const profile = account?.profile || null;
   const access = getAccountAccess(profile, session);
   const user = session?.user || null;
+  const [routeAllowed, setRouteAllowed] = useState(false);
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -47,10 +54,14 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
   const lastAutoSaveKeyRef = useRef("");
 
   useEffect(() => {
+    setRouteAllowed(Boolean(allowInStudio || isProjectsRoute()));
+  }, [allowInStudio]);
+
+  useEffect(() => {
     buildSnapshotRef.current = buildSnapshot;
   }, [buildSnapshot]);
 
-  const canUseCloud = Boolean(user && isSupabaseConfigured && supabase);
+  const canUseCloud = Boolean(routeAllowed && user && isSupabaseConfigured && supabase);
   const projectLimit = Number(access.storageProjects || profile?.cloud_project_limit || 0);
   const used = items.length;
   const full = projectLimit > 0 && used >= projectLimit;
@@ -155,8 +166,6 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
           .eq("id", selectedId)
           .eq("user_id", user.id));
       } else {
-        // Re-check quota right before insert — items may have changed
-        // since the button was rendered (other tabs, autosave).
         if (projectLimit > 0 && items.length >= projectLimit) {
           throw new Error(`Лимит Cloud Projects: ${projectLimit}`);
         }
@@ -281,9 +290,6 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
     autoSaveTimerRef.current = setTimeout(async () => {
-      // Mark this key as in-flight BEFORE awaiting the network call.
-      // Otherwise a fresh autoSaveKey arriving while we're saving would
-      // schedule another save that fires the moment this one resolves.
       const inFlightKey = autoSaveKey;
       lastAutoSaveKeyRef.current = inFlightKey;
       try {
@@ -291,7 +297,6 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
         setBothStatus("✓ Autosave: проект обновлён в Supabase Cloud");
         await loadList();
       } catch (e) {
-        // Rollback so a retry can happen on next dirty event.
         if (lastAutoSaveKeyRef.current === inFlightKey) lastAutoSaveKeyRef.current = "";
         const message = explainCloudError(e);
         if (isSchemaCacheError(e)) setSchemaWarning(message);
@@ -319,11 +324,13 @@ export default function CloudProjectsPanel({ account, projectName, buildSnapshot
       .some((value) => String(value || "").toLowerCase().includes(q)));
   }, [items, search]);
 
+  if (!routeAllowed) return null;
+
   return (
     <section className="cloud-projects-v43" id="cloud-projects">
       <div className="cp-head-v43">
         <div>
-          <div className="cp-kicker-v43">Project Library</div>
+          <div className="cp-kicker-v43">Библиотека проектов</div>
           <h2>Мои проекты</h2>
           <p>Cloud-библиотека проектов: сценарий, storyboard, PART pipeline, Production Pack и exports в одном snapshot. Есть поиск, переименование, дублирование и удаление.</p>
         </div>
