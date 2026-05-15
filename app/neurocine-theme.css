@@ -1,0 +1,401 @@
+/* ─────────────────────────────────────────────
+   NeuroCine Unified Theme Layer
+   Applies across Studio, Storyboard, Projects, Series, drawer, plus hub and dock.
+   No engine/API behavior is changed here.
+   ───────────────────────────────────────────── */
+
+:root {
+  --nc-page-bg: #07080f;
+  --nc-page-bg-soft: #0d0e1a;
+  --nc-card: rgba(255,255,255,.045);
+  --nc-card-strong: rgba(255,255,255,.075);
+  --nc-card-muted: rgba(255,255,255,.030);
+  --nc-panel: rgba(8,10,18,.82);
+  --nc-panel-strong: rgba(12,14,24,.92);
+  --nc-border: rgba(255,255,255,.10);
+  --nc-border-strong: rgba(255,255,255,.18);
+  --nc-text: #f8fafc;
+  --nc-text-soft: rgba(248,250,252,.76);
+  --nc-muted: rgba(238,240,248,.52);
+  --nc-muted-strong: rgba(238,240,248,.66);
+  --nc-shadow: 0 22px 80px rgba(0,0,0,.45);
+  --nc-shadow-soft: 0 16px 48px rgba(0,0,0,.28);
+  --nc-red: #ff4d5f;
+  --nc-orange: #ff7a3d;
+  --nc-gold: #facc15;
+  --nc-violet: #8b5cf6;
+  --nc-green: #34d399;
+  --nc-blue: #38bdf8;
+  --nc-radius-xl: 30px;
+  --nc-radius-lg: 24px;
+  --nc-radius-md: 18px;
+  --nc-glass: blur(22px);
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg: #f4f6fb;
+  --bg2: #ffffff;
+  --surface: rgba(9,14,28,.045);
+  --surface2: rgba(9,14,28,.075);
+  --surface3: rgba(9,14,28,.115);
+  --border: rgba(15,23,42,.10);
+  --border2: rgba(15,23,42,.18);
+  --text: #111827;
+  --muted: #667085;
+  --muted2: #98a2b3;
+  --red: #e53535;
+  --redglow: rgba(229,53,53,.10);
+  --green: #16a34a;
+
+  --nc-page-bg: #f4f6fb;
+  --nc-page-bg-soft: #ffffff;
+  --nc-card: rgba(255,255,255,.82);
+  --nc-card-strong: rgba(255,255,255,.96);
+  --nc-card-muted: rgba(15,23,42,.040);
+  --nc-panel: rgba(255,255,255,.78);
+  --nc-panel-strong: rgba(255,255,255,.94);
+  --nc-border: rgba(15,23,42,.11);
+  --nc-border-strong: rgba(15,23,42,.18);
+  --nc-text: #101828;
+  --nc-text-soft: rgba(16,24,40,.78);
+  --nc-muted: rgba(71,84,103,.68);
+  --nc-muted-strong: rgba(71,84,103,.82);
+  --nc-shadow: 0 22px 80px rgba(15,23,42,.13);
+  --nc-shadow-soft: 0 16px 48px rgba(15,23,42,.10);
+  color-scheme: light;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] body {
+  background: var(--nc-page-bg) !important;
+  color: var(--nc-text) !important;
+}
+
+html[data-theme="light"] body {
+  background-image:
+    radial-gradient(ellipse at 8% 0%, rgba(229,53,53,.105) 0%, transparent 44%),
+    radial-gradient(ellipse at 92% 8%, rgba(56,189,248,.13) 0%, transparent 40%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+}
+
+body,
+.studio,
+.storyboard-page,
+.studio-page,
+.page,
+.wrap,
+.app-shell {
+  color: var(--nc-text);
+}
+
+/* Global surfaces */
+.step-section,
+.studio-step-card,
+.production-pack,
+.pack-shell,
+.out-box,
+.out-box-v31,
+.json-box,
+.img-viewer,
+.upload-zone,
+.pipe-step,
+.frame-card,
+.landing-card,
+.nc-series-card-v1,
+.nc-studio-pack-v1,
+.nc-create-panel,
+.nc-drawer,
+.nc-profile-modal,
+.nc-account-card,
+.account-card,
+.projects-card,
+.project-card {
+  color: var(--nc-text) !important;
+  border-color: var(--nc-border) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255,77,95,.055), transparent 34%),
+    linear-gradient(145deg, var(--nc-card-strong), var(--nc-card-muted)) !important;
+  box-shadow: var(--nc-shadow-soft) !important;
+}
+
+.step-header,
+.out-head,
+.pipe-head,
+.nc-create-head,
+.control-status-head {
+  border-color: var(--nc-border) !important;
+  background: linear-gradient(90deg, rgba(255,77,95,.075), rgba(139,92,246,.050), transparent) !important;
+}
+
+textarea.inp,
+input.inp,
+select.inp,
+.inp {
+  color: var(--nc-text) !important;
+  background: color-mix(in srgb, var(--nc-panel-strong) 86%, transparent) !important;
+  border-color: var(--nc-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+html[data-theme="light"] textarea.inp,
+html[data-theme="light"] input.inp,
+html[data-theme="light"] select.inp,
+html[data-theme="light"] .inp {
+  background: rgba(255,255,255,.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(15,23,42,.04);
+}
+
+textarea.inp:focus,
+input.inp:focus,
+select.inp:focus,
+.inp:focus {
+  border-color: color-mix(in srgb, var(--nc-red) 58%, var(--nc-border)) !important;
+  box-shadow: 0 0 0 3px rgba(255,77,95,.12) !important;
+}
+
+.field-label,
+.out-label,
+.step-desc,
+.control-desc,
+.control-topic em,
+.pack-v31-card em,
+.nc-studio-pack-copy-v1,
+.nc-series-copy-v1,
+.nc-create-head p,
+.nc-hub-plan-strip span,
+.nc-drawer-top span {
+  color: var(--nc-muted) !important;
+}
+
+.step-title,
+.control-title,
+.nav-title,
+.topbrand-title-v40,
+.setup-head-v40 h1,
+.nc-studio-pack-title-v1,
+.nc-series-title-v1,
+.nc-create-head h2,
+.nc-drawer-top strong {
+  color: var(--nc-text) !important;
+}
+
+/* Main top bars */
+.studio-nav,
+.studio-topbar-v40,
+.nc-top-action-bar {
+  color: var(--nc-text) !important;
+  border-color: var(--nc-border) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,92,246,.11), transparent 34%),
+    linear-gradient(135deg, var(--nc-panel-strong), var(--nc-panel)) !important;
+  box-shadow: var(--nc-shadow-soft), inset 0 1px 0 rgba(255,255,255,.08) !important;
+  backdrop-filter: var(--nc-glass);
+  -webkit-backdrop-filter: var(--nc-glass);
+}
+
+html[data-theme="light"] .studio-nav,
+html[data-theme="light"] .studio-topbar-v40,
+html[data-theme="light"] .nc-top-action-bar {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,92,246,.09), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,255,255,.72)) !important;
+}
+
+.nav-btn,
+.top-pill-v40,
+.nc-top-icon,
+.nc-top-logo,
+.nc-lang,
+.nc-profile,
+.btn,
+.action-btn,
+.copy-btn,
+.pack-btn,
+.regen-btn,
+.ai-gen-btn,
+.nc-series-btn-v1,
+.nc-studio-pack-btn-v1 {
+  color: var(--nc-text-soft) !important;
+  border-color: var(--nc-border) !important;
+  background: color-mix(in srgb, var(--nc-card) 78%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.nav-btn:hover,
+.top-pill-v40:hover,
+.nc-top-icon:hover,
+.nc-lang:hover,
+.nc-profile:hover,
+.btn:hover,
+.action-btn:hover,
+.copy-btn:hover,
+.pack-btn:hover,
+.regen-btn:hover,
+.ai-gen-btn:hover,
+.nc-series-btn-v1:hover,
+.nc-studio-pack-btn-v1:hover {
+  color: var(--nc-text) !important;
+  border-color: var(--nc-border-strong) !important;
+  background: var(--nc-card-strong) !important;
+}
+
+.btn-red,
+.nav-btn.active,
+.top-pill-v40.active,
+.nc-series-btn-v1.primary,
+.nc-studio-pack-btn-v1.primary {
+  color: #fff !important;
+  border-color: transparent !important;
+  background: linear-gradient(135deg, var(--nc-red), var(--nc-orange)) !important;
+  box-shadow: 0 14px 38px rgba(255,77,95,.20) !important;
+}
+
+/* Drawer + Create Hub */
+.nc-drawer-wrap,
+.nc-create-hub {
+  color: var(--nc-text);
+}
+
+.nc-drawer-backdrop,
+.nc-create-backdrop {
+  background: rgba(0,0,0,.52) !important;
+  backdrop-filter: blur(10px);
+}
+
+html[data-theme="light"] .nc-drawer-backdrop,
+html[data-theme="light"] .nc-create-backdrop {
+  background: rgba(15,23,42,.28) !important;
+}
+
+.nc-drawer button,
+.nc-group-list button,
+.nc-tool-grid button,
+.nc-drawer-section button,
+.nc-round-close {
+  color: var(--nc-text-soft) !important;
+  border-color: var(--nc-border) !important;
+  background: color-mix(in srgb, var(--nc-card) 72%, transparent) !important;
+}
+
+.nc-drawer button:hover,
+.nc-group-list button:hover,
+.nc-tool-grid button:hover,
+.nc-drawer-section button:hover,
+.nc-round-close:hover {
+  color: var(--nc-text) !important;
+  background: var(--nc-card-strong) !important;
+  border-color: var(--nc-border-strong) !important;
+}
+
+/* Studio package and cards */
+.nc-studio-pack-card-v1,
+.pack-v31-card,
+.control-step,
+.studio-status-cell-v33,
+.nc-series-chip-v1,
+.estat {
+  color: var(--nc-text) !important;
+  border-color: var(--nc-border) !important;
+  background: linear-gradient(145deg, var(--nc-card), var(--nc-card-muted)) !important;
+}
+
+.nc-studio-pack-card-top-v1 span,
+.nc-studio-pack-list-v1 li,
+.nc-studio-pack-card-cta-v1,
+.nc-series-chip-v1 span {
+  color: var(--nc-muted-strong) !important;
+}
+
+.nc-studio-pack-price-v1,
+.control-status-head span,
+.estat-val {
+  color: var(--nc-gold) !important;
+}
+
+html[data-theme="light"] .nc-studio-pack-price-v1,
+html[data-theme="light"] .control-status-head span,
+html[data-theme="light"] .estat-val {
+  color: #b45309 !important;
+}
+
+/* Bottom app dock — global, light/dark aware */
+.nc-bottom-nav {
+  color: var(--nc-text) !important;
+  border-color: var(--nc-border) !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,77,95,.13), transparent 42%),
+    linear-gradient(180deg, var(--nc-panel-strong), var(--nc-panel)) !important;
+  box-shadow: var(--nc-shadow), inset 0 1px 0 rgba(255,255,255,.10) !important;
+  backdrop-filter: var(--nc-glass);
+  -webkit-backdrop-filter: var(--nc-glass);
+}
+
+html[data-theme="light"] .nc-bottom-nav {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,77,95,.10), transparent 42%),
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.76)) !important;
+}
+
+.nc-bottom-nav button {
+  color: var(--nc-muted) !important;
+}
+
+.nc-bottom-nav button:hover,
+.nc-bottom-nav button:focus-visible,
+.nc-bottom-nav button.is-active {
+  color: var(--nc-text) !important;
+  border-color: var(--nc-border) !important;
+  background: var(--nc-card) !important;
+}
+
+.nc-bottom-nav button.is-active::after {
+  background: linear-gradient(90deg, var(--nc-red), var(--nc-orange)) !important;
+}
+
+.nc-bottom-nav .nc-create-plus {
+  color: #16070a !important;
+  border-color: rgba(255,119,72,.45) !important;
+  background:
+    radial-gradient(circle at 30% 12%, rgba(255,255,255,.42), transparent 18%),
+    linear-gradient(135deg, var(--nc-red), var(--nc-orange)) !important;
+  box-shadow: 0 16px 42px rgba(255,75,56,.24), inset 0 1px 0 rgba(255,255,255,.34) !important;
+}
+
+/* Public landing also follows light mode */
+html[data-theme="light"] .landing,
+html[data-theme="light"] .landing-hero,
+html[data-theme="light"] .landing-card {
+  color: var(--nc-text) !important;
+}
+
+html[data-theme="light"] .landing-hero,
+html[data-theme="light"] .landing-card {
+  background: rgba(255,255,255,.78) !important;
+  border-color: var(--nc-border) !important;
+  box-shadow: var(--nc-shadow-soft) !important;
+}
+
+/* Mobile consistency */
+@media (max-width: 760px) {
+  .studio,
+  .storyboard-page,
+  .studio-page,
+  .page,
+  .wrap,
+  .app-shell {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .step-section,
+  .studio-step-card,
+  .production-pack,
+  .pack-shell,
+  .out-box,
+  .nc-studio-pack-v1,
+  .nc-series-card-v1,
+  .nc-create-panel,
+  .nc-drawer {
+    border-radius: var(--nc-radius-lg) !important;
+  }
+}
