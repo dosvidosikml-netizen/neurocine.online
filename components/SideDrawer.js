@@ -5,11 +5,11 @@ import { getToolsByGroup } from "../lib/toolsRegistry";
 const GROUP_ORDER = ["workflow", "pack", "system"];
 
 export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access }) {
-  const plan = access?.isOwner || access?.isAdmin ? "DIRECTOR" : access?.role === "pro" ? "PRO" : "FREE";
+  const plan = access?.isOwner || access?.isAdmin ? "ГЛАВНЫЙ РЕЖИССЁР" : access?.role === "pro" ? "PRO" : "FREE";
   const canOpenDirectorControl = Boolean(access?.isOwner || access?.isAdmin);
   const groups = GROUP_ORDER.map(id => ({
     id,
-    title: id === "workflow" ? "Рабочий поток" : id === "pack" ? "Production Pack" : "Система",
+    title: id === "workflow" ? "Рабочий поток" : id === "pack" ? "Продакшн‑пак" : "Система",
     items: getToolsByGroup(id),
   })).filter(group => group.items.length);
 
@@ -30,10 +30,10 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
   return (
     <div className={`nc-drawer-wrap${open ? " open" : ""}`} aria-hidden={!open}>
       <div className="nc-drawer-backdrop" onClick={onClose} />
-      <aside className="nc-drawer" aria-label="NeuroCine menu">
+      <aside className="nc-drawer" aria-label="Меню NeuroCine">
         <div className="nc-drawer-top">
           <div className="nc-drawer-logo">N</div>
-          <div><strong>NeuroCine</strong><span>{plan} · AI Video Factory</span></div>
+          <div><strong>NeuroCine</strong><span>{plan} · фабрика AI-видео</span></div>
           <button type="button" onClick={onClose} aria-label="Закрыть меню">×</button>
         </div>
 
@@ -50,9 +50,9 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
 
         {canOpenDirectorControl && (
           <div className="nc-drawer-section nc-director-control-section">
-            <h3>Director Control</h3>
+            <h3>Режиссёрский пульт</h3>
             <button type="button" onClick={openDirectorControl}>
-              🛡️ <span>Control Room</span>
+              ✨ <span>Режиссёрская рубка</span>
             </button>
           </div>
         )}
