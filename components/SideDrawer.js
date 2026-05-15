@@ -1,16 +1,23 @@
 "use client";
 
-import { getToolsByGroup } from "../lib/toolsRegistry";
+import { getToolsByGroup, getToolGroups } from "../lib/toolsRegistry";
 
 const GROUP_ORDER = ["workflow", "pack", "system"];
 
-export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access }) {
-  const plan = access?.isOwner || access?.isAdmin ? "ГЛАВНЫЙ РЕЖИССЁР" : access?.role === "pro" ? "PRO" : "FREE";
+function pickLang(lang = "ru") {
+  return String(lang || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
+}
+
+export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access, uiLang = "ru" }) {
+  const lang = pickLang(uiLang);
+  const isRu = lang === "ru";
+  const plan = access?.isOwner || access?.isAdmin ? (isRu ? "ГЛАВНЫЙ РЕЖИССЁР" : "DIRECTOR") : access?.role === "pro" ? "PRO" : "FREE";
   const canOpenDirectorControl = Boolean(access?.isOwner || access?.isAdmin);
+  const groupLabels = Object.fromEntries(getToolGroups(lang).map(group => [group.id, group.title]));
   const groups = GROUP_ORDER.map(id => ({
     id,
-    title: id === "workflow" ? "Рабочий поток" : id === "pack" ? "Продакшн‑пак" : "Система",
-    items: getToolsByGroup(id),
+    title: groupLabels[id] || id,
+    items: getToolsByGroup(id, lang),
   })).filter(group => group.items.length);
 
   function handleTool(tool) {
@@ -30,11 +37,11 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
   return (
     <div className={`nc-drawer-wrap${open ? " open" : ""}`} aria-hidden={!open}>
       <div className="nc-drawer-backdrop" onClick={onClose} />
-      <aside className="nc-drawer" aria-label="Меню NeuroCine">
+      <aside className="nc-drawer" aria-label={isRu ? "Меню NeuroCine" : "NeuroCine menu"}>
         <div className="nc-drawer-top">
           <div className="nc-drawer-logo">N</div>
-          <div><strong>NeuroCine</strong><span>{plan} · фабрика AI-видео</span></div>
-          <button type="button" onClick={onClose} aria-label="Закрыть меню">×</button>
+          <div><strong>NeuroCine</strong><span>{plan} · {isRu ? "фабрика AI-видео" : "AI Video Factory"}</span></div>
+          <button type="button" onClick={onClose} aria-label={isRu ? "Закрыть меню" : "Close menu"}>×</button>
         </div>
 
         {groups.map(group => (
@@ -50,9 +57,9 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
 
         {canOpenDirectorControl && (
           <div className="nc-drawer-section nc-director-control-section">
-            <h3>Режиссёрский пульт</h3>
+            <h3>{isRu ? "Режиссёрский пульт" : "Director Console"}</h3>
             <button type="button" onClick={openDirectorControl}>
-              ✨ <span>Режиссёрская рубка</span>
+              ✨ <span>{isRu ? "Консоль режиссёра" : "Director Console"}</span>
             </button>
           </div>
         )}
