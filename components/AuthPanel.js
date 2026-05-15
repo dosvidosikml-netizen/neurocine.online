@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
-import { getAccountAccess, isOwnerEmail } from "../lib/accountRoles";
+import { getAccountAccess } from "../lib/accountRoles";
+import { buildAuthCallbackRedirect, getCurrentReturnTo } from "../lib/authRedirect";
 
 function getUserMeta(user) {
   const meta = user?.user_metadata || {};
@@ -13,9 +14,9 @@ function getUserMeta(user) {
   };
 }
 
-function getStudioRedirectTo() {
+function getRedirectTo() {
   if (typeof window === "undefined") return undefined;
-  return `${window.location.origin}/storyboard`;
+  return buildAuthCallbackRedirect(getCurrentReturnTo("/storyboard"));
 }
 
 function clearLocalAuthFallback() {
@@ -119,23 +120,15 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
     async function syncProfile() {
       try {
-        const owner = isOwnerEmail(meta.email);
-        const nextProfile = {
+        const baseProfile = {
           id: user.id,
           email: meta.email,
           full_name: meta.name,
           avatar_url: meta.avatar,
           updated_at: new Date().toISOString(),
-          ...(owner ? {
-            role: "admin",
-            plan: "admin",
-            default_mode: "live",
-            monthly_generation_limit: 999999,
-            cloud_project_limit: 9999,
-          } : {}),
         };
 
-        await supabase.from("profiles").upsert(nextProfile, { onConflict: "id" });
+        await supabase.from("profiles").upsert(baseProfile, { onConflict: "id" });
 
         const { data } = await supabase
           .from("profiles")
@@ -144,7 +137,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
           .maybeSingle();
 
         if (!mounted) return;
-        setProfile(data || nextProfile);
+        setProfile(data || baseProfile);
       } catch (e) {
         console.warn("Profile sync failed", e);
       }
@@ -155,7 +148,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, meta.email]);
 
   useEffect(() => {
     onAccountChange?.({
@@ -184,7 +177,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: getStudioRedirectTo(),
+          redirectTo: getRedirectTo(),
           skipBrowserRedirect: true,
           queryParams: {
             access_type: "offline",
