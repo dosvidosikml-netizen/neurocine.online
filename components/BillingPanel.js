@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getAccountAccess } from "../lib/accountRoles";
 
 function bearerHeaders(token = "") {
@@ -10,6 +10,12 @@ function bearerHeaders(token = "") {
   };
 }
 
+function isBillingRoute() {
+  if (typeof window === "undefined") return false;
+  const path = window.location?.pathname || "";
+  return path === "/account" || path.startsWith("/account/") || path === "/director/control-room" || path.startsWith("/director/control-room/");
+}
+
 function planLabel(access) {
   if (access.isOwner || access.isAdmin) return "OWNER";
   if (access.role === "pro") return "PRO";
@@ -17,6 +23,7 @@ function planLabel(access) {
 }
 
 export default function BillingPanel({ account }) {
+  const [routeAllowed, setRouteAllowed] = useState(false);
   const session = account?.session || null;
   const profile = account?.profile || null;
   const token = session?.access_token || "";
@@ -24,6 +31,10 @@ export default function BillingPanel({ account }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [requested, setRequested] = useState(false);
+
+  useEffect(() => {
+    setRouteAllowed(isBillingRoute());
+  }, []);
 
   const isOwner = access.isOwner || access.isAdmin;
   const isPro = access.role === "pro" && !isOwner;
@@ -51,7 +62,7 @@ export default function BillingPanel({ account }) {
         return;
       }
       setRequested(true);
-      setStatus(`ok|Заявка на PRO записана${d.event?.id ? ` · ID ${String(d.event.id).slice(0, 8)}` : ""}. OWNER увидит её в Admin Panel.`);
+      setStatus(`ok|Заявка на PRO записана${d.event?.id ? ` · ID ${String(d.event.id).slice(0, 8)}` : ""}. Владелец увидит её в консоли режиссёра.`);
     } catch (e) {
       setStatus("err|" + (e.message || "Ошибка checkout"));
     } finally {
@@ -61,6 +72,8 @@ export default function BillingPanel({ account }) {
 
   const statusKind = status.startsWith("err|") ? "err" : status.startsWith("ok|") ? "ok" : "";
   const cleanStatus = status.replace(/^ok\|?/, "✓ ").replace(/^gen\|?/, "⏳ ").replace(/^err\|?/, "✗ ");
+
+  if (!routeAllowed) return null;
 
   return (
     <section className="billing-panel-v61" id="billing">
@@ -120,7 +133,7 @@ export default function BillingPanel({ account }) {
               <span>OWNER</span>
               <strong>platform</strong>
             </div>
-            <p>Служебный доступ владельца: platform API, Admin Panel, тесты и управление пользователями.</p>
+            <p>Служебный доступ владельца: platform API, консоль режиссёра, тесты и управление пользователями.</p>
             <ul>
               <li>Видно только владельцу</li>
               <li>PRO можно выдать вручную</li>
