@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 const STUDIO_PLANS = [
   {
     name: "FREE",
@@ -30,9 +32,30 @@ const STUDIO_PLANS = [
   },
 ];
 
+function isPackageHomeHash() {
+  if (typeof window === "undefined") return true;
+  const hash = String(window.location.hash || "").replace(/^#/, "");
+  return !hash || hash === "studio-package" || hash === "tools";
+}
+
 function StudioPackageStyles() {
   return (
     <style jsx global>{`
+      body.nc-studio-package-home .setup-v40,
+      body.nc-studio-package-home .studio-status-bar-v33,
+      body.nc-studio-package-home .nc-quick-tools-anchor,
+      body.nc-studio-package-home .studio-flow-shell,
+      body.nc-studio-package-home .floating-dock-v33 {
+        display: none !important;
+      }
+
+      body.nc-studio-package-home .demo-banner-v35,
+      body.nc-studio-package-home .snapshot-status {
+        width: min(calc(100% - 18px), 1180px) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
+
       .nc-studio-pack-v1,
       .nc-studio-pack-v1 * { box-sizing: border-box; }
 
@@ -381,13 +404,39 @@ function StudioPackageStyles() {
 }
 
 export default function StudioFlowPanel({ access = null, liveAllowed = false }) {
+  const [packageHome, setPackageHome] = useState(true);
   const isDirector = Boolean(access?.isOwner || access?.isAdmin);
   const isPro = access?.role === "pro" && !isDirector;
   const activePlan = isDirector ? "DIRECTOR" : isPro ? "PRO" : "FREE";
   const liveLabel = isDirector ? "РЕЖИССЁР LIVE" : isPro ? (liveAllowed ? "PRO LIVE" : "PRO") : "FREE Preview";
 
+  useEffect(() => {
+    function syncMode() {
+      const home = isPackageHomeHash();
+      setPackageHome(home);
+      document.body.classList.toggle("nc-studio-package-home", home);
+    }
+
+    syncMode();
+    window.addEventListener("hashchange", syncMode);
+    return () => {
+      window.removeEventListener("hashchange", syncMode);
+      document.body.classList.remove("nc-studio-package-home");
+    };
+  }, []);
+
+  function openAnchor(anchor) {
+    if (typeof window === "undefined") return;
+    window.location.hash = anchor;
+    setPackageHome(false);
+    document.body.classList.remove("nc-studio-package-home");
+    window.requestAnimationFrame(() => {
+      document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return (
-    <section className="nc-studio-pack-v1" aria-label="NeuroCine package and pricing">
+    <section id="studio-package" className="nc-studio-pack-v1" aria-label="NeuroCine package and pricing">
       <StudioPackageStyles />
       <div className="nc-studio-pack-shell-v1">
         <aside className="nc-studio-pack-head-v1">
@@ -395,7 +444,7 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false }) 
             <div className="nc-studio-pack-kicker-v1">NeuroCine Package</div>
             <h2 className="nc-studio-pack-title-v1">Пакет доступа Studio</h2>
             <p className="nc-studio-pack-copy-v1">
-              Storyboard не главный экран. Он открывается из меню или кнопки плюс. Здесь — описание пакета, тарифы и быстрый вход в рабочие зоны.
+              После входа Studio сначала показывает пакет, тарифы и описание. Storyboard не стартует сам — он открывается из левого меню, кнопки плюс или пункта Studio.
             </p>
           </div>
 
@@ -409,15 +458,15 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false }) 
               <strong>{activePlan}</strong>
             </div>
             <div className="nc-studio-pack-actions-v1">
-              <a className="nc-studio-pack-btn-v1 primary" href="#setup">＋ Создать</a>
-              <a className="nc-studio-pack-btn-v1" href="#pack">Пакет</a>
+              <button className="nc-studio-pack-btn-v1 primary" type="button" onClick={() => openAnchor("setup")}>＋ Создать</button>
+              <button className="nc-studio-pack-btn-v1" type="button" onClick={() => openAnchor("storyboard")}>Storyboard</button>
             </div>
           </div>
         </aside>
 
         <div className="nc-studio-pack-cards-v1">
           {STUDIO_PLANS.map((plan) => (
-            <a key={plan.name} className={`nc-studio-pack-card-v1 ${plan.accent}`} href={plan.href}>
+            <button key={plan.name} className={`nc-studio-pack-card-v1 ${plan.accent}`} type="button" onClick={() => openAnchor(plan.name === "FREE" ? "setup" : "pack")}>
               <div className="nc-studio-pack-card-top-v1">
                 <strong>{plan.name}</strong>
                 <span>{plan.tag}</span>
@@ -432,12 +481,12 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false }) 
                 <span>{plan.name === activePlan ? "текущий пакет" : "открыть"}</span>
                 <b>→</b>
               </div>
-            </a>
+            </button>
           ))}
         </div>
       </div>
       <div className="nc-studio-pack-note-v1">
-        ✓ Главная страница объясняет продукт и тарифы. Studio — отдельный рабочий инструмент, который вызывается из меню, кнопки плюс или CTA.
+        ✓ Сейчас показан стартовый пакет Studio. Чтобы увидеть генератор, открой Storyboard из меню слева или нажми “＋ Создать”.
       </div>
     </section>
   );
