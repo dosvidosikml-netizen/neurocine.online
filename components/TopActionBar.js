@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import ProfileMenuModalSkin from "./ProfileMenuModalSkin";
+import { useEffect, useState } from "react";
+import ProfileSettingsModal from "./ProfileSettingsModal";
 
 const THEME_STORAGE_KEY = "neurocine.theme";
 
@@ -108,41 +108,22 @@ function StudioShellSkin() {
 
 export default function TopActionBar({ account, access, uiLang = "ru", onToggleLang, onOpenMenu, onNavigate, onSignOut }) {
   const email = account?.profile?.email || account?.session?.user?.email || "";
+  const userMeta = account?.session?.user?.user_metadata || {};
   const isSignedIn = Boolean(account?.session?.user);
-  const displayName = account?.profile?.display_name || account?.profile?.full_name || account?.session?.user?.user_metadata?.full_name || account?.session?.user?.user_metadata?.name || (email ? email.split("@")[0] : "Гость");
-  const avatarUrl = account?.profile?.avatar_url || account?.session?.user?.user_metadata?.avatar_url || account?.session?.user?.user_metadata?.picture || "";
-  const planLabel = access?.isOwner || access?.isAdmin ? "Режиссёрский аккаунт" : access?.role === "pro" ? "Pro аккаунт" : isSignedIn ? "Бесплатный аккаунт" : "Гость";
+  const displayName = account?.profile?.display_name || account?.profile?.full_name || userMeta.full_name || userMeta.name || (email ? email.split("@")[0] : "Гость");
+  const avatarUrl = account?.profile?.avatar_url || userMeta.avatar_url || userMeta.picture || "";
   const planBadge = access?.isOwner || access?.isAdmin ? "DIR" : access?.role === "pro" ? "PRO" : isSignedIn ? "FREE" : "";
   const langInfo = LANG_FLAGS[String(uiLang || "ru").toLowerCase()] || LANG_FLAGS.ru;
   const initials = getInitials(displayName, email);
   const [theme, setTheme] = useState("dark");
   const [profileOpen, setProfileOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const modalRef = useRef(null);
 
   useEffect(() => {
     const initial = readInitialTheme();
     setTheme(initial);
     applyTheme(initial);
   }, []);
-
-  useEffect(() => {
-    if (!profileOpen) return;
-    function handleClick(e) {
-      if (modalRef.current && !modalRef.current.contains(e.target) && !e.target?.closest?.(".nc-profile-avatar")) setProfileOpen(false);
-    }
-    function handleKey(e) {
-      if (e.key === "Escape") setProfileOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("touchstart", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("touchstart", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [profileOpen]);
 
   useEffect(() => { setImgError(false); }, [avatarUrl]);
 
@@ -153,23 +134,11 @@ export default function TopActionBar({ account, access, uiLang = "ru", onToggleL
     try { window.localStorage.setItem(THEME_STORAGE_KEY, next); } catch {}
   }
 
-  function handleProfileNav(target) {
-    setProfileOpen(false);
-    onNavigate?.(target);
-  }
-
-  function handleSignOut() {
-    setProfileOpen(false);
-    if (onSignOut) onSignOut();
-    else onNavigate?.("auth");
-  }
-
   const showAvatarImg = avatarUrl && !imgError;
 
   return (
     <>
       <StudioShellSkin />
-      <ProfileMenuModalSkin />
       <header className="nc-top-action-bar">
         <button className="nc-top-icon" type="button" onClick={onOpenMenu} aria-label="Меню">☰</button>
         <button className="nc-top-logo" type="button" onClick={() => onNavigate?.("setup")} aria-label="NeuroCine"><span>N</span></button>
@@ -178,37 +147,23 @@ export default function TopActionBar({ account, access, uiLang = "ru", onToggleL
           <span className="nc-lang-flag-emoji" role="img" aria-hidden>{langInfo.flag}</span>
         </button>
         <div className="nc-profile-wrap">
-          <button className={"nc-profile nc-profile-avatar" + (showAvatarImg ? " has-image" : "")} type="button" onClick={() => setProfileOpen(o => !o)} aria-haspopup="dialog" aria-expanded={profileOpen} title={email || "Профиль"}>
+          <button className={"nc-profile nc-profile-avatar" + (showAvatarImg ? " has-image" : "")} type="button" onClick={() => setProfileOpen(true)} aria-haspopup="dialog" aria-expanded={profileOpen} title={email || "Профиль"}>
             {showAvatarImg ? <img src={avatarUrl} alt={displayName} onError={() => setImgError(true)} draggable="false" /> : <span className="nc-profile-initials">{initials}</span>}
             {planBadge && <span className={"nc-profile-plan-dot plan-" + planBadge.toLowerCase()} aria-hidden>{planBadge[0]}</span>}
           </button>
         </div>
       </header>
 
-      {profileOpen && (
-        <div className="nc-profile-modal-layer" role="presentation">
-          <div className="nc-profile-modal-backdrop" aria-hidden onClick={() => setProfileOpen(false)} />
-          <div className="nc-profile-menu nc-profile-menu-modal" role="dialog" aria-modal="true" aria-label="Профиль NeuroCine" ref={modalRef}>
-            <button className="nc-profile-modal-close" type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть">×</button>
-            <div className="nc-profile-menu-head">
-              <div className="nc-profile-menu-plan">{planLabel}</div>
-              <div className="nc-profile-menu-name">{displayName}</div>
-              {email && <div className="nc-profile-menu-email">{email}</div>}
-            </div>
-            <button type="button" className="nc-profile-menu-item nc-profile-menu-theme" onClick={toggleTheme}>
-              <span className="nc-profile-menu-icon" aria-hidden>{theme === "dark" ? "☀" : "☾"}</span><span>Тема: {theme === "dark" ? "тёмная" : "светлая"}</span><span className="nc-profile-menu-arrow" aria-hidden>→</span>
-            </button>
-            <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")}><span className="nc-profile-menu-icon" aria-hidden>◆</span><span>Партнёрская программа</span></button>
-            <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("setup")}><span className="nc-profile-menu-icon" aria-hidden>⚙</span><span>Настройки</span></button>
-            <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("pack")}><span className="nc-profile-menu-icon" aria-hidden>♦</span><span>Биллинг и тариф</span></button>
-            {isSignedIn ? (
-              <button type="button" className="nc-profile-menu-item nc-profile-menu-danger" onClick={handleSignOut}><span className="nc-profile-menu-icon" aria-hidden>↪</span><span>Выйти</span></button>
-            ) : (
-              <button type="button" className="nc-profile-menu-item" onClick={() => handleProfileNav("auth")}><span className="nc-profile-menu-icon" aria-hidden>↩</span><span>Войти</span></button>
-            )}
-          </div>
-        </div>
-      )}
+      <ProfileSettingsModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        account={account}
+        access={access}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onNavigate={onNavigate}
+        onSignOut={onSignOut || (() => onNavigate?.("auth"))}
+      />
     </>
   );
 }
