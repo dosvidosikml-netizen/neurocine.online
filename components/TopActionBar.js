@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ProfileMenuModalSkin from "./ProfileMenuModalSkin";
 
 const THEME_STORAGE_KEY = "neurocine.theme";
 
@@ -130,7 +131,6 @@ function StudioShellSkin() {
         pointer-events: none;
       }
 
-      /* Mini-scene previews: not flat color, each card shows a different visual mood. */
       .setup-v40 .setup-style-grid-v40 button:nth-child(1)::before,
       .setup-style-grid-v40 button:nth-child(1)::before {
         background:
@@ -215,7 +215,6 @@ function StudioShellSkin() {
       @media (max-width: 760px) {
         html, body { overflow-x: hidden !important; width: 100% !important; max-width: 100% !important; }
         body { padding-bottom: calc(108px + env(safe-area-inset-bottom)) !important; }
-
         .setup-v40,
         .setup-grid-v40,
         .setup-options-v40,
@@ -225,14 +224,12 @@ function StudioShellSkin() {
           max-width: 100% !important;
           overflow-x: hidden !important;
         }
-
         .setup-v40 .setup-options-v40 .setup-block-v40:has(.setup-style-grid-v40) {
           width: 100% !important;
           max-width: 100% !important;
           padding-inline: 14px !important;
           overflow: hidden !important;
         }
-
         .setup-v40 .setup-style-grid-v40,
         .setup-style-grid-v40 {
           width: 100% !important;
@@ -242,7 +239,6 @@ function StudioShellSkin() {
           overflow-x: auto !important;
           overflow-y: hidden !important;
         }
-
         .setup-v40 .setup-style-grid-v40 button,
         .setup-style-grid-v40 button {
           flex-basis: 154px !important;
@@ -253,10 +249,8 @@ function StudioShellSkin() {
           padding: 108px 12px 35px !important;
           font-size: 14px !important;
         }
-
         .setup-v40 .setup-style-grid-v40 button::before,
         .setup-style-grid-v40 button::before { height: 84px !important; }
-
         .col, .step-body, .pack-body, .production-pack, .step-section { min-width: 0 !important; max-width: 100% !important; overflow: visible !important; }
         .frow, .frow.frow2 { display: flex !important; flex-direction: column !important; align-items: stretch !important; grid-template-columns: none !important; gap: 14px !important; width: 100% !important; min-width: 0 !important; }
         .frow > *, .frow.frow2 > * { width: 100% !important; min-width: 0 !important; max-width: 100% !important; }
@@ -357,6 +351,7 @@ export default function TopActionBar({
   return (
     <>
       <StudioShellSkin />
+      <ProfileMenuModalSkin />
       <header className="nc-top-action-bar">
         <button className="nc-top-icon" type="button" onClick={onOpenMenu} aria-label="Меню">☰</button>
         <button className="nc-top-logo" type="button" onClick={() => onNavigate?.("setup")} aria-label="NeuroCine"><span>N</span></button>
