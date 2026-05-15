@@ -21,7 +21,7 @@ const STUDIO_PLANS = [
   },
   {
     name: "DIRECTOR",
-    tag: "studio owner",
+    tag: "studio admin",
     price: "LIVE",
     sub: "platform API",
     accent: "director",
