@@ -16,13 +16,13 @@ function getUserMeta(user) {
 
 function getRedirectTo() {
   if (typeof window === "undefined") return undefined;
-  return buildAuthCallbackRedirect(getCurrentReturnTo("/storyboard"));
+  return buildAuthCallbackRedirect(getCurrentReturnTo("/studio"));
 }
 
-function isStoryboardRoute() {
+function isBridgeRoute() {
   if (typeof window === "undefined") return false;
   const path = window.location?.pathname || "";
-  return path === "/storyboard" || path.startsWith("/storyboard/");
+  return path === "/storyboard" || path.startsWith("/storyboard/") || path === "/studio" || path.startsWith("/studio/");
 }
 
 function clearLocalAuthFallback() {
@@ -70,14 +70,14 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [storyboardBridgeOnly, setStoryboardBridgeOnly] = useState(false);
+  const [bridgeOnly, setBridgeOnly] = useState(false);
 
   const user = session?.user || null;
   const meta = useMemo(() => getUserMeta(user), [user]);
   const access = getAccountAccess(profile, session);
 
   useEffect(() => {
-    setStoryboardBridgeOnly(isStoryboardRoute());
+    setBridgeOnly(isBridgeRoute());
   }, []);
 
   useEffect(() => {
@@ -235,7 +235,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
   }
 
   useEffect(() => {
-    if (!storyboardBridgeOnly || typeof document === "undefined") return;
+    if (!bridgeOnly || typeof document === "undefined") return;
 
     function handleProfileMenuClick(event) {
       const item = event.target?.closest?.(".nc-profile-menu-item");
@@ -255,7 +255,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
     document.addEventListener("click", handleProfileMenuClick, true);
     return () => document.removeEventListener("click", handleProfileMenuClick, true);
-  }, [storyboardBridgeOnly, user?.id]);
+  }, [bridgeOnly, user?.id]);
 
   const generationModeText = !user
     ? "Вход нужен"
@@ -267,7 +267,7 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
   const canSwitchMode = Boolean(user && access.canLive);
 
-  if (storyboardBridgeOnly) return null;
+  if (bridgeOnly) return null;
 
   return (
     <section className="auth-panel-v42">
