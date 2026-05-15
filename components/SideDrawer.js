@@ -39,6 +39,19 @@ function pickLang(lang, tick = 0) {
   return String(value || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
 }
 
+function routeTool(tool, onNavigate) {
+  if (typeof window === "undefined") return;
+  const route = String(tool?.route || "");
+  const anchor = tool?.anchor || tool?.id;
+
+  if (route.startsWith("/")) {
+    window.location.href = route;
+    return;
+  }
+
+  onNavigate?.(anchor);
+}
+
 export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access, uiLang }) {
   const [langTick, setLangTick] = useState(0);
   const lang = pickLang(uiLang, langTick);
@@ -83,8 +96,8 @@ export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, ac
       window.dispatchEvent(new CustomEvent("neurocine-open-pack-tab", { detail: { tab: tool.packTab } }));
     }
     onSelectTool?.(tool);
-    onNavigate?.(tool.anchor || tool.id);
     onClose?.();
+    routeTool(tool, onNavigate);
   }
 
   function openDirectorControl() {
