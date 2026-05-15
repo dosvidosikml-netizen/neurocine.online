@@ -9,7 +9,7 @@ function userMeta(user) {
   const meta = user?.user_metadata || {};
   return {
     email: user?.email || meta.email || "",
-    name: meta.full_name || meta.name || user?.email || "Director",
+    name: meta.full_name || meta.name || user?.email || "Главный режиссёр",
     avatar: meta.avatar_url || meta.picture || "",
   };
 }
@@ -26,8 +26,9 @@ function ControlRoomStyles() {
         min-height: 100vh;
         padding: 22px;
         background:
-          radial-gradient(circle at 12% 0%, rgba(168, 85, 247, 0.18), transparent 34%),
-          radial-gradient(circle at 90% 8%, rgba(229, 53, 53, 0.12), transparent 32%),
+          radial-gradient(circle at 12% 0%, rgba(168, 85, 247, 0.20), transparent 34%),
+          radial-gradient(circle at 90% 8%, rgba(229, 53, 53, 0.13), transparent 32%),
+          radial-gradient(circle at 50% 100%, rgba(250, 204, 21, 0.07), transparent 35%),
           #07080f;
       }
       .nc-admin-gate {
@@ -41,7 +42,7 @@ function ControlRoomStyles() {
         background: rgba(255,255,255,.055);
         border-radius: 28px;
         padding: 28px;
-        box-shadow: 0 24px 90px rgba(0,0,0,.55);
+        box-shadow: 0 24px 90px rgba(0,0,0,.55), 0 0 55px rgba(168,85,247,.12);
       }
       .nc-admin-card span,
       .nc-admin-hero p {
@@ -51,7 +52,7 @@ function ControlRoomStyles() {
         font-weight: 900;
         letter-spacing: .28em;
         text-transform: uppercase;
-        color: #c084fc;
+        color: #f0abfc;
       }
       .nc-admin-card h1,
       .nc-admin-hero h1 {
@@ -91,8 +92,9 @@ function ControlRoomStyles() {
       .nc-admin-card button {
         width: 100%;
         margin-top: 20px;
-        background: linear-gradient(135deg, #a855f7, #e53535);
+        background: linear-gradient(135deg, #a855f7, #e53535, #facc15);
         border-color: transparent;
+        box-shadow: 0 0 28px rgba(168,85,247,.26);
       }
       .nc-admin-card a {
         display: inline-flex;
@@ -109,16 +111,38 @@ function ControlRoomStyles() {
         gap: 20px;
         max-width: 1440px;
         margin: 0 auto 20px;
-        border: 1px solid rgba(255,255,255,.1);
+        border: 1px solid rgba(255,255,255,.12);
         background: rgba(255,255,255,.045);
         border-radius: 30px;
         padding: 24px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 18px 80px rgba(0,0,0,.35);
       }
       .nc-admin-hero nav {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
         justify-content: flex-end;
+      }
+      .nc-admin-owner-badge {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 10px;
+        width: fit-content;
+        margin: 14px 0 0 !important;
+        padding: 10px 14px;
+        border: 1px solid rgba(250,204,21,.38);
+        border-radius: 999px;
+        background: linear-gradient(135deg, rgba(250,204,21,.16), rgba(168,85,247,.18), rgba(229,53,53,.12));
+        color: #fff7d6 !important;
+        font-size: 12px !important;
+        font-weight: 950;
+        letter-spacing: .08em !important;
+        text-transform: uppercase;
+        box-shadow: 0 0 32px rgba(250,204,21,.18), 0 0 60px rgba(168,85,247,.12);
+      }
+      .nc-admin-owner-badge strong {
+        color: #fff;
+        text-shadow: 0 0 14px rgba(250,204,21,.55), 0 0 24px rgba(168,85,247,.35);
       }
       .nc-admin-grid {
         max-width: 1440px;
@@ -150,12 +174,8 @@ function ControlRoomStyles() {
         display: block;
         background: rgba(255,255,255,.045);
       }
-      .nc-admin-content {
-        min-width: 0;
-      }
-      .nc-admin-content .admin-panel-v59 {
-        margin: 0;
-      }
+      .nc-admin-content { min-width: 0; }
+      .nc-admin-content .admin-panel-v59 { margin: 0; }
       @media (max-width: 900px) {
         .nc-admin-page { padding: 12px; }
         .nc-admin-hero { flex-direction: column; border-radius: 24px; }
@@ -173,11 +193,11 @@ function AdminAccessGate({ account, loading, onLogin, onLogout, busy, error }) {
   const allowed = Boolean(access.isOwner || access.isAdmin);
 
   if (loading) {
-    return <><ControlRoomStyles /><div className="nc-admin-gate"><div className="nc-admin-card"><b>Проверяю Director-доступ…</b><p>Загружаю сессию и профиль.</p></div></div></>;
+    return <><ControlRoomStyles /><div className="nc-admin-gate"><div className="nc-admin-card"><b>Проверяю режиссёрский доступ…</b><p>Загружаю сессию и профиль.</p></div></div></>;
   }
 
   if (!isSupabaseConfigured) {
-    return <><ControlRoomStyles /><div className="nc-admin-gate"><div className="nc-admin-card danger"><b>Supabase не настроен</b><p>Для Director Control Room нужны NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY.</p></div></div></>;
+    return <><ControlRoomStyles /><div className="nc-admin-gate"><div className="nc-admin-card danger"><b>Supabase не настроен</b><p>Для «Режиссёрской рубки» нужны NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY.</p></div></div></>;
   }
 
   if (!signedIn) {
@@ -186,12 +206,12 @@ function AdminAccessGate({ account, loading, onLogin, onLogout, busy, error }) {
         <ControlRoomStyles />
         <div className="nc-admin-gate">
           <div className="nc-admin-card">
-            <span>DIRECTOR CONTROL ROOM</span>
+            <span>РЕЖИССЁРСКАЯ РУБКА</span>
             <h1>Закрытая панель управления</h1>
-            <p>Войди через аккаунт владельца или администратора NeuroCine. Storyboard Studio не загружается и не патчится.</p>
+            <p>Войди через аккаунт владельца или администратора NeuroCine. Центральная Storyboard Studio здесь не загружается и не патчится.</p>
             {error && <em>{error}</em>}
             <button type="button" onClick={onLogin} disabled={busy}>{busy ? "Открываю Google…" : "Войти через Google"}</button>
-            <a href="/storyboard">← Вернуться в Storyboard Studio</a>
+            <a href="/storyboard">← Вернуться в Студию раскадровки</a>
           </div>
         </div>
       </>
@@ -205,11 +225,11 @@ function AdminAccessGate({ account, loading, onLogin, onLogout, busy, error }) {
         <div className="nc-admin-gate">
           <div className="nc-admin-card danger">
             <span>403</span>
-            <h1>Director access required</h1>
-            <p>Этот раздел доступен только владельцу или администратору. Твой текущий план: {access.publicLabel || access.label || "USER"}.</p>
+            <h1>Нужен доступ главного режиссёра</h1>
+            <p>Этот раздел доступен только владельцу или администратору. Твой текущий план: {access.publicLabel || access.label || "пользователь"}.</p>
             <div className="nc-admin-gate-actions">
               <button type="button" onClick={onLogout} disabled={busy}>Выйти</button>
-              <a href="/storyboard">В Storyboard Studio</a>
+              <a href="/storyboard">В Студию раскадровки</a>
             </div>
           </div>
         </div>
@@ -243,10 +263,10 @@ export default function AdminControlRoom() {
       try {
         const { data, error: sessionError } = await supabase.auth.getSession();
         if (!mounted) return;
-        if (sessionError) setError(sessionError.message || "Auth session error");
+        if (sessionError) setError(sessionError.message || "Ошибка сессии");
         setSession(data?.session || null);
       } catch (e) {
-        if (mounted) setError(e?.message || "Auth bootstrap failed");
+        if (mounted) setError(e?.message || "Не удалось загрузить авторизацию");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -291,7 +311,7 @@ export default function AdminControlRoom() {
         const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
         if (mounted) setProfile(data || baseProfile);
       } catch (e) {
-        if (mounted) setError(e?.message || "Profile load failed");
+        if (mounted) setError(e?.message || "Не удалось загрузить профиль");
       }
     }
     loadProfile();
@@ -339,25 +359,26 @@ export default function AdminControlRoom() {
       <ControlRoomStyles />
       <header className="nc-admin-hero">
         <div>
-          <p>DIRECTOR CONTROL ROOM</p>
+          <p>РЕЖИССЁРСКАЯ РУБКА</p>
           <h1>Панель управления NeuroCine</h1>
-          <span>Админка вынесена из /storyboard. Центральная Studio остаётся чистой.</span>
+          <span>Админка вынесена из /storyboard. Центральная Студия раскадровки остаётся чистой.</span>
+          <span className="nc-admin-owner-badge">✨ <strong>{meta.name || "Главный режиссёр"}</strong> · сияющий доступ владельца</span>
         </div>
         <nav>
-          <a href="/storyboard">Storyboard Studio</a>
-          <a href="/series">Series Studio</a>
+          <a href="/storyboard">Студия раскадровки</a>
+          <a href="/series">Студия сериалов</a>
           <button type="button" onClick={logout} disabled={busy}>Выйти</button>
         </nav>
       </header>
 
       <section className="nc-admin-grid">
         <aside className="nc-admin-rail">
-          <b>Control modules</b>
-          <a href="#director-console-content">Users & Roles</a>
-          <a href="#director-console-content">Billing requests</a>
-          <a href="#director-console-content">Usage events</a>
-          <a href="#director-console-content">API access</a>
-          <small>Следующие модули подключим сюда, не в /storyboard.</small>
+          <b>Модули управления</b>
+          <a href="#director-console-content">Пользователи и роли</a>
+          <a href="#director-console-content">Заявки и тарифы</a>
+          <a href="#director-console-content">Журнал генераций</a>
+          <a href="#director-console-content">API и модели</a>
+          <small>Следующие модули подключим сюда, а не в /storyboard.</small>
         </aside>
         <div className="nc-admin-content">
           <AdminPanel account={account} />
