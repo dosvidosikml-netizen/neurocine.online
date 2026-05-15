@@ -56,6 +56,14 @@ function clearLocalAuthFallback() {
   } catch {}
 }
 
+function menuActionText(node) {
+  try {
+    return String(node?.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
 export default function AuthPanel({ devMode = true, onModeToggle, onAccountChange }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -225,6 +233,29 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
       window.location.assign("/?signed_out=1");
     }
   }
+
+  useEffect(() => {
+    if (!storyboardBridgeOnly || typeof document === "undefined") return;
+
+    function handleProfileMenuClick(event) {
+      const item = event.target?.closest?.(".nc-profile-menu-item");
+      if (!item) return;
+      const text = menuActionText(item);
+      if (text.includes("войти")) {
+        event.preventDefault();
+        event.stopPropagation();
+        loginWithGoogle();
+      }
+      if (text.includes("выйти")) {
+        event.preventDefault();
+        event.stopPropagation();
+        logout();
+      }
+    }
+
+    document.addEventListener("click", handleProfileMenuClick, true);
+    return () => document.removeEventListener("click", handleProfileMenuClick, true);
+  }, [storyboardBridgeOnly, user?.id]);
 
   const generationModeText = !user
     ? "Вход нужен"
