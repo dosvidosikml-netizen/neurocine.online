@@ -17,10 +17,6 @@ import { downloadTextFile, downloadJsonFile, safeFileName } from "../../lib/down
 import { validateScript } from "../../lib/scriptValidator";
 import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
-import UserDashboard from "../../components/UserDashboard";
-import BillingPanel from "../../components/BillingPanel";
-import CloudProjectsPanel from "../../components/CloudProjectsPanel";
-import AdminPanel from "../../components/AdminPanel";
 import StudioFlowPanel from "../../components/StudioFlowPanel";
 import TopActionBar from "../../components/TopActionBar";
 import MobileBottomNav from "../../components/MobileBottomNav";
@@ -1554,24 +1550,6 @@ ${lines.join("\n")}` : "";
           <h2>Вход обязателен</h2>
           <p>Без Google-аккаунта рабочая зона закрыта: вход нужен для проектов, сценариев и storyboard.</p>
           <p><b>FREE Preview</b> открывается после входа. PRO включает полный рабочий режим.</p>
-        </section>
-      )}
-
-      {isSignedIn && <UserDashboard account={account} devMode={effectiveDevMode} onAccountPatch={patchAccountProfile} />}
-      {isSignedIn && <BillingPanel account={account} />}
-      {isSignedIn && (accountAccess.isOwner || accountAccess.isAdmin) && <AdminPanel account={account} />}
-
-      {isSignedIn && (
-        <section id="projects" className="nc-projects-anchor">
-          <CloudProjectsPanel
-            account={account}
-            projectName={projectName}
-            buildSnapshot={buildProjectSnapshot}
-            applySnapshot={applyProjectSnapshot}
-            onStatus={setSnapshotStatus}
-            autoSaveKey={cloudAutoSaveKey}
-            autoSaveEnabled={true}
-          />
         </section>
       )}
 
