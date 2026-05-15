@@ -3,12 +3,24 @@
 import { getToolsByGroup, getToolGroups } from "../lib/toolsRegistry";
 
 const GROUP_ORDER = ["workflow", "pack", "system"];
+const UI_LANG_KEY = "neurocine.uiLang";
 
-function pickLang(lang = "ru") {
-  return String(lang || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
+function savedLang() {
+  if (typeof window === "undefined") return "ru";
+  try {
+    const v = window.localStorage.getItem(UI_LANG_KEY);
+    return v === "en" ? "en" : "ru";
+  } catch {
+    return "ru";
+  }
 }
 
-export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access, uiLang = "ru" }) {
+function pickLang(lang) {
+  const value = lang || savedLang();
+  return String(value || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
+}
+
+export default function SideDrawer({ open, onClose, onNavigate, onSelectTool, access, uiLang }) {
   const lang = pickLang(uiLang);
   const isRu = lang === "ru";
   const plan = access?.isOwner || access?.isAdmin ? (isRu ? "ГЛАВНЫЙ РЕЖИССЁР" : "DIRECTOR") : access?.role === "pro" ? "PRO" : "FREE";
