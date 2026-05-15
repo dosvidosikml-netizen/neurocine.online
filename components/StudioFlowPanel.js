@@ -17,16 +17,14 @@ function StudioFlowStyles() {
   return (
     <style jsx global>{`
       .nc-flow-v72,
-      .nc-flow-v72 * {
-        box-sizing: border-box;
-      }
+      .nc-flow-v72 * { box-sizing: border-box; }
 
       .nc-flow-v72 {
         --flow-progress: 7%;
         position: relative;
         width: min(calc(100% - 18px), 1180px);
         margin: 10px auto 14px;
-        padding: 12px;
+        padding: 16px 12px 12px;
         overflow: hidden;
         border: 1px solid rgba(255,255,255,.10);
         border-radius: 24px;
@@ -69,12 +67,17 @@ function StudioFlowStyles() {
         min-width: 0;
         border: 1px solid rgba(255,255,255,.085);
         border-radius: 19px;
-        padding: 13px;
+        padding: 22px 13px 13px;
         background: rgba(255,255,255,.042);
       }
 
+      .nc-flow-summary-v72 > div:first-child {
+        min-width: 0;
+        padding-top: 3px;
+      }
+
       .nc-flow-kicker-v72 {
-        margin: 0 0 5px;
+        margin: 0 0 8px;
         color: #c4b5fd;
         font-size: 10px;
         font-weight: 950;
@@ -84,10 +87,11 @@ function StudioFlowStyles() {
 
       .nc-flow-title-v72 {
         margin: 0;
+        padding-top: 2px;
         color: #f8fafc;
         font-size: clamp(22px, 7vw, 32px);
-        line-height: .96;
-        letter-spacing: -.06em;
+        line-height: 1.08;
+        letter-spacing: -.055em;
       }
 
       .nc-flow-desc-v72 {
@@ -269,9 +273,7 @@ function StudioFlowStyles() {
         letter-spacing: .10em;
       }
 
-      .nc-flow-copy-v72 {
-        min-width: 0;
-      }
+      .nc-flow-copy-v72 { min-width: 0; }
 
       .nc-flow-copy-v72 strong {
         display: block;
@@ -314,9 +316,7 @@ function StudioFlowStyles() {
         box-shadow: 0 0 0 4px rgba(7,9,16,.90), 0 0 18px rgba(34,197,94,.42);
       }
 
-      .nc-flow-step-v72.done .nc-flow-status-v72 {
-        color: #86efac;
-      }
+      .nc-flow-step-v72.done .nc-flow-status-v72 { color: #86efac; }
 
       .nc-flow-step-v72.active {
         border-color: rgba(250,204,21,.36);
@@ -336,14 +336,12 @@ function StudioFlowStyles() {
         background: linear-gradient(135deg, #facc15, #f97316);
       }
 
-      .nc-flow-step-v72.active .nc-flow-status-v72 {
-        color: #facc15;
-      }
+      .nc-flow-step-v72.active .nc-flow-status-v72 { color: #facc15; }
 
       @media (min-width: 900px) {
         .nc-flow-v72 {
           width: min(calc(100% - 36px), 1180px);
-          padding: 18px;
+          padding: 22px 18px 18px;
           border-radius: 28px;
         }
         .nc-flow-grid-v72 {
@@ -352,19 +350,16 @@ function StudioFlowStyles() {
         }
         .nc-flow-summary-v72 {
           min-height: 330px;
-          padding: 18px;
+          padding: 24px 18px 18px;
           align-content: space-between;
           border-radius: 23px;
         }
         .nc-flow-title-v72 {
           font-size: clamp(30px, 3vw, 44px);
+          line-height: 1.06;
         }
-        .nc-flow-desc-v72 {
-          display: block;
-        }
-        .nc-flow-info-v72 {
-          gap: 12px;
-        }
+        .nc-flow-desc-v72 { display: block; }
+        .nc-flow-info-v72 { gap: 12px; }
         .nc-flow-timeline-v72 {
           padding: 16px;
           border-radius: 23px;
@@ -374,9 +369,7 @@ function StudioFlowStyles() {
           padding-left: 31px;
         }
         .nc-flow-steps-v72::before,
-        .nc-flow-steps-v72::after {
-          left: 10px;
-        }
+        .nc-flow-steps-v72::after { left: 10px; }
         .nc-flow-step-v72 {
           grid-template-columns: 38px minmax(0, 1fr) auto;
           min-height: 58px;
@@ -394,37 +387,27 @@ function StudioFlowStyles() {
           height: 38px;
           border-radius: 13px;
         }
-        .nc-flow-copy-v72 strong {
-          font-size: 15px;
-        }
-        .nc-flow-copy-v72 em {
-          font-size: 11px;
-        }
-        .nc-flow-status-v72 {
-          font-size: 10px;
-        }
+        .nc-flow-copy-v72 strong { font-size: 15px; }
+        .nc-flow-copy-v72 em { font-size: 11px; }
+        .nc-flow-status-v72 { font-size: 10px; }
       }
 
       @media (max-width: 390px) {
         .nc-flow-v72 {
           width: min(calc(100% - 12px), 1180px);
-          padding: 9px;
+          padding: 14px 9px 9px;
+        }
+        .nc-flow-summary-v72 {
+          padding: 20px 12px 12px;
         }
         .nc-flow-title-v72 {
           font-size: 20px;
+          line-height: 1.1;
         }
-        .nc-flow-timeline-v72 {
-          padding: 8px;
-        }
-        .nc-flow-steps-v72 {
-          padding-left: 21px;
-        }
-        .nc-flow-step-v72 {
-          grid-template-columns: 30px minmax(0, 1fr);
-        }
-        .nc-flow-status-v72 {
-          display: none;
-        }
+        .nc-flow-timeline-v72 { padding: 8px; }
+        .nc-flow-steps-v72 { padding-left: 21px; }
+        .nc-flow-step-v72 { grid-template-columns: 30px minmax(0, 1fr); }
+        .nc-flow-status-v72 { display: none; }
       }
 
       @keyframes nc-flow-in-v72 {
