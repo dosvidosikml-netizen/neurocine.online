@@ -351,46 +351,74 @@ function StudioPackageStyles() {
       }
 
       @media (max-width: 760px) {
+        body.nc-studio-package-home {
+          padding-bottom: calc(142px + env(safe-area-inset-bottom)) !important;
+        }
+
         .nc-studio-pack-v1 {
           width: min(calc(100% - 18px), 1180px);
-          margin-top: 8px;
-          max-height: calc(100dvh - 226px);
-          overflow-y: auto;
+          margin-top: 14px;
+          margin-bottom: calc(128px + env(safe-area-inset-bottom));
+          max-height: none !important;
+          overflow-y: visible !important;
           overflow-x: hidden;
-          padding: 11px;
+          padding: 16px 11px 24px;
           border-radius: 23px;
-          overscroll-behavior: contain;
+          overscroll-behavior: auto;
         }
-        .nc-studio-pack-v1::-webkit-scrollbar { width: 0; height: 0; }
+
         .nc-studio-pack-head-v1 {
-          padding: 15px;
+          padding: 18px 15px 16px;
           border-radius: 19px;
         }
+
         .nc-studio-pack-title-v1 {
           font-size: clamp(28px, 8vw, 36px);
-          line-height: 1.02;
+          line-height: 1.08;
         }
+
         .nc-studio-pack-copy-v1 {
           font-size: 13px;
-          line-height: 1.42;
+          line-height: 1.46;
         }
-        .nc-studio-pack-cards-v1 { gap: 8px; }
+
+        .nc-studio-pack-cards-v1 {
+          gap: 10px;
+        }
+
         .nc-studio-pack-card-v1 {
           border-radius: 18px;
-          padding: 12px;
+          padding: 17px 14px 15px;
+          min-height: 188px;
         }
+
+        .nc-studio-pack-card-top-v1 strong {
+          line-height: 1.08;
+        }
+
+        .nc-studio-pack-price-v1 {
+          line-height: 1.05;
+          padding-top: 4px;
+        }
+
         .nc-studio-pack-list-v1 {
           grid-template-columns: 1fr 1fr;
+          gap: 7px 10px;
+        }
+
+        .nc-studio-pack-note-v1 {
+          margin-top: 10px;
+          margin-bottom: 4px;
         }
       }
 
       @media (max-width: 390px) {
         .nc-studio-pack-v1 {
           width: min(calc(100% - 12px), 1180px);
-          max-height: calc(100dvh - 218px);
-          padding: 9px;
+          max-height: none !important;
+          padding: 15px 9px 24px;
         }
-        .nc-studio-pack-head-v1 { padding: 13px; }
+        .nc-studio-pack-head-v1 { padding: 17px 13px 15px; }
         .nc-studio-pack-list-v1 { grid-template-columns: 1fr; }
         .nc-studio-pack-actions-v1 { grid-template-columns: 1fr; }
       }
