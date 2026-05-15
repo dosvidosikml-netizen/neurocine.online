@@ -20,6 +20,14 @@ export default function AuthCallback({ next = "/storyboard" }) {
       const safeNext = getSafeReturnTo(next || fallback || "/storyboard");
 
       try {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        if (code && supabase.auth.exchangeCodeForSession) {
+          setMessage("Подтверждаю сессию Supabase…");
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href);
+          if (exchangeError) throw exchangeError;
+        }
+
         const { data, error } = await supabase.auth.getSession();
         if (cancelled) return;
         if (error) throw error;
