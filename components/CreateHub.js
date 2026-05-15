@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { getCreateTools, getToolGroups, getToolsByGroup } from "../lib/toolsRegistry";
 import ToolCard from "./ToolCard";
 
@@ -15,14 +16,25 @@ function savedLang() {
   }
 }
 
-function pickLang(lang) {
+function pickLang(lang, tick = 0) {
+  void tick;
   const value = lang || savedLang();
   return String(value || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
 }
 
 export default function CreateHub({ open, onClose, onSelectTool, access, uiLang }) {
+  const [langTick, setLangTick] = useState(0);
+
+  useEffect(() => {
+    function handleLangEvent() {
+      setLangTick(v => v + 1);
+    }
+    window.addEventListener("neurocine-ui-lang", handleLangEvent);
+    return () => window.removeEventListener("neurocine-ui-lang", handleLangEvent);
+  }, []);
+
   if (!open) return null;
-  const lang = pickLang(uiLang);
+  const lang = pickLang(uiLang, langTick);
   const isRu = lang === "ru";
   const tools = getCreateTools(lang);
   const groups = getToolGroups(lang);
