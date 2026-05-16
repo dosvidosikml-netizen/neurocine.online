@@ -1,0 +1,23 @@
+/* Cartoon clean flow overrides
+   Step 04 should be simple:
+   сценарий -> ДАЛЕЕ -> automatic storyboard V2 -> PART Grid.
+*/
+
+.qcc-root .step-panel:has(> .mind-btn) > .qv2-primary{
+  display:none !important;
+}
+
+.qcc-root .step-panel:has(> .mind-btn) > .q-body{
+  font-size:0 !important;
+  line-height:0 !important;
+  margin-bottom:20px !important;
+}
+
+.qcc-root .step-panel:has(> .mind-btn) > .q-body::after{
+  content:"Вставь сценарий или сгенерируй. Кнопка ДАЛЕЕ автоматически создаст storyboard JSON V2 и откроет PART-сетку.";
+  display:block;
+  color:var(--muted, rgba(80,140,255,.58));
+  font-size:13px;
+  line-height:1.7;
+  font-weight:300;
+}
