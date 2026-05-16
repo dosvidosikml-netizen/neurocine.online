@@ -1,266 +1,363 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 
-const UI = {
-  ru: {
-    logoSub: "Quantum Cartoon Intelligence · v1",
-    backStudio: "← Studio",
-    ru: "RU · Рус",
-    en: "EN · Eng",
-    next: "ДАЛЕЕ →",
-    back: "← НАЗАД",
-    launch: "ОТПРАВИТЬ В PIPELINE →",
-    copied: "✓ JSON скопирован",
-    sent: "✓ ОТПРАВЛЕНО В PIPELINE",
-    step: ["INIT", "STYLE", "HERO", "SCRIPT", "BOARD", "EXPORT"],
-    typeLines: [
-      "Collapsing wave functions into scenes...",
-      "Neural pathways → storyboard nodes...",
-      "Quantum superposition of creativity...",
-      "Entangling characters across dimensions...",
-    ],
-    s1k: "Quantum Init · Step 01", s1a: "Initialize", s1b: "your project",
-    s1p: "Задай параметры мультфильма. Каждый выбор становится частью JSON-паспорта проекта.",
-    title: "Название мультфильма", titlePh: "Например: Кот, который нашёл портал",
-    format: "Формат", duration: "Probability Wave · Duration", scenes: "сцен",
-    s2k: "Visual Matrix · Step 02", s2a: "Mind's eye", s2b: "visual field",
-    s2p: "Выбери визуальный стиль, настроение и палитру. Это станет style lock для всех сцен.",
-    renderStyle: "Render Style · Eigenstate", mood: "Mood · Quantum Entanglement", palette: "Color Wavefunction",
-    custom: "Custom Prompt Vector", customPh: "watercolor, dreamy, soft particle glow...",
-    s3k: "Neural Signatures · Step 03", s3a: "Character", s3b: "entanglement",
-    s3p: "До 3 нейросигнатур. Face Lock сохраняет визуальное ДНК во всех кадрах.",
-    addHero: "⊕ INIT NEW CHARACTER NODE", heroName: "Name", heroDesc: "Appearance / personality", heroRole: "Role",
-    faceLock: "Face Lock", faceSub: "зафиксировать лицо / силуэт",
-    s4k: "Consciousness Stream · Step 04", s4a: "Narrator", s4b: "mind stream",
-    s4p: "Поток сознания диктора. Каждое предложение становится нейронным узлом в раскадровке.",
-    buildDemo: "✦ GENERATE VIA QUANTUM MIND", voice: "Voice Waveform", script: "Consciousness Text Stream",
-    scriptPh: "// каждое предложение → синаптический узел...",
-    words: "WORDS", nodes: "NODES",
-    s5k: "Synaptic Map · Step 05", s5a: "Storyboard", s5b: "neural grid",
-    s5p: "Проверь сцены, камеру и characters in scene. Это основа для image/video prompts.",
-    rewire: "↺ REWIRE", sceneVoice: "Voice Signal", imagePrompt: "Image Prompt Vector", camera: "Camera · Photon Path",
-    s6k: "Wave Collapse · Step 06", s6a: "Quantum", s6b: "collapse · export",
-    s6p: "Итоговый JSON проекта. Позже он будет отправляться в настоящий cartoonEngine NeuroCine.",
-    project: "PROJECT", characters: "CHARACTERS", storyboard: "STORYBOARD", copy: "⊕ COPY",
-  },
-  en: {
-    logoSub: "Quantum Cartoon Intelligence · v1",
-    backStudio: "← Studio",
-    ru: "RU · Rus",
-    en: "EN · Eng",
-    next: "NEXT →",
-    back: "← BACK",
-    launch: "SEND TO PIPELINE →",
-    copied: "✓ JSON copied",
-    sent: "✓ SENT TO PIPELINE",
-    step: ["INIT", "STYLE", "HERO", "SCRIPT", "BOARD", "EXPORT"],
-    typeLines: [
-      "Collapsing wave functions into scenes...",
-      "Neural pathways → storyboard nodes...",
-      "Quantum superposition of creativity...",
-      "Entangling characters across dimensions...",
-    ],
-    s1k: "Quantum Init · Step 01", s1a: "Initialize", s1b: "your project",
-    s1p: "Set cartoon parameters. Every choice becomes part of the project JSON passport.",
-    title: "Cartoon title", titlePh: "Example: The cat who found a portal",
-    format: "Format", duration: "Probability Wave · Duration", scenes: "scenes",
-    s2k: "Visual Matrix · Step 02", s2a: "Mind's eye", s2b: "visual field",
-    s2p: "Choose visual style, mood and palette. This becomes the style lock across scenes.",
-    renderStyle: "Render Style · Eigenstate", mood: "Mood · Quantum Entanglement", palette: "Color Wavefunction",
-    custom: "Custom Prompt Vector", customPh: "watercolor, dreamy, soft particle glow...",
-    s3k: "Neural Signatures · Step 03", s3a: "Character", s3b: "entanglement",
-    s3p: "Up to 3 neural signatures. Face Lock keeps visual DNA consistent across frames.",
-    addHero: "⊕ INIT NEW CHARACTER NODE", heroName: "Name", heroDesc: "Appearance / personality", heroRole: "Role",
-    faceLock: "Face Lock", faceSub: "lock face / silhouette",
-    s4k: "Consciousness Stream · Step 04", s4a: "Narrator", s4b: "mind stream",
-    s4p: "Narrator stream. Every sentence becomes a neural storyboard node.",
-    buildDemo: "✦ GENERATE VIA QUANTUM MIND", voice: "Voice Waveform", script: "Consciousness Text Stream",
-    scriptPh: "// each sentence → synaptic node...",
-    words: "WORDS", nodes: "NODES",
-    s5k: "Synaptic Map · Step 05", s5a: "Storyboard", s5b: "neural grid",
-    s5p: "Review scenes, camera and characters in scene. This is the base for image/video prompts.",
-    rewire: "↺ REWIRE", sceneVoice: "Voice Signal", imagePrompt: "Image Prompt Vector", camera: "Camera · Photon Path",
-    s6k: "Wave Collapse · Step 06", s6a: "Quantum", s6b: "collapse · export",
-    s6p: "Final project JSON. Later it will be sent to the real NeuroCine cartoonEngine.",
-    project: "PROJECT", characters: "CHARACTERS", storyboard: "STORYBOARD", copy: "⊕ COPY",
-  },
+const CAMS = ["Wide Shot", "Medium Shot", "Close-Up", "Over Shoulder", "Low Angle", "Extreme CU", "Aerial", "POV"];
+const CAM_ICO = { "Wide Shot": "🏞", "Medium Shot": "🎭", "Close-Up": "🔍", "Over Shoulder": "🎬", "Low Angle": "⬆️", "Extreme CU": "👁", "Aerial": "🛸", "POV": "👀" };
+const MODS = ["beard", "scar", "dirt", "bruises", "sweat", "exhaustion", "pale", "crown", "glasses", "mask"];
+const ACT_CLS = { HOOK: "aH", BUILD: "aB", CLIMAX: "aC", OUTRO: "aO" };
+const STYLE_PROMPTS = {
+  anime: "anime cel-shaded, vibrant quantum colors, detailed linework",
+  pixar: "3D premium cartoon, warm volumetric lighting, cinematic composition",
+  flat: "2D flat cartoon, bold outlines, bright solid colors",
+  cinema: "cinematic animation realism, dramatic quantum lighting",
+  pixel: "16-bit pixel art, limited palette, retro quantum aesthetic",
+  custom: "",
+};
+const DEMO_TEXT = {
+  ru: "Это история началась в один обычный день. Главный герой шёл по улице, ничего не подозревая. Вдруг перед ним возникло нечто невероятное! Сердце забилось быстрее. Он не мог поверить своим глазам. Мир вокруг изменился навсегда. И он понял — жизнь никогда не будет прежней.",
+  en: "The adventure began on an ordinary morning. Our hero discovered something extraordinary. Everything changed in an instant. The impossible became possible. Against all odds, courage prevailed.",
+  ua: "Ця пригода почалася звичайного дня. Герой не підозрював що чекає попереду. Раптово все змінилось. Сила духу виявилась сильнішою за страх.",
 };
 
-const formats = [
-  { id: "shorts", ket: "|shorts⟩", label: "SHORTS · REELS", aspect: "9:16", duration: 60, spec: "≤90s" },
-  { id: "tiktok", ket: "|tiktok⟩", label: "TIKTOK", aspect: "9:16", duration: 45, spec: "≤60s" },
-  { id: "youtube", ket: "|youtube⟩", label: "YOUTUBE", aspect: "16:9", duration: 300, spec: "≤10min" },
-  { id: "custom", ket: "|ψ⟩ superposition", label: "CUSTOM", aspect: "1:1", duration: 120, spec: "any ratio" },
-];
-const styles = [
-  { id: "anime", icon: "🌸", label: "ANIME" }, { id: "pixar", icon: "🎪", label: "3D PIXAR" },
-  { id: "flat", icon: "🎨", label: "2D FLAT" }, { id: "cinema", icon: "🎬", label: "CINEMA" },
-  { id: "pixel", icon: "👾", label: "PIXEL" }, { id: "custom", icon: "⚛️", label: "CUSTOM" },
-];
-const moods = ["light", "dark", "epic", "cute", "mystery"];
-const palettes = ["auto", "cool", "warm", "mono", "vivid"];
-const voices = ["neutral", "dramatic", "kids", "doc"];
-const roles = ["hero", "friend", "villain", "guide"];
-const cameras = ["Wide Shot", "Medium Shot", "Close-Up", "Low Angle", "POV"];
+const initialState = {
+  step: 1,
+  concept: { title: "", format: "shorts", aspect: "9:16", duration: 60, language: "ru" },
+  style: { preset: "anime", custom_prompt: "", mood: "light", palette: "AUTO" },
+  characters: [],
+  script: { text: "", voice_style: "neutral", segments: [] },
+  scenes: [],
+  selectedSceneIdx: null,
+  heroCounter: 0,
+  heroWarn: false,
+};
 
-function splitSentences(text) {
-  return String(text || "").split(/(?<=[.!?…])\s+|\n+/).map(s => s.trim()).filter(Boolean).slice(0, 18);
+function splitScript(text = "") {
+  return String(text)
+    .split(/(?<=[.!?…])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 4)
+    .slice(0, 18);
 }
 
-function makeScene(sentence, index, state) {
-  const styleText = state.style.preset === "custom" ? state.style.custom_prompt : state.style.preset;
-  const chars = state.characters.slice(0, Math.max(1, Math.min(2, state.characters.length))).map(c => c.name || c.id);
-  const act = index === 0 ? "HOOK" : index < 3 ? "BUILD" : index < 6 ? "CLIMAX" : "OUTRO";
-  const camera = cameras[index % cameras.length];
-  return {
-    id: `scene_${String(index + 1).padStart(2, "0")}`,
-    index: index + 1,
-    act,
-    duration_sec: Math.max(3, Math.round(state.project.duration / Math.max(1, splitSentences(state.script.text).length))),
-    voice_line: sentence,
-    camera,
-    characters_in_scene: chars,
-    image_prompt_en: `SCENE PRIMARY FOCUS: Cartoon scene in ${styleText} style, ${state.style.mood} mood, ${state.style.palette} palette. Visualize: ${sentence}. Keep character identity, clean silhouette, no text, no watermark.`,
-    video_prompt_en: `ANIMATE CURRENT FRAME: ${sentence}. ${camera}. Preserve cartoon style, character identity, outfit, proportions and world continuity. Smooth expressive animation. No subtitles, no UI, no watermark. SFX: soft cartoon ambience.`,
-    continuity_note: "Keep global cartoon style lock and character visual DNA consistent.",
-  };
+function getActs(n) {
+  return Array.from({ length: n }, (_, i) => {
+    const p = i / Math.max(1, n);
+    if (p < 0.1) return "HOOK";
+    if (p < 0.5) return "BUILD";
+    if (p < 0.85) return "CLIMAX";
+    return "OUTRO";
+  });
 }
 
-function initialState() {
-  return {
-    step: 1,
-    project: { id: `cartoon_${Date.now()}`, title: "", created_at: new Date().toISOString(), format: "shorts", duration: 60, aspect: "9:16", language: "ru" },
-    style: { preset: "anime", custom_prompt: "", mood: "light", palette: "auto" },
-    characters: [],
-    script: { text: "", voice_style: "neutral" },
-    scenes: [],
-    selectedScene: null,
-    status: "",
-  };
+function reducer(state, action) {
+  switch (action.type) {
+    case "GOTO": return { ...state, step: action.n };
+    case "SET_TITLE": return { ...state, concept: { ...state.concept, title: action.v } };
+    case "SET_FORMAT": return { ...state, concept: { ...state.concept, format: action.f, aspect: action.a, duration: action.d } };
+    case "SET_DURATION": return { ...state, concept: { ...state.concept, duration: action.v } };
+    case "SET_LANG": return { ...state, concept: { ...state.concept, language: action.v } };
+    case "SET_STYLE": return { ...state, style: { ...state.style, preset: action.v } };
+    case "SET_CUSTOM_PROMPT": return { ...state, style: { ...state.style, custom_prompt: action.v } };
+    case "SET_MOOD": return { ...state, style: { ...state.style, mood: action.v } };
+    case "SET_PALETTE": return { ...state, style: { ...state.style, palette: action.v } };
+    case "SET_VOICE_STYLE": return { ...state, script: { ...state.script, voice_style: action.v } };
+    case "SET_SCRIPT_TEXT": return { ...state, script: { ...state.script, text: action.v, segments: splitScript(action.v) }, scenes: [], selectedSceneIdx: null };
+    case "ADD_HERO": {
+      if (state.characters.length >= 3) return { ...state, heroWarn: true };
+      const n = state.heroCounter + 1;
+      const id = `neural_${String(n).padStart(2, "0")}`;
+      return {
+        ...state,
+        heroCounter: n,
+        heroWarn: state.characters.length + 1 >= 3,
+        characters: [...state.characters, { id, name: `NODE_${String(n).padStart(2, "0")}`, role: "main", description: "", reference_preview: null, reference_url: null, face_lock: true, modifiers: [], expanded: true }],
+      };
+    }
+    case "REMOVE_HERO": return { ...state, characters: state.characters.filter((h) => h.id !== action.id), heroWarn: false };
+    case "PATCH_HERO": return { ...state, characters: state.characters.map((h) => h.id === action.id ? { ...h, ...action.patch } : h) };
+    case "TOGGLE_HERO_EXP": return { ...state, characters: state.characters.map((h) => h.id === action.id ? { ...h, expanded: !h.expanded } : h) };
+    case "TOGGLE_HERO_MOD": return { ...state, characters: state.characters.map((h) => {
+      if (h.id !== action.id) return h;
+      const has = h.modifiers.includes(action.m);
+      return { ...h, modifiers: has ? h.modifiers.filter((x) => x !== action.m) : [...h.modifiers, action.m] };
+    }) };
+    case "BUILD_SCENES": return { ...state, scenes: action.scenes, selectedSceneIdx: action.scenes.length ? 0 : null };
+    case "SELECT_SCENE": return { ...state, selectedSceneIdx: action.i };
+    case "PATCH_SCENE": return { ...state, scenes: state.scenes.map((sc, i) => i === action.i ? { ...sc, ...action.patch } : sc) };
+    default: return state;
+  }
 }
 
-function makeProjectJson(state) {
-  const scenes = state.scenes.length ? state.scenes : splitSentences(state.script.text).map((x, i) => makeScene(x, i, state));
+function buildImagePrompt(state, scene, allScenes) {
+  const styleBase = state.style.preset === "custom" ? state.style.custom_prompt : STYLE_PROMPTS[state.style.preset];
+  const characters = state.characters
+    .filter((h) => scene.characters_in_scene.includes(h.id))
+    .map((h) => `${h.name}: ${h.description || "cartoon character"}${h.face_lock ? ", face lock enabled" : ""}${h.modifiers.length ? ", modifiers: " + h.modifiers.join(", ") : ""}`)
+    .join("; ");
+  return [
+    `SCENE PRIMARY FOCUS: ${scene.voice_line.slice(0, 92)}`,
+    `${styleBase || "high quality cartoon animation"}`,
+    `mood: ${state.style.mood}; palette: ${state.style.palette}; act: ${scene.act}`,
+    characters ? `Characters: ${characters}.` : "No locked character selected.",
+    `Camera: ${scene.camera}. Vertical ${state.concept.aspect}. Clean animation frame, no text, no watermark.`,
+    allScenes ? "Maintain visual DNA, style lock and character continuity across the whole cartoon." : "",
+  ].filter(Boolean).join(" ");
+}
+
+function buildScenesFromScript(state) {
+  const segments = state.script.segments.length ? state.script.segments : splitScript(state.script.text);
+  if (!segments.length) return [];
+  const acts = getActs(segments.length);
+  const duration = Math.max(2, Math.round(Number(state.concept.duration || 60) / segments.length));
+  const primary = state.characters[0]?.id;
+  const scenes = segments.map((line, i) => ({
+    id: `node_${String(i + 1).padStart(2, "0")}`,
+    order: i + 1,
+    act: acts[i],
+    voice_line: line,
+    duration_sec: duration,
+    camera: CAMS[i % CAMS.length],
+    characters_in_scene: primary ? [primary] : [],
+    image_prompt_en: "",
+    video_prompt_en: "",
+  }));
+  return scenes.map((scene, i) => {
+    const image = buildImagePrompt(state, scene, scenes);
+    return { ...scene, image_prompt_en: image, video_prompt_en: `ANIMATE CURRENT FRAME: ${image} Smooth expressive cartoon motion for ${scene.duration_sec}s. Preserve exact character identity, outfit, colors, face proportions and world continuity. SFX: soft cartoon ambience. No subtitles, no UI, no watermark.` };
+  });
+}
+
+function buildExportJSON(state) {
+  const scenes = state.scenes.length ? state.scenes : buildScenesFromScript(state);
   return {
-    project: { id: state.project.id, title: state.project.title || "Untitled Cartoon", created_at: state.project.created_at, format: state.project.format, duration_sec: Number(state.project.duration), aspect_ratio: state.project.aspect, language: state.project.language, style: state.style },
+    project: {
+      id: `quantum_${Date.now()}`,
+      title: state.concept.title || "Untitled Cartoon",
+      created_at: new Date().toISOString(),
+      format: state.concept.format,
+      duration_sec: Number(state.concept.duration),
+      aspect_ratio: state.concept.aspect,
+      language: state.concept.language,
+      style: state.style,
+    },
     characters: state.characters,
-    script: { full_text: state.script.text, voice_style: state.script.voice_style, word_count: state.script.text.trim() ? state.script.text.trim().split(/\s+/).length : 0, estimated_duration_sec: Number(state.project.duration), language: state.project.language },
-    storyboard: { total_scenes: scenes.length, total_duration_sec: scenes.reduce((a, s) => a + Number(s.duration_sec || 0), 0), scenes },
-    generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", model_image_analysis: "claude-sonnet-4-6", model_video_prompt: "claude-haiku-4-5", estimated_cost_usd: 0.04, pipeline: "cartoon_creator_v1" },
+    script: {
+      full_text: state.script.text,
+      voice_style: state.script.voice_style,
+      word_count: state.script.text.trim() ? state.script.text.trim().split(/\s+/).length : 0,
+      segments: state.script.segments,
+    },
+    storyboard: {
+      total_nodes: scenes.length,
+      total_duration_sec: scenes.reduce((a, s) => a + Number(s.duration_sec || 0), 0),
+      scenes,
+    },
+    generation: {
+      target: "veo3",
+      mode: "safe",
+      model_script: "gpt-5.4",
+      model_storyboard: "gpt-5.4",
+      model_image_analysis: "claude-sonnet-4-6",
+      model_video_prompt: "claude-haiku-4-5",
+      pipeline: "cartoon_creator_v1",
+    },
+    quantum_metadata: {
+      creator_ui: "quantum_cartoon_creator_packaged",
+      estimated_cost_usd: 0.04,
+    },
   };
+}
+
+function syntaxHL(json) {
+  return String(json)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (m) => {
+      if (/^"/.test(m)) return /:$/.test(m) ? `<span class="jk">${m}</span>` : `<span class="js">${m}</span>`;
+      if (/true|false|null/.test(m)) return `<span class="jb">${m}</span>`;
+      return `<span class="jn">${m}</span>`;
+    });
 }
 
 export default function QuantumCartoonCreator() {
-  const [lang, setLang] = useState("ru");
-  const [s, setS] = useState(initialState);
-  const [tagline, setTagline] = useState("");
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const fieldRef = useRef(null);
   const waveRef = useRef(null);
-  const t = UI[lang];
-  const segments = useMemo(() => splitSentences(s.script.text), [s.script.text]);
-  const json = useMemo(() => makeProjectJson(s), [s]);
-  const jsonText = useMemo(() => JSON.stringify(json, null, 2), [json]);
-  const selected = s.selectedScene ? s.scenes.find(x => x.id === s.selectedScene) : null;
+  const tagRef = useRef(null);
+  const waveCtrlRef = useRef(null);
+  const jsonBodyRef = useRef(null);
+  const jsonTextRef = useRef("");
+  const revealTimer = useRef(null);
 
   useEffect(() => {
-    let line = 0, char = 0, stop = false, timer = 0;
-    const tick = () => {
-      if (stop) return;
-      const current = t.typeLines[line % t.typeLines.length];
-      if (char <= current.length) {
-        setTagline(current.slice(0, char) + "_");
-        char += 1;
-        timer = window.setTimeout(tick, 38);
-      } else {
-        timer = window.setTimeout(() => { char = 0; line += 1; tick(); }, 1700);
-      }
+    document.body.classList.add("route-cartoon");
+    return () => document.body.classList.remove("route-cartoon");
+  }, []);
+
+  useEffect(() => {
+    let destroyField = () => {};
+    let destroyType = () => {};
+    let waveCtrl = { destroy: () => {}, setDuration: () => {} };
+    import("/cartoon/quantum-anim.js").then((mod) => {
+      destroyField = mod.initQuantumField?.(fieldRef.current) || destroyField;
+      waveCtrl = mod.initWaveCanvas?.(waveRef.current) || waveCtrl;
+      destroyType = mod.initTypewriter?.(tagRef.current) || destroyType;
+      waveCtrlRef.current = waveCtrl;
+      waveCtrl.setDuration(Number(state.concept.duration));
+    }).catch((err) => console.warn("[QCC] quantum-anim load failed", err));
+    return () => {
+      try { destroyField(); } catch {}
+      try { waveCtrl.destroy(); } catch {}
+      try { destroyType(); } catch {}
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    waveCtrlRef.current?.setDuration?.(Number(state.concept.duration));
+  }, [state.concept.duration]);
+
+  useEffect(() => {
+    if (state.step === 5 && state.scenes.length === 0) {
+      dispatch({ type: "BUILD_SCENES", scenes: buildScenesFromScript(state) });
+    }
+    if (state.step === 6) {
+      const json = JSON.stringify(buildExportJSON(state), null, 2);
+      jsonTextRef.current = json;
+      revealJson(json);
+    }
+    if (typeof window !== "undefined") {
+      window.qPulse?.(window.innerWidth / 2, Math.min(window.innerHeight * 0.45, 420), "#00d4ff");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.step]);
+
+  function revealJson(text) {
+    const body = jsonBodyRef.current;
+    if (!body) return;
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    let i = 0;
+    const full = syntaxHL(text);
+    function tick() {
+      if (i >= text.length) { body.innerHTML = full; return; }
+      body.textContent = text.slice(0, i) + "▋";
+      i += Math.floor(Math.random() * 7) + 3;
+      revealTimer.current = setTimeout(tick, 8);
+    }
     tick();
-    return () => { stop = true; window.clearTimeout(timer); };
-  }, [lang, t.typeLines]);
+  }
 
-  useEffect(() => {
-    const canvas = waveRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let raf = 0;
-    let phase = 0;
-    const draw = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const rect = canvas.getBoundingClientRect();
-      const w = Math.max(220, rect.width || 320);
-      const h = 42;
-      if (canvas.width !== Math.round(w * dpr)) {
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      phase += 0.04;
-      const pts = [];
-      const f = Number(s.project.duration || 60) / 600;
-      for (let x = 0; x <= w; x += 2) {
-        const y = h / 2 + Math.sin(x * 0.045 + phase) * 8 * f + Math.sin(x * 0.09 - phase * 1.5) * 4 * f + Math.sin(x * 0.02 + phase * 0.7) * 6 * f;
-        pts.push({ x, y });
-      }
-      const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, "rgba(0,180,255,.24)");
-      g.addColorStop(1, "rgba(0,80,255,.03)");
-      ctx.beginPath(); ctx.moveTo(0, h); pts.forEach(p => ctx.lineTo(p.x, p.y)); ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
-      ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.strokeStyle = "rgba(0,212,255,.72)"; ctx.lineWidth = 1.5; ctx.stroke();
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => cancelAnimationFrame(raf);
-  }, [s.project.duration]);
+  const goStep = useCallback((n) => {
+    if (n < 1 || n > 6) return;
+    dispatch({ type: "GOTO", n });
+  }, []);
 
-  function patch(path, value) {
-    setS(prev => {
-      const next = { ...prev, project: { ...prev.project }, style: { ...prev.style }, script: { ...prev.script } };
-      const [a, b] = path.split(".");
-      next[a] = { ...next[a], [b]: value };
-      return next;
+  function handleHeroUpload(id, files) {
+    const file = files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => dispatch({ type: "PATCH_HERO", id, patch: { reference_preview: e.target.result, reference_url: `[signal:${file.name}]` } });
+    reader.readAsDataURL(file);
+  }
+
+  function aiGenerate() {
+    const txt = DEMO_TEXT[state.concept.language] || DEMO_TEXT.ru;
+    dispatch({ type: "SET_SCRIPT_TEXT", v: txt });
+  }
+
+  function copyJson() {
+    const text = jsonTextRef.current || JSON.stringify(buildExportJSON(state), null, 2);
+    navigator.clipboard?.writeText(text).then(() => {
+      const btn = document.querySelector(".qcc-root .json-cp");
+      if (btn) {
+        const old = btn.textContent;
+        btn.textContent = "✓ COPIED";
+        setTimeout(() => { btn.textContent = old; }, 1600);
+      }
     });
   }
-  function buildScenes(src = s) { return splitSentences(src.script.text).map((x, i) => makeScene(x, i, src)); }
-  function goStep(n) {
-    setS(prev => ({ ...prev, step: Math.min(6, Math.max(1, n)), scenes: n >= 5 ? buildScenes(prev) : prev.scenes }));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-  function addHero() {
-    setS(prev => prev.characters.length >= 3 ? prev : ({ ...prev, characters: [...prev.characters, { id: `char_${prev.characters.length + 1}`, name: `Hero ${prev.characters.length + 1}`, description: "", role: "hero", face_lock: true, modifiers: [] }] }));
-  }
-  function patchHero(i, key, value) { setS(prev => ({ ...prev, characters: prev.characters.map((c, idx) => idx === i ? { ...c, [key]: value } : c) })); }
-  function deleteHero(i) { setS(prev => ({ ...prev, characters: prev.characters.filter((_, idx) => idx !== i) })); }
-  function demoScript() {
-    patch("script.text", lang === "ru"
-      ? "Однажды маленький робот проснулся на Луне. Он увидел светящийся след между кратерами. След привёл его к двери, которой вчера не было. За дверью жил потерянный солнечный зайчик. Робот понял, что должен вернуть его на небо. И когда зайчик прыгнул вверх, вся Луна впервые засветилась тёплым светом."
-      : "One day a tiny robot woke up on the Moon. He saw a glowing trail between the craters. The trail led him to a door that had not existed yesterday. Behind the door lived a lost sunbeam. The robot knew he had to return it to the sky. When the sunbeam jumped up, the Moon glowed with warm light for the first time.");
-  }
-  async function copyJson() {
-    await navigator.clipboard.writeText(jsonText);
-    setS(prev => ({ ...prev, status: t.copied }));
-    setTimeout(() => setS(prev => ({ ...prev, status: "" })), 1500);
+
+  function launch() {
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => window.qPulse?.(Math.random() * window.innerWidth, Math.random() * window.innerHeight, "#8b00ff"), i * 180);
+    }
   }
 
-  return <main className="qc-page">
-    <div className="qc-wrap">
-      <div className="qc-top"><a className="qc-back" href="/studio">{t.backStudio}</a><div className="qc-lang"><button className={lang === "ru" ? "on" : ""} onClick={() => { setLang("ru"); patch("project.language", "ru"); }}>{t.ru}</button><button className={lang === "en" ? "on" : ""} onClick={() => { setLang("en"); patch("project.language", "en"); }}>{t.en}</button></div></div>
-      <header className="q-header"><div className="q-logo"><div className="q-orb"><i /></div><div className="q-logo-text">NEUROCINE</div></div><div className="q-sub">{t.logoSub}</div><div className="q-tag">{tagline}</div></header>
-      <div className="q-stepbar">{t.step.map((label, i) => <div className="q-node" key={label}><button className={`q-dot ${s.step === i + 1 ? "on" : ""} ${s.step > i + 1 ? "done" : ""}`} onClick={() => goStep(i + 1)}>{s.step > i + 1 ? "✓" : String(i + 1).padStart(2, "0")}</button>{i < 5 && <div className={`q-wire ${s.step > i + 1 ? "done" : ""}`} />}</div>)}</div>
-      <section className="q-panel">
-        {s.step === 1 && <><Head k={t.s1k} a={t.s1a} b={t.s1b} p={t.s1p} /><Field label={t.title}><input className="q-inp" value={s.project.title} placeholder={t.titlePh} onChange={e => patch("project.title", e.target.value)} /></Field><Field label={t.format}><div className="fmt-grid">{formats.map(f => <button key={f.id} className={`fmt-card ${s.project.format === f.id ? "on" : ""}`} onClick={() => setS(prev => ({ ...prev, project: { ...prev.project, format: f.id, aspect: f.aspect, duration: f.duration } }))}><span className="collapse-wave" /><div className="fmt-ket">{f.ket}</div><div className="fmt-name">{f.label}</div><div className="fmt-spec">{f.aspect} · {f.spec}</div></button>)}</div></Field><Field label={t.duration}><div className="dur-panel"><div className="dur-display"><div><span className="dur-num">{s.project.duration}</span><span className="dur-s">s</span></div><div className="dur-sc">≈ {Math.max(1, Math.round(s.project.duration / 7))} {t.scenes}</div></div><canvas ref={waveRef} className="wave-canvas" height="42" /><input type="range" min="15" max="600" step="5" value={s.project.duration} onChange={e => patch("project.duration", Number(e.target.value))} /></div></Field></>}
-        {s.step === 2 && <><Head k={t.s2k} a={t.s2a} b={t.s2b} p={t.s2p} /><Field label={t.renderStyle}><div className="sty-grid">{styles.map(st => <button className={`sty-card ${s.style.preset === st.id ? "on" : ""}`} key={st.id} onClick={() => patch("style.preset", st.id)}><div className="sty-ico">{st.icon}</div><div className="sty-name">{st.label}</div></button>)}</div></Field>{s.style.preset === "custom" && <Field label={t.custom}><textarea className="q-inp" placeholder={t.customPh} value={s.style.custom_prompt} onChange={e => patch("style.custom_prompt", e.target.value)} /></Field>}<Field label={t.mood}><div className="chip-row">{moods.map(m => <button key={m} className={`q-chip ${s.style.mood === m ? "on" : ""}`} onClick={() => patch("style.mood", m)}>{m.toUpperCase()}</button>)}</div></Field><Field label={t.palette}><div className="chip-row">{palettes.map(p => <button key={p} className={`q-chip ${s.style.palette === p ? "on" : ""}`} onClick={() => patch("style.palette", p)}>{p.toUpperCase()}</button>)}</div></Field></>}
-        {s.step === 3 && <><Head k={t.s3k} a={t.s3a} b={t.s3b} p={t.s3p} /><div className="neural-list">{s.characters.map((c, i) => <div className="neural-card" key={c.id}><div className="nc-head"><div className="nc-orb">{i + 1}</div><div><div className="nc-name">{c.name || c.id}</div><div className="nc-id">{c.role} · {c.face_lock ? "FACE_LOCK" : "FREE"}</div></div></div><div className="nc-grid"><Field label={t.heroName}><input className="q-inp" value={c.name} onChange={e => patchHero(i, "name", e.target.value)} /></Field><Field label={t.heroDesc}><textarea className="q-inp" value={c.description} onChange={e => patchHero(i, "description", e.target.value)} /></Field><Field label={t.heroRole}><div className="role-row">{roles.map(r => <button key={r} className={`role-b ${c.role === r ? "on" : ""}`} onClick={() => patchHero(i, "role", r)}>{r.toUpperCase()}</button>)}</div></Field><div className="entangle-row"><div><div className="ent-title">{t.faceLock}</div><div className="ent-sub">{t.faceSub}</div></div><button className={`ent-toggle ${c.face_lock ? "on" : ""}`} onClick={() => patchHero(i, "face_lock", !c.face_lock)}><i /></button></div><button className="q-del" onClick={() => deleteHero(i)}>DELETE NODE</button></div></div>)}</div><button className="add-neural" onClick={addHero}>{t.addHero}</button></>}
-        {s.step === 4 && <><Head k={t.s4k} a={t.s4a} b={t.s4b} p={t.s4p} /><button className="mind-btn" onClick={demoScript}>{t.buildDemo}</button><Field label={t.voice}><div className="v-row">{voices.map(v => <button key={v} className={`v-b ${s.script.voice_style === v ? "on" : ""}`} onClick={() => patch("script.voice_style", v)}>{v.toUpperCase()}</button>)}</div></Field><Field label={t.script}><textarea className="q-inp" rows={7} value={s.script.text} placeholder={t.scriptPh} onChange={e => patch("script.text", e.target.value)} /></Field><div className="meta-strip"><div className="q-meta">{t.words}: <span>{s.script.text.trim() ? s.script.text.trim().split(/\s+/).length : 0}</span></div><div className="q-meta">{t.nodes}: <span>{segments.length}</span></div><div className="q-meta">~<span>{Math.min(s.project.duration, segments.length * 7)}</span>s</div></div><div className="seg-list">{segments.map((x, i) => <div className="seg-row" key={i}>#{String(i + 1).padStart(2, "0")} · {x}</div>)}</div></>}
-        {s.step === 5 && <><Head k={t.s5k} a={t.s5a} b={t.s5b} p={t.s5p} /><div className="sb-toolbar"><div className="q-meta">NODES: <span>{s.scenes.length}</span></div><button className="regen-q" onClick={() => setS(prev => ({ ...prev, scenes: buildScenes(prev) }))}>{t.rewire}</button></div>{selected && <div className="sc-det"><Field label={t.sceneVoice}><textarea className="q-inp" value={selected.voice_line} onChange={e => setS(prev => ({ ...prev, scenes: prev.scenes.map(sc => sc.id === selected.id ? { ...sc, voice_line: e.target.value } : sc) }))} /></Field><div className="q-label">{t.imagePrompt}</div><div className="det-pmt">{selected.image_prompt_en}</div><Field label={t.camera}><div className="cam-row">{cameras.map(cam => <button key={cam} className={`cam-b ${selected.camera === cam ? "on" : ""}`} onClick={() => setS(prev => ({ ...prev, scenes: prev.scenes.map(sc => sc.id === selected.id ? { ...sc, camera: cam } : sc) }))}>{cam}</button>)}</div></Field></div>}<div className="syn-grid">{s.scenes.map(sc => <button key={sc.id} className={`syn-card ${s.selectedScene === sc.id ? "sel" : ""}`} onClick={() => setS(prev => ({ ...prev, selectedScene: sc.id }))}><div className="syt"><div className="pulse" /><div className="sy-act">{sc.act}</div><div className="sy-num">{String(sc.index).padStart(2, "0")}</div></div><div className="sy-info"><div className="sy-voice">{sc.voice_line}</div></div></button>)}</div></>}
-        {s.step === 6 && <><Head k={t.s6k} a={t.s6a} b={t.s6b} p={t.s6p} /><div className="exp-stats"><div className="exp-s"><span className="exp-v">1</span>{t.project}</div><div className="exp-s"><span className="exp-v">{s.characters.length}</span>{t.characters}</div><div className="exp-s"><span className="exp-v">{json.storyboard.total_scenes}</span>{t.storyboard}</div></div><div className="json-wrap"><div className="json-bar"><span className="json-fn">◈ cartoon_project.quantum.json</span><button className="json-cp" onClick={copyJson}>{t.copy}</button></div><pre className="json-body">{jsonText}</pre></div>{s.status && <div className="qc-status">{s.status}</div>}</>}
-      </section>
+  return (
+    <div className="qcc-root">
+      <canvas id="qc" ref={fieldRef} />
+      <div className="hex-grid" />
+      <div className="vignette" />
+      <div className="wrap">
+        <header className="q-header">
+          <div className="q-logo">
+            <div className="q-logo-icon"><div className="orb" /></div>
+            <div className="q-logo-text">NEUROCINE</div>
+          </div>
+          <div className="q-sub">Quantum Cartoon Intelligence · v∞</div>
+          <div className="q-tagline" ref={tagRef} />
+        </header>
+        <StepBar step={state.step} onJump={(i) => i <= state.step && goStep(i)} />
+        {state.step === 1 && <Step1 state={state} dispatch={dispatch} waveRef={waveRef} />}
+        {state.step === 2 && <Step2 state={state} dispatch={dispatch} />}
+        {state.step === 3 && <Step3 state={state} dispatch={dispatch} onUpload={handleHeroUpload} />}
+        {state.step === 4 && <Step4 state={state} dispatch={dispatch} onAi={aiGenerate} />}
+        {state.step === 5 && <Step5 state={state} dispatch={dispatch} />}
+        {state.step === 6 && <Step6 stats={getStats(state)} jsonBodyRef={jsonBodyRef} onCopy={copyJson} />}
+      </div>
+      <div className="nav">
+        {state.step > 1 && <button className="nav-back" onClick={() => goStep(state.step - 1)}>← BACK</button>}
+        <button className={`nav-next${state.step === 6 ? " launch" : ""}`} onClick={state.step === 6 ? launch : () => goStep(state.step + 1)}>
+          {state.step === 5 ? "EXPORT →" : state.step === 6 ? "⚡ LAUNCH" : "NEXT →"}
+        </button>
+      </div>
     </div>
-    <div className="q-nav"><button className="nav-back" onClick={() => goStep(s.step - 1)} disabled={s.step <= 1}>{t.back}</button><button className={`nav-next ${s.step === 6 ? "launch" : ""}`} onClick={() => s.step === 6 ? setS(prev => ({ ...prev, status: t.sent })) : goStep(s.step + 1)}>{s.step === 6 ? t.launch : t.next}</button></div>
-  </main>;
+  );
 }
 
-function Head({ k, a, b, p }) { return <><div className="q-eye">{k}</div><h1 className="q-title"><span className="glow">{a}</span><span className="dim">{b}</span></h1><p className="q-body">{p}</p></>; }
+function StepBar({ step, onJump }) {
+  return <div className="q-stepbar">{Array.from({ length: 6 }, (_, idx) => { const i = idx + 1; return <div className="qb-node" key={i}><button className={`qb-qubit${i < step ? " done" : i === step ? " active" : ""}`} onClick={() => onJump(i)}><span className="ring" /><span className="sphere">{i < step ? "✓" : String(i).padStart(2, "0")}</span></button>{i < 6 && <div className={`qb-wire${i < step ? " done" : ""}`} />}</div>; })}</div>;
+}
+
+function Step1({ state, dispatch, waveRef }) {
+  const formats = [
+    { f: "shorts", a: "9:16", d: 60, ket: "|shorts⟩", name: "SHORTS · REELS", spec: "9:16 · ≤90s" },
+    { f: "tiktok", a: "9:16", d: 45, ket: "|tiktok⟩", name: "TIKTOK", spec: "9:16 · ≤60s" },
+    { f: "youtube", a: "16:9", d: 300, ket: "|youtube⟩", name: "YOUTUBE", spec: "16:9 · ≤10min" },
+    { f: "custom", a: "1:1", d: 120, ket: "|ψ⟩ superposition", name: "CUSTOM", spec: "any ratio" },
+  ];
+  return <section className="step-panel on"><Header eyebrow="Quantum Init · Step 01" a="Initialize" b="your project" body="Задай параметры мультфильма. Каждый выбор становится частью JSON-паспорта проекта." /><Field label="Project Identity"><input className="q-inp" value={state.concept.title} placeholder="Название мультфильма..." onChange={(e) => dispatch({ type: "SET_TITLE", v: e.target.value })} /></Field><Field label="Quantum State · Format"><div className="fmt-grid">{formats.map((f) => <button key={f.f} className={`fmt-card${state.concept.format === f.f ? " on" : ""}`} onClick={() => dispatch({ type: "SET_FORMAT", f: f.f, a: f.a, d: f.d })}><span className="collapse-wave" /><span className="fmt-ket">{f.ket}</span><strong className="fmt-name">{f.name}</strong><span className="fmt-spec">{f.spec}</span></button>)}</div></Field><Field label="Interface / Project Language"><div className="lang-row">{["ru", "en", "ua"].map((l) => <button key={l} className={`lang-b${state.concept.language === l ? " on" : ""}`} onClick={() => dispatch({ type: "SET_LANG", v: l })}>{l.toUpperCase()}</button>)}</div></Field><Field label="Probability Wave · Duration"><div className="dur-panel"><div className="dur-display"><div><span className="dur-num">{state.concept.duration}</span><span className="dur-s">s</span></div><div className="dur-sc">≈ {Math.max(1, Math.round(state.concept.duration / 7))} scenes</div></div><canvas ref={waveRef} className="wave-canvas" /><input type="range" min="15" max="600" step="5" value={state.concept.duration} onChange={(e) => dispatch({ type: "SET_DURATION", v: Number(e.target.value) })} /></div></Field></section>;
+}
+
+function Step2({ state, dispatch }) {
+  const styles = [["anime", "🌸", "ANIME"], ["pixar", "🎪", "3D PIXAR"], ["flat", "🎨", "2D FLAT"], ["cinema", "🎬", "CINEMA"], ["pixel", "👾", "PIXEL"], ["custom", "⚛️", "CUSTOM"]];
+  return <section className="step-panel on"><Header eyebrow="Visual Matrix · Step 02" a="Mind's eye" b="visual field" body="Выбери визуальный стиль, настроение и палитру. Это станет style lock для всех сцен." /><Field label="Render Style · Eigenstate"><div className="sty-grid">{styles.map(([id, icon, label]) => <button key={id} className={`sty-card${state.style.preset === id ? " on" : ""}`} onClick={() => dispatch({ type: "SET_STYLE", v: id })}><span className="sty-ico">{icon}</span><strong className="sty-name">{label}</strong></button>)}</div></Field>{state.style.preset === "custom" && <Field label="Custom Prompt Vector"><textarea className="q-inp" value={state.style.custom_prompt} placeholder="watercolor, dreamy, soft particle glow..." onChange={(e) => dispatch({ type: "SET_CUSTOM_PROMPT", v: e.target.value })} /></Field>}<Field label="Mood · Quantum Entanglement"><div className="mood-row">{["light", "dark", "epic", "cute", "mystery"].map((m) => <button key={m} className={`mood-chip${state.style.mood === m ? " on" : ""}`} onClick={() => dispatch({ type: "SET_MOOD", v: m })}>{m.toUpperCase()}</button>)}</div></Field><Field label="Color Wavefunction"><div className="mood-row">{["AUTO", "COOL", "WARM", "MONO", "VIVID"].map((p) => <button key={p} className={`mood-chip${state.style.palette === p ? " on" : ""}`} onClick={() => dispatch({ type: "SET_PALETTE", v: p })}>{p}</button>)}</div></Field></section>;
+}
+
+function Step3({ state, dispatch, onUpload }) {
+  return <section className="step-panel on"><Header eyebrow="Neural Signatures · Step 03" a="Character" b="entanglement" body="До 3 нейросигнатур. Face Lock сохраняет визуальное ДНК героя во всех кадрах." /><div className="neural-list">{state.characters.map((hero, idx) => <div key={hero.id} className={`neural-card${hero.expanded ? " on" : ""}`}><div className="nc-head" onClick={() => dispatch({ type: "TOGGLE_HERO_EXP", id: hero.id })}><div className="nc-orb">{String(idx + 1).padStart(2, "0")}</div><div className="nc-title"><strong>{hero.name}</strong><span>{hero.role} · {hero.face_lock ? "FACE_LOCK" : "FREE"}</span></div><button className="nc-arr">⌄</button></div>{hero.expanded && <div className="nc-body"><Field label="Name"><input className="q-inp" value={hero.name} onChange={(e) => dispatch({ type: "PATCH_HERO", id: hero.id, patch: { name: e.target.value } })} /></Field><Field label="Role"><div className="role-grid">{["main", "friend", "villain", "guide"].map((r) => <button key={r} className={`role-b${hero.role === r ? " on" : ""}`} onClick={() => dispatch({ type: "PATCH_HERO", id: hero.id, patch: { role: r } })}>{r.toUpperCase()}</button>)}</div></Field><Field label="Appearance / Personality"><textarea className="q-inp" value={hero.description} placeholder="blue hoodie, brave but shy, big expressive eyes..." onChange={(e) => dispatch({ type: "PATCH_HERO", id: hero.id, patch: { description: e.target.value } })} /></Field><div className="entangle-row"><div><strong>Face Lock</strong><span>зафиксировать лицо / силуэт</span></div><button className={`ent-toggle${hero.face_lock ? " on" : ""}`} onClick={() => dispatch({ type: "PATCH_HERO", id: hero.id, patch: { face_lock: !hero.face_lock } })}><i /></button></div><Field label="Reference Signal"><label className={`ref-zone${hero.reference_preview ? " has" : ""}`}>{hero.reference_preview ? <img src={hero.reference_preview} alt="reference" /> : <span>UPLOAD REFERENCE IMAGE</span>}<input type="file" accept="image/*" onChange={(e) => onUpload(hero.id, e.target.files)} /></label></Field><Field label="Quantum Modifiers"><div className="q-mods">{MODS.map((m) => <button key={m} className={`q-mod${hero.modifiers.includes(m) ? " on" : ""}`} onClick={() => dispatch({ type: "TOGGLE_HERO_MOD", id: hero.id, m })}>{m}</button>)}</div></Field><button className="q-del" onClick={() => dispatch({ type: "REMOVE_HERO", id: hero.id })}>DELETE NODE</button></div>}</div>)}</div><button className="add-neural" onClick={() => dispatch({ type: "ADD_HERO" })}>⊕ INIT NEW CHARACTER NODE</button>{state.heroWarn && <div className="warn-line">maximum 3 neural signatures for this creator mode</div>}</section>;
+}
+
+function Step4({ state, dispatch, onAi }) {
+  const words = state.script.text.trim() ? state.script.text.trim().split(/\s+/).length : 0;
+  const acts = getActs(state.script.segments.length);
+  return <section className="step-panel on"><Header eyebrow="Consciousness Stream · Step 04" a="Narrator" b="mind stream" body="Поток сознания диктора. Каждое предложение становится нейронным узлом в раскадровке." /><button className="mind-btn" onClick={onAi}>✦ GENERATE VIA QUANTUM MIND</button><Field label="Voice Waveform"><div className="v-row">{["neutral", "dramatic", "kids", "doc"].map((v) => <button key={v} className={`v-b${state.script.voice_style === v ? " on" : ""}`} onClick={() => dispatch({ type: "SET_VOICE_STYLE", v })}>{v.toUpperCase()}</button>)}</div></Field><Field label="Consciousness Text Stream"><textarea className="q-inp" rows={7} value={state.script.text} placeholder="// каждое предложение → синаптический узел..." onChange={(e) => dispatch({ type: "SET_SCRIPT_TEXT", v: e.target.value })} /></Field><div className="meta-strip"><div className="q-meta">WORDS: <span>{words}</span></div><div className="q-meta">NODES: <span>{state.script.segments.length}</span></div><div className="q-meta">~<span>{Math.round(words / 2.5) || 0}</span>s</div></div>{state.script.segments.length > 0 && <div className="seg-wrap"><div className="seg-lbl">synaptic node preview</div><div className="seg-list">{state.script.segments.slice(0, 12).map((seg, i) => <div className="seg-row" key={i}><span className="si-n">{String(i + 1).padStart(2, "0")}</span><span className="si-t">{seg}</span><span className={`si-a ${ACT_CLS[acts[i]]}`}>{acts[i]}</span></div>)}</div></div>}</section>;
+}
+
+function Step5({ state, dispatch }) {
+  const selected = state.selectedSceneIdx != null ? state.scenes[state.selectedSceneIdx] : null;
+  const regen = () => dispatch({ type: "BUILD_SCENES", scenes: buildScenesFromScript(state) });
+  function patchScene(i, patch) { const next = { ...state.scenes[i], ...patch }; const image = buildImagePrompt(state, next, state.scenes); dispatch({ type: "PATCH_SCENE", i, patch: { ...patch, image_prompt_en: image, video_prompt_en: `ANIMATE CURRENT FRAME: ${image} Smooth expressive cartoon motion. Preserve exact continuity. No subtitles, no UI, no watermark.` } }); }
+  return <section className="step-panel on"><Header eyebrow="Synaptic Map · Step 05" a="Storyboard" b="neural grid" body="Проверь сцены, камеру и characters in scene. Это основа для image/video prompts." /><div className="sb-toolbar"><div className="sb-data">NODES: <span>{state.scenes.length}</span> · <span>{state.scenes.reduce((a, s) => a + s.duration_sec, 0)}</span>s</div><button className="regen-q" onClick={regen}>↺ REWIRE</button></div>{selected && <div className="sc-det on"><div className="det-head"><div className="det-ttl">{selected.id} · {selected.act}</div><button className="det-x" onClick={() => dispatch({ type: "SELECT_SCENE", i: null })}>×</button></div><Field label="Voice Signal"><textarea className="q-inp" rows={2} value={selected.voice_line} onChange={(e) => patchScene(state.selectedSceneIdx, { voice_line: e.target.value })} /></Field><div className="q-label">Image Prompt Vector</div><div className="det-pmt">{selected.image_prompt_en}</div><div className="q-label">Camera · Photon Path</div><div className="cam-row">{CAMS.map((c) => <button key={c} className={`cam-b${selected.camera === c ? " on" : ""}`} onClick={() => patchScene(state.selectedSceneIdx, { camera: c })}>{c}</button>)}</div><div className="q-label">Entangled Nodes</div><div className="chars-row">{state.characters.length === 0 && <span className="empty-signal">// no nodes entangled</span>}{state.characters.map((h) => { const on = selected.characters_in_scene.includes(h.id); return <button key={h.id} className={`ch-ch${on ? " on" : ""}`} onClick={() => patchScene(state.selectedSceneIdx, { characters_in_scene: on ? selected.characters_in_scene.filter((x) => x !== h.id) : [...selected.characters_in_scene, h.id] })}>{h.name}</button>; })}</div></div>}<div className="synapse-grid">{state.scenes.length === 0 && <div className="no-signal">// NO_SIGNAL_INPUT → initialize step 04</div>}{state.scenes.map((sc, i) => <button key={sc.id} className={`syn-card${state.selectedSceneIdx === i ? " sel" : ""}`} onClick={() => dispatch({ type: "SELECT_SCENE", i })}><div className="syt"><div className="syt-field" /><div className="syt-interference" /><div className="syt-pulse" /><div className={`sy-act ${ACT_CLS[sc.act]}`}>{sc.act}</div><div className="sy-cam">{CAM_ICO[sc.camera] || "🎬"}</div><div className="sy-num">{sc.id}</div></div><div className="sy-info"><div className="sy-voice">{sc.voice_line}</div><div className="sy-meta"><span>{sc.camera}</span><span>{sc.duration_sec}s</span></div></div></button>)}</div></section>;
+}
+
+function Step6({ stats, jsonBodyRef, onCopy }) {
+  return <section className="step-panel on"><Header eyebrow="Wave Collapse · Step 06" a="Quantum" b="collapse · export" body="Итоговый JSON проекта. Позже он будет отправляться в настоящий cartoonEngine NeuroCine." /><div className="exp-stats">{stats.map((s) => <div className="exp-s" key={s.l}><span className="exp-v" style={{ color: s.c }}>{s.v}</span><span className="exp-l">{s.l}</span></div>)}</div><div className="json-wrap"><div className="json-bar"><span className="json-fn">◈ cartoon_project.quantum.json</span><button className="json-cp" onClick={onCopy}>⊕ COPY</button></div><pre className="json-body" ref={jsonBodyRef} /></div></section>;
+}
+
+function Header({ eyebrow, a, b, body }) { return <><div className="q-eyebrow">{eyebrow}</div><h1 className="q-title"><span className="t-line t-glow">{a}</span><span className="t-line t-dim">{b}</span></h1><p className="q-body">{body}</p></>; }
 function Field({ label, children }) { return <div className="q-field"><label className="q-label">{label}</label>{children}</div>; }
+function getStats(state) { const data = buildExportJSON(state); return [{ v: data.storyboard.total_nodes, l: "NODES", c: "var(--cyan)" }, { v: data.characters.length, l: "AGENTS", c: "var(--purple)" }, { v: "$" + data.quantum_metadata.estimated_cost_usd, l: "COST", c: "var(--gold)" }]; }
