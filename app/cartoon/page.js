@@ -1,4 +1,5 @@
 import QuantumCartoonCreator from "../../components/cartoon/QuantumCartoonCreator";
+import "../../public/cartoon/quantum.css";
 
 export const dynamic = "force-dynamic";
 
