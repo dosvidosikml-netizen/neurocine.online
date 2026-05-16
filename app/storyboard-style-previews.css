@@ -1,5 +1,5 @@
 /* NeuroCine storyboard style preview cards
-   Restores visual animated examples inside the setup style selector.
+   Real image thumbnails inside the setup style selector.
    Logic is untouched: only the style selection UI is improved. */
 
 .setup-style-grid-v40 {
@@ -17,14 +17,8 @@
   scrollbar-width: thin !important;
 }
 
-.setup-style-grid-v40::-webkit-scrollbar {
-  height: 7px;
-}
-
-.setup-style-grid-v40::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,.18);
-  border-radius: 999px;
-}
+.setup-style-grid-v40::-webkit-scrollbar { height: 7px; }
+.setup-style-grid-v40::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; }
 
 .setup-style-grid-v40 button {
   position: relative !important;
@@ -33,21 +27,22 @@
   width: 168px !important;
   min-width: 168px !important;
   max-width: 168px !important;
-  min-height: 212px !important;
+  min-height: 222px !important;
   overflow: hidden !important;
   border-radius: 24px !important;
   border: 1px solid rgba(255,255,255,.14) !important;
-  padding: 124px 14px 34px !important;
+  padding: 134px 14px 35px !important;
   text-align: left !important;
   white-space: normal !important;
-  line-height: 1.05 !important;
+  line-height: 1.08 !important;
   scroll-snap-align: start !important;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.026)) !important;
-  color: rgba(245,247,252,.76) !important;
+    radial-gradient(circle at 0% 0%, rgba(255,77,95,.10), transparent 38%),
+    linear-gradient(180deg, rgba(255,255,255,.070), rgba(255,255,255,.024)) !important;
+  color: rgba(245,247,252,.84) !important;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.08),
-    0 14px 40px rgba(0,0,0,.22) !important;
+    0 14px 40px rgba(0,0,0,.24) !important;
   transform: translateZ(0) !important;
 }
 
@@ -57,38 +52,44 @@
   pointer-events: none !important;
 }
 
+/* Real thumbnail area. Each nth-child below provides an actual image URL. */
 .setup-style-grid-v40 button::before {
   content: "" !important;
   position: absolute !important;
   left: 10px !important;
   right: 10px !important;
   top: 10px !important;
-  height: 102px !important;
+  height: 112px !important;
   z-index: -1 !important;
   border-radius: 18px !important;
-  border: 1px solid rgba(255,255,255,.11) !important;
+  border: 1px solid rgba(255,255,255,.13) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
   box-shadow:
-    inset 0 0 0 1px rgba(0,0,0,.22),
-    inset 0 -30px 44px rgba(0,0,0,.35),
-    0 12px 28px rgba(0,0,0,.20) !important;
-  background:
-    radial-gradient(circle at 50% 20%, rgba(255,255,255,.30), transparent 10%),
-    linear-gradient(135deg, #10131b, #2b2f38 48%, #0b0d10) !important;
-  animation: ncPreviewBreath 4.2s ease-in-out infinite !important;
+    inset 0 0 0 1px rgba(0,0,0,.30),
+    inset 0 -46px 58px rgba(0,0,0,.52),
+    inset 0 28px 34px rgba(255,255,255,.035),
+    0 12px 28px rgba(0,0,0,.24) !important;
+  filter: brightness(.78) contrast(1.13) saturate(1.05) !important;
+  animation: ncRealPreviewMove 9s ease-in-out infinite !important;
+  transform-origin: center !important;
 }
 
+/* soft overlay label over real image */
 .setup-style-grid-v40 button::after {
-  content: "VISUAL PREVIEW · STYLE DNA" !important;
+  content: "REAL SAMPLE · STYLE" !important;
   position: absolute !important;
-  left: 14px !important;
-  right: 14px !important;
-  bottom: 12px !important;
+  left: 16px !important;
+  right: 16px !important;
+  top: 18px !important;
   z-index: 2 !important;
-  color: rgba(255,255,255,.42) !important;
+  color: rgba(255,255,255,.62) !important;
+  text-shadow: 0 2px 10px rgba(0,0,0,.75) !important;
   font-size: 9px !important;
   font-weight: 950 !important;
-  letter-spacing: .11em !important;
-  line-height: 1.22 !important;
+  letter-spacing: .12em !important;
+  line-height: 1.25 !important;
   text-transform: uppercase !important;
 }
 
@@ -96,124 +97,260 @@
   color: #fff !important;
   border-color: rgba(255,77,95,.95) !important;
   background:
-    radial-gradient(circle at 20% 0%, rgba(255,77,95,.20), transparent 38%),
-    linear-gradient(180deg, rgba(255,77,95,.15), rgba(255,255,255,.035)) !important;
+    radial-gradient(circle at 20% 0%, rgba(255,77,95,.22), transparent 38%),
+    linear-gradient(180deg, rgba(255,77,95,.16), rgba(255,255,255,.034)) !important;
   box-shadow:
     0 0 0 1px rgba(255,77,95,.22),
-    0 18px 48px rgba(255,77,95,.16),
+    0 18px 48px rgba(255,77,95,.17),
     inset 0 1px 0 rgba(255,255,255,.10) !important;
 }
 
+.setup-style-grid-v40 button.active::before {
+  border-color: rgba(255,77,95,.70) !important;
+  filter: brightness(.98) contrast(1.22) saturate(1.20) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,77,95,.20),
+    inset 0 -46px 58px rgba(0,0,0,.50),
+    0 0 34px rgba(255,77,95,.23),
+    0 14px 34px rgba(0,0,0,.25) !important;
+}
+
 .setup-style-grid-v40 button.active::after {
-  content: "SELECTED · DIRECTOR LOCK" !important;
-  color: rgba(255,220,205,.82) !important;
+  content: "SELECTED · IMAGE LOCK" !important;
+  color: rgba(255,220,205,.92) !important;
 }
 
 /* 01 Cinematic documentary */
 .setup-style-grid-v40 button:nth-child(1)::before {
-  background:
-    linear-gradient(110deg, transparent 0 28%, rgba(255,255,255,.20) 30% 31%, transparent 33%),
-    radial-gradient(circle at 68% 28%, rgba(255,255,255,.48), transparent 12%),
-    radial-gradient(circle at 22% 80%, rgba(255,77,95,.18), transparent 28%),
-    linear-gradient(135deg, #090b10 0%, #1b1f29 54%, #05070b 100%) !important;
-  animation: ncPreviewFilm 5s ease-in-out infinite !important;
+  background-image:
+    linear-gradient(180deg, rgba(0,0,0,.06), rgba(0,0,0,.48)),
+    url("https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=520&q=72") !important;
 }
 
-/* 02 Dark history / archival thriller */
+/* 02 Dark history thriller */
 .setup-style-grid-v40 button:nth-child(2)::before {
-  background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,.08) 0 1px, transparent 1px 7px),
-    radial-gradient(circle at 76% 22%, rgba(180,20,24,.62), transparent 20%),
-    linear-gradient(135deg, #080609 0%, #2b0a0f 58%, #050507 100%) !important;
-  animation: ncPreviewFlicker 1.8s steps(2,end) infinite !important;
+  background-image:
+    linear-gradient(180deg, rgba(20,0,6,.12), rgba(0,0,0,.62)),
+    url("https://images.unsplash.com/photo-1518709268805-4e9042af2176?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewFlicker !important;
 }
 
-/* 03 War documentary */
+/* 03 True crime */
 .setup-style-grid-v40 button:nth-child(3)::before {
-  background:
-    linear-gradient(8deg, rgba(255,160,70,.18) 0 24%, transparent 25%),
-    radial-gradient(circle at 18% 78%, rgba(255,130,54,.30), transparent 18%),
-    radial-gradient(circle at 66% 38%, rgba(210,30,20,.52), transparent 18%),
-    linear-gradient(135deg, #0a0b0f 0%, #211014 44%, #040405 100%) !important;
-  animation: ncPreviewSmoke 4.8s ease-in-out infinite !important;
+  background-image:
+    linear-gradient(180deg, rgba(40,0,0,.06), rgba(0,0,0,.66)),
+    url("https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.62) contrast(1.25) saturate(.85) !important;
 }
 
-/* 04 Myth / ancient / gold documentary */
+/* 04 War documentary */
 .setup-style-grid-v40 button:nth-child(4)::before {
-  background:
-    linear-gradient(0deg, rgba(50,40,22,.55), transparent 46%),
-    radial-gradient(circle at 22% 34%, rgba(230,190,80,.55), transparent 20%),
-    radial-gradient(circle at 76% 70%, rgba(120,72,28,.34), transparent 28%),
-    linear-gradient(135deg, #14120c 0%, #4b321a 54%, #10100d 100%) !important;
-  animation: ncPreviewDust 5.5s ease-in-out infinite !important;
+  background-image:
+    linear-gradient(180deg, rgba(80,45,10,.10), rgba(0,0,0,.62)),
+    url("https://images.unsplash.com/photo-1476231682828-37e571bc172f?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewSmoke !important;
 }
 
-/* 05 Neon noir */
+/* 05 Neon Noir */
 .setup-style-grid-v40 button:nth-child(5)::before {
-  background:
-    linear-gradient(90deg, rgba(255,0,120,.28), transparent 18%, transparent 74%, rgba(0,200,255,.28)),
-    radial-gradient(circle at 34% 25%, rgba(255,0,210,.70), transparent 20%),
-    radial-gradient(circle at 78% 62%, rgba(0,212,255,.44), transparent 22%),
-    linear-gradient(135deg, #090015 0%, #1d0b47 50%, #002f43 100%) !important;
-  animation: ncPreviewNeon 2.8s ease-in-out infinite !important;
+  background-image:
+    linear-gradient(90deg, rgba(255,0,140,.22), rgba(0,0,0,.32), rgba(0,220,255,.22)),
+    url("https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewNeon !important;
 }
 
-/* 06 Anime / stylized */
+/* 06 Synthwave 80s */
 .setup-style-grid-v40 button:nth-child(6)::before {
-  background:
-    linear-gradient(0deg, rgba(255,90,190,.30) 0 18%, transparent 19%),
-    linear-gradient(90deg, rgba(0,255,255,.25), transparent, rgba(255,0,170,.25)),
-    radial-gradient(circle at 28% 22%, rgba(255,255,255,.52), transparent 14%),
-    linear-gradient(135deg, #13002b 0%, #2b1445 52%, #071c37 100%) !important;
-  animation: ncPreviewAnime 3.2s ease-in-out infinite !important;
+  background-image:
+    linear-gradient(90deg, rgba(255,0,160,.30), rgba(0,0,0,.30), rgba(80,60,255,.30)),
+    url("https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewNeon !important;
 }
 
-/* 07 Cyber / sci-fi */
+/* 07 Cyberpunk */
 .setup-style-grid-v40 button:nth-child(7)::before {
-  background:
-    linear-gradient(90deg, transparent 0 48%, rgba(0,255,255,.36) 49% 52%, transparent 53%),
+  background-image:
     repeating-linear-gradient(0deg, rgba(0,255,255,.10) 0 1px, transparent 1px 7px),
-    radial-gradient(circle at 72% 22%, rgba(255,0,128,.52), transparent 20%),
-    linear-gradient(135deg, #02111a 0%, #092a3c 48%, #1d0229 100%) !important;
-  animation: ncPreviewScan 2.2s linear infinite !important;
+    linear-gradient(90deg, rgba(0,200,255,.24), rgba(0,0,0,.28), rgba(255,0,160,.22)),
+    url("https://images.unsplash.com/photo-1535223289827-42f1e9919769?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewScan !important;
 }
 
-/* 08 Raw / gritty */
+/* 08 VHS / Super 8 */
 .setup-style-grid-v40 button:nth-child(8)::before {
-  background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,.12) 0 1px, transparent 1px 4px),
-    repeating-linear-gradient(90deg, rgba(0,0,0,.16) 0 1px, transparent 1px 5px),
-    linear-gradient(135deg, #0a0a0a 0%, #272727 47%, #050505 100%) !important;
-  animation: ncPreviewGrain 900ms steps(2,end) infinite !important;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.10) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, rgba(255,120,70,.08), rgba(0,0,0,.55)),
+    url("https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewGrain !important;
 }
 
-/* 09 Warm cinematic / human story */
+/* 09 Analog film Kodak */
 .setup-style-grid-v40 button:nth-child(9)::before {
-  background:
-    radial-gradient(circle at 32% 26%, rgba(255,235,180,.62), transparent 21%),
-    radial-gradient(circle at 76% 70%, rgba(255,92,42,.28), transparent 24%),
-    linear-gradient(135deg, #20170d 0%, #5a391d 44%, #090705 100%) !important;
-  animation: ncPreviewWarm 4s ease-in-out infinite !important;
+  background-image:
+    linear-gradient(180deg, rgba(255,205,120,.14), rgba(0,0,0,.50)),
+    url("https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.86) contrast(1.08) saturate(1.10) sepia(.15) !important;
 }
 
-/* 10+ generic cinematic lock */
-.setup-style-grid-v40 button:nth-child(n+10)::before {
-  background:
-    radial-gradient(circle at 28% 25%, rgba(255,255,255,.30), transparent 20%),
-    radial-gradient(circle at 76% 40%, rgba(120,80,255,.40), transparent 24%),
-    linear-gradient(135deg, #0b0c12 0%, #26233b 52%, #050507 100%) !important;
-  animation: ncPreviewBreath 4.6s ease-in-out infinite !important;
+/* 10 Mystic horror */
+.setup-style-grid-v40 button:nth-child(10)::before {
+  background-image:
+    linear-gradient(180deg, rgba(0,60,55,.10), rgba(0,0,0,.66)),
+    url("https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewFlicker !important;
+}
+
+/* 11 Sci-Fi atmospheric */
+.setup-style-grid-v40 button:nth-child(11)::before {
+  background-image:
+    linear-gradient(180deg, rgba(0,80,255,.13), rgba(0,0,0,.58)),
+    url("https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&w=520&q=72") !important;
+}
+
+/* 12 Fantasy epic */
+.setup-style-grid-v40 button:nth-child(12)::before {
+  background-image:
+    linear-gradient(180deg, rgba(255,190,80,.13), rgba(0,0,0,.54)),
+    url("https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=520&q=72") !important;
+}
+
+/* 13 Western gritty */
+.setup-style-grid-v40 button:nth-child(13)::before {
+  background-image:
+    linear-gradient(180deg, rgba(190,90,35,.18), rgba(0,0,0,.55)),
+    url("https://images.unsplash.com/photo-1509316785289-025f5b846b35?auto=format&fit=crop&w=520&q=72") !important;
+}
+
+/* 14 Post-apocalypse */
+.setup-style-grid-v40 button:nth-child(14)::before {
+  background-image:
+    linear-gradient(180deg, rgba(80,95,50,.15), rgba(0,0,0,.64)),
+    url("https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=520&q=72") !important;
+}
+
+/* 15 Film Noir B&W */
+.setup-style-grid-v40 button:nth-child(15)::before {
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.68)),
+    url("https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=520&q=72") !important;
+  filter: grayscale(1) brightness(.68) contrast(1.42) !important;
+}
+
+/* 16 Brutalist minimal */
+.setup-style-grid-v40 button:nth-child(16)::before {
+  background-image:
+    linear-gradient(180deg, rgba(190,190,180,.05), rgba(0,0,0,.55)),
+    url("https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.75) contrast(1.20) saturate(.65) !important;
+}
+
+/* 17 2D animation */
+.setup-style-grid-v40 button:nth-child(17)::before {
+  background-image:
+    linear-gradient(180deg, rgba(80,180,255,.12), rgba(0,0,0,.46)),
+    url("https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.95) contrast(1.15) saturate(1.35) !important;
+}
+
+/* 18 2.5D layered animation */
+.setup-style-grid-v40 button:nth-child(18)::before {
+  background-image:
+    linear-gradient(180deg, rgba(120,190,255,.12), rgba(0,0,0,.46)),
+    url("https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.95) contrast(1.10) saturate(1.28) !important;
+}
+
+/* 19 3D cartoon premium */
+.setup-style-grid-v40 button:nth-child(19)::before {
+  background-image:
+    linear-gradient(180deg, rgba(255,190,90,.14), rgba(0,0,0,.44)),
+    url("https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.98) contrast(1.08) saturate(1.35) !important;
+}
+
+/* 20 Stop motion craft */
+.setup-style-grid-v40 button:nth-child(20)::before {
+  background-image:
+    linear-gradient(180deg, rgba(180,120,70,.14), rgba(0,0,0,.50)),
+    url("https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=520&q=72") !important;
+}
+
+/* 21 Cutout paper craft */
+.setup-style-grid-v40 button:nth-child(21)::before {
+  background-image:
+    linear-gradient(180deg, rgba(255,180,110,.14), rgba(0,0,0,.44)),
+    url("https://images.unsplash.com/photo-1497294815431-9365093b7331?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.96) contrast(1.12) saturate(1.18) !important;
+}
+
+/* 22 Dark anime */
+.setup-style-grid-v40 button:nth-child(22)::before {
+  background-image:
+    linear-gradient(90deg, rgba(120,0,255,.24), rgba(0,0,0,.50)),
+    url("https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.78) contrast(1.20) saturate(1.22) !important;
+}
+
+/* 23 Shonen action */
+.setup-style-grid-v40 button:nth-child(23)::before {
+  background-image:
+    linear-gradient(90deg, rgba(255,70,20,.22), rgba(0,0,0,.45), rgba(255,210,0,.13)),
+    url("https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewSmoke !important;
+}
+
+/* 24 Slice-of-life anime */
+.setup-style-grid-v40 button:nth-child(24)::before {
+  background-image:
+    linear-gradient(180deg, rgba(255,170,200,.18), rgba(0,0,0,.42)),
+    url("https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.98) contrast(1.04) saturate(1.10) !important;
+}
+
+/* 25 Ghibli-inspired */
+.setup-style-grid-v40 button:nth-child(25)::before {
+  background-image:
+    linear-gradient(180deg, rgba(110,210,150,.18), rgba(0,0,0,.40)),
+    url("https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=520&q=72") !important;
+  filter: brightness(.98) contrast(1.05) saturate(1.22) !important;
+}
+
+/* 26 Graphic novel */
+.setup-style-grid-v40 button:nth-child(26)::before {
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.66)),
+    url("https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=520&q=72") !important;
+  filter: grayscale(.65) brightness(.68) contrast(1.55) !important;
+}
+
+/* 27 Comic halftone pop */
+.setup-style-grid-v40 button:nth-child(27)::before {
+  background-image:
+    radial-gradient(circle, rgba(0,0,0,.20) 0 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,220,0,.20), rgba(0,0,0,.20), rgba(255,0,120,.18)),
+    url("https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=520&q=72") !important;
+  background-size: 6px 6px, cover, cover !important;
+  animation-name: ncRealPreviewMove !important;
+}
+
+/* 28 Music video drive */
+.setup-style-grid-v40 button:nth-child(28)::before {
+  background-image:
+    linear-gradient(90deg, rgba(255,0,130,.28), rgba(0,0,0,.34), rgba(0,180,255,.24)),
+    url("https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=520&q=72") !important;
+  animation-name: ncRealPreviewNeon !important;
 }
 
 html[data-theme="light"] .setup-style-grid-v40 button {
-  background: rgba(255,255,255,.78) !important;
-  color: rgba(16,24,40,.78) !important;
+  background: rgba(255,255,255,.82) !important;
+  color: rgba(16,24,40,.80) !important;
   border-color: rgba(15,23,42,.13) !important;
   box-shadow: 0 14px 34px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.85) !important;
 }
 
 html[data-theme="light"] .setup-style-grid-v40 button::after {
-  color: rgba(71,84,103,.58) !important;
+  color: rgba(255,255,255,.82) !important;
 }
 
 html[data-theme="light"] .setup-style-grid-v40 button.active {
@@ -222,56 +359,38 @@ html[data-theme="light"] .setup-style-grid-v40 button.active {
   background: rgba(255,255,255,.94) !important;
 }
 
-@keyframes ncPreviewBreath {
-  0%,100% { filter: brightness(.86) saturate(1); transform: scale(1); }
-  50% { filter: brightness(1.14) saturate(1.18); transform: scale(1.025); }
+@keyframes ncRealPreviewMove {
+  0%,100% { transform: scale(1.02); filter: brightness(.76) contrast(1.12) saturate(1.05); }
+  50% { transform: scale(1.09) translate3d(-2px,-1px,0); filter: brightness(.92) contrast(1.18) saturate(1.16); }
 }
 
-@keyframes ncPreviewFilm {
-  0%,100% { filter: contrast(1.05) brightness(.82); background-position: 0 0; }
-  50% { filter: contrast(1.22) brightness(1.08); background-position: 20px 0; }
+@keyframes ncRealPreviewFlicker {
+  0%,100% { transform: scale(1.04); filter: brightness(.55) contrast(1.30) saturate(.85); }
+  48% { filter: brightness(.78) contrast(1.44) saturate(.92); }
+  50% { filter: brightness(.38) contrast(1.70) saturate(.70); }
+  52% { filter: brightness(.95) contrast(1.24) saturate(.95); }
 }
 
-@keyframes ncPreviewFlicker {
-  0%,100% { opacity: .78; filter: brightness(.72) contrast(1.2); }
-  50% { opacity: 1; filter: brightness(1.1) contrast(1.35); }
+@keyframes ncRealPreviewSmoke {
+  0%,100% { transform: scale(1.03) translateY(0); filter: brightness(.74) contrast(1.14) saturate(.92); }
+  50% { transform: scale(1.10) translateY(-2px); filter: brightness(.92) contrast(1.20) saturate(1.05) blur(.15px); }
 }
 
-@keyframes ncPreviewSmoke {
-  0%,100% { filter: brightness(.82) blur(0); transform: scale(1); }
-  50% { filter: brightness(1.08) blur(.35px); transform: scale(1.035); }
+@keyframes ncRealPreviewNeon {
+  0%,100% { transform: scale(1.03); filter: brightness(.72) contrast(1.16) saturate(1.35); }
+  50% { transform: scale(1.11); filter: brightness(1.04) contrast(1.28) saturate(1.85); }
 }
 
-@keyframes ncPreviewDust {
-  0%,100% { filter: sepia(.10) brightness(.88); }
-  50% { filter: sepia(.32) brightness(1.16); }
+@keyframes ncRealPreviewScan {
+  0% { transform: scale(1.04); background-position: center, 0 -40px, center; }
+  100% { transform: scale(1.08); background-position: center, 0 90px, center; }
 }
 
-@keyframes ncPreviewNeon {
-  0%,100% { filter: brightness(.82) saturate(1.2); box-shadow: inset 0 -30px 44px rgba(0,0,0,.35), 0 0 0 rgba(0,212,255,0); }
-  50% { filter: brightness(1.22) saturate(1.65); box-shadow: inset 0 -30px 44px rgba(0,0,0,.35), 0 0 26px rgba(0,212,255,.28); }
-}
-
-@keyframes ncPreviewAnime {
-  0%,100% { filter: hue-rotate(0deg) brightness(.9); }
-  50% { filter: hue-rotate(18deg) brightness(1.18); }
-}
-
-@keyframes ncPreviewScan {
-  0% { background-position: 0 -40px, 0 0, 0 0, 0 0; }
-  100% { background-position: 0 80px, 0 22px, 0 0, 0 0; }
-}
-
-@keyframes ncPreviewGrain {
-  0%,100% { filter: contrast(1.4) brightness(.85); transform: translate(0,0); }
-  25% { transform: translate(-1px,1px); }
-  50% { filter: contrast(1.8) brightness(1.05); transform: translate(1px,-1px); }
-  75% { transform: translate(1px,1px); }
-}
-
-@keyframes ncPreviewWarm {
-  0%,100% { filter: brightness(.9) saturate(1.0); }
-  50% { filter: brightness(1.18) saturate(1.25); }
+@keyframes ncRealPreviewGrain {
+  0%,100% { transform: translate(0,0) scale(1.04); filter: contrast(1.34) brightness(.70) saturate(.88); }
+  25% { transform: translate(-1px,1px) scale(1.045); }
+  50% { transform: translate(1px,-1px) scale(1.05); filter: contrast(1.55) brightness(.86) saturate(.92); }
+  75% { transform: translate(1px,1px) scale(1.045); }
 }
 
 @media (max-width: 760px) {
@@ -281,18 +400,24 @@ html[data-theme="light"] .setup-style-grid-v40 button.active {
   }
 
   .setup-style-grid-v40 button {
-    flex-basis: 158px !important;
-    width: 158px !important;
-    min-width: 158px !important;
-    max-width: 158px !important;
-    min-height: 202px !important;
-    padding: 114px 12px 34px !important;
+    flex-basis: 162px !important;
+    width: 162px !important;
+    min-width: 162px !important;
+    max-width: 162px !important;
+    min-height: 212px !important;
+    padding: 126px 12px 35px !important;
     border-radius: 22px !important;
     font-size: 14px !important;
   }
 
   .setup-style-grid-v40 button::before {
-    height: 94px !important;
+    height: 106px !important;
     border-radius: 17px !important;
+  }
+
+  .setup-style-grid-v40 button::after {
+    top: 17px !important;
+    left: 15px !important;
+    right: 15px !important;
   }
 }
