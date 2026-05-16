@@ -7,7 +7,6 @@
    ─ между ними — creator с правильными отступами
    ════════════════════════════════════════════════════════════════ */
 
-/* ── root scope ── */
 .qcc-root{
   position:relative;
   width:100%;
@@ -22,45 +21,67 @@
 .qcc-root *::before,
 .qcc-root *::after{box-sizing:border-box}
 
-/* ── background canvas / hex / vignette остаются fixed, но за shell-ом ── */
 .qcc-root #qc{position:fixed;inset:0;z-index:0;pointer-events:none}
 .qcc-root .hex-grid{position:fixed;inset:0;z-index:1;pointer-events:none}
 .qcc-root .vignette{position:fixed;inset:0;z-index:2;pointer-events:none}
 
-/* ── wrap: creator внутри нашего TopActionBar + MobileBottomNav ── */
+/* Creator starts below the NeuroCine top shell, not under it. */
 .qcc-root .wrap{
-  position:relative;
-  z-index:3;
-  width:100%;
-  max-width:520px;
-  margin:0 auto;
+  position:relative !important;
+  z-index:3 !important;
+  width:100% !important;
+  max-width:520px !important;
+  margin:0 auto !important;
   padding:
-    calc(var(--qcc-top-offset,20px) + 12px)
+    calc(var(--qcc-top-offset,68px) + 18px)
     16px
-    calc(var(--qcc-bottom-offset,132px) + 100px);
+    calc(var(--qcc-bottom-offset,146px) + 118px) !important;
 }
 
-/* ── NAV creator-а поднимаем выше штатного dock ── */
+.qcc-root .q-header{
+  padding-top:0 !important;
+  margin-top:0 !important;
+}
+
+/* Creator NEXT/BACK bar: centered above our real bottom dock. */
 .qcc-root .nav{
-  position:fixed;
-  left:0;right:0;
-  bottom:var(--qcc-bottom-offset,132px);
-  padding:10px 16px 14px;
-  z-index:50;
-  max-width:520px;
-  margin:0 auto;
+  position:fixed !important;
+  left:50% !important;
+  right:auto !important;
+  bottom:calc(var(--qcc-bottom-offset,146px) + 12px) !important;
+  transform:translateX(-50%) !important;
+  width:min(calc(100vw - 24px),520px) !important;
+  max-width:none !important;
+  margin:0 !important;
+  padding:0 !important;
+  z-index:90 !important;
+  display:flex !important;
+  gap:8px !important;
+  background:transparent !important;
+  pointer-events:auto !important;
 }
 
-/* ── скрыть большую AuthPanel/profile card внутри /cartoon ── */
+.qcc-root .nav-next,
+.qcc-root .nav-back{
+  min-width:0 !important;
+  white-space:nowrap !important;
+}
+
+.qcc-root .nav-next{
+  flex:1 1 auto !important;
+}
+
+.qcc-root .nav-back{
+  flex:0 0 auto !important;
+}
+
 body.route-cartoon [data-auth-panel-bridge],
 body.route-cartoon .auth-panel-floating,
 body.route-cartoon [data-component="AuthPanel"],
 body.route-cartoon .auth-panel-v42{display:none !important}
 
-/* ── safety ── */
 body.route-cartoon{cursor:default}
 
-/* ── наш shell не должен добавлять лишний визуальный слой поверх creator ── */
 .nc-cartoon-studio-shell{
   background:#000512 !important;
   min-height:100dvh;
@@ -69,12 +90,28 @@ body.route-cartoon{cursor:default}
   position:relative;
   z-index:1;
   width:100%;
-  --qcc-top-offset: 0px;
-  --qcc-bottom-offset: 132px;
+  --qcc-top-offset: 72px;
+  --qcc-bottom-offset: 146px;
 }
 
-/* ── small screens ── */
+@media (max-width:430px){
+  .qcc-root .wrap{
+    padding-left:12px !important;
+    padding-right:12px !important;
+    padding-top:calc(var(--qcc-top-offset,72px) + 14px) !important;
+  }
+  .qcc-root .nav{
+    width:min(calc(100vw - 20px),520px) !important;
+    bottom:calc(var(--qcc-bottom-offset,146px) + 10px) !important;
+  }
+}
+
 @media (max-width:380px){
-  .qcc-root .wrap{padding-left:12px;padding-right:12px}
-  .qcc-root .nav{padding-left:12px;padding-right:12px}
+  .qcc-root .wrap{
+    padding-left:10px !important;
+    padding-right:10px !important;
+  }
+  .qcc-root .nav{
+    width:min(calc(100vw - 16px),520px) !important;
+  }
 }
