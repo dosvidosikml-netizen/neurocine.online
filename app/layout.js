@@ -4,6 +4,7 @@ import "./public-landing-v3.css";
 import "./style-engine-patch.css";
 import "./generation-overlay.css";
 import "./neurocine-theme.css";
+import "./storyboard-style-previews.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
 import ScriptPolishPatch from "../components/ScriptPolishPatch";
 import GenerationCinematicOverlay from "../components/GenerationCinematicOverlay";
