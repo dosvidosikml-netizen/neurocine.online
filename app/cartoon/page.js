@@ -1,3 +1,4 @@
+import Script from "next/script";
 import QuantumCartoonCreator from "../../components/cartoon/QuantumCartoonCreator";
 import "../../public/cartoon/quantum.css";
 
@@ -9,5 +10,10 @@ export const metadata = {
 };
 
 export default function CartoonPage() {
-  return <QuantumCartoonCreator />;
+  return (
+    <>
+      <QuantumCartoonCreator />
+      <Script src="/cartoon/quantum-anim.js" strategy="afterInteractive" />
+    </>
+  );
 }
