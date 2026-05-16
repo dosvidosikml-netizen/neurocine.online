@@ -8,6 +8,15 @@
     const canvas = document.createElement("canvas");
     canvas.id = "qc-field";
     canvas.setAttribute("aria-hidden", "true");
+    canvas.style.cssText = [
+      "position:fixed",
+      "inset:0",
+      "z-index:0",
+      "width:100vw",
+      "height:100dvh",
+      "display:block",
+      "pointer-events:none"
+    ].join(";");
     page.prepend(canvas);
 
     const ctx = canvas.getContext("2d");
@@ -67,11 +76,11 @@
     function resize() {
       dpr = Math.min(2, window.devicePixelRatio || 1);
       width = window.innerWidth;
-      height = Math.max(window.innerHeight, page.scrollHeight || window.innerHeight);
+      height = window.innerHeight;
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      canvas.style.width = width + "px";
-      canvas.style.height = height + "px";
+      canvas.style.width = "100vw";
+      canvas.style.height = "100dvh";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (!particles.length) {
         particles = Array.from({ length: maxParticles }, () => new Particle(true));
@@ -136,12 +145,12 @@
 
     function onClick(e) {
       const color = colors[Math.floor(Math.random() * colors.length)];
-      pulse(e.clientX, e.clientY + window.scrollY, color);
+      pulse(e.clientX, e.clientY, color);
     }
 
     resize();
     frame();
-    setTimeout(() => pulse(window.innerWidth / 2, 260, "#00d4ff"), 350);
+    setTimeout(() => pulse(window.innerWidth / 2, Math.min(260, window.innerHeight * 0.25), "#00d4ff"), 350);
 
     window.addEventListener("resize", resize, { passive: true });
     document.addEventListener("click", onClick, { passive: true });
