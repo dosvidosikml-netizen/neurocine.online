@@ -6,8 +6,7 @@ import CartoonTopActionBar from "./CartoonTopActionBar";
 import MobileBottomNav from "../MobileBottomNav";
 import SideDrawer from "../SideDrawer";
 import CreateHub from "../CreateHub";
-import QuantumCartoonCreatorV2 from "./QuantumCartoonCreatorV2";
-import CartoonSafeResetBar from "./CartoonSafeResetBar";
+import QuantumCartoonCreatorV4 from "./QuantumCartoonCreatorV4";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 
 export default function CartoonStudioShellV2() {
@@ -15,7 +14,6 @@ export default function CartoonStudioShellV2() {
   const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
   const [createHubOpen, setCreateHubOpen] = useState(false);
   const [uiLang, setUiLang] = useState("ru");
-  const [creatorKey, setCreatorKey] = useState(1);
 
   const accountAccess = getAccountAccess(account?.profile, account?.session);
   const liveAllowed = shouldForceLiveForAccount(accountAccess);
@@ -71,11 +69,6 @@ export default function CartoonStudioShellV2() {
     } catch {}
   }
 
-  function resetCreator() {
-    setCreatorKey((value) => value + 1);
-    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
-  }
-
   return (
     <main className="studio nc-cartoon-studio-shell">
       <div className="nc-mobile-shell" id="tools">
@@ -105,10 +98,9 @@ export default function CartoonStudioShellV2() {
       </div>
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
-      <CartoonSafeResetBar onReset={resetCreator} />
 
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
-        <QuantumCartoonCreatorV2 key={creatorKey} />
+        <QuantumCartoonCreatorV4 />
       </section>
     </main>
   );
