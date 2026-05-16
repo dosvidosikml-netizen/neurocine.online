@@ -5,17 +5,11 @@ import { initQuantumField, initTypewriter, initWaveCanvas } from "./quantumAnimC
 
 const CAMS = ["Wide Shot", "Medium Shot", "Close-Up", "POV", "Low Angle", "Aerial"];
 const CAM_LABEL = { "Wide Shot": "Общий план", "Medium Shot": "Средний план", "Close-Up": "Крупный план", POV: "POV", "Low Angle": "Нижний ракурс", Aerial: "Сверху" };
-const MODS = [
-  ["beard", "борода"], ["scar", "шрам"], ["dirt", "грязь"], ["sweat", "пот"],
-  ["glasses", "очки"], ["mask", "маска"], ["crown", "корона"], ["pale", "бледный"]
-];
-const STYLES = [
-  ["anime", "🌸", "АНИМЕ"], ["pixar", "🎪", "3D МУЛЬТ"], ["flat", "🎨", "2D FLAT"],
-  ["cinema", "🎬", "КИНО"], ["pixel", "👾", "PIXEL"], ["custom", "⚛️", "СВОЙ"]
-];
+const MODS = [["beard", "борода"], ["scar", "шрам"], ["dirt", "грязь"], ["sweat", "пот"], ["glasses", "очки"], ["mask", "маска"], ["crown", "корона"], ["pale", "бледный"]];
+const STYLES = [["anime", "🌸", "АНИМЕ"], ["pixar", "🎪", "3D МУЛЬТ"], ["flat", "🎨", "2D FLAT"], ["cinema", "🎬", "КИНО"], ["pixel", "👾", "PIXEL"], ["custom", "⚛️", "СВОЙ"]];
 const MOODS = [["light", "СВЕТЛЫЙ"], ["dark", "ТЁМНЫЙ"], ["epic", "ЭПИК"], ["cute", "МИЛЫЙ"], ["mystery", "ТАЙНА"]];
 const PALETTES = [["AUTO", "АВТО"], ["COOL", "ХОЛОДНАЯ"], ["WARM", "ТЁПЛАЯ"], ["MONO", "МОНО"], ["VIVID", "ЯРКАЯ"]];
-const VOICES = [["neutral", "НЕЙТРАЛЬНО"], ["dramatic", "ДРАМАТИЧНО"], ["kids", "ДЕТСКИЙ"], ["doc", "ДОК" ]];
+const VOICES = [["neutral", "НЕЙТРАЛЬНО"], ["dramatic", "ДРАМАТИЧНО"], ["kids", "ДЕТСКИЙ"], ["doc", "ДОК"]];
 const LANGS = [["ru", "RU · Рус"], ["en", "EN · Eng"], ["ua", "UA · Укр"]];
 const FORMATS = [
   { f: "shorts", a: "9:16", d: 60, ket: "|shorts⟩", name: "SHORTS · REELS", spec: "9:16 · до 90с" },
@@ -27,20 +21,69 @@ const ACT_LABEL = { HOOK: "ХУК", BUILD: "РАЗГОН", CLIMAX: "ПИК", OUT
 const DEMO = {
   ru: "Однажды маленький робот проснулся на Луне. Он увидел светящийся след между кратерами. След привёл его к двери, которой вчера не было. За дверью жил потерянный солнечный зайчик. Робот понял, что должен вернуть его на небо. Когда зайчик прыгнул вверх, вся Луна впервые засветилась тёплым светом.",
   en: "One day a tiny robot woke up on the Moon. He saw a glowing trail between the craters. The trail led him to a door that had not existed yesterday. Behind the door lived a lost sunbeam. The robot knew he had to return it to the sky. When the sunbeam jumped up, the Moon glowed with warm light for the first time.",
+  ua: "Одного разу маленький робот прокинувся на Місяці. Він побачив світний слід між кратерами. Слід привів його до дверей, яких учора не було. За дверима жив загублений сонячний промінь. Робот зрозумів, що має повернути його на небо."
 };
-const initial = { step: 1, title: "", format: "shorts", aspect: "9:16", duration: 60, lang: "ru", style: "anime", mood: "light", palette: "AUTO", custom: "", heroes: [], script: "", voice: "neutral", scenes: [], selected: 0, busy: false, status: "ГОТОВО ЛОКАЛЬНО", serverProject: null };
 
-function split(text) { return String(text || "").split(/(?<=[.!?…])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 3).slice(0, 18); }
-function act(i, n) { const p = i / Math.max(1, n); if (p < 0.12) return "HOOK"; if (p < 0.55) return "BUILD"; if (p < 0.86) return "CLIMAX"; return "OUTRO"; }
-function stylePrompt(s) { if (s.style === "custom") return s.custom || "custom cartoon style"; if (s.style === "pixar") return "premium 3D cartoon, warm cinematic lighting"; if (s.style === "flat") return "2D flat cartoon, bold outlines, clean shapes"; if (s.style === "cinema") return "cinematic animated film, dramatic lighting"; if (s.style === "pixel") return "16-bit pixel art cartoon, retro palette"; return "anime cel-shaded cartoon, expressive faces, vibrant colors"; }
-function buildScenes(s) {
-  const parts = split(s.script);
+const initial = {
+  step: 1,
+  title: "",
+  format: "shorts",
+  aspect: "9:16",
+  duration: 60,
+  lang: "ru",
+  style: "anime",
+  mood: "light",
+  palette: "AUTO",
+  custom: "",
+  v2: { model: "VEO3", mode: "SAFE", detail: "CINEMATIC", partSize: 4, grid: "2x2", upscale: "2K" },
+  heroes: [],
+  script: "",
+  voice: "neutral",
+  scenes: [],
+  selected: 0,
+  busy: false,
+  status: "ГОТОВО ЛОКАЛЬНО",
+  serverProject: null,
+};
+
+function split(text) {
+  return String(text || "").split(/(?<=[.!?…])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 3).slice(0, 18);
+}
+function act(i, n) {
+  const p = i / Math.max(1, n);
+  if (p < 0.12) return "HOOK";
+  if (p < 0.55) return "BUILD";
+  if (p < 0.86) return "CLIMAX";
+  return "OUTRO";
+}
+function stylePrompt(s) {
+  if (s.style === "custom") return s.custom || "custom cartoon style";
+  if (s.style === "pixar") return "premium 3D cartoon, warm cinematic lighting";
+  if (s.style === "flat") return "2D flat cartoon, bold outlines, clean shapes";
+  if (s.style === "cinema") return "cinematic animated film, dramatic lighting";
+  if (s.style === "pixel") return "16-bit pixel art cartoon, retro palette";
+  return "anime cel-shaded cartoon, expressive faces, vibrant colors";
+}
+function buildScenes(s, forcedScript) {
+  const script = forcedScript ?? s.script;
+  const parts = split(script);
   const dur = Math.max(2, Math.round(Number(s.duration || 60) / Math.max(1, parts.length)));
   return parts.map((line, i) => {
     const camera = CAMS[i % CAMS.length];
     const chars = s.heroes.slice(0, 2).map((h) => h.name).filter(Boolean);
     const image = `SCENE PRIMARY FOCUS: ${line}. ${stylePrompt(s)}. Mood: ${s.mood}. Palette: ${s.palette}. Camera: ${camera}. Characters: ${chars.join(", ") || "none"}. Preserve character continuity. Clean cartoon frame, no text, no watermark.`;
-    return { id: `node_${String(i + 1).padStart(2, "0")}`, order: i + 1, act: act(i, parts.length), voice_line: line, duration_sec: dur, camera, characters_in_scene: chars, image_prompt_en: image, video_prompt_en: `ANIMATE CURRENT FRAME: ${image} Smooth expressive cartoon motion. SFX: soft cartoon ambience. No subtitles, no UI, no watermark.`, continuity_note: "Preserve Style Lock, Hero Anchor, Face Lock and world continuity across this cartoon PART." };
+    return {
+      id: `scene_${String(i + 1).padStart(2, "0")}`,
+      order: i + 1,
+      act: act(i, parts.length),
+      voice_line: line,
+      duration_sec: dur,
+      camera,
+      characters_in_scene: chars,
+      image_prompt_en: image,
+      video_prompt_en: `ANIMATE CURRENT FRAME: ${image} Smooth expressive cartoon motion for ${dur}s. Animate only this frame, preserve identity and continuity. SFX: soft cartoon ambience. No subtitles, no UI, no watermark.`,
+      continuity_note: "Preserve Style Lock, Hero Anchor, Face Lock and world continuity across this cartoon PART.",
+    };
   });
 }
 function stripPreview(scene) {
@@ -48,14 +91,30 @@ function stripPreview(scene) {
   const { frame_preview, ...rest } = scene;
   return frame_preview ? { ...rest, frame_reference: "uploaded_frame_attached_in_ui" } : rest;
 }
-function projectPayload(s) { return { concept: { title: s.title, format: s.format, aspect_ratio: s.aspect, duration_sec: Number(s.duration), language: s.lang }, style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette }, characters: s.heroes, script: { full_text: s.script, voice_style: s.voice, language: s.lang }, storyboard: { scenes: (s.scenes || []).map(stripPreview) } }; }
+function projectPayload(s, forcedScript) {
+  return {
+    concept: { title: s.title, format: s.format, aspect_ratio: s.aspect, duration_sec: Number(s.duration), language: s.lang, v2: s.v2 },
+    style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette },
+    characters: s.heroes,
+    script: { full_text: forcedScript ?? s.script, voice_style: s.voice, language: s.lang },
+    storyboard: { scenes: (s.scenes || []).map(stripPreview) },
+  };
+}
 function makeJson(s) {
   if (s.serverProject) return s.serverProject;
   const scenes = (s.scenes.length ? s.scenes : buildScenes(s)).map(stripPreview);
-  return { project: { id: `cartoon_${Date.now()}`, title: s.title || "Untitled Cartoon", created_at: new Date().toISOString(), format: s.format, duration_sec: Number(s.duration), aspect_ratio: s.aspect, language: s.lang, style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette } }, characters: s.heroes, script: { full_text: s.script, voice_style: s.voice, word_count: s.script.trim() ? s.script.trim().split(/\s+/).length : 0, language: s.lang }, storyboard: { total_scenes: scenes.length, total_duration_sec: scenes.reduce((a, x) => a + Number(x.duration_sec || 0), 0), scenes }, generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", model_image_analysis: "claude-sonnet-4-6", model_video_prompt: "claude-haiku-4-5", pipeline: "cartoon_creator_v1", engine: "local-ui" } };
+  return {
+    project: { id: `cartoon_${Date.now()}`, title: s.title || "Untitled Cartoon", created_at: new Date().toISOString(), format: s.format, duration_sec: Number(s.duration), aspect_ratio: s.aspect, language: s.lang, style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette }, v2: s.v2 },
+    characters: s.heroes,
+    script: { full_text: s.script, voice_style: s.voice, word_count: s.script.trim() ? s.script.trim().split(/\s+/).length : 0, language: s.lang },
+    storyboard: { total_scenes: scenes.length, total_duration_sec: scenes.reduce((a, x) => a + Number(x.duration_sec || 0), 0), part_size: 4, grid: "2x2", scenes },
+    generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", model_image_analysis: "claude-sonnet-4-6", model_video_prompt: "claude-haiku-4-5", pipeline: "cartoon_creator_v1", engine: "local-ui" },
+  };
 }
+
 function reducer(s, a) {
-  if (a.type === "set") return { ...s, [a.key]: a.value, serverProject: ["title", "format", "duration", "lang", "style", "mood", "palette", "custom"].includes(a.key) ? null : s.serverProject };
+  if (a.type === "set") return { ...s, [a.key]: a.value, serverProject: null };
+  if (a.type === "v2") return { ...s, v2: { ...s.v2, [a.key]: a.value }, serverProject: null };
   if (a.type === "format") return { ...s, format: a.f, aspect: a.a, duration: a.d, serverProject: null };
   if (a.type === "step") return { ...s, step: Math.min(6, Math.max(1, a.step)), scenes: a.step >= 5 && !s.scenes.length ? buildScenes(s) : s.scenes };
   if (a.type === "addHero") return s.heroes.length >= 3 ? s : { ...s, heroes: [...s.heroes, { id: `char_${s.heroes.length + 1}`, name: `Герой ${s.heroes.length + 1}`, role: "main", description: "", face_lock: true, modifiers: [] }], serverProject: null };
@@ -63,11 +122,14 @@ function reducer(s, a) {
   if (a.type === "heroMod") return { ...s, heroes: s.heroes.map((h, i) => i === a.i ? { ...h, modifiers: h.modifiers.includes(a.mod) ? h.modifiers.filter((x) => x !== a.mod) : [...h.modifiers, a.mod] } : h), serverProject: null };
   if (a.type === "deleteHero") return { ...s, heroes: s.heroes.filter((_, i) => i !== a.i), serverProject: null };
   if (a.type === "script") return { ...s, script: a.value, scenes: [], serverProject: null };
-  if (a.type === "build") return { ...s, scenes: buildScenes(s), selected: 0, serverProject: null, status: "ЛОКАЛЬНЫЙ STORYBOARD ГОТОВ" };
+  if (a.type === "localStoryboard") return { ...s, script: a.script ?? s.script, scenes: buildScenes(s, a.script), selected: 0, serverProject: null, busy: false, status: a.status || "STORYBOARD JSON V2 ГОТОВ" };
   if (a.type === "select") return { ...s, selected: a.i };
   if (a.type === "busy") return { ...s, busy: a.value, status: a.status ?? s.status };
   if (a.type === "status") return { ...s, status: a.status };
-  if (a.type === "frame") { const base = s.scenes.length ? s.scenes : buildScenes(s); return { ...s, scenes: base.map((sc, i) => i === a.i ? { ...sc, frame_preview: a.preview, frame_file_name: a.name, frame_reference: "uploaded_frame_attached_in_ui" } : sc), selected: a.i, serverProject: null, status: "FRAME ЗАГРУЖЕН" }; }
+  if (a.type === "frame") {
+    const base = s.scenes.length ? s.scenes : buildScenes(s);
+    return { ...s, scenes: base.map((sc, i) => i === a.i ? { ...sc, frame_preview: a.preview, frame_file_name: a.name, frame_reference: "uploaded_frame_attached_in_ui" } : sc), selected: a.i, serverProject: null, status: "FRAME ЗАГРУЖЕН" };
+  }
   if (a.type === "aiScript") return { ...s, title: a.script?.title || s.title, voice: a.script?.voice_style || s.voice, script: a.script?.full_text || s.script, scenes: [], serverProject: null, busy: false, status: a.status || "СЦЕНАРИЙ AI ГОТОВ" };
   if (a.type === "aiProject") return { ...s, serverProject: a.project, scenes: a.project?.storyboard?.scenes || s.scenes, selected: 0, busy: false, status: a.status || "STORYBOARD AI ГОТОВ" };
   return s;
@@ -75,29 +137,151 @@ function reducer(s, a) {
 
 export default function QuantumCartoonCreator() {
   const [s, dispatch] = useReducer(reducer, initial);
-  const fieldRef = useRef(null), waveRef = useRef(null), tagRef = useRef(null), waveRefApi = useRef(null);
+  const fieldRef = useRef(null);
+  const waveRef = useRef(null);
+  const tagRef = useRef(null);
+  const waveRefApi = useRef(null);
   const json = useMemo(() => makeJson(s), [s]);
   const jsonText = useMemo(() => JSON.stringify(json, null, 2), [json]);
-  useEffect(() => { document.body.classList.add("route-cartoon"); const stopField = initQuantumField(fieldRef.current); const wave = initWaveCanvas(waveRef.current); const stopType = initTypewriter(tagRef.current); waveRefApi.current = wave; wave.setDuration(s.duration); return () => { document.body.classList.remove("route-cartoon"); stopField(); wave.destroy(); stopType(); }; }, []);
+
+  useEffect(() => {
+    document.body.classList.add("route-cartoon");
+    const stopField = initQuantumField(fieldRef.current);
+    const wave = initWaveCanvas(waveRef.current);
+    const stopType = initTypewriter(tagRef.current);
+    waveRefApi.current = wave;
+    wave.setDuration(s.duration);
+    return () => {
+      document.body.classList.remove("route-cartoon");
+      stopField();
+      wave.destroy();
+      stopType();
+    };
+  }, []);
+
   useEffect(() => { waveRefApi.current?.setDuration(s.duration); }, [s.duration]);
-  function go(step) { dispatch({ type: "step", step }); if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" }); }
-  async function postJson(url, payload) { const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const data = await res.json().catch(() => ({})); if (!res.ok || data.ok === false) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status }); return data; }
-  async function generateScript() { dispatch({ type: "busy", value: true, status: "AI ДУМАЕТ · СЦЕНАРИЙ" }); try { const data = await postJson("/api/cartoon/script", projectPayload(s)); dispatch({ type: "aiScript", script: data.script, status: `СЦЕНАРИЙ AI ГОТОВ · ${data.model_used || "model"}` }); } catch (e) { dispatch({ type: "script", value: DEMO[s.lang] || DEMO.ru }); dispatch({ type: "busy", value: false, status: e.status === 403 ? "ЛОКАЛЬНО · AI ЗАКРЫТ" : "ЛОКАЛЬНО · СЦЕНАРИЙ" }); } }
-  async function generateStoryboard(nextStep = 5) { dispatch({ type: "busy", value: true, status: "AI ДУМАЕТ · STORYBOARD" }); try { const data = await postJson("/api/cartoon/storyboard", projectPayload(s)); dispatch({ type: "aiProject", project: data.project, status: `STORYBOARD AI ГОТОВ · ${data.model_used || "model"}` }); go(nextStep); } catch (e) { dispatch({ type: "busy", value: false, status: e.status === 403 ? "ЛОКАЛЬНО · AI ЗАКРЫТ" : "ЛОКАЛЬНО · STORYBOARD" }); dispatch({ type: "step", step: nextStep }); if (!s.scenes.length) dispatch({ type: "build" }); } }
-  function uploadFrame(index, files) { const file = files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => dispatch({ type: "frame", i: index, preview: event.target?.result, name: file.name }); reader.readAsDataURL(file); }
+
+  function go(step) {
+    dispatch({ type: "step", step });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  async function postJson(url, payload) {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
+    return data;
+  }
+  async function generateScript() {
+    dispatch({ type: "busy", value: true, status: "AI ДУМАЕТ · СЦЕНАРИЙ" });
+    try {
+      const data = await postJson("/api/cartoon/script", projectPayload(s));
+      dispatch({ type: "aiScript", script: data.script, status: `СЦЕНАРИЙ AI ГОТОВ · ${data.model_used || "model"}` });
+    } catch (e) {
+      dispatch({ type: "script", value: DEMO[s.lang] || DEMO.ru });
+      dispatch({ type: "busy", value: false, status: e.status === 403 ? "ЛОКАЛЬНО · AI ЗАКРЫТ" : "ЛОКАЛЬНО · СЦЕНАРИЙ" });
+    }
+  }
+  async function createStoryboardV2(nextStep = 5) {
+    const scriptForStoryboard = s.script.trim() ? s.script : (DEMO[s.lang] || DEMO.ru);
+    dispatch({ type: "busy", value: true, status: "СОЗДАЮ STORYBOARD JSON V2" });
+    try {
+      const data = await postJson("/api/cartoon/storyboard", projectPayload(s, scriptForStoryboard));
+      dispatch({ type: "aiProject", project: data.project, status: `STORYBOARD V2 ГОТОВ · ${data.model_used || "AI"}` });
+      go(nextStep);
+    } catch (e) {
+      dispatch({ type: "localStoryboard", script: scriptForStoryboard, status: e.status === 403 ? "STORYBOARD V2 ЛОКАЛЬНО · AI ЗАКРЫТ" : "STORYBOARD JSON V2 ЛОКАЛЬНО" });
+      go(nextStep);
+    }
+  }
+  function uploadFrame(index, files) {
+    const file = files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => dispatch({ type: "frame", i: index, preview: event.target?.result, name: file.name });
+    reader.readAsDataURL(file);
+  }
   function copyJson() { navigator.clipboard?.writeText(jsonText); dispatch({ type: "status", status: "JSON СКОПИРОВАН" }); }
   function copyText(text, label = "СКОПИРОВАНО") { navigator.clipboard?.writeText(String(text || "")); dispatch({ type: "status", status: label }); }
-  function next() { if (s.busy) return; if (s.step === 4) return generateStoryboard(5); if (s.step === 6) return window.qPulse?.(window.innerWidth / 2, window.innerHeight / 2, "#8b00ff"); go(s.step + 1); }
-  return <div className="qcc-root"><canvas id="qc" ref={fieldRef} /><div className="hex-grid" /><div className="vignette" /><div className="wrap"><header className="q-header"><div className="q-logo"><div className="q-logo-icon"><div className="orb" /></div><div className="q-logo-text">NEUROCINE</div></div><div className="q-sub">Quantum Cartoon Intelligence · v∞</div><div className="q-tagline" ref={tagRef} /></header><div className="q-status-line">{s.busy ? "⚡ " : "◈ "}{s.status}</div><StepBar step={s.step} go={go} />{s.step === 1 && <Step1 s={s} dispatch={dispatch} waveRef={waveRef} />}{s.step === 2 && <Step2 s={s} dispatch={dispatch} />}{s.step === 3 && <Step3 s={s} dispatch={dispatch} />}{s.step === 4 && <Step4 s={s} dispatch={dispatch} onAi={generateScript} />}{s.step === 5 && <Step5 s={s} dispatch={dispatch} onAi={() => generateStoryboard(5)} uploadFrame={uploadFrame} copyText={copyText} />}{s.step === 6 && <Step6 jsonText={jsonText} copyJson={copyJson} />}</div><div className="nav">{s.step > 1 && <button className="nav-back" disabled={s.busy} onClick={() => go(s.step - 1)}>← НАЗАД</button>}<button className={`nav-next${s.step === 6 ? " launch" : ""}`} disabled={s.busy} onClick={next}>{s.busy ? "ДУМАЮ..." : s.step === 5 ? "ЭКСПОРТ →" : s.step === 6 ? "⚡ ЗАПУСК" : "ДАЛЕЕ →"}</button></div></div>;
+  function next() {
+    if (s.busy) return;
+    if (s.step === 4) return createStoryboardV2(5);
+    if (s.step === 6) return window.qPulse?.(window.innerWidth / 2, window.innerHeight / 2, "#8b00ff");
+    go(s.step + 1);
+  }
+
+  return (
+    <div className="qcc-root">
+      <canvas id="qc" ref={fieldRef} />
+      <div className="hex-grid" />
+      <div className="vignette" />
+      <div className="wrap">
+        <header className="q-header">
+          <div className="q-logo"><div className="q-logo-icon"><div className="orb" /></div><div className="q-logo-text">NEUROCINE</div></div>
+          <div className="q-sub">Quantum Cartoon Intelligence · v∞</div>
+          <div className="q-tagline" ref={tagRef} />
+        </header>
+        <div className="q-status-line">{s.busy ? "⚡ " : "◈ "}{s.status}</div>
+        <StepBar step={s.step} go={go} />
+        {s.step === 1 && <Step1 s={s} dispatch={dispatch} waveRef={waveRef} />}
+        {s.step === 2 && <Step2 s={s} dispatch={dispatch} />}
+        {s.step === 3 && <Step3 s={s} dispatch={dispatch} />}
+        {s.step === 4 && <Step4 s={s} dispatch={dispatch} onAi={generateScript} onStoryboard={() => createStoryboardV2(5)} />}
+        {s.step === 5 && <Step5 s={s} dispatch={dispatch} onStoryboard={() => createStoryboardV2(5)} uploadFrame={uploadFrame} copyText={copyText} />}
+        {s.step === 6 && <Step6 jsonText={jsonText} copyJson={copyJson} />}
+      </div>
+      <div className="nav">
+        {s.step > 1 && <button className="nav-back" disabled={s.busy} onClick={() => go(s.step - 1)}>← НАЗАД</button>}
+        <button className={`nav-next${s.step === 6 ? " launch" : ""}`} disabled={s.busy} onClick={next}>{s.busy ? "ДУМАЮ..." : s.step === 5 ? "ЭКСПОРТ →" : s.step === 6 ? "⚡ ЗАПУСК" : "ДАЛЕЕ →"}</button>
+      </div>
+    </div>
+  );
 }
-function StepBar({ step, go }) { return <div className="q-stepbar">{[1,2,3,4,5,6].map((i) => <div className="qb-node" key={i}><button className={`qb-qubit${i < step ? " done" : i === step ? " active" : ""}`} onClick={() => go(i)}><span className="ring" /><span className="sphere">{i < step ? "✓" : String(i).padStart(2, "0")}</span></button>{i < 6 && <div className={`qb-wire${i < step ? " done" : ""}`} />}</div>)}</div>; }
-function Head({ eyebrow, a, b, body }) { return <><div className="q-eyebrow">{eyebrow}</div><h1 className="q-title"><span className="t-line t-glow">{a}</span><span className="t-line t-dim">{b}</span></h1><p className="q-body">{body}</p></>; }
+
+function StepBar({ step, go }) {
+  return <div className="q-stepbar">{[1,2,3,4,5,6].map((i) => <div className="qb-node" key={i}><button className={`qb-qubit${i < step ? " done" : i === step ? " active" : ""}`} onClick={() => go(i)}><span className="ring" /><span className="sphere">{i < step ? "✓" : String(i).padStart(2, "0")}</span></button>{i < 6 && <div className={`qb-wire${i < step ? " done" : ""}`} />}</div>)}</div>;
+}
+function Head({ eyebrow, a, b, body }) {
+  return <><div className="q-eyebrow">{eyebrow}</div><h1 className="q-title"><span className="t-line t-glow">{a}</span><span className="t-line t-dim">{b}</span></h1><p className="q-body">{body}</p></>;
+}
 function Field({ label, children }) { return <div className="q-field"><label className="q-label">{label}</label>{children}</div>; }
-function Step1({ s, dispatch, waveRef }) { return <section className="step-panel on"><Head eyebrow="Запуск · Шаг 01" a="Настрой" b="проект" body="Задай параметры мультфильма. Каждый выбор становится частью JSON-паспорта проекта." /><Field label="Название мультфильма"><input className="q-inp" value={s.title} placeholder="Например: Кот, который нашёл портал" onChange={(e) => dispatch({ type: "set", key: "title", value: e.target.value })} /></Field><Field label="Формат"><div className="fmt-grid">{FORMATS.map((f) => <button key={f.f} className={`fmt-card${s.format === f.f ? " on" : ""}`} onClick={() => dispatch({ type: "format", ...f })}><span className="collapse-wave" /><span className="fmt-ket">{f.ket}</span><strong className="fmt-name">{f.name}</strong><span className="fmt-spec">{f.spec}</span></button>)}</div></Field><Field label="Язык проекта"><div className="lang-row">{LANGS.map(([value,label]) => <button key={value} className={`lang-b${s.lang === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "lang", value })}>{label}</button>)}</div></Field><Field label="Длительность"><div className="dur-panel"><div className="dur-display"><div><span className="dur-num">{s.duration}</span><span className="dur-s">с</span></div><div className="dur-sc">≈ {Math.max(1, Math.round(s.duration / 7))} сцен</div></div><canvas ref={waveRef} className="wave-canvas" /><input type="range" min="15" max="600" step="5" value={s.duration} onChange={(e) => dispatch({ type: "set", key: "duration", value: Number(e.target.value) })} /></div></Field></section>; }
-function Step2({ s, dispatch }) { return <section className="step-panel on"><Head eyebrow="Визуальный стиль · Шаг 02" a="Стиль" b="мультфильма" body="Выбери визуальный стиль, настроение и палитру. Это станет style lock для всех сцен." /><Field label="Стиль рендера"><div className="sty-grid">{STYLES.map(([id, icon, label]) => <button key={id} className={`sty-card${s.style === id ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "style", value: id })}><span className="sty-ico">{icon}</span><strong className="sty-name">{label}</strong></button>)}</div></Field>{s.style === "custom" && <Field label="Свой style prompt"><textarea className="q-inp" value={s.custom} onChange={(e) => dispatch({ type: "set", key: "custom", value: e.target.value })} /></Field>}<Field label="Настроение"><div className="mood-row">{MOODS.map(([value,label]) => <button key={value} className={`mood-chip${s.mood === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "mood", value })}>{label}</button>)}</div></Field><Field label="Палитра"><div className="mood-row">{PALETTES.map(([value,label]) => <button key={value} className={`mood-chip${s.palette === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "palette", value })}>{label}</button>)}</div></Field></section>; }
-function Step3({ s, dispatch }) { return <section className="step-panel on"><Head eyebrow="Герои · Шаг 03" a="Face Lock" b="персонажей" body="До 3 героев. Face Lock сохраняет лицо, силуэт, одежду и цветовое ДНК героя во всех кадрах." /><div className="neural-list">{s.heroes.map((h,i) => <div className="neural-card on" key={h.id}><div className="nc-head"><div className="nc-orb">{String(i+1).padStart(2,"0")}</div><div className="nc-title"><strong>{h.name}</strong><span>{h.role} · {h.face_lock ? "FACE LOCK" : "FREE"}</span></div></div><div className="nc-body"><Field label="Имя героя"><input className="q-inp" value={h.name} onChange={(e) => dispatch({ type: "hero", i, key: "name", value: e.target.value })} /></Field><Field label="Внешность / характер"><textarea className="q-inp" value={h.description} placeholder="одежда, лицо, цвет, характер, приметы..." onChange={(e) => dispatch({ type: "hero", i, key: "description", value: e.target.value })} /></Field><div className="entangle-row"><div><strong>Фиксация лица</strong><span>сохранять лицо / силуэт / одежду</span></div><button className={`ent-toggle${h.face_lock ? " on" : ""}`} onClick={() => dispatch({ type: "hero", i, key: "face_lock", value: !h.face_lock })}><i /></button></div><Field label="Модификаторы"><div className="q-mods">{MODS.map(([value,label]) => <button key={value} className={`q-mod${h.modifiers.includes(value) ? " on" : ""}`} onClick={() => dispatch({ type: "heroMod", i, mod: value })}>{label}</button>)}</div></Field><button className="q-del" onClick={() => dispatch({ type: "deleteHero", i })}>Удалить героя</button></div></div>)}</div><button className="add-neural" onClick={() => dispatch({ type: "addHero" })}>⊕ Добавить героя</button></section>; }
-function Step4({ s, dispatch, onAi }) { const segments = split(s.script); return <section className="step-panel on"><Head eyebrow="Сценарий · Шаг 04" a="Текст" b="диктора" body="Каждое предложение становится узлом storyboard. Можно вставить свой текст или сгенерировать через AI." /><button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button><Field label="Голос"><div className="v-row">{VOICES.map(([value,label]) => <button key={value} className={`v-b${s.voice === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "voice", value })}>{label}</button>)}</div></Field><Field label="Текст сценария"><textarea className="q-inp" rows={7} value={s.script} placeholder="Вставь сценарий или нажми генерацию..." onChange={(e) => dispatch({ type: "script", value: e.target.value })} /></Field><div className="meta-strip"><div className="q-meta">СЛОВА: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div><div className="q-meta">УЗЛЫ: <span>{segments.length}</span></div><div className="q-meta">~<span>{segments.length * 7}</span>с</div></div></section>; }
-function Step5({ s, dispatch, onAi, uploadFrame, copyText }) { const scenes = s.scenes.length ? s.scenes : buildScenes(s); const selected = scenes[s.selected] || scenes[0] || null; const partIndex = Math.floor((s.selected || 0) / 4); const totalParts = Math.max(1, Math.ceil(scenes.length / 4)); const partScenes = scenes.slice(partIndex * 4, partIndex * 4 + 4); while (partScenes.length < 4) partScenes.push(null); return <section className="step-panel on"><Head eyebrow="Storyboard Grid · Шаг 05" a="Cartoon" b="PART grid" body="Цепочка как в Storyboard Studio: сценарий → storyboard → PART grid → Frame → image prompt → video prompt → export." /><ProductionChain /><div className="sb-toolbar"><div className="sb-data">PART: <span>{String(partIndex + 1).padStart(2,"0")}</span> / {String(totalParts).padStart(2,"0")} · СЦЕН: <span>{scenes.length}</span></div><button className="regen-q" disabled={s.busy} onClick={onAi}>{s.busy ? "AI..." : "↺ Пересобрать AI"}</button></div><div className="qpart-tabs">{Array.from({ length: totalParts }, (_, p) => <button key={p} className={`qpart-tab${p === partIndex ? " on" : ""}`} onClick={() => dispatch({ type: "select", i: p * 4 })}>PART {String(p + 1).padStart(2,"0")}</button>)}</div><div className="qpart-grid">{partScenes.map((sc, localIdx) => { const global = partIndex * 4 + localIdx; if (!sc) return <div className="qframe empty" key={`empty_${localIdx}`}><span>F{String(localIdx + 1).padStart(2,"0")}</span><em>ПУСТО</em></div>; return <div role="button" tabIndex={0} key={sc.id || global} className={`qframe${s.selected === global ? " sel" : ""}`} onClick={() => dispatch({ type: "select", i: global })}><div className="qframe-shot">{sc.frame_preview ? <img className="qframe-img" src={sc.frame_preview} alt="Uploaded frame" /> : <><div className="qframe-orbit" /><div className="qframe-pulse" /></>}<span className="qframe-id">F{String(localIdx + 1).padStart(2,"0")}</span><span className="qframe-act">{ACT_LABEL[sc.act] || sc.act}</span></div><div className="qframe-info"><strong>{CAM_LABEL[sc.camera] || sc.camera}</strong><p>{sc.voice_line}</p><small>{sc.frame_preview ? "frame загружен" : "нет frame"} · {sc.duration_sec}с</small></div></div>; })}</div>{selected && <div className="qframe-inspector"><div className="qins-head"><strong>{selected.id || `scene_${s.selected + 1}`}</strong><span>{ACT_LABEL[selected.act] || selected.act} · {CAM_LABEL[selected.camera] || selected.camera} · {selected.duration_sec}с</span></div><div className="qins-voice">{selected.voice_line}</div><label className="qframe-upload"><input type="file" accept="image/*" onChange={(e) => uploadFrame(s.selected, e.target.files)} /><b>{selected.frame_preview ? "Заменить Frame" : "Загрузить Frame"}</b><span>выбранный кадр F{String((s.selected % 4) + 1).padStart(2,"0")} · reference для генерации</span></label><PromptBlock title="IMAGE PROMPT EN" text={selected.image_prompt_en} onCopy={() => copyText(selected.image_prompt_en, "IMAGE PROMPT СКОПИРОВАН")} /><PromptBlock title="VIDEO PROMPT EN" text={selected.video_prompt_en} onCopy={() => copyText(selected.video_prompt_en, "VIDEO PROMPT СКОПИРОВАН")} /><PromptBlock title="CONTINUITY" text={selected.continuity_note || "Preserve Style Lock, Hero Anchor, Face Lock and world continuity."} onCopy={() => copyText(selected.continuity_note, "CONTINUITY СКОПИРОВАН")} /></div>}<div className="synapse-grid mini">{scenes.length === 0 && <div className="no-signal">// НЕТ СЦЕН → сначала сценарий</div>}{scenes.map((sc,i) => <button className={`syn-card${s.selected === i ? " sel" : ""}`} key={sc.id} onClick={() => dispatch({ type: "select", i })}><div className="syt"><div className="syt-field" /><div className="syt-interference" /><div className="syt-pulse" /><div className="sy-act">{ACT_LABEL[sc.act] || sc.act}</div><div className="sy-num">{sc.id}</div></div><div className="sy-info"><div className="sy-voice">{sc.voice_line}</div><div className="sy-meta"><span>{CAM_LABEL[sc.camera] || sc.camera}</span><span>{sc.duration_sec}с</span></div></div></button>)}</div></section>; }
-function ProductionChain() { const items = ["Сценарий", "Storyboard", "PART Grid", "Frame", "Image Prompt", "Video Prompt", "Export"]; return <div className="qchain">{items.map((x, i) => <div className="qchain-node" key={x}><span>{String(i + 1).padStart(2,"0")}</span><b>{x}</b></div>)}</div>; }
+
+function Step1({ s, dispatch, waveRef }) {
+  return <section className="step-panel on"><Head eyebrow="Запуск · Шаг 01" a="Настрой" b="проект" body="Задай параметры мультфильма. Каждый выбор становится частью JSON-паспорта проекта." /><Field label="Название мультфильма"><input className="q-inp" value={s.title} placeholder="Например: Кот, который нашёл портал" onChange={(e) => dispatch({ type: "set", key: "title", value: e.target.value })} /></Field><Field label="Формат"><div className="fmt-grid">{FORMATS.map((f) => <button key={f.f} className={`fmt-card${s.format === f.f ? " on" : ""}`} onClick={() => dispatch({ type: "format", ...f })}><span className="collapse-wave" /><span className="fmt-ket">{f.ket}</span><strong className="fmt-name">{f.name}</strong><span className="fmt-spec">{f.spec}</span></button>)}</div></Field><Field label="Язык проекта"><div className="lang-row">{LANGS.map(([value,label]) => <button key={value} className={`lang-b${s.lang === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "lang", value })}>{label}</button>)}</div></Field><Field label="Длительность"><div className="dur-panel"><div className="dur-display"><div><span className="dur-num">{s.duration}</span><span className="dur-s">с</span></div><div className="dur-sc">≈ {Math.max(1, Math.round(s.duration / 7))} сцен</div></div><canvas ref={waveRef} className="wave-canvas" /><input type="range" min="15" max="600" step="5" value={s.duration} onChange={(e) => dispatch({ type: "set", key: "duration", value: Number(e.target.value) })} /></div></Field></section>;
+}
+function Step2({ s, dispatch }) {
+  return <section className="step-panel on"><Head eyebrow="Визуальный стиль · Шаг 02" a="Стиль" b="мультфильма" body="Выбери визуальный стиль, настроение и палитру. Это станет style lock для всех сцен." /><Field label="Стиль рендера"><div className="sty-grid">{STYLES.map(([id, icon, label]) => <button key={id} className={`sty-card${s.style === id ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "style", value: id })}><span className="sty-ico">{icon}</span><strong className="sty-name">{label}</strong></button>)}</div></Field>{s.style === "custom" && <Field label="Свой style prompt"><textarea className="q-inp" value={s.custom} onChange={(e) => dispatch({ type: "set", key: "custom", value: e.target.value })} /></Field>}<Field label="Настроение"><div className="mood-row">{MOODS.map(([value,label]) => <button key={value} className={`mood-chip${s.mood === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "mood", value })}>{label}</button>)}</div></Field><Field label="Палитра"><div className="mood-row">{PALETTES.map(([value,label]) => <button key={value} className={`mood-chip${s.palette === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "palette", value })}>{label}</button>)}</div></Field></section>;
+}
+function Step3({ s, dispatch }) {
+  return <section className="step-panel on"><Head eyebrow="Герои · Шаг 03" a="Face Lock" b="персонажей" body="До 3 героев. Face Lock сохраняет лицо, силуэт, одежду и цветовое ДНК героя во всех кадрах." /><div className="neural-list">{s.heroes.map((h,i) => <div className="neural-card on" key={h.id}><div className="nc-head"><div className="nc-orb">{String(i+1).padStart(2,"0")}</div><div className="nc-title"><strong>{h.name}</strong><span>{h.role} · {h.face_lock ? "FACE LOCK" : "FREE"}</span></div></div><div className="nc-body"><Field label="Имя героя"><input className="q-inp" value={h.name} onChange={(e) => dispatch({ type: "hero", i, key: "name", value: e.target.value })} /></Field><Field label="Внешность / характер"><textarea className="q-inp" value={h.description} placeholder="одежда, лицо, цвет, характер, приметы..." onChange={(e) => dispatch({ type: "hero", i, key: "description", value: e.target.value })} /></Field><div className="entangle-row"><div><strong>Фиксация лица</strong><span>сохранять лицо / силуэт / одежду</span></div><button className={`ent-toggle${h.face_lock ? " on" : ""}`} onClick={() => dispatch({ type: "hero", i, key: "face_lock", value: !h.face_lock })}><i /></button></div><Field label="Модификаторы"><div className="q-mods">{MODS.map(([value,label]) => <button key={value} className={`q-mod${h.modifiers.includes(value) ? " on" : ""}`} onClick={() => dispatch({ type: "heroMod", i, mod: value })}>{label}</button>)}</div></Field><button className="q-del" onClick={() => dispatch({ type: "deleteHero", i })}>Удалить героя</button></div></div>)}</div><button className="add-neural" onClick={() => dispatch({ type: "addHero" })}>⊕ Добавить героя</button></section>;
+}
+function Step4({ s, dispatch, onAi, onStoryboard }) {
+  const segments = split(s.script);
+  return <section className="step-panel on"><Head eyebrow="Сценарий · Шаг 04" a="Текст" b="диктора" body="Вставь сценарий или сгенерируй. Потом жми отдельную V2-кнопку: она создаёт storyboard JSON и PART-сетку." /><button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button><button className="qv2-primary" disabled={s.busy} onClick={onStoryboard}>Создать storyboard JSON для V2</button><Field label="Голос"><div className="v-row">{VOICES.map(([value,label]) => <button key={value} className={`v-b${s.voice === value ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "voice", value })}>{label}</button>)}</div></Field><Field label="Текст сценария"><textarea className="q-inp" rows={7} value={s.script} placeholder="Вставь сценарий или нажми генерацию..." onChange={(e) => dispatch({ type: "script", value: e.target.value })} /></Field><div className="meta-strip"><div className="q-meta">СЛОВА: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div><div className="q-meta">УЗЛЫ: <span>{segments.length}</span></div><div className="q-meta">~<span>{segments.length * 7}</span>с</div></div></section>;
+}
+function V2Settings({ s, dispatch }) {
+  return <div className="qv2-settings"><div className="qv2-setting"><span>Модель</span><div>{["VEO3","KLING","RUNWAY"].map((x) => <button key={x} className={s.v2.model === x ? "on" : ""} onClick={() => dispatch({ type: "v2", key: "model", value: x })}>{x}</button>)}</div></div><div className="qv2-setting"><span>Режим</span><div>{["SAFE","RAW"].map((x) => <button key={x} className={s.v2.mode === x ? "on" : ""} onClick={() => dispatch({ type: "v2", key: "mode", value: x })}>{x}</button>)}</div></div><div className="qv2-setting"><span>Качество</span><div>{["CINEMATIC","2K"].map((x) => <button key={x} className={s.v2.detail === x || s.v2.upscale === x ? "on" : ""} onClick={() => dispatch({ type: "v2", key: x === "2K" ? "upscale" : "detail", value: x })}>{x}</button>)}</div></div></div>;
+}
+function Step5({ s, dispatch, onStoryboard, uploadFrame, copyText }) {
+  const scenes = s.scenes.length ? s.scenes : buildScenes(s);
+  const selected = scenes[s.selected] || scenes[0] || null;
+  const partIndex = Math.floor((s.selected || 0) / 4);
+  const totalParts = Math.max(1, Math.ceil(Math.max(1, scenes.length) / 4));
+  const partScenes = scenes.slice(partIndex * 4, partIndex * 4 + 4);
+  while (partScenes.length < 4) partScenes.push(null);
+  const frameLabel = `F${String(((s.selected || 0) % 4) + 1).padStart(2,"0")}`;
+  return <section className="step-panel on"><Head eyebrow="Storyboard V2 · Шаг 05" a="Frame Grid" b="2×2" body="V2-цепочка как в основном Storyboard: настройки → storyboard JSON → PART grid → Frame → Image Prompt → Video Prompt → Export." /><V2Settings s={s} dispatch={dispatch} /><div className="qv2-actions"><button className="qv2-primary" disabled={s.busy} onClick={onStoryboard}>Создать storyboard JSON для V2</button><label className={`qframe-upload qframe-upload-top${selected ? "" : " disabled"}`}><input type="file" accept="image/*" disabled={!selected} onChange={(e) => selected && uploadFrame(s.selected, e.target.files)} /><b>{selected?.frame_preview ? "Заменить Frame" : "Загрузить Frame"}</b><span>{selected ? `${frameLabel} · reference для выбранного кадра` : "сначала создай storyboard JSON"}</span></label></div><div className="sb-toolbar"><div className="sb-data">PART: <span>{String(partIndex + 1).padStart(2,"0")}</span> / {String(totalParts).padStart(2,"0")} · СЦЕН: <span>{scenes.length}</span></div><button className="regen-q" disabled={s.busy} onClick={onStoryboard}>{s.busy ? "AI..." : "↺ Пересобрать AI"}</button></div><div className="qpart-tabs">{Array.from({ length: totalParts }, (_, p) => <button key={p} className={`qpart-tab${p === partIndex ? " on" : ""}`} onClick={() => dispatch({ type: "select", i: p * 4 })}>PART {String(p + 1).padStart(2,"0")}</button>)}</div>{scenes.length === 0 ? <div className="qv2-empty"><b>Нет storyboard JSON V2</b><span>Нажми “Создать storyboard JSON для V2” — появится 2×2 PART-сетка и кнопка загрузки Frame.</span></div> : <div className="qpart-grid">{partScenes.map((sc, localIdx) => { const global = partIndex * 4 + localIdx; if (!sc) return <div className="qframe empty" key={`empty_${localIdx}`}><span>F{String(localIdx + 1).padStart(2,"0")}</span><em>ПУСТО</em></div>; return <div role="button" tabIndex={0} key={sc.id || global} className={`qframe${s.selected === global ? " sel" : ""}`} onClick={() => dispatch({ type: "select", i: global })}><div className="qframe-shot">{sc.frame_preview ? <img className="qframe-img" src={sc.frame_preview} alt="Uploaded frame" /> : <><div className="qframe-orbit" /><div className="qframe-pulse" /></>}<span className="qframe-id">F{String(localIdx + 1).padStart(2,"0")}</span><span className="qframe-act">{ACT_LABEL[sc.act] || sc.act}</span></div><div className="qframe-info"><strong>{CAM_LABEL[sc.camera] || sc.camera}</strong><p>{sc.voice_line}</p><small>{sc.frame_preview ? "frame загружен" : "нет frame"} · {sc.duration_sec}с</small></div></div>; })}</div>}{selected && <div className="qframe-inspector"><div className="qins-head"><strong>{selected.id || `scene_${s.selected + 1}`}</strong><span>{ACT_LABEL[selected.act] || selected.act} · {CAM_LABEL[selected.camera] || selected.camera} · {selected.duration_sec}с</span></div><div className="qins-voice">{selected.voice_line}</div><PromptBlock title="IMAGE PROMPT EN" text={selected.image_prompt_en} onCopy={() => copyText(selected.image_prompt_en, "IMAGE PROMPT СКОПИРОВАН")} /><PromptBlock title="VIDEO PROMPT EN" text={selected.video_prompt_en} onCopy={() => copyText(selected.video_prompt_en, "VIDEO PROMPT СКОПИРОВАН")} /><PromptBlock title="CONTINUITY" text={selected.continuity_note || "Preserve Style Lock, Hero Anchor, Face Lock and world continuity."} onCopy={() => copyText(selected.continuity_note, "CONTINUITY СКОПИРОВАН")} /></div>}<V2FlipChain selected={selected} copyText={copyText} /></section>;
+}
+function V2FlipChain({ selected, copyText }) {
+  const blocks = [
+    ["01", "Настройки V2", "Модель, SAFE/RAW, 2K и режим мультфильма."],
+    ["02", "Storyboard JSON", "Создаёт сцены, voice line, camera, act и continuity."],
+    ["03", "PART Grid 2×2", "Четыре кадра F01–F04 в одном PART."],
+    ["04", "Frame", selected?.frame_preview ? "Frame загружен. Можно заменить." : "Загрузи reference кадр для выбранной сцены."],
+    ["05", "Image Prompt", selected?.image_prompt_en || "Появится после storyboard JSON."],
+    ["06", "Video Prompt", selected?.video_prompt_en || "Появится после выбора кадра."],
+    ["07", "Export", "Финальный JSON проекта для cartoon pipeline."],
+  ];
+  return <div className="qflip-deck">{blocks.map(([n, title, body]) => <details className="qflip-card" key={n}><summary><span>{n}</span><b>{title}</b></summary><div className="qflip-back"><p>{body}</p>{(title.includes("Prompt") && selected) && <button onClick={() => copyText(body, `${title} СКОПИРОВАН`)}>Копировать</button>}</div></details>)}</div>;
+}
 function PromptBlock({ title, text, onCopy }) { return <div className="qprompt"><div className="qprompt-title"><span>{title}</span>{onCopy && <button type="button" onClick={onCopy}>Копировать</button>}</div><pre>{text || "—"}</pre></div>; }
 function Step6({ jsonText, copyJson }) { return <section className="step-panel on"><Head eyebrow="Экспорт · Шаг 06" a="JSON" b="проекта" body="Итоговый JSON проекта для cartoon pipeline." /><div className="json-wrap"><div className="json-bar"><span className="json-fn">◈ cartoon_project.quantum.json</span><button className="json-cp" onClick={copyJson}>⊕ Копировать</button></div><pre className="json-body">{jsonText}</pre></div></section>; }
