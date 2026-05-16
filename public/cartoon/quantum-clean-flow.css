@@ -21,3 +21,53 @@
   line-height:1.7;
   font-weight:300;
 }
+
+/* /cartoon light theme: keep the bottom dock readable over the dark creator canvas. */
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav{
+  color:#111827 !important;
+  border-color:rgba(15,23,42,.12) !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,92,42,.12), transparent 42%),
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(245,247,251,.88)) !important;
+  box-shadow:
+    0 20px 58px rgba(15,23,42,.22),
+    inset 0 1px 0 rgba(255,255,255,.95) !important;
+  backdrop-filter:blur(22px) saturate(1.16) !important;
+  -webkit-backdrop-filter:blur(22px) saturate(1.16) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button{
+  color:rgba(15,23,42,.62) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button b,
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button span{
+  color:inherit !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button:hover,
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button:focus-visible,
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button.is-active{
+  color:#0f172a !important;
+  border-color:rgba(15,23,42,.12) !important;
+  background:linear-gradient(180deg, rgba(15,23,42,.08), rgba(15,23,42,.035)) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78), 0 10px 24px rgba(15,23,42,.08) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav button.is-active::after{
+  background:linear-gradient(90deg, #ff4d5f, #ff8a3d) !important;
+  box-shadow:0 0 12px rgba(255,92,42,.38) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav .nc-create-plus{
+  color:#16070a !important;
+  border-color:rgba(255,119,72,.44) !important;
+  background:
+    radial-gradient(circle at 30% 12%, rgba(255,255,255,.46), transparent 18%),
+    linear-gradient(135deg, #ff3f55, #ff7a3d) !important;
+  box-shadow:0 16px 42px rgba(255,75,56,.28), inset 0 1px 0 rgba(255,255,255,.38) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-bottom-nav .nc-create-plus::after{
+  color:#334155 !important;
+}
