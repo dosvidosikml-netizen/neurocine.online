@@ -5,14 +5,7 @@ import { initQuantumField, initTypewriter, initWaveCanvas } from "./quantumAnimC
 
 const CAMS = ["Wide Shot", "Medium Shot", "Close-Up", "POV", "Low Angle", "Aerial"];
 const MODS = ["beard", "scar", "dirt", "sweat", "glasses", "mask", "crown", "pale"];
-const STYLES = [
-  ["anime", "🌸", "ANIME"],
-  ["pixar", "🎪", "3D PIXAR"],
-  ["flat", "🎨", "2D FLAT"],
-  ["cinema", "🎬", "CINEMA"],
-  ["pixel", "👾", "PIXEL"],
-  ["custom", "⚛️", "CUSTOM"],
-];
+const STYLES = [["anime", "🌸", "ANIME"], ["pixar", "🎪", "3D PIXAR"], ["flat", "🎨", "2D FLAT"], ["cinema", "🎬", "CINEMA"], ["pixel", "👾", "PIXEL"], ["custom", "⚛️", "CUSTOM"]];
 const FORMATS = [
   { f: "shorts", a: "9:16", d: 60, ket: "|shorts⟩", name: "SHORTS · REELS", spec: "9:16 · ≤90s" },
   { f: "tiktok", a: "9:16", d: 45, ket: "|tiktok⟩", name: "TIKTOK", spec: "9:16 · ≤60s" },
@@ -23,43 +16,11 @@ const DEMO = {
   ru: "Однажды маленький робот проснулся на Луне. Он увидел светящийся след между кратерами. След привёл его к двери, которой вчера не было. За дверью жил потерянный солнечный зайчик. Робот понял, что должен вернуть его на небо. Когда зайчик прыгнул вверх, вся Луна впервые засветилась тёплым светом.",
   en: "One day a tiny robot woke up on the Moon. He saw a glowing trail between the craters. The trail led him to a door that had not existed yesterday. Behind the door lived a lost sunbeam. The robot knew he had to return it to the sky. When the sunbeam jumped up, the Moon glowed with warm light for the first time.",
 };
+const initial = { step: 1, title: "", format: "shorts", aspect: "9:16", duration: 60, lang: "ru", style: "anime", mood: "light", palette: "AUTO", custom: "", heroes: [], script: "", voice: "neutral", scenes: [], selected: 0, busy: false, status: "LOCAL READY", serverProject: null };
 
-const initial = {
-  step: 1,
-  title: "",
-  format: "shorts",
-  aspect: "9:16",
-  duration: 60,
-  lang: "ru",
-  style: "anime",
-  mood: "light",
-  palette: "AUTO",
-  custom: "",
-  heroes: [],
-  script: "",
-  voice: "neutral",
-  scenes: [],
-  selected: 0,
-};
-
-function split(text) {
-  return String(text || "").split(/(?<=[.!?…])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 3).slice(0, 18);
-}
-function act(i, n) {
-  const p = i / Math.max(1, n);
-  if (p < 0.12) return "HOOK";
-  if (p < 0.55) return "BUILD";
-  if (p < 0.86) return "CLIMAX";
-  return "OUTRO";
-}
-function stylePrompt(s) {
-  if (s.style === "custom") return s.custom || "custom cartoon style";
-  if (s.style === "pixar") return "premium 3D cartoon, warm cinematic lighting";
-  if (s.style === "flat") return "2D flat cartoon, bold outlines, clean shapes";
-  if (s.style === "cinema") return "cinematic animated film, dramatic lighting";
-  if (s.style === "pixel") return "16-bit pixel art cartoon, retro palette";
-  return "anime cel-shaded cartoon, expressive faces, vibrant colors";
-}
+function split(text) { return String(text || "").split(/(?<=[.!?…])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 3).slice(0, 18); }
+function act(i, n) { const p = i / Math.max(1, n); if (p < 0.12) return "HOOK"; if (p < 0.55) return "BUILD"; if (p < 0.86) return "CLIMAX"; return "OUTRO"; }
+function stylePrompt(s) { if (s.style === "custom") return s.custom || "custom cartoon style"; if (s.style === "pixar") return "premium 3D cartoon, warm cinematic lighting"; if (s.style === "flat") return "2D flat cartoon, bold outlines, clean shapes"; if (s.style === "cinema") return "cinematic animated film, dramatic lighting"; if (s.style === "pixel") return "16-bit pixel art cartoon, retro palette"; return "anime cel-shaded cartoon, expressive faces, vibrant colors"; }
 function buildScenes(s) {
   const parts = split(s.script);
   const dur = Math.max(2, Math.round(Number(s.duration || 60) / Math.max(1, parts.length)));
@@ -67,110 +28,56 @@ function buildScenes(s) {
     const camera = CAMS[i % CAMS.length];
     const chars = s.heroes.slice(0, 2).map((h) => h.name).filter(Boolean);
     const image = `SCENE PRIMARY FOCUS: ${line}. ${stylePrompt(s)}. Mood: ${s.mood}. Palette: ${s.palette}. Camera: ${camera}. Characters: ${chars.join(", ") || "none"}. Preserve character continuity. Clean cartoon frame, no text, no watermark.`;
-    return {
-      id: `node_${String(i + 1).padStart(2, "0")}`,
-      order: i + 1,
-      act: act(i, parts.length),
-      voice_line: line,
-      duration_sec: dur,
-      camera,
-      characters_in_scene: chars,
-      image_prompt_en: image,
-      video_prompt_en: `ANIMATE CURRENT FRAME: ${image} Smooth expressive cartoon motion. SFX: soft cartoon ambience. No subtitles, no UI, no watermark.`,
-    };
+    return { id: `node_${String(i + 1).padStart(2, "0")}`, order: i + 1, act: act(i, parts.length), voice_line: line, duration_sec: dur, camera, characters_in_scene: chars, image_prompt_en: image, video_prompt_en: `ANIMATE CURRENT FRAME: ${image} Smooth expressive cartoon motion. SFX: soft cartoon ambience. No subtitles, no UI, no watermark.` };
   });
 }
-function makeJson(s) {
-  const scenes = s.scenes.length ? s.scenes : buildScenes(s);
-  return {
-    project: { id: `cartoon_${Date.now()}`, title: s.title || "Untitled Cartoon", created_at: new Date().toISOString(), format: s.format, duration_sec: Number(s.duration), aspect_ratio: s.aspect, language: s.lang, style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette } },
-    characters: s.heroes,
-    script: { full_text: s.script, voice_style: s.voice, word_count: s.script.trim() ? s.script.trim().split(/\s+/).length : 0, language: s.lang },
-    storyboard: { total_scenes: scenes.length, total_duration_sec: scenes.reduce((a, x) => a + Number(x.duration_sec || 0), 0), scenes },
-    generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", model_image_analysis: "claude-sonnet-4-6", model_video_prompt: "claude-haiku-4-5", pipeline: "cartoon_creator_v1" },
-  };
+function projectPayload(s) {
+  return { concept: { title: s.title, format: s.format, aspect_ratio: s.aspect, duration_sec: Number(s.duration), language: s.lang }, style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette }, characters: s.heroes, script: { full_text: s.script, voice_style: s.voice, language: s.lang }, storyboard: { scenes: s.scenes } };
 }
-
+function makeJson(s) {
+  if (s.serverProject) return s.serverProject;
+  const scenes = s.scenes.length ? s.scenes : buildScenes(s);
+  return { project: { id: `cartoon_${Date.now()}`, title: s.title || "Untitled Cartoon", created_at: new Date().toISOString(), format: s.format, duration_sec: Number(s.duration), aspect_ratio: s.aspect, language: s.lang, style: { preset: s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette } }, characters: s.heroes, script: { full_text: s.script, voice_style: s.voice, word_count: s.script.trim() ? s.script.trim().split(/\s+/).length : 0, language: s.lang }, storyboard: { total_scenes: scenes.length, total_duration_sec: scenes.reduce((a, x) => a + Number(x.duration_sec || 0), 0), scenes }, generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", model_image_analysis: "claude-sonnet-4-6", model_video_prompt: "claude-haiku-4-5", pipeline: "cartoon_creator_v1", engine: "local-ui" } };
+}
 function reducer(s, a) {
-  if (a.type === "set") return { ...s, [a.key]: a.value };
-  if (a.type === "format") return { ...s, format: a.f, aspect: a.a, duration: a.d };
-  if (a.type === "step") return { ...s, step: Math.min(6, Math.max(1, a.step)), scenes: a.step >= 5 ? buildScenes(s) : s.scenes };
-  if (a.type === "addHero") return s.heroes.length >= 3 ? s : { ...s, heroes: [...s.heroes, { id: `char_${s.heroes.length + 1}`, name: `Hero ${s.heroes.length + 1}`, role: "main", description: "", face_lock: true, modifiers: [] }] };
-  if (a.type === "hero") return { ...s, heroes: s.heroes.map((h, i) => i === a.i ? { ...h, [a.key]: a.value } : h) };
-  if (a.type === "heroMod") return { ...s, heroes: s.heroes.map((h, i) => i === a.i ? { ...h, modifiers: h.modifiers.includes(a.mod) ? h.modifiers.filter((x) => x !== a.mod) : [...h.modifiers, a.mod] } : h) };
-  if (a.type === "deleteHero") return { ...s, heroes: s.heroes.filter((_, i) => i !== a.i) };
-  if (a.type === "script") return { ...s, script: a.value, scenes: [] };
-  if (a.type === "build") return { ...s, scenes: buildScenes(s), selected: 0 };
+  if (a.type === "set") return { ...s, [a.key]: a.value, serverProject: ["title", "format", "duration", "lang", "style", "mood", "palette", "custom"].includes(a.key) ? null : s.serverProject };
+  if (a.type === "format") return { ...s, format: a.f, aspect: a.a, duration: a.d, serverProject: null };
+  if (a.type === "step") return { ...s, step: Math.min(6, Math.max(1, a.step)), scenes: a.step >= 5 && !s.scenes.length ? buildScenes(s) : s.scenes };
+  if (a.type === "addHero") return s.heroes.length >= 3 ? s : { ...s, heroes: [...s.heroes, { id: `char_${s.heroes.length + 1}`, name: `Hero ${s.heroes.length + 1}`, role: "main", description: "", face_lock: true, modifiers: [] }], serverProject: null };
+  if (a.type === "hero") return { ...s, heroes: s.heroes.map((h, i) => i === a.i ? { ...h, [a.key]: a.value } : h), serverProject: null };
+  if (a.type === "heroMod") return { ...s, heroes: s.heroes.map((h, i) => i === a.i ? { ...h, modifiers: h.modifiers.includes(a.mod) ? h.modifiers.filter((x) => x !== a.mod) : [...h.modifiers, a.mod] } : h), serverProject: null };
+  if (a.type === "deleteHero") return { ...s, heroes: s.heroes.filter((_, i) => i !== a.i), serverProject: null };
+  if (a.type === "script") return { ...s, script: a.value, scenes: [], serverProject: null };
+  if (a.type === "build") return { ...s, scenes: buildScenes(s), selected: 0, serverProject: null, status: "LOCAL STORYBOARD READY" };
   if (a.type === "select") return { ...s, selected: a.i };
+  if (a.type === "busy") return { ...s, busy: a.value, status: a.status ?? s.status };
+  if (a.type === "status") return { ...s, status: a.status };
+  if (a.type === "aiScript") return { ...s, title: a.script?.title || s.title, voice: a.script?.voice_style || s.voice, script: a.script?.full_text || s.script, scenes: [], serverProject: null, busy: false, status: a.status || "AI SCRIPT READY" };
+  if (a.type === "aiProject") return { ...s, serverProject: a.project, scenes: a.project?.storyboard?.scenes || s.scenes, selected: 0, busy: false, status: a.status || "AI STORYBOARD READY" };
   return s;
 }
 
 export default function QuantumCartoonCreator() {
   const [s, dispatch] = useReducer(reducer, initial);
-  const fieldRef = useRef(null);
-  const waveRef = useRef(null);
-  const tagRef = useRef(null);
-  const waveRefApi = useRef(null);
+  const fieldRef = useRef(null), waveRef = useRef(null), tagRef = useRef(null), waveRefApi = useRef(null);
   const json = useMemo(() => makeJson(s), [s]);
   const jsonText = useMemo(() => JSON.stringify(json, null, 2), [json]);
-
-  useEffect(() => {
-    document.body.classList.add("route-cartoon");
-    const stopField = initQuantumField(fieldRef.current);
-    const wave = initWaveCanvas(waveRef.current);
-    const stopType = initTypewriter(tagRef.current);
-    waveRefApi.current = wave;
-    wave.setDuration(s.duration);
-    return () => {
-      document.body.classList.remove("route-cartoon");
-      stopField();
-      wave.destroy();
-      stopType();
-    };
-  }, []);
+  useEffect(() => { document.body.classList.add("route-cartoon"); const stopField = initQuantumField(fieldRef.current); const wave = initWaveCanvas(waveRef.current); const stopType = initTypewriter(tagRef.current); waveRefApi.current = wave; wave.setDuration(s.duration); return () => { document.body.classList.remove("route-cartoon"); stopField(); wave.destroy(); stopType(); }; }, []);
   useEffect(() => { waveRefApi.current?.setDuration(s.duration); }, [s.duration]);
-
-  function go(step) {
-    dispatch({ type: "step", step });
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-  function copyJson() { navigator.clipboard?.writeText(jsonText); }
-
-  return (
-    <div className="qcc-root">
-      <canvas id="qc" ref={fieldRef} />
-      <div className="hex-grid" />
-      <div className="vignette" />
-      <div className="wrap">
-        <header className="q-header">
-          <div className="q-logo"><div className="q-logo-icon"><div className="orb" /></div><div className="q-logo-text">NEUROCINE</div></div>
-          <div className="q-sub">Quantum Cartoon Intelligence · v∞</div>
-          <div className="q-tagline" ref={tagRef} />
-        </header>
-        <StepBar step={s.step} go={go} />
-        {s.step === 1 && <Step1 s={s} dispatch={dispatch} waveRef={waveRef} />}
-        {s.step === 2 && <Step2 s={s} dispatch={dispatch} />}
-        {s.step === 3 && <Step3 s={s} dispatch={dispatch} />}
-        {s.step === 4 && <Step4 s={s} dispatch={dispatch} />}
-        {s.step === 5 && <Step5 s={s} dispatch={dispatch} />}
-        {s.step === 6 && <Step6 jsonText={jsonText} copyJson={copyJson} />}
-      </div>
-      <div className="nav">
-        {s.step > 1 && <button className="nav-back" onClick={() => go(s.step - 1)}>← BACK</button>}
-        <button className={`nav-next${s.step === 6 ? " launch" : ""}`} onClick={() => s.step === 6 ? window.qPulse?.(window.innerWidth / 2, window.innerHeight / 2, "#8b00ff") : go(s.step + 1)}>{s.step === 5 ? "EXPORT →" : s.step === 6 ? "⚡ LAUNCH" : "NEXT →"}</button>
-      </div>
-    </div>
-  );
+  function go(step) { dispatch({ type: "step", step }); if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" }); }
+  async function postJson(url, payload) { const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const data = await res.json().catch(() => ({})); if (!res.ok || data.ok === false) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status }); return data; }
+  async function generateScript() { dispatch({ type: "busy", value: true, status: "AI THINKING · SCRIPT" }); try { const data = await postJson("/api/cartoon/script", projectPayload(s)); dispatch({ type: "aiScript", script: data.script, status: `AI SCRIPT READY · ${data.model_used || "model"}` }); } catch (e) { dispatch({ type: "script", value: DEMO[s.lang] || DEMO.ru }); dispatch({ type: "busy", value: false, status: e.status === 403 ? "LOCAL FALLBACK · AI LOCKED" : "LOCAL FALLBACK · SCRIPT" }); } }
+  async function generateStoryboard(nextStep = 5) { dispatch({ type: "busy", value: true, status: "AI THINKING · STORYBOARD" }); try { const data = await postJson("/api/cartoon/storyboard", projectPayload(s)); dispatch({ type: "aiProject", project: data.project, status: `AI STORYBOARD READY · ${data.model_used || "model"}` }); go(nextStep); } catch (e) { const localScenes = buildScenes(s); dispatch({ type: "busy", value: false, status: e.status === 403 ? "LOCAL FALLBACK · AI LOCKED" : "LOCAL FALLBACK · STORYBOARD" }); dispatch({ type: "step", step: nextStep }); if (!s.scenes.length) dispatch({ type: "build", scenes: localScenes }); } }
+  function copyJson() { navigator.clipboard?.writeText(jsonText); dispatch({ type: "status", status: "JSON COPIED" }); }
+  function next() { if (s.busy) return; if (s.step === 4) return generateStoryboard(5); if (s.step === 6) return window.qPulse?.(window.innerWidth / 2, window.innerHeight / 2, "#8b00ff"); go(s.step + 1); }
+  return <div className="qcc-root"><canvas id="qc" ref={fieldRef} /><div className="hex-grid" /><div className="vignette" /><div className="wrap"><header className="q-header"><div className="q-logo"><div className="q-logo-icon"><div className="orb" /></div><div className="q-logo-text">NEUROCINE</div></div><div className="q-sub">Quantum Cartoon Intelligence · v∞</div><div className="q-tagline" ref={tagRef} /></header><div className="q-status-line">{s.busy ? "⚡ " : "◈ "}{s.status}</div><StepBar step={s.step} go={go} />{s.step === 1 && <Step1 s={s} dispatch={dispatch} waveRef={waveRef} />}{s.step === 2 && <Step2 s={s} dispatch={dispatch} />}{s.step === 3 && <Step3 s={s} dispatch={dispatch} />}{s.step === 4 && <Step4 s={s} dispatch={dispatch} onAi={generateScript} />}{s.step === 5 && <Step5 s={s} dispatch={dispatch} onAi={() => generateStoryboard(5)} />}{s.step === 6 && <Step6 jsonText={jsonText} copyJson={copyJson} />}</div><div className="nav">{s.step > 1 && <button className="nav-back" disabled={s.busy} onClick={() => go(s.step - 1)}>← BACK</button>}<button className={`nav-next${s.step === 6 ? " launch" : ""}`} disabled={s.busy} onClick={next}>{s.busy ? "THINKING..." : s.step === 5 ? "EXPORT →" : s.step === 6 ? "⚡ LAUNCH" : "NEXT →"}</button></div></div>;
 }
-
-function StepBar({ step, go }) {
-  return <div className="q-stepbar">{[1, 2, 3, 4, 5, 6].map((i) => <div className="qb-node" key={i}><button className={`qb-qubit${i < step ? " done" : i === step ? " active" : ""}`} onClick={() => go(i)}><span className="ring" /><span className="sphere">{i < step ? "✓" : String(i).padStart(2, "0")}</span></button>{i < 6 && <div className={`qb-wire${i < step ? " done" : ""}`} />}</div>)}</div>;
-}
+function StepBar({ step, go }) { return <div className="q-stepbar">{[1,2,3,4,5,6].map((i) => <div className="qb-node" key={i}><button className={`qb-qubit${i < step ? " done" : i === step ? " active" : ""}`} onClick={() => go(i)}><span className="ring" /><span className="sphere">{i < step ? "✓" : String(i).padStart(2, "0")}</span></button>{i < 6 && <div className={`qb-wire${i < step ? " done" : ""}`} />}</div>)}</div>; }
 function Head({ eyebrow, a, b, body }) { return <><div className="q-eyebrow">{eyebrow}</div><h1 className="q-title"><span className="t-line t-glow">{a}</span><span className="t-line t-dim">{b}</span></h1><p className="q-body">{body}</p></>; }
 function Field({ label, children }) { return <div className="q-field"><label className="q-label">{label}</label>{children}</div>; }
-function Step1({ s, dispatch, waveRef }) { return <section className="step-panel on"><Head eyebrow="Quantum Init · Step 01" a="Initialize" b="your project" body="Задай параметры мультфильма. Каждый выбор становится частью JSON-паспорта проекта." /><Field label="Project Identity"><input className="q-inp" value={s.title} placeholder="Название мультфильма..." onChange={(e) => dispatch({ type: "set", key: "title", value: e.target.value })} /></Field><Field label="Quantum State · Format"><div className="fmt-grid">{FORMATS.map((f) => <button key={f.f} className={`fmt-card${s.format === f.f ? " on" : ""}`} onClick={() => dispatch({ type: "format", ...f })}><span className="collapse-wave" /><span className="fmt-ket">{f.ket}</span><strong className="fmt-name">{f.name}</strong><span className="fmt-spec">{f.spec}</span></button>)}</div></Field><Field label="Interface / Project Language"><div className="lang-row">{["ru", "en", "ua"].map((l) => <button key={l} className={`lang-b${s.lang === l ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "lang", value: l })}>{l.toUpperCase()}</button>)}</div></Field><Field label="Probability Wave · Duration"><div className="dur-panel"><div className="dur-display"><div><span className="dur-num">{s.duration}</span><span className="dur-s">s</span></div><div className="dur-sc">≈ {Math.max(1, Math.round(s.duration / 7))} scenes</div></div><canvas ref={waveRef} className="wave-canvas" /><input type="range" min="15" max="600" step="5" value={s.duration} onChange={(e) => dispatch({ type: "set", key: "duration", value: Number(e.target.value) })} /></div></Field></section>; }
-function Step2({ s, dispatch }) { return <section className="step-panel on"><Head eyebrow="Visual Matrix · Step 02" a="Mind's eye" b="visual field" body="Выбери визуальный стиль, настроение и палитру. Это станет style lock для всех сцен." /><Field label="Render Style · Eigenstate"><div className="sty-grid">{STYLES.map(([id, icon, label]) => <button key={id} className={`sty-card${s.style === id ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "style", value: id })}><span className="sty-ico">{icon}</span><strong className="sty-name">{label}</strong></button>)}</div></Field>{s.style === "custom" && <Field label="Custom Prompt Vector"><textarea className="q-inp" value={s.custom} onChange={(e) => dispatch({ type: "set", key: "custom", value: e.target.value })} /></Field>}<Field label="Mood"><div className="mood-row">{["light", "dark", "epic", "cute", "mystery"].map((m) => <button key={m} className={`mood-chip${s.mood === m ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "mood", value: m })}>{m.toUpperCase()}</button>)}</div></Field><Field label="Palette"><div className="mood-row">{["AUTO", "COOL", "WARM", "MONO", "VIVID"].map((p) => <button key={p} className={`mood-chip${s.palette === p ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "palette", value: p })}>{p}</button>)}</div></Field></section>; }
-function Step3({ s, dispatch }) { return <section className="step-panel on"><Head eyebrow="Neural Signatures · Step 03" a="Character" b="entanglement" body="До 3 героев. Face Lock сохраняет визуальное ДНК героя во всех кадрах." /><div className="neural-list">{s.heroes.map((h, i) => <div className="neural-card on" key={h.id}><div className="nc-head"><div className="nc-orb">{String(i + 1).padStart(2, "0")}</div><div className="nc-title"><strong>{h.name}</strong><span>{h.role} · {h.face_lock ? "FACE_LOCK" : "FREE"}</span></div></div><div className="nc-body"><Field label="Name"><input className="q-inp" value={h.name} onChange={(e) => dispatch({ type: "hero", i, key: "name", value: e.target.value })} /></Field><Field label="Appearance"><textarea className="q-inp" value={h.description} onChange={(e) => dispatch({ type: "hero", i, key: "description", value: e.target.value })} /></Field><div className="entangle-row"><div><strong>Face Lock</strong><span>зафиксировать лицо / силуэт</span></div><button className={`ent-toggle${h.face_lock ? " on" : ""}`} onClick={() => dispatch({ type: "hero", i, key: "face_lock", value: !h.face_lock })}><i /></button></div><Field label="Modifiers"><div className="q-mods">{MODS.map((m) => <button key={m} className={`q-mod${h.modifiers.includes(m) ? " on" : ""}`} onClick={() => dispatch({ type: "heroMod", i, mod: m })}>{m}</button>)}</div></Field><button className="q-del" onClick={() => dispatch({ type: "deleteHero", i })}>DELETE NODE</button></div></div>)}</div><button className="add-neural" onClick={() => dispatch({ type: "addHero" })}>⊕ INIT NEW CHARACTER NODE</button></section>; }
-function Step4({ s, dispatch }) { const segments = split(s.script); return <section className="step-panel on"><Head eyebrow="Consciousness Stream · Step 04" a="Narrator" b="mind stream" body="Каждое предложение становится нейронным узлом в раскадровке." /><button className="mind-btn" onClick={() => dispatch({ type: "script", value: DEMO[s.lang] || DEMO.ru })}>✦ GENERATE VIA QUANTUM MIND</button><Field label="Voice"><div className="v-row">{["neutral", "dramatic", "kids", "doc"].map((v) => <button key={v} className={`v-b${s.voice === v ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "voice", value: v })}>{v.toUpperCase()}</button>)}</div></Field><Field label="Text Stream"><textarea className="q-inp" rows={7} value={s.script} onChange={(e) => dispatch({ type: "script", value: e.target.value })} /></Field><div className="meta-strip"><div className="q-meta">WORDS: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div><div className="q-meta">NODES: <span>{segments.length}</span></div><div className="q-meta">~<span>{segments.length * 7}</span>s</div></div></section>; }
-function Step5({ s, dispatch }) { const scenes = s.scenes.length ? s.scenes : buildScenes(s); return <section className="step-panel on"><Head eyebrow="Synaptic Map · Step 05" a="Storyboard" b="neural grid" body="Проверь сцены, камеру и основу image/video prompts." /><div className="sb-toolbar"><div className="sb-data">NODES: <span>{scenes.length}</span></div><button className="regen-q" onClick={() => dispatch({ type: "build" })}>↺ REWIRE</button></div><div className="synapse-grid">{scenes.length === 0 && <div className="no-signal">// NO_SIGNAL_INPUT → initialize step 04</div>}{scenes.map((sc, i) => <button className={`syn-card${s.selected === i ? " sel" : ""}`} key={sc.id} onClick={() => dispatch({ type: "select", i })}><div className="syt"><div className="syt-field" /><div className="syt-interference" /><div className="syt-pulse" /><div className="sy-act">{sc.act}</div><div className="sy-num">{sc.id}</div></div><div className="sy-info"><div className="sy-voice">{sc.voice_line}</div><div className="sy-meta"><span>{sc.camera}</span><span>{sc.duration_sec}s</span></div></div></button>)}</div></section>; }
+function Step1({ s, dispatch, waveRef }) { return <section className="step-panel on"><Head eyebrow="Quantum Init · Step 01" a="Initialize" b="your project" body="Задай параметры мультфильма. Каждый выбор становится частью JSON-паспорта проекта." /><Field label="Project Identity"><input className="q-inp" value={s.title} placeholder="Название мультфильма..." onChange={(e) => dispatch({ type: "set", key: "title", value: e.target.value })} /></Field><Field label="Quantum State · Format"><div className="fmt-grid">{FORMATS.map((f) => <button key={f.f} className={`fmt-card${s.format === f.f ? " on" : ""}`} onClick={() => dispatch({ type: "format", ...f })}><span className="collapse-wave" /><span className="fmt-ket">{f.ket}</span><strong className="fmt-name">{f.name}</strong><span className="fmt-spec">{f.spec}</span></button>)}</div></Field><Field label="Interface / Project Language"><div className="lang-row">{["ru","en","ua"].map((l) => <button key={l} className={`lang-b${s.lang === l ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "lang", value: l })}>{l.toUpperCase()}</button>)}</div></Field><Field label="Probability Wave · Duration"><div className="dur-panel"><div className="dur-display"><div><span className="dur-num">{s.duration}</span><span className="dur-s">s</span></div><div className="dur-sc">≈ {Math.max(1, Math.round(s.duration / 7))} scenes</div></div><canvas ref={waveRef} className="wave-canvas" /><input type="range" min="15" max="600" step="5" value={s.duration} onChange={(e) => dispatch({ type: "set", key: "duration", value: Number(e.target.value) })} /></div></Field></section>; }
+function Step2({ s, dispatch }) { return <section className="step-panel on"><Head eyebrow="Visual Matrix · Step 02" a="Mind's eye" b="visual field" body="Выбери визуальный стиль, настроение и палитру. Это станет style lock для всех сцен." /><Field label="Render Style · Eigenstate"><div className="sty-grid">{STYLES.map(([id, icon, label]) => <button key={id} className={`sty-card${s.style === id ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "style", value: id })}><span className="sty-ico">{icon}</span><strong className="sty-name">{label}</strong></button>)}</div></Field>{s.style === "custom" && <Field label="Custom Prompt Vector"><textarea className="q-inp" value={s.custom} onChange={(e) => dispatch({ type: "set", key: "custom", value: e.target.value })} /></Field>}<Field label="Mood"><div className="mood-row">{["light","dark","epic","cute","mystery"].map((m) => <button key={m} className={`mood-chip${s.mood === m ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "mood", value: m })}>{m.toUpperCase()}</button>)}</div></Field><Field label="Palette"><div className="mood-row">{["AUTO","COOL","WARM","MONO","VIVID"].map((p) => <button key={p} className={`mood-chip${s.palette === p ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "palette", value: p })}>{p}</button>)}</div></Field></section>; }
+function Step3({ s, dispatch }) { return <section className="step-panel on"><Head eyebrow="Neural Signatures · Step 03" a="Character" b="entanglement" body="До 3 героев. Face Lock сохраняет визуальное ДНК героя во всех кадрах." /><div className="neural-list">{s.heroes.map((h,i) => <div className="neural-card on" key={h.id}><div className="nc-head"><div className="nc-orb">{String(i+1).padStart(2,"0")}</div><div className="nc-title"><strong>{h.name}</strong><span>{h.role} · {h.face_lock ? "FACE_LOCK" : "FREE"}</span></div></div><div className="nc-body"><Field label="Name"><input className="q-inp" value={h.name} onChange={(e) => dispatch({ type: "hero", i, key: "name", value: e.target.value })} /></Field><Field label="Appearance"><textarea className="q-inp" value={h.description} onChange={(e) => dispatch({ type: "hero", i, key: "description", value: e.target.value })} /></Field><div className="entangle-row"><div><strong>Face Lock</strong><span>зафиксировать лицо / силуэт</span></div><button className={`ent-toggle${h.face_lock ? " on" : ""}`} onClick={() => dispatch({ type: "hero", i, key: "face_lock", value: !h.face_lock })}><i /></button></div><Field label="Modifiers"><div className="q-mods">{MODS.map((m) => <button key={m} className={`q-mod${h.modifiers.includes(m) ? " on" : ""}`} onClick={() => dispatch({ type: "heroMod", i, mod: m })}>{m}</button>)}</div></Field><button className="q-del" onClick={() => dispatch({ type: "deleteHero", i })}>DELETE NODE</button></div></div>)}</div><button className="add-neural" onClick={() => dispatch({ type: "addHero" })}>⊕ INIT NEW CHARACTER NODE</button></section>; }
+function Step4({ s, dispatch, onAi }) { const segments = split(s.script); return <section className="step-panel on"><Head eyebrow="Consciousness Stream · Step 04" a="Narrator" b="mind stream" body="Каждое предложение становится нейронным узлом в раскадровке." /><button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "AI THINKING..." : "✦ GENERATE VIA QUANTUM MIND"}</button><Field label="Voice"><div className="v-row">{["neutral","dramatic","kids","doc"].map((v) => <button key={v} className={`v-b${s.voice === v ? " on" : ""}`} onClick={() => dispatch({ type: "set", key: "voice", value: v })}>{v.toUpperCase()}</button>)}</div></Field><Field label="Text Stream"><textarea className="q-inp" rows={7} value={s.script} onChange={(e) => dispatch({ type: "script", value: e.target.value })} /></Field><div className="meta-strip"><div className="q-meta">WORDS: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div><div className="q-meta">NODES: <span>{segments.length}</span></div><div className="q-meta">~<span>{segments.length * 7}</span>s</div></div></section>; }
+function Step5({ s, dispatch, onAi }) { const scenes = s.scenes.length ? s.scenes : buildScenes(s); return <section className="step-panel on"><Head eyebrow="Synaptic Map · Step 05" a="Storyboard" b="neural grid" body="Проверь сцены, камеру и основу image/video prompts." /><div className="sb-toolbar"><div className="sb-data">NODES: <span>{scenes.length}</span></div><button className="regen-q" disabled={s.busy} onClick={onAi}>{s.busy ? "AI..." : "↺ AI REWIRE"}</button></div><div className="synapse-grid">{scenes.length === 0 && <div className="no-signal">// NO_SIGNAL_INPUT → initialize step 04</div>}{scenes.map((sc,i) => <button className={`syn-card${s.selected === i ? " sel" : ""}`} key={sc.id} onClick={() => dispatch({ type: "select", i })}><div className="syt"><div className="syt-field" /><div className="syt-interference" /><div className="syt-pulse" /><div className="sy-act">{sc.act}</div><div className="sy-num">{sc.id}</div></div><div className="sy-info"><div className="sy-voice">{sc.voice_line}</div><div className="sy-meta"><span>{sc.camera}</span><span>{sc.duration_sec}s</span></div></div></button>)}</div></section>; }
 function Step6({ jsonText, copyJson }) { return <section className="step-panel on"><Head eyebrow="Wave Collapse · Step 06" a="Quantum" b="export" body="Итоговый JSON проекта для cartoon pipeline." /><div className="json-wrap"><div className="json-bar"><span className="json-fn">◈ cartoon_project.quantum.json</span><button className="json-cp" onClick={copyJson}>⊕ COPY</button></div><pre className="json-body">{jsonText}</pre></div></section>; }
