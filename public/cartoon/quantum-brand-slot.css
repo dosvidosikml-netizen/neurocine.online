@@ -1,45 +1,48 @@
-/* Cartoon compact brand slot
-   Replaces only the N button on /cartoon with a reduced animated NeuroCine logo.
-   It keeps the normal top bar skeleton, flag, avatar, burger and bottom dock untouched.
+/* Cartoon compact animated brand
+   Correct structure: orbit stays in the old N slot, brand text sits in the free spacer.
+   This avoids clipping and keeps flag/avatar/bottom dock untouched.
 */
 
+body.route-cartoon .nc-top-action-bar{
+  position:relative !important;
+  overflow:hidden !important;
+  gap:12px !important;
+}
+
 body.route-cartoon .nc-top-logo{
-  flex:0 0 158px !important;
-  width:158px !important;
-  max-width:158px !important;
+  flex:0 0 64px !important;
+  width:64px !important;
+  max-width:64px !important;
   height:64px !important;
   min-height:64px !important;
   position:relative !important;
-  display:flex !important;
-  align-items:center !important;
-  justify-content:flex-start !important;
+  display:grid !important;
+  place-items:center !important;
   overflow:hidden !important;
   border-radius:20px !important;
-  padding:0 10px 0 58px !important;
+  padding:0 !important;
   color:transparent !important;
   border:1px solid rgba(0,212,255,.18) !important;
   background:
-    radial-gradient(circle at 20% 45%, rgba(0,212,255,.14), transparent 35%),
-    radial-gradient(circle at 80% 20%, rgba(255,45,214,.12), transparent 38%),
+    radial-gradient(circle at 50% 50%, rgba(0,212,255,.13), transparent 42%),
+    radial-gradient(circle at 76% 22%, rgba(255,45,214,.13), transparent 36%),
     rgba(8,10,20,.72) !important;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 12px 30px rgba(0,0,0,.22),0 0 18px rgba(0,212,255,.08) !important;
 }
 
-body.route-cartoon .nc-top-logo > span{
-  display:none !important;
-}
+body.route-cartoon .nc-top-logo > span{display:none !important}
 
 body.route-cartoon .nc-top-logo::before{
   content:"";
   position:absolute;
-  left:10px;
+  left:50%;
   top:50%;
-  width:42px;
-  height:42px;
+  width:44px;
+  height:44px;
   border-radius:50%;
-  transform:translateY(-50%);
+  transform:translate(-50%,-50%);
   background:
-    radial-gradient(circle at 50% 50%, #25d9ff 0 12%, rgba(37,217,255,.52) 13% 22%, transparent 23%),
+    radial-gradient(circle at 50% 50%, #25d9ff 0 12%, rgba(37,217,255,.50) 13% 22%, transparent 23%),
     radial-gradient(circle at 50% 50%, rgba(0,212,255,.18), transparent 42%),
     conic-gradient(from 20deg, rgba(0,212,255,0), rgba(0,212,255,.95), rgba(255,45,214,.95), rgba(0,212,255,0));
   box-shadow:0 0 12px rgba(0,212,255,.85),0 0 24px rgba(255,45,214,.22);
@@ -47,15 +50,39 @@ body.route-cartoon .nc-top-logo::before{
 }
 
 body.route-cartoon .nc-top-logo::after{
+  content:"";
+  position:absolute;
+  inset:12px;
+  border-radius:50%;
+  border:1px solid rgba(0,212,255,.20);
+  transform:rotate(-18deg) scaleX(1.28);
+  box-shadow:0 0 10px rgba(0,212,255,.18);
+  pointer-events:none;
+}
+
+body.route-cartoon .nc-top-spacer{
+  position:relative !important;
+  flex:1 1 auto !important;
+  min-width:0 !important;
+  align-self:stretch !important;
+  display:flex !important;
+  align-items:center !important;
+  overflow:hidden !important;
+}
+
+body.route-cartoon .nc-top-spacer::before{
   content:"NEUROCINE\A QUANTUM CARTOON";
   white-space:pre;
   display:block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:clip;
   color:#ecfbff;
   font-family:'Orbitron','Exo 2',ui-sans-serif,system-ui,sans-serif;
-  font-size:9px;
+  font-size:13px;
   line-height:1.35;
   font-weight:900;
-  letter-spacing:.17em;
+  letter-spacing:.28em;
   text-align:left;
   background:linear-gradient(90deg,#2dd4ff 0%,#7c5cff 45%,#ff38d1 100%);
   -webkit-background-clip:text;
@@ -64,69 +91,68 @@ body.route-cartoon .nc-top-logo::after{
   text-shadow:0 0 10px rgba(0,212,255,.36),0 0 18px rgba(255,45,214,.16);
 }
 
-body.route-cartoon .qcc-root .q-header{
-  display:none !important;
-}
+body.route-cartoon .qcc-root .q-header{display:none !important}
 
 html[data-theme="light"] body.route-cartoon .nc-top-logo{
   border-color:rgba(0,136,255,.18) !important;
   background:
-    radial-gradient(circle at 20% 45%, rgba(0,170,255,.16), transparent 35%),
-    radial-gradient(circle at 80% 20%, rgba(219,39,119,.10), transparent 38%),
+    radial-gradient(circle at 50% 50%, rgba(0,170,255,.16), transparent 42%),
+    radial-gradient(circle at 76% 22%, rgba(219,39,119,.10), transparent 36%),
     rgba(255,255,255,.78) !important;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 10px 24px rgba(15,23,42,.08),0 0 18px rgba(0,136,255,.08) !important;
-}
-
-html[data-theme="light"] body.route-cartoon .nc-top-logo::after{
-  color:#101828;
-  text-shadow:none;
 }
 
 html[data-theme="light"] body.route-cartoon .nc-top-logo::before{
   box-shadow:0 0 10px rgba(0,136,255,.40),0 0 20px rgba(219,39,119,.14);
 }
 
+html[data-theme="light"] body.route-cartoon .nc-top-spacer::before{
+  text-shadow:none;
+}
+
 @keyframes ncCartoonMiniOrbit{
-  0%,100%{filter:hue-rotate(0deg) brightness(1); transform:translateY(-50%) rotate(0deg) scale(1)}
-  50%{filter:hue-rotate(22deg) brightness(1.18); transform:translateY(-50%) rotate(180deg) scale(1.05)}
+  0%,100%{filter:hue-rotate(0deg) brightness(1); transform:translate(-50%,-50%) rotate(0deg) scale(1)}
+  50%{filter:hue-rotate(22deg) brightness(1.18); transform:translate(-50%,-50%) rotate(180deg) scale(1.05)}
 }
 
 @media (max-width:430px){
+  body.route-cartoon .nc-top-action-bar{gap:10px !important}
   body.route-cartoon .nc-top-logo{
-    flex-basis:136px !important;
-    width:136px !important;
-    max-width:136px !important;
+    flex-basis:58px !important;
+    width:58px !important;
+    max-width:58px !important;
     height:58px !important;
     min-height:58px !important;
-    padding-left:50px !important;
-    padding-right:8px !important;
     border-radius:18px !important;
   }
   body.route-cartoon .nc-top-logo::before{
-    left:8px;
-    width:36px;
-    height:36px;
+    width:40px;
+    height:40px;
   }
-  body.route-cartoon .nc-top-logo::after{
-    font-size:7.8px;
-    letter-spacing:.145em;
+  body.route-cartoon .nc-top-spacer::before{
+    content:"NEUROCINE\A QUANTUM";
+    font-size:11px;
+    line-height:1.35;
+    letter-spacing:.22em;
   }
 }
 
 @media (max-width:370px){
+  body.route-cartoon .nc-top-action-bar{gap:8px !important}
   body.route-cartoon .nc-top-logo{
-    flex-basis:118px !important;
-    width:118px !important;
-    max-width:118px !important;
-    padding-left:43px !important;
+    flex-basis:52px !important;
+    width:52px !important;
+    max-width:52px !important;
+    height:52px !important;
+    min-height:52px !important;
   }
   body.route-cartoon .nc-top-logo::before{
-    width:31px;
-    height:31px;
+    width:35px;
+    height:35px;
   }
-  body.route-cartoon .nc-top-logo::after{
-    content:"NEUROCINE\A CARTOON";
-    font-size:7.2px;
-    letter-spacing:.13em;
+  body.route-cartoon .nc-top-spacer::before{
+    content:"NEUROCINE";
+    font-size:10px;
+    letter-spacing:.18em;
   }
 }
