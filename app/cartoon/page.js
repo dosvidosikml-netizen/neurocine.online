@@ -1,6 +1,7 @@
 import Script from "next/script";
 import QuantumCartoonCreator from "../../components/cartoon/QuantumCartoonCreator";
 import "../../public/cartoon/quantum.css";
+import "../../public/cartoon/quantum-fix.css";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export default function CartoonPage() {
   return (
     <>
       <QuantumCartoonCreator />
-      <Script src="/cartoon/quantum-anim.js" strategy="afterInteractive" />
+      <Script src="/cartoon/quantum-anim.js?v=2" strategy="afterInteractive" />
     </>
   );
 }
