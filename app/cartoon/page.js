@@ -1,4 +1,6 @@
 import CartoonStudioShell from "../../components/cartoon/CartoonStudioShell";
+import "../../public/cartoon/quantum.css";
+import "../../public/cartoon/quantum-fix.css";
 
 export const metadata = {
   title: "Quantum Cartoon Creator · NeuroCine",
