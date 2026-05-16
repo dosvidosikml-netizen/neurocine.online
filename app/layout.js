@@ -5,6 +5,7 @@ import "./style-engine-patch.css";
 import "./generation-overlay.css";
 import "./neurocine-theme.css";
 import "./neurocine-bars-theme.css";
+import "./neurocine-light-readability.css";
 import "./storyboard-style-previews.css";
 import AuthSignOutPatch from "../components/AuthSignOutPatch";
 import ScriptPolishPatch from "../components/ScriptPolishPatch";
