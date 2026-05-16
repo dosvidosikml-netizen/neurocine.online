@@ -25,7 +25,6 @@
 .qcc-root .hex-grid{position:fixed;inset:0;z-index:1;pointer-events:none}
 .qcc-root .vignette{position:fixed;inset:0;z-index:2;pointer-events:none}
 
-/* Creator starts below the NeuroCine top shell, not under it. */
 .qcc-root .wrap{
   position:relative !important;
   z-index:3 !important;
@@ -35,7 +34,7 @@
   padding:
     calc(var(--qcc-top-offset,68px) + 18px)
     16px
-    calc(var(--qcc-bottom-offset,146px) + 118px) !important;
+    calc(var(--qcc-bottom-offset,146px) + 104px) !important;
 }
 
 .qcc-root .q-header{
@@ -43,19 +42,20 @@
   margin-top:0 !important;
 }
 
-/* Creator NEXT/BACK bar: centered above our real bottom dock. */
+/* Compact creator NEXT/BACK bar above the real NeuroCine dock. */
 .qcc-root .nav{
   position:fixed !important;
   left:50% !important;
   right:auto !important;
-  bottom:calc(var(--qcc-bottom-offset,146px) + 12px) !important;
+  bottom:calc(var(--qcc-bottom-offset,146px) + 18px) !important;
   transform:translateX(-50%) !important;
-  width:min(calc(100vw - 24px),520px) !important;
+  width:min(calc(100vw - 56px),420px) !important;
   max-width:none !important;
   margin:0 !important;
   padding:0 !important;
   z-index:90 !important;
   display:flex !important;
+  justify-content:center !important;
   gap:8px !important;
   background:transparent !important;
   pointer-events:auto !important;
@@ -64,21 +64,30 @@
 .qcc-root .nav-next,
 .qcc-root .nav-back{
   min-width:0 !important;
+  height:48px !important;
+  min-height:48px !important;
+  border-radius:16px !important;
   white-space:nowrap !important;
+  font-size:11px !important;
+  letter-spacing:.16em !important;
+  box-shadow:0 10px 26px rgba(0,60,200,.22), 0 0 22px rgba(120,0,255,.14) !important;
 }
 
 .qcc-root .nav-next{
   flex:1 1 auto !important;
+  max-width:360px !important;
 }
 
 .qcc-root .nav-back{
-  flex:0 0 auto !important;
+  flex:0 0 96px !important;
+  max-width:116px !important;
 }
 
 body.route-cartoon [data-auth-panel-bridge],
 body.route-cartoon .auth-panel-floating,
 body.route-cartoon [data-component="AuthPanel"],
-body.route-cartoon .auth-panel-v42{display:none !important}
+body.route-cartoon .auth-panel-v42,
+body.route-cartoon .nc-clear-storyboard-bar{display:none !important}
 
 body.route-cartoon{cursor:default}
 
@@ -101,8 +110,8 @@ body.route-cartoon{cursor:default}
     padding-top:calc(var(--qcc-top-offset,72px) + 14px) !important;
   }
   .qcc-root .nav{
-    width:min(calc(100vw - 20px),520px) !important;
-    bottom:calc(var(--qcc-bottom-offset,146px) + 10px) !important;
+    width:min(calc(100vw - 40px),400px) !important;
+    bottom:calc(var(--qcc-bottom-offset,146px) + 16px) !important;
   }
 }
 
@@ -112,6 +121,11 @@ body.route-cartoon{cursor:default}
     padding-right:10px !important;
   }
   .qcc-root .nav{
-    width:min(calc(100vw - 16px),520px) !important;
+    width:min(calc(100vw - 28px),380px) !important;
+  }
+  .qcc-root .nav-next,
+  .qcc-root .nav-back{
+    height:44px !important;
+    min-height:44px !important;
   }
 }
