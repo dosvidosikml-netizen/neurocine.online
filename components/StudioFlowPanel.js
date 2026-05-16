@@ -21,7 +21,7 @@ const STUDIO_PLANS = [
   },
   {
     name: "DIRECTOR",
-    tag: "studio owner",
+    tag: "studio admin",
     price: "LIVE",
     sub: "platform API",
     accent: "director",
@@ -45,7 +45,7 @@ function StudioPackageStyles() {
       .nc-studio-home-page-v1 {
         min-height: 100dvh;
         padding-bottom: calc(136px + env(safe-area-inset-bottom));
-        color: #f8fafc;
+        color: var(--nc-text, #f8fafc);
       }
 
       .nc-studio-home-page-v1 .nc-mobile-shell {
@@ -60,13 +60,13 @@ function StudioPackageStyles() {
         margin: 14px auto calc(132px + env(safe-area-inset-bottom));
         padding: 16px 11px 24px;
         overflow: hidden;
-        border: 1px solid rgba(255,255,255,.10);
+        border: 1px solid var(--nc-border, rgba(255,255,255,.10));
         border-radius: 24px;
         background:
           radial-gradient(circle at 0% 0%, rgba(168,85,247,.18), transparent 34%),
           radial-gradient(circle at 100% 0%, rgba(250,204,21,.11), transparent 32%),
-          linear-gradient(145deg, rgba(12,14,24,.94), rgba(7,9,16,.82));
-        box-shadow: 0 18px 60px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.06);
+          linear-gradient(145deg, var(--nc-card-strong, rgba(12,14,24,.94)), var(--nc-card-muted, rgba(7,9,16,.82)));
+        box-shadow: var(--nc-shadow-soft, 0 18px 60px rgba(0,0,0,.38));
         backdrop-filter: blur(16px);
         animation: nc-pack-in-v1 .32s ease both;
       }
@@ -96,15 +96,15 @@ function StudioPackageStyles() {
         display: grid;
         gap: 12px;
         min-width: 0;
-        border: 1px solid rgba(255,255,255,.085);
+        border: 1px solid var(--nc-border, rgba(255,255,255,.085));
         border-radius: 20px;
         padding: 18px 15px 16px;
-        background: rgba(255,255,255,.042);
+        background: var(--nc-card, rgba(255,255,255,.042));
       }
 
       .nc-studio-pack-kicker-v1 {
         margin-bottom: 8px;
-        color: #c4b5fd;
+        color: var(--nc-violet, #c4b5fd);
         font-size: 10px;
         font-weight: 950;
         letter-spacing: .24em;
@@ -113,7 +113,7 @@ function StudioPackageStyles() {
 
       .nc-studio-pack-title-v1 {
         margin: 0;
-        color: #f8fafc;
+        color: var(--nc-text, #f8fafc);
         font-size: clamp(30px, 8vw, 46px);
         line-height: 1.08;
         letter-spacing: -.065em;
@@ -122,7 +122,7 @@ function StudioPackageStyles() {
       .nc-studio-pack-copy-v1 {
         margin: 10px 0 0;
         max-width: 680px;
-        color: rgba(238,240,248,.66);
+        color: var(--nc-muted, rgba(238,240,248,.66));
         font-size: 14px;
         line-height: 1.48;
       }
@@ -135,16 +135,16 @@ function StudioPackageStyles() {
 
       .nc-studio-pack-chip-v1 {
         min-width: 0;
-        border: 1px solid rgba(255,255,255,.09);
+        border: 1px solid var(--nc-border, rgba(255,255,255,.09));
         border-radius: 16px;
         padding: 10px 12px;
-        background: rgba(0,0,0,.20);
+        background: color-mix(in srgb, var(--nc-card, rgba(0,0,0,.20)) 82%, transparent);
       }
 
       .nc-studio-pack-chip-v1 span {
         display: block;
         margin-bottom: 4px;
-        color: rgba(238,240,248,.48);
+        color: var(--nc-muted, rgba(238,240,248,.48));
         font-size: 9px;
         font-weight: 950;
         letter-spacing: .18em;
@@ -154,12 +154,11 @@ function StudioPackageStyles() {
       .nc-studio-pack-chip-v1 strong {
         display: block;
         overflow: hidden;
-        color: #facc15;
+        color: var(--nc-gold, #facc15);
         font-size: 13px;
         line-height: 1.05;
         text-overflow: ellipsis;
         white-space: nowrap;
-        text-shadow: 0 0 18px rgba(250,204,21,.28);
       }
 
       .nc-studio-pack-actions-v1 {
@@ -173,11 +172,11 @@ function StudioPackageStyles() {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid rgba(255,255,255,.12);
+        border: 1px solid var(--nc-border, rgba(255,255,255,.12));
         border-radius: 15px;
         padding: 0 12px;
-        background: rgba(255,255,255,.055);
-        color: #eef0f8;
+        background: var(--nc-card, rgba(255,255,255,.055));
+        color: var(--nc-text-soft, #eef0f8);
         text-decoration: none;
         font-size: 12px;
         font-weight: 900;
@@ -185,9 +184,9 @@ function StudioPackageStyles() {
       }
 
       .nc-studio-pack-btn-v1.primary {
-        border-color: rgba(255,92,42,.34);
-        background: linear-gradient(135deg, #ff4d5f, #ff7a3d);
-        color: #16080a;
+        border-color: transparent;
+        background: linear-gradient(135deg, var(--nc-red, #ff4d5f), var(--nc-orange, #ff7a3d));
+        color: #fff;
       }
 
       .nc-studio-pack-cards-v1 {
@@ -197,6 +196,83 @@ function StudioPackageStyles() {
         min-width: 0;
       }
 
+      .nc-studio-setup-entry-v1 {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+        border: 1px solid color-mix(in srgb, var(--nc-red, #ff4d5f) 34%, var(--nc-border, rgba(255,255,255,.10)));
+        border-radius: 20px;
+        padding: 18px 16px;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(255,77,95,.18), transparent 34%),
+          radial-gradient(circle at 92% 0%, rgba(250,204,21,.12), transparent 32%),
+          linear-gradient(145deg, var(--nc-card-strong, rgba(255,255,255,.070)), var(--nc-card-muted, rgba(255,255,255,.025)));
+        color: var(--nc-text, #eef0f8);
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 16px 48px rgba(255,77,95,.10), inset 0 1px 0 rgba(255,255,255,.07);
+      }
+
+      .nc-studio-setup-entry-v1::after {
+        content: "";
+        position: absolute;
+        right: -54px;
+        bottom: -70px;
+        width: 180px;
+        height: 180px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(255,122,61,.22), transparent 70%);
+        pointer-events: none;
+      }
+
+      .nc-studio-setup-entry-v1 span {
+        position: relative;
+        z-index: 1;
+        color: var(--nc-red, #ff4d5f);
+        font-size: 10px;
+        font-weight: 950;
+        letter-spacing: .20em;
+        text-transform: uppercase;
+      }
+
+      .nc-studio-setup-entry-v1 strong {
+        position: relative;
+        z-index: 1;
+        display: block;
+        color: var(--nc-text, #fff);
+        font-size: clamp(24px, 5vw, 38px);
+        line-height: .98;
+        letter-spacing: -.06em;
+      }
+
+      .nc-studio-setup-entry-v1 em {
+        position: relative;
+        z-index: 1;
+        display: block;
+        max-width: 560px;
+        color: var(--nc-muted, rgba(238,240,248,.66));
+        font-style: normal;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .nc-studio-setup-entry-v1 b {
+        position: relative;
+        z-index: 1;
+        justify-self: start;
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0 14px;
+        background: linear-gradient(135deg, var(--nc-red, #ff4d5f), var(--nc-orange, #ff7a3d));
+        color: #fff;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
       .nc-studio-pack-card-v1 {
         position: relative;
         overflow: hidden;
@@ -204,11 +280,11 @@ function StudioPackageStyles() {
         gap: 10px;
         min-width: 0;
         min-height: 188px;
-        border: 1px solid rgba(255,255,255,.085);
+        border: 1px solid var(--nc-border, rgba(255,255,255,.085));
         border-radius: 18px;
         padding: 17px 14px 15px;
-        background: rgba(0,0,0,.16);
-        color: #eef0f8;
+        background: var(--nc-card, rgba(0,0,0,.16));
+        color: var(--nc-text, #eef0f8);
         text-decoration: none;
         text-align: left;
         cursor: pointer;
@@ -218,14 +294,14 @@ function StudioPackageStyles() {
         border-color: rgba(250,204,21,.28);
         background:
           radial-gradient(circle at 86% 0%, rgba(250,204,21,.12), transparent 34%),
-          rgba(255,255,255,.045);
+          var(--nc-card, rgba(255,255,255,.045));
       }
 
       .nc-studio-pack-card-v1.director {
         border-color: rgba(168,85,247,.26);
         background:
           radial-gradient(circle at 86% 0%, rgba(168,85,247,.14), transparent 34%),
-          rgba(255,255,255,.045);
+          var(--nc-card, rgba(255,255,255,.045));
       }
 
       .nc-studio-pack-card-top-v1 {
@@ -237,17 +313,17 @@ function StudioPackageStyles() {
 
       .nc-studio-pack-card-top-v1 strong {
         display: block;
-        color: #fff;
+        color: var(--nc-text, #fff);
         font-size: 21px;
         line-height: 1.08;
         letter-spacing: -.04em;
       }
 
       .nc-studio-pack-card-top-v1 span {
-        border: 1px solid rgba(255,255,255,.10);
+        border: 1px solid var(--nc-border, rgba(255,255,255,.10));
         border-radius: 999px;
         padding: 6px 8px;
-        color: rgba(238,240,248,.62);
+        color: var(--nc-muted-strong, rgba(238,240,248,.62));
         font-size: 10px;
         font-weight: 900;
         white-space: nowrap;
@@ -258,7 +334,7 @@ function StudioPackageStyles() {
         align-items: baseline;
         gap: 7px;
         padding-top: 4px;
-        color: #facc15;
+        color: var(--nc-gold, #facc15);
         font-size: 32px;
         line-height: 1.05;
         font-weight: 950;
@@ -266,7 +342,7 @@ function StudioPackageStyles() {
       }
 
       .nc-studio-pack-price-v1 small {
-        color: rgba(238,240,248,.48);
+        color: var(--nc-muted, rgba(238,240,248,.48));
         font-size: 11px;
         letter-spacing: 0;
         font-weight: 800;
@@ -283,7 +359,7 @@ function StudioPackageStyles() {
 
       .nc-studio-pack-list-v1 li {
         min-width: 0;
-        color: rgba(238,240,248,.66);
+        color: var(--nc-muted-strong, rgba(238,240,248,.66));
         font-size: 11px;
         line-height: 1.28;
       }
@@ -291,7 +367,7 @@ function StudioPackageStyles() {
       .nc-studio-pack-list-v1 li::before {
         content: "✓";
         margin-right: 6px;
-        color: #86efac;
+        color: var(--nc-green, #86efac);
         font-weight: 950;
       }
 
@@ -301,22 +377,13 @@ function StudioPackageStyles() {
         align-items: center;
         gap: 10px;
         margin-top: 2px;
-        color: rgba(238,240,248,.78);
+        color: var(--nc-muted-strong, rgba(238,240,248,.78));
         font-size: 12px;
         font-weight: 900;
       }
 
       .nc-studio-pack-note-v1 {
-        position: relative;
-        margin-top: 10px;
-        border: 1px solid rgba(34,197,94,.22);
-        border-radius: 17px;
-        padding: 12px 13px;
-        background: rgba(34,197,94,.075);
-        color: #bbf7d0;
-        font-size: 13px;
-        font-weight: 850;
-        line-height: 1.35;
+        display: none !important;
       }
 
       @media (min-width: 900px) {
@@ -342,6 +409,12 @@ function StudioPackageStyles() {
         .nc-studio-pack-cards-v1 {
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 12px;
+        }
+        .nc-studio-setup-entry-v1 {
+          grid-column: 1 / -1;
+          min-height: 154px;
+          padding: 22px;
+          border-radius: 24px;
         }
         .nc-studio-pack-card-v1 {
           min-height: 350px;
@@ -388,10 +461,10 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false, fo
       <div className="nc-studio-pack-shell-v1">
         <aside className="nc-studio-pack-head-v1">
           <div>
-            <div className="nc-studio-pack-kicker-v1">NeuroCine Package</div>
-            <h2 className="nc-studio-pack-title-v1">Пакет доступа Studio</h2>
+            <div className="nc-studio-pack-kicker-v1">NeuroCine Studio</div>
+            <h2 className="nc-studio-pack-title-v1">Пульт запуска</h2>
             <p className="nc-studio-pack-copy-v1">
-              Это внутренняя главная Studio после входа. Storyboard теперь отдельный инструмент: он открывается из меню слева, кнопки плюс или пункта Studio.
+              Выбери, с чего начать: новый ролик, storyboard, production pack или управление проектами. Всё собрано в одном рабочем пульте.
             </p>
           </div>
 
@@ -412,6 +485,13 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false, fo
         </aside>
 
         <div className="nc-studio-pack-cards-v1">
+          <button className="nc-studio-setup-entry-v1" type="button" onClick={() => openStoryboardAnchor("setup")}>
+            <span>Быстрый старт генерации</span>
+            <strong>Настроить тему и сценарий</strong>
+            <em>Откроется вертикальный мастер: тема, длительность, формат, стиль, готовый сценарий и запуск storyboard.</em>
+            <b>Начать создание →</b>
+          </button>
+
           {STUDIO_PLANS.map((plan) => (
             <button key={plan.name} className={`nc-studio-pack-card-v1 ${plan.accent}`} type="button" onClick={() => openStoryboardAnchor(plan.target)}>
               <div className="nc-studio-pack-card-top-v1">
@@ -432,9 +512,7 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false, fo
           ))}
         </div>
       </div>
-      <div className="nc-studio-pack-note-v1">
-        ✓ Сейчас открыта внутренняя главная Studio. Генератор Storyboard живёт отдельно на /storyboard и запускается из меню или кнопки “＋ Создать”.
-      </div>
+      <div className="nc-studio-pack-note-v1" />
     </section>
   );
 }

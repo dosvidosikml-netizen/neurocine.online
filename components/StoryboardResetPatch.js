@@ -4,6 +4,12 @@ import { useEffect } from "react";
 
 const RESET_FLAG = "neurocine:reset-storyboard:restore-setup:v1";
 
+function isStoryboardRoute() {
+  if (typeof window === "undefined") return false;
+  const path = window.location?.pathname || "";
+  return path === "/storyboard" || path.startsWith("/storyboard/");
+}
+
 function fieldByLabel(labelText) {
   const labels = Array.from(document.querySelectorAll("label"));
   const label = labels.find((x) => String(x.textContent || "").toLowerCase().includes(labelText.toLowerCase()));
@@ -47,7 +53,7 @@ function restoreSetupSnapshot() {
 }
 
 function removeStoryboardStorage() {
-  const keep = [];
+  const remove = [];
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -64,13 +70,14 @@ function removeStoryboardStorage() {
         lower.includes("explore") ||
         lower.includes("part") ||
         lower.includes("production:v49");
-      if (isStoryboardArtifact && !isSetupDraft) keep.push(key);
+      if (isStoryboardArtifact && !isSetupDraft) remove.push(key);
     }
-    keep.forEach((key) => localStorage.removeItem(key));
+    remove.forEach((key) => localStorage.removeItem(key));
   } catch {}
 }
 
 function mountButton() {
+  if (!isStoryboardRoute()) return;
   if (document.querySelector("[data-nc-clear-storyboard]")) return;
 
   const storySection = document.querySelector("#storyboard") ||
@@ -120,6 +127,7 @@ function mountButton() {
 
 export default function StoryboardResetPatch() {
   useEffect(() => {
+    if (!isStoryboardRoute()) return;
     restoreSetupSnapshot();
     mountButton();
     const observer = new MutationObserver(mountButton);

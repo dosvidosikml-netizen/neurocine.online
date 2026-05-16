@@ -1,0 +1,123 @@
+/* NeuroCine top/bottom bars accent layer
+   Light theme: green readable glass.
+   Dark theme: neon/gold accent.
+   Keeps bottom plus structure untouched.
+*/
+
+:root{
+  --nc-bar-dark-border: rgba(245,192,32,.32);
+  --nc-bar-dark-glow: rgba(245,192,32,.16);
+  --nc-bar-dark-neon: rgba(0,217,255,.18);
+  --nc-bar-dark-text: rgba(248,250,252,.82);
+  --nc-bar-dark-active: #f5c020;
+}
+
+html[data-theme="light"]{
+  --nc-bar-light-green: #16a34a;
+  --nc-bar-light-green-soft: rgba(22,163,74,.14);
+  --nc-bar-light-green-border: rgba(22,163,74,.34);
+  --nc-bar-light-text: #102a1b;
+  --nc-bar-light-muted: rgba(16,42,27,.70);
+}
+
+/* DARK: top and bottom bars get gold/neon contour */
+html:not([data-theme="light"]) body .nc-top-action-bar,
+html:not([data-theme="light"]) body .studio-topbar-v40,
+html:not([data-theme="light"]) body .studio-nav,
+html:not([data-theme="light"]) body .nc-bottom-nav{
+  border-color: var(--nc-bar-dark-border) !important;
+  background:
+    radial-gradient(circle at 12% 0%, var(--nc-bar-dark-neon), transparent 36%),
+    radial-gradient(circle at 86% 0%, var(--nc-bar-dark-glow), transparent 38%),
+    linear-gradient(180deg, rgba(15,17,28,.94), rgba(5,7,13,.90)) !important;
+  box-shadow:
+    0 22px 70px rgba(0,0,0,.48),
+    inset 0 1px 0 rgba(255,255,255,.08),
+    inset 0 -1px 0 rgba(245,192,32,.16),
+    0 0 28px rgba(0,217,255,.08),
+    0 0 26px rgba(245,192,32,.08) !important;
+}
+
+html:not([data-theme="light"]) body .nc-top-icon,
+html:not([data-theme="light"]) body .nc-top-logo,
+html:not([data-theme="light"]) body .nc-lang,
+html:not([data-theme="light"]) body .nc-profile,
+html:not([data-theme="light"]) body .nc-bottom-nav button{
+  color: var(--nc-bar-dark-text) !important;
+  border-color: rgba(245,192,32,.18) !important;
+}
+
+html:not([data-theme="light"]) body .nc-bottom-nav button.is-active{
+  color: #fff7cc !important;
+  border-color: rgba(245,192,32,.32) !important;
+  background: linear-gradient(180deg, rgba(245,192,32,.16), rgba(255,255,255,.04)) !important;
+}
+
+html:not([data-theme="light"]) body .nc-bottom-nav button.is-active::after{
+  background: linear-gradient(90deg, #00d9ff, #f5c020) !important;
+  box-shadow: 0 0 14px rgba(245,192,32,.50), 0 0 16px rgba(0,217,255,.25) !important;
+}
+
+/* LIGHT: green readable glass top and bottom bars */
+html[data-theme="light"] body .nc-top-action-bar,
+html[data-theme="light"] body .studio-topbar-v40,
+html[data-theme="light"] body .studio-nav,
+html[data-theme="light"] body .nc-bottom-nav{
+  color: var(--nc-bar-light-text) !important;
+  border-color: var(--nc-bar-light-green-border) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(22,163,74,.18), transparent 36%),
+    radial-gradient(circle at 86% 0%, rgba(34,197,94,.12), transparent 38%),
+    linear-gradient(180deg, rgba(255,255,255,.96), rgba(235,249,240,.88)) !important;
+  box-shadow:
+    0 20px 58px rgba(15,42,27,.14),
+    inset 0 1px 0 rgba(255,255,255,.96),
+    inset 0 -1px 0 rgba(22,163,74,.18),
+    0 0 0 1px rgba(22,163,74,.08) !important;
+}
+
+html[data-theme="light"] body .nc-top-icon,
+html[data-theme="light"] body .nc-top-logo,
+html[data-theme="light"] body .nc-lang,
+html[data-theme="light"] body .nc-profile,
+html[data-theme="light"] body .nc-bottom-nav button{
+  color: var(--nc-bar-light-muted) !important;
+  border-color: rgba(22,163,74,.16) !important;
+  background: rgba(255,255,255,.55) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.90), 0 8px 22px rgba(15,42,27,.06) !important;
+}
+
+html[data-theme="light"] body .nc-top-icon:hover,
+html[data-theme="light"] body .nc-lang:hover,
+html[data-theme="light"] body .nc-profile:hover,
+html[data-theme="light"] body .nc-bottom-nav button:hover,
+html[data-theme="light"] body .nc-bottom-nav button:focus-visible,
+html[data-theme="light"] body .nc-bottom-nav button.is-active{
+  color: var(--nc-bar-light-text) !important;
+  border-color: var(--nc-bar-light-green-border) !important;
+  background: linear-gradient(180deg, rgba(22,163,74,.16), rgba(255,255,255,.66)) !important;
+}
+
+html[data-theme="light"] body .nc-bottom-nav button b,
+html[data-theme="light"] body .nc-bottom-nav button span{
+  color: inherit !important;
+}
+
+html[data-theme="light"] body .nc-bottom-nav button.is-active::after{
+  background: linear-gradient(90deg, #16a34a, #22c55e) !important;
+  box-shadow: 0 0 12px rgba(22,163,74,.38) !important;
+}
+
+html[data-theme="light"] body .nc-bottom-nav .nc-create-plus{
+  color: #16070a !important;
+  border-color: rgba(255,119,72,.44) !important;
+  background:
+    radial-gradient(circle at 30% 12%, rgba(255,255,255,.46), transparent 18%),
+    linear-gradient(135deg, #ff3f55, #ff7a3d) !important;
+  box-shadow: 0 16px 42px rgba(255,75,56,.28), inset 0 1px 0 rgba(255,255,255,.38) !important;
+}
+
+html[data-theme="light"] body .nc-bottom-nav .nc-create-plus::after{
+  color: #14532d !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.70);
+}

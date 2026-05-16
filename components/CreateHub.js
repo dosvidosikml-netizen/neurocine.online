@@ -22,6 +22,14 @@ function pickLang(lang, tick = 0) {
   return String(value || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
 }
 
+function routeTool(tool) {
+  if (typeof window === "undefined") return false;
+  const route = String(tool?.route || "");
+  if (!route.startsWith("/")) return false;
+  window.location.href = route;
+  return true;
+}
+
 export default function CreateHub({ open, onClose, onSelectTool, access, uiLang }) {
   const [langTick, setLangTick] = useState(0);
 
@@ -45,8 +53,12 @@ export default function CreateHub({ open, onClose, onSelectTool, access, uiLang 
     if (tool.packTab) {
       window.dispatchEvent(new CustomEvent("neurocine-open-pack-tab", { detail: { tab: tool.packTab } }));
     }
-    onSelectTool?.(tool);
+
     onClose?.();
+
+    if (routeTool(tool)) return;
+
+    onSelectTool?.(tool);
   }
 
   return (
@@ -57,7 +69,7 @@ export default function CreateHub({ open, onClose, onSelectTool, access, uiLang 
           <div>
             <span>{isRu ? "Фабрика NeuroCine" : "NeuroCine Factory"}</span>
             <h2>{isRu ? "Создать" : "Create"}</h2>
-            <p>{isRu ? "Только реальные рабочие модули: сценарий, storyboard, pipeline и production pack." : "Only real working modules: script, storyboard, pipeline and production pack."}</p>
+            <p>{isRu ? "Главная Studio, storyboard, сценарий, pipeline и production pack — теперь каждый инструмент открывается в правильном месте." : "Studio Home, storyboard, script, pipeline and production pack now open in their correct workspace."}</p>
           </div>
           <button className="nc-round-close" type="button" onClick={onClose}>×</button>
         </div>
@@ -66,7 +78,7 @@ export default function CreateHub({ open, onClose, onSelectTool, access, uiLang 
 
         <div className="nc-hub-plan-strip">
           <strong>{plan}</strong>
-          <span>{isRu ? "Показываются только активные инструменты, которые уже есть в текущем продакшн-пайплайне." : "Only active tools already available in the current production pipeline are shown."}</span>
+          <span>{isRu ? "Плюс больше не тащит всё в один экран: /studio — главная, /storyboard — генератор." : "The plus menu no longer forces everything into one screen: /studio is home, /storyboard is the generator."}</span>
         </div>
 
         <div className="nc-tool-grid">

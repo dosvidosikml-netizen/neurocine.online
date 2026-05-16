@@ -1,0 +1,121 @@
+/* Light theme readability layer
+   Fixes dark prompt/status/code blocks that became unreadable on white theme.
+   Does not change engine/API logic.
+*/
+
+html[data-theme="light"] body .out-box,
+html[data-theme="light"] body .prompt-card-v33,
+html[data-theme="light"] body .json-box,
+html[data-theme="light"] body .img-viewer,
+html[data-theme="light"] body .frame-card,
+html[data-theme="light"] body .pipe-step,
+html[data-theme="light"] body .variant-wrap,
+html[data-theme="light"] body .upload-zone,
+html[data-theme="light"] body .setup-status-v40,
+html[data-theme="light"] body .setup-manual-v40,
+html[data-theme="light"] body .setup-block-v40,
+html[data-theme="light"] body .setup-main-v40,
+html[data-theme="light"] body .setup-options-v40{
+  color:#102a1b !important;
+  border-color:rgba(22,163,74,.18) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(22,163,74,.080), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,.97), rgba(239,249,244,.90)) !important;
+  box-shadow:0 14px 42px rgba(15,42,27,.08), inset 0 1px 0 rgba(255,255,255,.96) !important;
+}
+
+html[data-theme="light"] body .out-head,
+html[data-theme="light"] body .pipe-head,
+html[data-theme="light"] body .step-header,
+html[data-theme="light"] body .json-bar{
+  color:#102a1b !important;
+  border-color:rgba(22,163,74,.16) !important;
+  background:
+    linear-gradient(90deg, rgba(22,163,74,.12), rgba(255,255,255,.74), rgba(255,255,255,.40)) !important;
+}
+
+html[data-theme="light"] body .out-label,
+html[data-theme="light"] body .frame-card-lbl,
+html[data-theme="light"] body .pipe-sub,
+html[data-theme="light"] body .setup-label-v40,
+html[data-theme="light"] body .field-label,
+html[data-theme="light"] body .step-desc,
+html[data-theme="light"] body .out-empty{
+  color:rgba(16,42,27,.68) !important;
+}
+
+html[data-theme="light"] body .out-pre,
+html[data-theme="light"] body .out-pre.mono,
+html[data-theme="light"] body .json-box pre,
+html[data-theme="light"] body .json-body,
+html[data-theme="light"] body pre,
+html[data-theme="light"] body code{
+  color:#173524 !important;
+  text-shadow:none !important;
+}
+
+html[data-theme="light"] body .json-box,
+html[data-theme="light"] body .json-body,
+html[data-theme="light"] body .out-body{
+  background:rgba(255,255,255,.55) !important;
+}
+
+html[data-theme="light"] body .out-body pre,
+html[data-theme="light"] body .json-box pre,
+html[data-theme="light"] body .json-body{
+  border-color:rgba(22,163,74,.10) !important;
+  background:rgba(255,255,255,.58) !important;
+}
+
+html[data-theme="light"] body textarea.inp,
+html[data-theme="light"] body input.inp,
+html[data-theme="light"] body select.inp,
+html[data-theme="light"] body .setup-topic-v40,
+html[data-theme="light"] body .setup-script-v40,
+html[data-theme="light"] body .setup-input-v40{
+  color:#102a1b !important;
+  border-color:rgba(22,163,74,.18) !important;
+  background:rgba(255,255,255,.96) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.96), 0 1px 2px rgba(15,42,27,.04) !important;
+}
+
+html[data-theme="light"] body textarea.inp::placeholder,
+html[data-theme="light"] body input.inp::placeholder,
+html[data-theme="light"] body .setup-topic-v40::placeholder,
+html[data-theme="light"] body .setup-script-v40::placeholder{
+  color:rgba(16,42,27,.45) !important;
+}
+
+html[data-theme="light"] body .btn-ghost,
+html[data-theme="light"] body .copy-btn,
+html[data-theme="light"] body .out-actions-v33 .btn,
+html[data-theme="light"] body .setup-mini-actions-v41 button{
+  color:#14532d !important;
+  border-color:rgba(22,163,74,.18) !important;
+  background:rgba(255,255,255,.66) !important;
+}
+
+html[data-theme="light"] body .btn-ghost:hover,
+html[data-theme="light"] body .copy-btn:hover,
+html[data-theme="light"] body .out-actions-v33 .btn:hover,
+html[data-theme="light"] body .setup-mini-actions-v41 button:hover{
+  color:#0f3d24 !important;
+  border-color:rgba(22,163,74,.34) !important;
+  background:rgba(22,163,74,.10) !important;
+}
+
+html[data-theme="light"] body .sb-t td{
+  color:#102a1b !important;
+  border-color:rgba(22,163,74,.12) !important;
+  background:rgba(255,255,255,.82) !important;
+}
+
+html[data-theme="light"] body .sb-t tr:hover td{
+  background:rgba(22,163,74,.08) !important;
+}
+
+html[data-theme="light"] body .frame-card-id,
+html[data-theme="light"] body .setup-status-v40 span,
+html[data-theme="light"] body .pipe-title{
+  color:#166534 !important;
+}
