@@ -383,16 +383,7 @@ function StudioPackageStyles() {
       }
 
       .nc-studio-pack-note-v1 {
-        position: relative;
-        margin-top: 10px;
-        border: 1px solid rgba(34,197,94,.22);
-        border-radius: 17px;
-        padding: 12px 13px;
-        background: rgba(34,197,94,.075);
-        color: var(--nc-green, #bbf7d0);
-        font-size: 13px;
-        font-weight: 850;
-        line-height: 1.35;
+        display: none !important;
       }
 
       @media (min-width: 900px) {
@@ -470,10 +461,10 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false, fo
       <div className="nc-studio-pack-shell-v1">
         <aside className="nc-studio-pack-head-v1">
           <div>
-            <div className="nc-studio-pack-kicker-v1">NeuroCine Package</div>
-            <h2 className="nc-studio-pack-title-v1">Пакет доступа Studio</h2>
+            <div className="nc-studio-pack-kicker-v1">NeuroCine Studio</div>
+            <h2 className="nc-studio-pack-title-v1">Пульт запуска</h2>
             <p className="nc-studio-pack-copy-v1">
-              Это внутренняя главная Studio после входа. Красивый вертикальный экран темы и сценария находится в генераторе: /storyboard#setup.
+              Выбери, с чего начать: новый ролик, storyboard, production pack или управление проектами. Всё собрано в одном рабочем пульте.
             </p>
           </div>
 
@@ -497,8 +488,8 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false, fo
           <button className="nc-studio-setup-entry-v1" type="button" onClick={() => openStoryboardAnchor("setup")}>
             <span>Быстрый старт генерации</span>
             <strong>Настроить тему и сценарий</strong>
-            <em>Откроется тот самый вертикальный интерфейс: тема, длительность, формат, стиль, готовый сценарий и запуск storyboard.</em>
-            <b>Открыть /storyboard#setup →</b>
+            <em>Откроется вертикальный мастер: тема, длительность, формат, стиль, готовый сценарий и запуск storyboard.</em>
+            <b>Начать создание →</b>
           </button>
 
           {STUDIO_PLANS.map((plan) => (
@@ -521,9 +512,7 @@ export default function StudioFlowPanel({ access = null, liveAllowed = false, fo
           ))}
         </div>
       </div>
-      <div className="nc-studio-pack-note-v1">
-        ✓ Setup-экран не удалён: он находится на /storyboard#setup. Эта главная Studio только даёт быстрый вход к нему.
-      </div>
+      <div className="nc-studio-pack-note-v1" />
     </section>
   );
 }
