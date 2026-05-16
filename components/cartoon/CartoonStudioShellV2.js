@@ -7,6 +7,7 @@ import MobileBottomNav from "../MobileBottomNav";
 import SideDrawer from "../SideDrawer";
 import CreateHub from "../CreateHub";
 import QuantumCartoonCreatorV3 from "./QuantumCartoonCreatorV3";
+import CartoonResetControlsPatch from "./CartoonResetControlsPatch";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 
 export default function CartoonStudioShellV2() {
@@ -98,6 +99,7 @@ export default function CartoonStudioShellV2() {
       </div>
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
+      <CartoonResetControlsPatch />
 
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
         <QuantumCartoonCreatorV3 />
