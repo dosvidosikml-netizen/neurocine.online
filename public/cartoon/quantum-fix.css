@@ -1,0 +1,54 @@
+/* Hard layout guard for Quantum Cartoon Creator.
+   The animated canvas must behave like the original reference: a background layer behind the creator UI, never a layout block. */
+
+.qc-page {
+  isolation: isolate !important;
+  overflow-x: hidden !important;
+}
+
+#qc-field {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  display: block !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  pointer-events: none !important;
+  opacity: .82 !important;
+  transform: none !important;
+}
+
+.qc-page::before,
+.qc-page::after {
+  z-index: 1 !important;
+}
+
+.qc-wrap {
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+.q-nav {
+  z-index: 60 !important;
+}
+
+.q-panel,
+.qc-top,
+.q-header,
+.q-stepbar {
+  position: relative !important;
+  z-index: 4 !important;
+}
+
+@media (max-width: 430px) {
+  #qc-field {
+    height: 100dvh !important;
+  }
+}
