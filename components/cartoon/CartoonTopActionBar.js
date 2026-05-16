@@ -65,6 +65,12 @@ export default function CartoonTopActionBar({ account, access, uiLang = "ru", on
 
   return (
     <>
+      <style jsx global>{`
+        .nc-cartoon-top-action-bar{display:flex!important;align-items:center!important;gap:12px!important}
+        .nc-cartoon-top-action-bar .nc-top-brand-slot{flex:1 1 auto;min-width:0;height:64px;border:0;background:transparent;padding:0;margin:0;display:flex;align-items:center;justify-content:flex-start;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        body.route-cartoon .qcc-root .q-header{display:none!important}
+        @media(max-width:430px){.nc-cartoon-top-action-bar{gap:10px!important}.nc-cartoon-top-action-bar .nc-top-brand-slot{height:58px}}
+      `}</style>
       <header className="nc-top-action-bar nc-cartoon-top-action-bar">
         <button className="nc-top-icon" type="button" onClick={onOpenMenu} aria-label="Меню">☰</button>
         <button className="nc-top-brand-slot" type="button" onClick={() => onNavigate?.("setup")} aria-label="NeuroCine">
