@@ -1,0 +1,113 @@
+/* Cartoon top board v2: neon sci-fi + light theme fallback */
+
+body.route-cartoon .nc-top-action-bar{
+  position:relative !important;
+  overflow:hidden !important;
+  border:1px solid rgba(0,212,255,.22) !important;
+  border-radius:0 0 26px 26px !important;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(0,212,255,.20), transparent 26%),
+    radial-gradient(circle at 78% 22%, rgba(255,45,214,.22), transparent 28%),
+    linear-gradient(115deg, rgba(0,8,24,.96), rgba(11,4,31,.94) 52%, rgba(28,2,41,.94)) !important;
+  box-shadow:0 18px 46px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(255,45,214,.22), 0 0 34px rgba(0,212,255,.10), 0 0 48px rgba(255,45,214,.08) !important;
+  backdrop-filter:blur(18px) saturate(1.35) !important;
+  -webkit-backdrop-filter:blur(18px) saturate(1.35) !important;
+}
+
+body.route-cartoon .nc-top-action-bar::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:.38;
+  background-image:linear-gradient(30deg, rgba(0,212,255,.12) 1px, transparent 1px), linear-gradient(150deg, rgba(255,45,214,.10) 1px, transparent 1px);
+  background-size:42px 42px;
+}
+
+body.route-cartoon .nc-top-action-bar > *{position:relative;z-index:1}
+
+body.route-cartoon .nc-top-icon,
+body.route-cartoon .nc-lang,
+body.route-cartoon .nc-profile,
+body.route-cartoon .nc-top-logo{
+  border-color:rgba(0,212,255,.18) !important;
+  background:rgba(4,8,24,.62) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 0 18px rgba(0,212,255,.08) !important;
+}
+
+body.route-cartoon .nc-top-logo{
+  flex:0 0 clamp(136px, 39vw, 220px) !important;
+  width:clamp(136px, 39vw, 220px) !important;
+  max-width:clamp(136px, 39vw, 220px) !important;
+  justify-content:flex-start !important;
+  position:relative !important;
+  padding-left:52px !important;
+  padding-right:10px !important;
+  border-radius:18px !important;
+  color:transparent !important;
+  overflow:hidden !important;
+}
+
+body.route-cartoon .nc-top-logo > span{color:transparent !important;font-size:0 !important}
+
+body.route-cartoon .nc-top-logo::before{
+  content:"";
+  position:absolute;
+  left:10px;
+  top:50%;
+  width:34px;
+  height:34px;
+  border-radius:50%;
+  transform:translateY(-50%);
+  background:radial-gradient(circle at 50% 50%, #29d8ff 0 13%, rgba(41,216,255,.42) 14% 23%, transparent 24%), conic-gradient(from 30deg, rgba(0,212,255,0), rgba(0,212,255,.9), rgba(255,45,214,.9), rgba(0,212,255,0));
+  box-shadow:0 0 14px rgba(0,212,255,.82), 0 0 28px rgba(255,45,214,.20);
+  animation:ncCartoonOrbitPulse 2.8s ease-in-out infinite;
+}
+
+body.route-cartoon .nc-top-logo::after{
+  content:"NEUROCINE\A QUANTUM CARTOON";
+  white-space:pre;
+  color:#eaf7ff;
+  font-family:'Orbitron','Exo 2',ui-sans-serif,system-ui,sans-serif;
+  font-size:10px;
+  line-height:1.35;
+  font-weight:900;
+  letter-spacing:.22em;
+  text-align:left;
+  text-shadow:0 0 10px rgba(0,212,255,.65), 0 0 18px rgba(255,45,214,.28);
+}
+
+body.route-cartoon .nc-top-spacer{flex:1 1 auto !important;min-width:4px !important}
+body.route-cartoon .qcc-root .q-header{display:none !important}
+
+html[data-theme="light"] body.route-cartoon .nc-top-action-bar{
+  border-color:rgba(0,136,255,.20) !important;
+  background:radial-gradient(circle at 18% 18%, rgba(0,170,255,.20), transparent 26%), radial-gradient(circle at 78% 22%, rgba(219,39,119,.16), transparent 30%), linear-gradient(115deg, rgba(255,255,255,.96), rgba(239,247,255,.92) 52%, rgba(255,244,252,.92)) !important;
+  box-shadow:0 18px 46px rgba(15,23,42,.14), inset 0 1px 0 rgba(255,255,255,.86), inset 0 -1px 0 rgba(0,136,255,.12), 0 0 28px rgba(0,136,255,.08), 0 0 36px rgba(219,39,119,.06) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-top-icon,
+html[data-theme="light"] body.route-cartoon .nc-lang,
+html[data-theme="light"] body.route-cartoon .nc-profile,
+html[data-theme="light"] body.route-cartoon .nc-top-logo{
+  color:#0f172a !important;
+  border-color:rgba(15,23,42,.10) !important;
+  background:rgba(255,255,255,.74) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 10px 26px rgba(15,23,42,.08) !important;
+}
+
+html[data-theme="light"] body.route-cartoon .nc-top-logo::after{color:#101828;text-shadow:0 0 10px rgba(0,136,255,.20), 0 0 18px rgba(219,39,119,.12)}
+html[data-theme="light"] body.route-cartoon .nc-top-logo::before{box-shadow:0 0 12px rgba(0,136,255,.44), 0 0 24px rgba(219,39,119,.12)}
+
+@keyframes ncCartoonOrbitPulse{
+  0%,100%{filter:hue-rotate(0deg) brightness(1); transform:translateY(-50%) rotate(0deg) scale(1)}
+  50%{filter:hue-rotate(22deg) brightness(1.22); transform:translateY(-50%) rotate(180deg) scale(1.06)}
+}
+
+@media (max-width:430px){
+  body.route-cartoon .nc-top-action-bar{border-radius:0 0 22px 22px !important}
+  body.route-cartoon .nc-top-logo{flex-basis:clamp(126px, 38vw, 168px) !important;width:clamp(126px, 38vw, 168px) !important;max-width:clamp(126px, 38vw, 168px) !important;padding-left:46px !important;padding-right:6px !important}
+  body.route-cartoon .nc-top-logo::before{left:8px;width:31px;height:31px}
+  body.route-cartoon .nc-top-logo::after{font-size:8.5px;letter-spacing:.18em}
+}
