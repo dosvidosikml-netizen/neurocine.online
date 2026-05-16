@@ -22,7 +22,11 @@ function getRedirectTo() {
 function isBridgeRoute() {
   if (typeof window === "undefined") return false;
   const path = window.location?.pathname || "";
-  return path === "/storyboard" || path.startsWith("/storyboard/") || path === "/studio" || path.startsWith("/studio/");
+  return (
+    path === "/storyboard" || path.startsWith("/storyboard/") ||
+    path === "/studio" || path.startsWith("/studio/") ||
+    path === "/cartoon" || path.startsWith("/cartoon/")
+  );
 }
 
 function clearLocalAuthFallback() {
