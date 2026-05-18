@@ -14,6 +14,16 @@ function getActiveKey() {
   return "studio";
 }
 
+function NeuroOrbIcon({ variant = "cyan" }) {
+  return (
+    <span className={`nc-nav-orb nc-nav-orb-${variant}`} aria-hidden="true">
+      <i className="nc-nav-orb-ring one" />
+      <i className="nc-nav-orb-ring two" />
+      <i className="nc-nav-orb-core" />
+    </span>
+  );
+}
+
 function MobileBottomNavSkin() {
   return (
     <style jsx global>{`
@@ -76,7 +86,7 @@ function MobileBottomNavSkin() {
         transition: transform .16s ease, color .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease;
       }
 
-      .nc-bottom-nav button span {
+      .nc-bottom-nav button > span:not(.nc-nav-orb) {
         display: grid;
         place-items: center;
         width: 24px;
@@ -97,11 +107,69 @@ function MobileBottomNavSkin() {
         letter-spacing: -.01em;
       }
 
+      .nc-nav-orb {
+        position: relative;
+        width: 28px;
+        height: 24px;
+        display: block;
+        filter: drop-shadow(0 0 8px rgba(0,212,255,.36));
+        transform: translateY(1px);
+      }
+
+      .nc-nav-orb-ring {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 26px;
+        height: 15px;
+        border-radius: 999px;
+        border: 1px solid rgba(45,212,255,.42);
+        transform: translate(-50%, -50%) rotate(-18deg);
+        background: radial-gradient(circle at 50% 50%, rgba(0,212,255,.10), transparent 52%);
+        box-shadow: 0 0 10px rgba(0,212,255,.16), inset 0 0 8px rgba(139,0,255,.10);
+      }
+
+      .nc-nav-orb-ring.two {
+        width: 24px;
+        height: 13px;
+        border-color: rgba(168,85,247,.34);
+        transform: translate(-50%, -50%) rotate(18deg);
+        opacity: .82;
+      }
+
+      .nc-nav-orb-core {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle at 35% 28%, #bff7ff, #20d8ff 46%, #2563eb 100%);
+        box-shadow: 0 0 10px rgba(0,212,255,.78), 0 0 18px rgba(139,0,255,.25);
+      }
+
+      .nc-nav-orb-violet { filter: drop-shadow(0 0 8px rgba(168,85,247,.38)); }
+      .nc-nav-orb-violet .nc-nav-orb-ring.one { border-color: rgba(168,85,247,.48); }
+      .nc-nav-orb-violet .nc-nav-orb-core { background: radial-gradient(circle at 35% 28%, #f5d0fe, #a855f7 48%, #2563eb 100%); box-shadow: 0 0 12px rgba(168,85,247,.80), 0 0 18px rgba(0,212,255,.22); }
+
+      .nc-nav-orb-gold { filter: drop-shadow(0 0 8px rgba(255,198,77,.30)); }
+      .nc-nav-orb-gold .nc-nav-orb-ring.one { border-color: rgba(255,198,77,.44); }
+      .nc-nav-orb-gold .nc-nav-orb-ring.two { border-color: rgba(0,212,255,.28); }
+      .nc-nav-orb-gold .nc-nav-orb-core { background: radial-gradient(circle at 35% 28%, #fff7cc, #ffd166 45%, #ff7a3d 100%); box-shadow: 0 0 12px rgba(255,198,77,.68), 0 0 18px rgba(0,212,255,.18); }
+
       .nc-bottom-nav button:hover,
       .nc-bottom-nav button:focus-visible {
         color: #fff;
         background: rgba(255,255,255,.055);
         border-color: rgba(255,255,255,.09);
+      }
+
+      .nc-bottom-nav button:hover .nc-nav-orb,
+      .nc-bottom-nav button:focus-visible .nc-nav-orb,
+      .nc-bottom-nav button.is-active .nc-nav-orb {
+        transform: translateY(0) scale(1.06);
+        filter: drop-shadow(0 0 11px rgba(0,212,255,.56));
       }
 
       .nc-bottom-nav button.is-active {
@@ -173,7 +241,10 @@ function MobileBottomNavSkin() {
           border-radius: 24px;
         }
         .nc-bottom-nav button b { font-size: 8px; }
-        .nc-bottom-nav button span { font-size: 16px; }
+        .nc-bottom-nav button > span:not(.nc-nav-orb) { font-size: 16px; }
+        .nc-nav-orb { width: 25px; height: 22px; }
+        .nc-nav-orb-ring { width: 23px; height: 13px; }
+        .nc-nav-orb-ring.two { width: 21px; height: 12px; }
       }
     `}</style>
   );
@@ -216,10 +287,10 @@ export default function MobileBottomNav({ onCreate }) {
       <MobileBottomNavSkin />
       <nav className="nc-bottom-nav" aria-label="NeuroCine mobile navigation">
         <button className={active === "studio" ? "is-active" : ""} type="button" onClick={goStudioHome}><span>⌂</span><b>Главная</b></button>
-        <button className={active === "projects" ? "is-active" : ""} type="button" onClick={goProjects}><span>☷</span><b>Проекты</b></button>
+        <button className={active === "projects" ? "is-active" : ""} type="button" onClick={goProjects}><NeuroOrbIcon variant="cyan" /><b>Проекты</b></button>
         <button className="nc-create-plus" type="button" onClick={onCreate} aria-label="Создать">+</button>
-        <button className={active === "storyboard" ? "is-active" : ""} type="button" onClick={goStoryboard}><span>▣</span><b>Кадры</b></button>
-        <button className={active === "pack" ? "is-active" : ""} type="button" onClick={goPack}><span>◉</span><b>Пакет</b></button>
+        <button className={active === "storyboard" ? "is-active" : ""} type="button" onClick={goStoryboard}><NeuroOrbIcon variant="violet" /><b>Кадры</b></button>
+        <button className={active === "pack" ? "is-active" : ""} type="button" onClick={goPack}><NeuroOrbIcon variant="gold" /><b>Пакет</b></button>
       </nav>
     </>
   );
