@@ -14,6 +14,8 @@ export default function CartoonStudioShellV2() {
   const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
   const [createHubOpen, setCreateHubOpen] = useState(false);
   const [uiLang, setUiLang] = useState("ru");
+  const [creatorKey, setCreatorKey] = useState(1);
+  const [cleanNote, setCleanNote] = useState("");
 
   const accountAccess = getAccountAccess(account?.profile, account?.session);
   const liveAllowed = shouldForceLiveForAccount(accountAccess);
@@ -69,8 +71,96 @@ export default function CartoonStudioShellV2() {
     } catch {}
   }
 
+  function clearCartoonStorage() {
+    const match = (key) => /cartoon|qcc|quantumCartoon|neurocine\.cartoon/i.test(String(key || ""));
+    try {
+      for (const key of Object.keys(window.localStorage || {})) {
+        if (match(key)) window.localStorage.removeItem(key);
+      }
+    } catch {}
+    try {
+      for (const key of Object.keys(window.sessionStorage || {})) {
+        if (match(key)) window.sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }
+
+  function cleanStart() {
+    clearCartoonStorage();
+    setCleanNote("Новый чистый мульт-проект создан");
+    setCreatorKey((value) => value + 1);
+    try {
+      window.history.replaceState(null, "", "/cartoon");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {}
+  }
+
+  function hardCleanStart() {
+    clearCartoonStorage();
+    try {
+      window.location.replace(`/cartoon?fresh=${Date.now()}`);
+    } catch {
+      setCreatorKey((value) => value + 1);
+      setCleanNote("Кэш очищен, проект сброшен");
+    }
+  }
+
   return (
     <main className="studio nc-cartoon-studio-shell">
+      <style jsx global>{`
+        body.route-cartoon .nc-cartoon-clean-start{
+          position:relative;
+          z-index:7;
+          width:min(860px, calc(100vw - 44px));
+          margin:12px auto 14px;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:10px;
+        }
+        body.route-cartoon .nc-cartoon-clean-start button{
+          min-height:46px;
+          border-radius:16px;
+          border:1px solid rgba(0,212,255,.24);
+          background:rgba(5,10,28,.70);
+          color:rgba(225,246,255,.90);
+          font-weight:900;
+          letter-spacing:.06em;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.18);
+          backdrop-filter:blur(14px);
+          -webkit-backdrop-filter:blur(14px);
+        }
+        body.route-cartoon .nc-cartoon-clean-start button.danger{
+          border-color:rgba(255,77,95,.38);
+          color:#ffd6dc;
+          background:rgba(44,8,18,.64);
+        }
+        body.route-cartoon .nc-cartoon-clean-note{
+          grid-column:1 / -1;
+          margin-top:-2px;
+          color:rgba(45,212,255,.72);
+          font-size:12px;
+          line-height:1.35;
+          text-align:center;
+          letter-spacing:.05em;
+        }
+        html[data-theme="light"] body.route-cartoon .nc-cartoon-clean-start button{
+          border-color:rgba(22,163,74,.24);
+          background:rgba(255,255,255,.86);
+          color:#14532d;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.94),0 10px 24px rgba(15,42,27,.07);
+        }
+        html[data-theme="light"] body.route-cartoon .nc-cartoon-clean-start button.danger{
+          border-color:rgba(239,68,68,.24);
+          background:rgba(255,245,245,.88);
+          color:#991b1b;
+        }
+        html[data-theme="light"] body.route-cartoon .nc-cartoon-clean-note{color:#166534;}
+        @media(max-width:430px){
+          body.route-cartoon .nc-cartoon-clean-start{width:calc(100vw - 32px);gap:8px;margin:10px auto 12px;}
+          body.route-cartoon .nc-cartoon-clean-start button{min-height:44px;border-radius:15px;font-size:11px;}
+        }
+      `}</style>
+
       <div className="nc-mobile-shell" id="tools">
         <CartoonTopActionBar
           account={account}
@@ -99,8 +189,14 @@ export default function CartoonStudioShellV2() {
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
 
+      <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
+        <button type="button" onClick={cleanStart}>🧹 Новый проект</button>
+        <button type="button" className="danger" onClick={hardCleanStart}>🗑 Очистить всё + кэш</button>
+        {cleanNote && <div className="nc-cartoon-clean-note">{cleanNote}</div>}
+      </div>
+
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
-        <QuantumCartoonCreatorV2 />
+        <QuantumCartoonCreatorV2 key={creatorKey} />
       </section>
     </main>
   );
