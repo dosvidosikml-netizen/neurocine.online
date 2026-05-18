@@ -7,6 +7,7 @@ import MobileBottomNav from "../MobileBottomNav";
 import SideDrawer from "../SideDrawer";
 import CreateHub from "../CreateHub";
 import QuantumCartoonCreatorV2 from "./QuantumCartoonCreatorV2";
+import CartoonAutosaveBridge from "./CartoonAutosaveBridge";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 
 export default function CartoonStudioShellV2() {
@@ -74,6 +75,7 @@ export default function CartoonStudioShellV2() {
   function clearCartoonStorage() {
     const match = (key) => /cartoon|qcc|quantumCartoon|neurocine\.cartoon/i.test(String(key || ""));
     try {
+      window.neurocineClearCartoonAutosave?.();
       for (const key of Object.keys(window.localStorage || {})) {
         if (match(key)) window.localStorage.removeItem(key);
       }
@@ -198,6 +200,7 @@ export default function CartoonStudioShellV2() {
       </div>
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
+      <CartoonAutosaveBridge />
 
       <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
         <button type="button" onClick={cleanStart}>🧹 Новый проект</button>
