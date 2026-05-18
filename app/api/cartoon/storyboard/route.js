@@ -1,5 +1,5 @@
 // app/api/cartoon/storyboard/route.js
-// AI cartoon storyboard route with local fallback and protected API access.
+// NeuroCine Cartoon Storyboard API v2 — uses cartoonEngine v2 (AutoChain-aware).
 
 import { callOpenRouter, TASK_TYPES } from "../../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../../lib/apiAccess";
@@ -36,10 +36,12 @@ export async function POST(req) {
     }
 
     const local = buildLocalStoryboard(project);
+
     const userMessage = JSON.stringify({
       project: project.project,
       characters: project.characters,
       script: project.script,
+      settings: project.settings,
       continuity_contract: buildCartoonContinuityContract(project),
       local_draft: local.storyboard,
     }, null, 2).slice(0, 24000);
@@ -67,17 +69,19 @@ export async function POST(req) {
       return Response.json({ ok: false, error: "Невалидный JSON storyboard: " + e.message, raw: r.content?.slice(0, 800), fallback: buildCartoonExport(body) }, { status: 500 });
     }
 
-    const base = buildCartoonExport(body);
+    const base     = buildCartoonExport(body);
     const storyboard = parsed.storyboard || parsed;
-    const scenes = Array.isArray(storyboard.scenes) ? storyboard.scenes : base.storyboard.scenes;
+    const scenes   = Array.isArray(storyboard.scenes) ? storyboard.scenes : base.storyboard.scenes;
+
     const finalProject = {
       ...base,
       storyboard: {
         total_scenes: Number(storyboard.total_scenes || scenes.length),
         total_duration_sec: Number(storyboard.total_duration_sec || scenes.reduce((sum, sc) => sum + Number(sc.duration_sec || 0), 0)),
+        part_size: project.project.chain.partSize,
         scenes,
       },
-      generation: { ...base.generation, model_storyboard: r.model_used, engine: "cartoonEngine.ai" },
+      generation: { ...base.generation, model_storyboard: r.model_used, engine: "cartoonEngine.ai.v2" },
     };
 
     await logUsageFromGuard(guard, { req, endpoint: "/api/cartoon/storyboard", success: true, modelUsed: r.model_used, durationMs: Date.now() - started, metadata: usageMeta(body, { scenes: finalProject.storyboard.total_scenes }) });
