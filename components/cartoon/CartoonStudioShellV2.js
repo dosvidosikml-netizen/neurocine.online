@@ -108,56 +108,66 @@ export default function CartoonStudioShellV2() {
   return (
     <main className="studio nc-cartoon-studio-shell">
       <style jsx global>{`
-        body.route-cartoon .nc-cartoon-clean-start{
-          position:relative;
-          z-index:7;
-          width:min(860px, calc(100vw - 44px));
-          margin:12px auto 14px;
-          display:grid;
+        .nc-cartoon-clean-start{
+          position:fixed !important;
+          left:16px;
+          right:16px;
+          bottom:148px;
+          z-index:2147483000;
+          width:auto;
+          display:grid !important;
           grid-template-columns:1fr 1fr;
           gap:10px;
+          pointer-events:auto;
         }
-        body.route-cartoon .nc-cartoon-clean-start button{
+        .nc-cartoon-clean-start button{
           min-height:46px;
           border-radius:16px;
-          border:1px solid rgba(0,212,255,.24);
-          background:rgba(5,10,28,.70);
-          color:rgba(225,246,255,.90);
+          border:1px solid rgba(0,212,255,.34);
+          background:rgba(5,10,28,.86);
+          color:rgba(225,246,255,.94);
           font-weight:900;
           letter-spacing:.06em;
-          box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.18);
-          backdrop-filter:blur(14px);
-          -webkit-backdrop-filter:blur(14px);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 34px rgba(0,0,0,.30), 0 0 24px rgba(0,212,255,.10);
+          backdrop-filter:blur(16px);
+          -webkit-backdrop-filter:blur(16px);
         }
-        body.route-cartoon .nc-cartoon-clean-start button.danger{
-          border-color:rgba(255,77,95,.38);
+        .nc-cartoon-clean-start button.danger{
+          border-color:rgba(255,77,95,.46);
           color:#ffd6dc;
-          background:rgba(44,8,18,.64);
+          background:rgba(44,8,18,.82);
         }
-        body.route-cartoon .nc-cartoon-clean-note{
+        .nc-cartoon-clean-note{
           grid-column:1 / -1;
-          margin-top:-2px;
-          color:rgba(45,212,255,.72);
+          justify-self:center;
+          max-width:92vw;
+          padding:7px 12px;
+          border-radius:999px;
+          border:1px solid rgba(45,212,255,.20);
+          background:rgba(2,6,23,.70);
+          color:rgba(45,212,255,.88);
           font-size:12px;
           line-height:1.35;
           text-align:center;
           letter-spacing:.05em;
+          backdrop-filter:blur(12px);
+          -webkit-backdrop-filter:blur(12px);
         }
-        html[data-theme="light"] body.route-cartoon .nc-cartoon-clean-start button{
-          border-color:rgba(22,163,74,.24);
-          background:rgba(255,255,255,.86);
+        html[data-theme="light"] .nc-cartoon-clean-start button{
+          border-color:rgba(22,163,74,.28);
+          background:rgba(255,255,255,.92);
           color:#14532d;
-          box-shadow:inset 0 1px 0 rgba(255,255,255,.94),0 10px 24px rgba(15,42,27,.07);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.96),0 12px 28px rgba(15,42,27,.13);
         }
-        html[data-theme="light"] body.route-cartoon .nc-cartoon-clean-start button.danger{
-          border-color:rgba(239,68,68,.24);
-          background:rgba(255,245,245,.88);
+        html[data-theme="light"] .nc-cartoon-clean-start button.danger{
+          border-color:rgba(239,68,68,.30);
+          background:rgba(255,245,245,.94);
           color:#991b1b;
         }
-        html[data-theme="light"] body.route-cartoon .nc-cartoon-clean-note{color:#166534;}
+        html[data-theme="light"] .nc-cartoon-clean-note{color:#166534;background:rgba(255,255,255,.88);border-color:rgba(22,163,74,.20);}
         @media(max-width:430px){
-          body.route-cartoon .nc-cartoon-clean-start{width:calc(100vw - 32px);gap:8px;margin:10px auto 12px;}
-          body.route-cartoon .nc-cartoon-clean-start button{min-height:44px;border-radius:15px;font-size:11px;}
+          .nc-cartoon-clean-start{left:14px;right:14px;bottom:134px;gap:8px;}
+          .nc-cartoon-clean-start button{min-height:43px;border-radius:15px;font-size:11px;}
         }
       `}</style>
 
