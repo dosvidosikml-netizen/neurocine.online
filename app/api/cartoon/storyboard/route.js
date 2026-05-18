@@ -78,7 +78,7 @@ export async function POST(req) {
       storyboard: {
         total_scenes: Number(storyboard.total_scenes || scenes.length),
         total_duration_sec: Number(storyboard.total_duration_sec || scenes.reduce((sum, sc) => sum + Number(sc.duration_sec || 0), 0)),
-        part_size: project.project.chain.partSize,
+        part_size: project.project?.chain?.partSize || body.partSize || body.chain?.partSize || 4,
         scenes,
       },
       generation: { ...base.generation, model_storyboard: r.model_used, engine: "cartoonEngine.ai.v2" },
