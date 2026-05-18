@@ -1,8 +1,8 @@
 // app/api/cartoon/script/route.js
-// AI cartoon script route protected by account/API access.
+// AI cartoon script route with safe local fallback.
 
 import { callOpenRouter, TASK_TYPES } from "../../../../lib/modelRouter";
-import { requireOpenRouterAccess, guardErrorJson } from "../../../../lib/apiAccess";
+import { requireOpenRouterAccess } from "../../../../lib/apiAccess";
 import { logUsageFromGuard, usageMeta } from "../../../../lib/usageLogger";
 import { CARTOON_SCRIPT_SYSTEM, normalizeCartoonProject, safeJsonParse } from "../../../../engine/cartoonEngine";
 
@@ -25,20 +25,33 @@ function localScriptFallback(project) {
   };
 }
 
+function localOk(project, reason = "local_fallback") {
+  return Response.json({
+    ok: true,
+    mode: "local",
+    model_used: reason,
+    warning: reason,
+    script: localScriptFallback(project),
+  });
+}
+
 export async function POST(req) {
   const started = Date.now();
   let body = {};
+  let project = null;
   try {
     body = await req.json();
-    const project = normalizeCartoonProject(body || {});
+    project = normalizeCartoonProject(body || {});
     const mode = String(body.mode || "ai").toLowerCase();
 
     if (mode === "local") {
-      return Response.json({ ok: true, mode: "local", script: localScriptFallback(project) });
+      return localOk(project, "local_requested");
     }
 
     const guard = await requireOpenRouterAccess(req);
-    if (!guard.ok) return guardErrorJson(guard);
+    if (!guard.ok) {
+      return localOk(project, guard.error || guard.reason || "openrouter_access_closed");
+    }
 
     const userMessage = JSON.stringify({
       project: project.project,
@@ -60,20 +73,44 @@ export async function POST(req) {
     });
 
     if (!r.ok) {
-      await logUsageFromGuard(guard, { req, endpoint: "/api/cartoon/script", success: false, modelUsed: r.model_used, error: r.error, durationMs: Date.now() - started, metadata: usageMeta(body) });
-      return Response.json({ ok: false, error: r.error, fallback: localScriptFallback(project) }, { status: 500 });
+      await logUsageFromGuard(guard, {
+        req,
+        endpoint: "/api/cartoon/script",
+        success: false,
+        modelUsed: r.model_used,
+        error: r.error,
+        durationMs: Date.now() - started,
+        metadata: usageMeta(body),
+      });
+      return localOk(project, r.error || "openrouter_failed");
     }
 
     let parsed;
     try { parsed = safeJsonParse(r.content); }
     catch (e) {
-      await logUsageFromGuard(guard, { req, endpoint: "/api/cartoon/script", success: false, modelUsed: r.model_used, error: "Invalid JSON: " + e.message, durationMs: Date.now() - started, metadata: usageMeta(body) });
-      return Response.json({ ok: false, error: "Невалидный JSON сценария: " + e.message, raw: r.content?.slice(0, 800), fallback: localScriptFallback(project) }, { status: 500 });
+      await logUsageFromGuard(guard, {
+        req,
+        endpoint: "/api/cartoon/script",
+        success: false,
+        modelUsed: r.model_used,
+        error: "Invalid JSON: " + e.message,
+        durationMs: Date.now() - started,
+        metadata: usageMeta(body),
+      });
+      return localOk(project, "invalid_ai_json");
     }
 
-    await logUsageFromGuard(guard, { req, endpoint: "/api/cartoon/script", success: true, modelUsed: r.model_used, durationMs: Date.now() - started, metadata: usageMeta(body) });
+    await logUsageFromGuard(guard, {
+      req,
+      endpoint: "/api/cartoon/script",
+      success: true,
+      modelUsed: r.model_used,
+      durationMs: Date.now() - started,
+      metadata: usageMeta(body),
+    });
     return Response.json({ ok: true, mode: "ai", model_used: r.model_used, script: parsed });
   } catch (e) {
-    return Response.json({ ok: false, error: e.message || "Cartoon script failed" }, { status: 500 });
+    const fallbackProject = project || normalizeCartoonProject(body || {});
+    return localOk(fallbackProject, e.message || "cartoon_script_failed");
   }
 }
