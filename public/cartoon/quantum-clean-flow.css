@@ -22,6 +22,15 @@
   font-weight:300;
 }
 
+.qcc-root .qv2-divider{
+  border-top:1px solid #1a0a2e;
+  margin:16px 0;
+}
+
+.qcc-root .q-mod.suggested{
+  border-color:#7c3aed !important;
+}
+
 /* /cartoon light theme: keep the bottom dock readable over the dark creator canvas. */
 html[data-theme="light"] body.route-cartoon .nc-bottom-nav{
   color:#111827 !important;
