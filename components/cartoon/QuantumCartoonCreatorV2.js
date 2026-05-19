@@ -473,7 +473,11 @@ function reducer(s, a) {
   if (a.type === "format")  return { ...s, format: a.f, aspect: a.a, duration: a.d, serverProject: null };
   if (a.type === "step")    return { ...s, step: Math.min(6, Math.max(1, a.step)), scenes: a.step >= 5 && !s.scenes.length ? buildScenes(s) : s.scenes };
   if (a.type === "script")  return { ...s, script: a.value, scenes: [], serverProject: null };
-  if (a.type === "aiScript") return { ...s, title: a.script?.title || s.title, voice: a.script?.voice_style || s.voice, script: a.script?.full_text || s.script, heroes: [], scenes: [], serverProject: null, busy: false, status: a.status || "СЦЕНАРИЙ AI ГОТОВ" };
+  if (a.type === "aiScript") {
+    const fullText = String(a.script?.full_text || "").trim();
+    if (!fullText) return { ...s, scriptError: "AI вернул пустой сценарий — попробуй ещё раз", busy: false };
+    return { ...s, title: a.script?.title || s.title, voice: a.script?.voice_style || s.voice, script: fullText, scriptError: "", heroes: [], scenes: [], serverProject: null, busy: false, status: a.status || "СЦЕНАРИЙ AI ГОТОВ" };
+  }
   if (a.type === "extractHeroes") return { ...s, heroes: inferHeroes(s), scenes: [], serverProject: null, status: "ГЕРОИ НАЙДЕНЫ" };
   if (a.type === "addHero") return s.heroes.length >= 3 ? s : { ...s, heroes: [...s.heroes, { id:`char_${s.heroes.length+1}`, name:`Герой ${s.heroes.length+1}`, role:"main", description:"", face_lock:true, charFaceLock:"", modifiers:[], reference_prompt:"" }], serverProject: null };
   if (a.type === "hero")    return { ...s, heroes: s.heroes.map((h,i) => i === a.i ? { ...h, [a.key]: a.value } : h), serverProject: null, scenes: [] };
@@ -582,7 +586,8 @@ export default function QuantumCartoonCreatorV2() {
     dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ" });
     try {
       const data = await postJson("/api/cartoon/script", projectPayload(s));
-      dispatch({ type:"aiScript", script: data.script, status:`СЦЕНАРИЙ AI ГОТОВ · ${data.model_used || "model"}` });
+      const modelLabel = (data.model_used || "model").replace(/openrouter_access_closed|local_fallback|local_requested/g, "локально");
+      dispatch({ type:"aiScript", script: data.script, status:`СЦЕНАРИЙ ГОТОВ · ${modelLabel}` });
       dispatch({ type:"scriptError", value: "" });
     } catch (e) {
       const msg = e.status === 403 ? "AI закрыт — подключи API ключ в настройках" : e.status === 401 ? "Авторизация failed — войди в аккаунт" : (e.message || "AI недоступен — попробуй ещё раз");

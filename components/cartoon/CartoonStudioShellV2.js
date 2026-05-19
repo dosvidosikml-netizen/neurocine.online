@@ -8,7 +8,6 @@ import SideDrawer from "../SideDrawer";
 import CreateHub from "../CreateHub";
 import QuantumCartoonCreatorV2 from "./QuantumCartoonCreatorV2";
 import CartoonAutosaveBridge from "./CartoonAutosaveBridge";
-import CartoonProductionCoreBridge from "./CartoonProductionCoreBridge";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 
 export default function CartoonStudioShellV2() {
@@ -208,7 +207,6 @@ export default function CartoonStudioShellV2() {
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
       <CartoonAutosaveBridge />
-      <CartoonProductionCoreBridge />
 
       <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
         <button type="button" onClick={cleanStart}>🧹 Новый проект</button>
