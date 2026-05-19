@@ -253,9 +253,21 @@ function getAutoSuggestedMods(s) {
 
 function buildScenes(s, forcedScript) {
   const script = forcedScript ?? s.script;
-  const parts  = split(script);
+  const rawParts = split(script);
   const heroes = s.heroes.length ? s.heroes : inferHeroes({ ...s, script });
-  const dur    = Math.max(2, Math.round(Number(s.duration || 60) / Math.max(1, parts.length)));
+  // Target 3-4 seconds per scene based on duration setting
+  const targetScenes = Math.max(4, Math.round(Number(s.duration || 60) / 3.5));
+  const dur = Math.max(2, Math.round(Number(s.duration || 60) / targetScenes));
+  // Expand or trim parts to match target scene count
+  const parts = rawParts.length >= targetScenes
+    ? rawParts.slice(0, targetScenes)
+    : (() => {
+        const expanded = [];
+        for (let i = 0; i < targetScenes; i++) {
+          expanded.push(rawParts[i % rawParts.length] || "");
+        }
+        return expanded;
+      })();
   return parts.map((line, i) => {
     const camera   = CAMS[i % CAMS.length];
     const chars    = heroes.slice(0, 2).map((h) => h.name).filter(Boolean);
@@ -456,12 +468,24 @@ function buildLocalThemedScript(title, lang, mood, style) {
   const tl = t.toLowerCase();
   const isRu = lang !== "en";
 
+  // Generate 15-20 short narrative beats so scenes are 3-4s each at normal speaking pace
   const templates = {
-    war:     { test:/войн|war|battle|fight|муравь|армия|army|солдат|атак/, ru:`${t}. Никто не ожидал, что всё начнётся именно так. Первый удар изменил расстановку сил навсегда. Стороны столкнулись лоб в лоб — и земля задрожала. Когда казалось, что выхода нет, нашёлся путь, который не видели раньше. ${t} закончилась — но её уроки остались навсегда.`, en:`${t}. Nobody expected it to begin this way. The first strike changed the balance of power forever. Both sides collided head-on — and the ground shook. When there seemed to be no way out, a path appeared that nobody had seen before. ${t} ended — but its lessons remained forever.` },
-    magic:   { test:/магия|magic|волшебство|wizard|зелье|заклинание|колдун|фея|fairy/, ru:`${t}. В мире, где магия была везде, один маленький герой открыл особый дар. Сначала дар казался слабым — но в нужный момент он вспыхнул ярче всех. Злые силы пришли за даром, но не знали одного: сила растёт от доброго сердца. Финальное заклинание изменило всё вокруг. ${t} — история о том, что настоящая магия внутри каждого.`, en:`${t}. In a world where magic was everywhere, one small hero discovered a special gift. At first the gift seemed weak — but at the right moment it blazed brighter than all others. Dark forces came for the gift, not knowing one thing: true power grows from a kind heart. The final spell changed everything around them. ${t} — a story about the magic inside everyone.` },
-    space:   { test:/космос|space|планета|planet|звезда|star|галактика|galaxy|ракета|rocket/, ru:`${t}. Далеко за пределами известных звёзд начинается удивительное путешествие. Маленький корабль летит туда, где ещё никто не был. Встречи с неизвестным пугают, но и вдохновляют. Решение, принятое в пустоте космоса, изменит судьбу целой цивилизации. ${t} — это начало нового пути для всего человечества.`, en:`${t}. Far beyond the known stars, an amazing journey begins. A small ship flies where nobody has been before. Encounters with the unknown are frightening, but also inspiring. A decision made in the void of space will change the fate of an entire civilization. ${t} — the beginning of a new path for all of humanity.` },
-    nature:  { test:/природа|природ|animal|живот|лес|forest|ocean|море|дикий|wild/, ru:`${t}. В самом сердце дикой природы разворачивается история о жизни и выживании. Каждый день — это новое испытание и новый урок. Герой учится слышать язык природы — и природа отвечает ему. В критический момент союз оказывается сильнее любой опасности. ${t} — напоминание о том, что мы часть чего-то большего.`, en:`${t}. At the very heart of the wild, a story of life and survival unfolds. Every day brings a new challenge and a new lesson. The hero learns to hear the language of nature — and nature answers. In the critical moment, the alliance proves stronger than any danger. ${t} — a reminder that we are part of something greater.` },
-    default: { ru:`${t}: история начинается там, где никто не ожидал. Главный герой делает первый шаг — и мир меняется вокруг него. Трудности нарастают, но каждое препятствие делает героя сильнее. Поворотный момент наступает в самый неожиданный момент. В финале ${t} раскрывает свой главный смысл.`, en:`${t}: the story begins where nobody expected. The hero takes the first step — and the world changes around them. Difficulties grow, but every obstacle makes the hero stronger. The turning point comes at the most unexpected moment. In the end, ${t} reveals its true meaning.` },
+    war: { test:/войн|war|battle|fight|муравь|армия|army|солдат|атак/,
+      ru:`${t} начинается неожиданно. Тишина разрывается первым ударом. Силы выстраиваются напротив друг друга. Никто не хочет уступать. Первые потери меняют всё. Герой понимает — это не просто битва. За каждым шагом — чья-то судьба. Враг оказывается сильнее, чем казалось. Момент отчаяния — самый важный. Неожиданный союзник меняет расклад. Вместе они находят слабое место. Решающий удар приближается. Земля дрожит под последней атакой. Дым рассеивается. Победа достаётся ценой, которую никто не ожидал. ${t} закончилась — но её уроки останутся навсегда.`,
+      en:`${t} begins without warning. Silence is shattered by the first blow. Forces line up against each other. Nobody wants to give ground. The first losses change everything. The hero realizes — this is more than just a battle. Behind every step lies someone's fate. The enemy proves stronger than expected. The moment of despair is the most important. An unexpected ally changes the odds. Together they find the weak point. The decisive strike approaches. The ground shakes under the final charge. Smoke clears. Victory comes at a price nobody expected. ${t} is over — but its lessons will last forever.`,
+    },
+    magic: { test:/магия|magic|волшебство|wizard|зелье|заклинание|колдун|фея|fairy/,
+      ru:`${t} начинается с маленького огонька. Герой замечает его там, где раньше была темнота. Дар открывается медленно — слабый, неуверенный. Первые попытки заканчиваются неудачей. Но любопытство сильнее страха. Тайный учитель появляется в нужный момент. Секрет магии оказывается проще, чем казалось. Тёмная сила чувствует угрозу. Испытание приходит внезапно. Всё, что казалось слабостью, становится силой. Финальное заклинание звучит тихо — но меняет всё. ${t} — доказательство того, что настоящая магия живёт внутри каждого.`,
+      en:`${t} begins with a small spark. The hero notices it where there was only darkness before. The gift opens slowly — weak and uncertain. First attempts end in failure. But curiosity is stronger than fear. A secret teacher appears at the right moment. The secret of magic turns out simpler than expected. A dark force senses the threat. The trial comes suddenly. Everything that seemed like weakness becomes strength. The final spell sounds quiet — but changes everything. ${t} proves that real magic lives inside everyone.`,
+    },
+    space: { test:/космос|space|планета|planet|звезда|star|галактика|galaxy|ракета|rocket/,
+      ru:`${t}: старт отсчёта. Двигатели ревут — корабль отрывается от земли. Земля уменьшается и исчезает. Темнота космоса встречает путешественника тишиной. Первая планета оказывается не такой, как в атласах. Сигнал с неизвестного источника. Команда делится — идти дальше или вернуться. Контакт с чем-то неведомым меняет всё. Решение принято в пустоте между звёздами. Обратный путь выглядит иначе. ${t} — это не конец. Это только начало большого пути.`,
+      en:`${t}: countdown begins. Engines roar — the ship leaves the ground. Earth shrinks and disappears. The darkness of space meets the traveler with silence. The first planet looks nothing like the charts. A signal from an unknown source. The crew divides — go further or return. Contact with something unknown changes everything. A decision made in the void between stars. The way back looks different. ${t} — this is not the end. It is only the beginning of a greater journey.`,
+    },
+    default: { 
+      ru:`${t}: всё начинается с одного момента. Герой стоит перед выбором. Первый шаг — самый сложный. Мир вокруг меняется незаметно. Появляется препятствие — большое и пугающее. Герой сомневается, но продолжает. Неожиданная встреча открывает новую дорогу. Прошлое догоняет в самый неподходящий момент. Но именно это и даёт силу. Поворот, которого никто не ожидал. Всё встаёт на своё место. ${t} раскрывает то, что было скрыто с самого начала. Это история о каждом из нас.`,
+      en:`${t}: everything starts with one moment. The hero faces a choice. The first step is the hardest. The world around changes slowly. An obstacle appears — large and frightening. The hero doubts, but continues. An unexpected encounter opens a new path. The past catches up at the worst moment. But that is exactly what gives strength. A turn nobody expected. Everything falls into place. ${t} reveals what was hidden from the very beginning. This is a story about each of us.`,
+    },
   };
 
   for (const [, tmpl] of Object.entries(templates)) {

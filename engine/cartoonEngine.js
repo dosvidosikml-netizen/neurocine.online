@@ -483,13 +483,16 @@ export function buildCartoonSnapshot(projectData = {}) {
 
 export const CARTOON_SCRIPT_SYSTEM = `You are NeuroCine Cartoon Writer.
 Output ONLY valid JSON. No markdown.
-Write a short, highly visual cartoon script in the requested language.
+Write a cartoon voiceover script in the requested language matching the project duration.
 Rules:
-- Simple readable sentences for voiceover.
+- Simple readable sentences for voiceover (3-8 words each).
 - Strong hook in the first sentence.
+- For 60s duration: write 14-18 short sentences (~150 words total).
+- For 30s duration: write 8-10 short sentences (~75 words total).
+- Each sentence = 1 scene of 3-4 seconds.
 - Clear beginning, escalation, emotional turn, satisfying ending.
 - Keep it safe for cartoon production.
-- Respect duration and format.
+- Strictly use the project title and theme — do NOT invent an unrelated story.
 JSON schema:
 {
   "title": "...",
