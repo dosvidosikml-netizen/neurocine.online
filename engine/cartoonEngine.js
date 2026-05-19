@@ -88,7 +88,7 @@ export function normalizeCartoonProject(input = {}) {
         partSize:       Number(chain.partSize       || input.partSize       || 4),
       },
     };
-    })()
+    })(),
     characters: characters.slice(0, 3).map((c, i) => ({
       id:                  String(c.id   || `char_${i + 1}`),
       name:                String(c.name || `Hero ${i + 1}`).slice(0, 80),
