@@ -572,6 +572,10 @@ function reducer(s, a) {
 
 export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
   const [s, dispatch] = useReducer(reducer, initial);
+  // Separate useState for generate button — mirrors storyboard's sBusy/setSBusy pattern
+  // useState setters flush synchronously in event handlers (unlike reducer dispatch in concurrent mode)
+  const [genBusy, setGenBusy] = useState(false);
+  const [genStat, setGenStat] = useState("");
   const fieldRef = useRef(null), waveRef = useRef(null), tagRef = useRef(null);
   const waveRefApi = useRef(null), snapInputRef = useRef(null);
   const json     = useMemo(() => makeJson(s), [s]);
@@ -606,51 +610,40 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
     return v;
   }
 
-  function generateScript() {
+  // Storyboard pattern: sBusy/setSBusy as useState, not reducer dispatch
+  async function generateScript() {
     const title = s.title || "";
-    const lang = s.lang; const mood = s.mood; const style = s.style; const voice = s.voice;
+    const localText = buildLocalThemedScript(title, s.lang, s.mood, s.style);
 
-    // No live access — generate locally. Show busy first so user sees feedback.
+    // No live access → use local script immediately (like storyboard devMode + buildMockScript)
     if (!liveAllowed) {
-      dispatch({ type:"busy", value:true, status:"СОЗДАЮ СЦЕНАРИЙ..." });
-      window.setTimeout(() => {
-        const localText = buildLocalThemedScript(title, lang, mood, style);
-        dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
-        dispatch({ type:"scriptError", value:"" });
-        window.setTimeout(() => {
-          try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
-        }, 150);
-      }, 80);
+      dispatch({ type:"script", value: localText });
+      setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
+      try { window.setTimeout(() => document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }), 200); } catch {}
       return;
     }
 
-    // Live mode: show busy, fetch API
-    dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ" });
-    dispatch({ type:"scriptError", value:"" });
-
-    const localText = buildLocalThemedScript(title, lang, mood, style);
-    const payload = JSON.stringify(projectPayload(s));
-
-    window.setTimeout(() => {
-      fetch("/api/cartoon/script", { method:"POST", headers:{"Content-Type":"application/json"}, body: payload })
-        .then((r) => r.json())
-        .then((data) => {
-          const ft = String(data?.script?.full_text || "").trim();
-          if (data?.ok && ft) {
-            const label = String(data.model_used || "model").replace(/openrouter_access_closed|local_fallback|local_requested/g, "локально");
-            dispatch({ type:"aiScript", script: data.script, status:"СЦЕНАРИЙ ГОТОВ · " + label });
-          } else {
-            dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
-          }
-          dispatch({ type:"scriptError", value:"" });
-          try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
-        })
-        .catch(() => {
-          dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
-          dispatch({ type:"scriptError", value:"" });
-          try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
-        });
-    }, 60);
+    // Live mode: setSBusy(true) fires synchronously — exact storyboard pattern
+    setGenBusy(true);
+    setGenStat("AI ДУМАЕТ...");
+    try {
+      const r = await fetch("/api/cartoon/script", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(projectPayload(s)) });
+      const data = await r.json().catch(() => ({}));
+      const ft = String(data?.script?.full_text || "").trim();
+      if (data?.ok && ft) {
+        dispatch({ type:"script", value: ft });
+        setGenStat("СЦЕНАРИЙ ГОТОВ · AI");
+      } else {
+        dispatch({ type:"script", value: localText });
+        setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
+      }
+    } catch {
+      dispatch({ type:"script", value: localText });
+      setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
+    } finally {
+      setGenBusy(false);
+      try { window.setTimeout(() => document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }), 200); } catch {}
+    }
   }
 
   // — Storyboard generation
@@ -839,7 +832,7 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
         <StepBar step={s.step} go={go} />
         {s.step === 1 && <Step1 s={s} dispatch={dispatch} waveRef={waveRef} />}
         {s.step === 2 && <Step2 s={s} dispatch={dispatch} />}
-        {s.step === 3 && <StepScript s={s} dispatch={dispatch} onAi={generateScript} onDemo={() => dispatch({ type:"script", value: DEMO[s.lang] || DEMO.ru })} />}
+        {s.step === 3 && <StepScript s={s} dispatch={dispatch} onAi={generateScript} onDemo={() => dispatch({ type:"script", value: DEMO[s.lang] || DEMO.ru })} genBusy={genBusy} genStat={genStat} />}
         {s.step === 4 && <StepHeroes s={s} dispatch={dispatch} copyText={copyText} />}
         {s.step === 5 && (
           <StepStoryboard
@@ -1035,15 +1028,16 @@ function Step2({ s, dispatch }) {
   );
 }
 
-function StepScript({ s, dispatch, onAi, onDemo }) { // s.scriptError shown inline
+function StepScript({ s, dispatch, onAi, onDemo, genBusy = false, genStat = "" }) {
   const segments = split(s.script);
   return (
     <section className="step-panel on">
       <Head eyebrow="Сценарий · Шаг 03" a="Текст" b="диктора" body="Сначала создаём историю. NeuroCine сам найдёт героев и соберёт Face Lock." />
       <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
-        <button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "⚡ AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button>
+        <button className="mind-btn" disabled={genBusy} onClick={onAi}>{genBusy ? "⚡ " + (genStat || "AI ДУМАЕТ...") : "✦ Сгенерировать сценарий"}</button>
         <button className="mind-btn" disabled={s.busy} onClick={onDemo} style={{ opacity:0.6, fontSize:"0.85em" }}>📝 Вставить пример</button>
       </div>
+      {genStat && !genBusy && <div style={{ padding:"6px 10px", fontSize:"0.75em", color:"#a78bfa", letterSpacing:"0.05em" }}>◈ {genStat}</div>}
       {s.scriptError && (
         <div style={{ marginTop:8, padding:"10px 14px", borderRadius:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.4)", color:"#fca5a5", fontSize:"0.82em", lineHeight:1.4 }}>
           ⚠ {s.scriptError}
