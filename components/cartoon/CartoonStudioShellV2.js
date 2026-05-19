@@ -9,6 +9,7 @@ import CreateHub from "../CreateHub";
 import QuantumCartoonCreatorV2 from "./QuantumCartoonCreatorV2";
 import CartoonAutosaveBridge from "./CartoonAutosaveBridge";
 import CartoonPaidScriptBridge from "./CartoonPaidScriptBridge";
+import CartoonTimingBridge from "./CartoonTimingBridge";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 
 export default function CartoonStudioShellV2() {
@@ -201,6 +202,7 @@ export default function CartoonStudioShellV2() {
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
       <CartoonAutosaveBridge />
+      <CartoonTimingBridge />
       <CartoonPaidScriptBridge liveAllowed={liveAllowed} authToken={authToken} />
 
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
