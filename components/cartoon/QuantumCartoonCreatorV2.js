@@ -448,6 +448,30 @@ function buildExportFlow(s, json) {
   ].join("\n");
 }
 
+
+// ─── LOCAL THEMED SCRIPT GENERATOR (no API key needed) ───────────────────────
+
+function buildLocalThemedScript(title, lang, mood, style) {
+  const t = title.trim() || (lang === "en" ? "Untitled" : "Без названия");
+  const tl = t.toLowerCase();
+  const isRu = lang !== "en";
+
+  const templates = {
+    war:     { test:/войн|war|battle|fight|муравь|армия|army|солдат|атак/, ru:`${t}. Никто не ожидал, что всё начнётся именно так. Первый удар изменил расстановку сил навсегда. Стороны столкнулись лоб в лоб — и земля задрожала. Когда казалось, что выхода нет, нашёлся путь, который не видели раньше. ${t} закончилась — но её уроки остались навсегда.`, en:`${t}. Nobody expected it to begin this way. The first strike changed the balance of power forever. Both sides collided head-on — and the ground shook. When there seemed to be no way out, a path appeared that nobody had seen before. ${t} ended — but its lessons remained forever.` },
+    magic:   { test:/магия|magic|волшебство|wizard|зелье|заклинание|колдун|фея|fairy/, ru:`${t}. В мире, где магия была везде, один маленький герой открыл особый дар. Сначала дар казался слабым — но в нужный момент он вспыхнул ярче всех. Злые силы пришли за даром, но не знали одного: сила растёт от доброго сердца. Финальное заклинание изменило всё вокруг. ${t} — история о том, что настоящая магия внутри каждого.`, en:`${t}. In a world where magic was everywhere, one small hero discovered a special gift. At first the gift seemed weak — but at the right moment it blazed brighter than all others. Dark forces came for the gift, not knowing one thing: true power grows from a kind heart. The final spell changed everything around them. ${t} — a story about the magic inside everyone.` },
+    space:   { test:/космос|space|планета|planet|звезда|star|галактика|galaxy|ракета|rocket/, ru:`${t}. Далеко за пределами известных звёзд начинается удивительное путешествие. Маленький корабль летит туда, где ещё никто не был. Встречи с неизвестным пугают, но и вдохновляют. Решение, принятое в пустоте космоса, изменит судьбу целой цивилизации. ${t} — это начало нового пути для всего человечества.`, en:`${t}. Far beyond the known stars, an amazing journey begins. A small ship flies where nobody has been before. Encounters with the unknown are frightening, but also inspiring. A decision made in the void of space will change the fate of an entire civilization. ${t} — the beginning of a new path for all of humanity.` },
+    nature:  { test:/природа|природ|animal|живот|лес|forest|ocean|море|дикий|wild/, ru:`${t}. В самом сердце дикой природы разворачивается история о жизни и выживании. Каждый день — это новое испытание и новый урок. Герой учится слышать язык природы — и природа отвечает ему. В критический момент союз оказывается сильнее любой опасности. ${t} — напоминание о том, что мы часть чего-то большего.`, en:`${t}. At the very heart of the wild, a story of life and survival unfolds. Every day brings a new challenge and a new lesson. The hero learns to hear the language of nature — and nature answers. In the critical moment, the alliance proves stronger than any danger. ${t} — a reminder that we are part of something greater.` },
+    default: { ru:`${t}: история начинается там, где никто не ожидал. Главный герой делает первый шаг — и мир меняется вокруг него. Трудности нарастают, но каждое препятствие делает героя сильнее. Поворотный момент наступает в самый неожиданный момент. В финале ${t} раскрывает свой главный смысл.`, en:`${t}: the story begins where nobody expected. The hero takes the first step — and the world changes around them. Difficulties grow, but every obstacle makes the hero stronger. The turning point comes at the most unexpected moment. In the end, ${t} reveals its true meaning.` },
+  };
+
+  for (const [, tmpl] of Object.entries(templates)) {
+    if (tmpl.test && tmpl.test.test(tl)) {
+      return isRu ? tmpl.ru : tmpl.en;
+    }
+  }
+  return isRu ? templates.default.ru : templates.default.en;
+}
+
 // ─── REDUCER ──────────────────────────────────────────────────────────────────
 
 const initial = {
@@ -499,7 +523,7 @@ function reducer(s, a) {
   if (a.type === "aiProject") return { ...s, serverProject: a.project, scenes: a.project?.storyboard?.scenes || s.scenes, selected: 0, busy: false, status: a.status || "STORYBOARD AI ГОТОВ" };
   if (a.type === "select")  return { ...s, selected: a.i };
   if (a.type === "partIndex") return { ...s, partIndex: a.i };
-  if (a.type === "busy")    return { ...s, busy: a.value, status: a.status ?? s.status };
+  if (a.type === "busy")    return { ...s, busy: a.value, status: a.status ?? s.status, scriptError: a.scriptError !== undefined ? a.scriptError : s.scriptError };
   if (a.type === "status")  return { ...s, status: a.status };
   if (a.type === "charOverride") return { ...s, charOverrideEnabled: a.value, serverProject: null };
   if (a.type === "charMod")      return { ...s, charModifiers: { ...s.charModifiers, [a.key]: !s.charModifiers[a.key] }, serverProject: null, scenes: [] };
@@ -583,15 +607,21 @@ export default function QuantumCartoonCreatorV2() {
   }
 
   async function generateScript() {
-    dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ" });
+    dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ", scriptError: "" });
     try {
       const data = await postJson("/api/cartoon/script", projectPayload(s));
       const modelLabel = (data.model_used || "model").replace(/openrouter_access_closed|local_fallback|local_requested/g, "локально");
       dispatch({ type:"aiScript", script: data.script, status:`СЦЕНАРИЙ ГОТОВ · ${modelLabel}` });
       dispatch({ type:"scriptError", value: "" });
     } catch (e) {
-      const msg = e.status === 403 ? "AI закрыт — подключи API ключ в настройках" : e.status === 401 ? "Авторизация failed — войди в аккаунт" : (e.message || "AI недоступен — попробуй ещё раз");
-      dispatch({ type:"scriptError", value: msg });
+      if (e.status === 403 || e.status === 401) {
+        // No API key — generate locally using title/theme
+        const localText = buildLocalThemedScript(s.title, s.lang, s.mood, s.style);
+        dispatch({ type:"aiScript", script: { full_text: localText, title: s.title, voice_style: s.voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
+        dispatch({ type:"scriptError", value: "" });
+      } else {
+        dispatch({ type:"scriptError", value: e.message || "AI недоступен — попробуй ещё раз" });
+      }
     }
   }
 

@@ -116,35 +116,38 @@ export default function CartoonStudioShellV2() {
       <style jsx global>{`
         .nc-cartoon-clean-start{
           position:fixed !important;
-          left:16px;
-          right:16px;
-          bottom:72px;
-          z-index:200;
-          width:auto;
-          display:grid !important;
-          grid-template-columns:1fr 1fr;
-          gap:8px;
+          left:0;
+          right:0;
+          top:64px;
+          z-index:150;
+          display:flex !important;
+          flex-direction:row;
+          gap:6px;
+          padding:4px 12px;
           pointer-events:auto;
-          opacity:0.85;
+          background:rgba(2,4,16,0.85);
+          border-bottom:1px solid rgba(139,0,255,0.15);
+          backdrop-filter:blur(8px);
+          -webkit-backdrop-filter:blur(8px);
         }
         .nc-cartoon-clean-start button{
-          min-height:36px;
-          border-radius:10px;
-          border:1px solid rgba(0,212,255,.25);
-          background:rgba(5,10,28,.92);
-          color:rgba(225,246,255,.80);
-          font-weight:700;
-          font-size:11px;
+          height:28px;
+          padding:0 12px;
+          border-radius:6px;
+          border:1px solid rgba(139,0,255,.30);
+          background:rgba(5,10,28,.80);
+          color:rgba(200,180,255,.85);
+          font-weight:600;
+          font-size:10px;
           letter-spacing:.04em;
-          box-shadow:0 4px 12px rgba(0,0,0,.40);
-          backdrop-filter:blur(12px);
-          -webkit-backdrop-filter:blur(12px);
+          white-space:nowrap;
         }
         .nc-cartoon-clean-start button.danger{
-          border-color:rgba(255,77,95,.46);
-          color:#ffd6dc;
-          background:rgba(44,8,18,.82);
+          border-color:rgba(239,68,68,.30);
+          color:rgba(255,180,180,.80);
+          background:rgba(44,8,18,.75);
         }
+
         .nc-cartoon-clean-note{
           grid-column:1 / -1;
           justify-self:center;
@@ -210,11 +213,11 @@ export default function CartoonStudioShellV2() {
 
       <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
         <button type="button" onClick={cleanStart}>🧹 Новый проект</button>
-        <button type="button" className="danger" onClick={hardCleanStart}>🗑 Очистить всё + кэш</button>
+        <button type="button" className="danger" onClick={hardCleanStart}>🗑 Очистить всё</button>
         {cleanNote && <div className="nc-cartoon-clean-note">{cleanNote}</div>}
       </div>
 
-      <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator" style={{ paddingBottom: "120px" }}>
+      <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator" style={{ paddingTop: "36px" }}>
         <QuantumCartoonCreatorV2 key={creatorKey} />
       </section>
     </main>
