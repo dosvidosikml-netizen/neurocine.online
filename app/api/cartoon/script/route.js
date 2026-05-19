@@ -109,7 +109,19 @@ export async function POST(req) {
       durationMs: Date.now() - started,
       metadata: usageMeta(body),
     });
-    return Response.json({ ok: true, mode: "ai", model_used: r.model_used, script: parsed, target_voiceover_words: target });
+    // Trim full_text to exactly targetScenes sentences so script matches timing
+    if (parsed?.full_text && targetScenes > 0) {
+      const sentences = parsed.full_text
+        .split(/(?<=[.!?…])\s+|
++/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 3);
+      if (sentences.length > targetScenes) {
+        parsed.full_text = sentences.slice(0, targetScenes).join(" ");
+      }
+    }
+
+    return Response.json({ ok: true, mode: "ai", model_used: r.model_used, script: parsed, target_voiceover_words: target, target_scene_count: targetScenes });
   } catch (e) {
     return apiError(e.message || "Cartoon script failed", 500);
   }
