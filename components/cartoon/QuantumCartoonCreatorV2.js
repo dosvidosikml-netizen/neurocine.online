@@ -221,6 +221,12 @@ Same cartoon style across ALL cells. Character identity stable. No new plot even
 
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 
+function trimToSceneCount(text, maxScenes) {
+  const s = String(text || "").split(/(?<=[.!?…])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 3);
+  if (s.length <= maxScenes || maxScenes < 1) return String(text || "");
+  return s.slice(0, maxScenes).join(" ");
+}
+
 function split(text) {
   return String(text || "")
     .split(/(?<=[.!?…])\s+|\n+/)
@@ -675,7 +681,8 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
 
     // No live access → use local script immediately (like storyboard devMode + buildMockScript)
     if (!liveAllowed) {
-      dispatch({ type:"script", value: localText });
+      const timing = getTimingPlan(s.duration, s.frameSeconds);
+      dispatch({ type:"script", value: trimToSceneCount(localText, timing.scenes) });
       setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
       window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
       try { window.setTimeout(() => document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }), 200); } catch {}
@@ -690,17 +697,21 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
       const data = await r.json().catch(() => ({}));
       const ft = String(data?.script?.full_text || "").trim();
       if (data?.ok && ft) {
-        dispatch({ type:"script", value: ft });
+        const timingAi = getTimingPlan(s.duration, s.frameSeconds);
+        dispatch({ type:"script", value: trimToSceneCount(ft, timingAi.scenes) });
         setGenStat("СЦЕНАРИЙ ГОТОВ · AI");
         window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
       } else {
-        dispatch({ type:"script", value: localText });
+        const timingFb = getTimingPlan(s.duration, s.frameSeconds);
+        dispatch({ type:"script", value: trimToSceneCount(localText, timingFb.scenes) });
         setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
         window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
       }
     } catch {
-      dispatch({ type:"script", value: localText });
+      const timingCatch = getTimingPlan(s.duration, s.frameSeconds);
+      dispatch({ type:"script", value: trimToSceneCount(localText, timingCatch.scenes) });
       setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
+      window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
     } finally {
       setGenBusy(false);
       try { window.setTimeout(() => document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }), 200); } catch {}
