@@ -461,7 +461,7 @@ const initial = {
   heroes: [], scenes: [], selected: 0,
   heroAnchor: null, prevPartAnchor: null,
   busy: false, status: "ГОТОВО",
-  serverProject: null, snapshotStatus: "",
+  serverProject: null, snapshotStatus: "", scriptError: "",
   charOverrideEnabled: false, charFaceLock: "", charModifiers: { beard:false, scar:false, dirt:false, bruises:false, sweat:false, exhaustion:false, pale:false, blood:false },
   gridColsOverride: null, gridManualFrames: null, scriptValidation: null,
 };
@@ -501,6 +501,7 @@ function reducer(s, a) {
   if (a.type === "charMod")      return { ...s, charModifiers: { ...s.charModifiers, [a.key]: !s.charModifiers[a.key] }, serverProject: null, scenes: [] };
   if (a.type === "charFaceLock") return { ...s, charFaceLock: a.value, serverProject: null };
   if (a.type === "scriptValidation") return { ...s, scriptValidation: a.value };
+  if (a.type === "scriptError")      return { ...s, scriptError: a.value, busy: false };
   if (a.type === "heroAnchor")   return { ...s, heroAnchor: a.value, status: "HERO ANCHOR ЗАГРУЖЕН" };
   if (a.type === "prevAnchor")   return { ...s, prevPartAnchor: a.value, status: "PREVIOUS PART ЗАГРУЖЕН" };
   if (a.type === "snapshotStatus") return { ...s, snapshotStatus: a.value };
@@ -582,9 +583,10 @@ export default function QuantumCartoonCreatorV2() {
     try {
       const data = await postJson("/api/cartoon/script", projectPayload(s));
       dispatch({ type:"aiScript", script: data.script, status:`СЦЕНАРИЙ AI ГОТОВ · ${data.model_used || "model"}` });
+      dispatch({ type:"scriptError", value: "" });
     } catch (e) {
-      const msg = e.status === 403 ? "⚠ AI ЗАКРЫТ · ПРОВЕРЬ API КЛЮЧ" : e.status === 401 ? "⚠ АВТОРИЗАЦИЯ FAILED" : `⚠ ОШИБКА · ${e.message || "AI недоступен"}`;
-      dispatch({ type:"busy", value:false, status: msg });
+      const msg = e.status === 403 ? "AI закрыт — подключи API ключ в настройках" : e.status === 401 ? "Авторизация failed — войди в аккаунт" : (e.message || "AI недоступен — попробуй ещё раз");
+      dispatch({ type:"scriptError", value: msg });
     }
   }
 
@@ -970,15 +972,20 @@ function Step2({ s, dispatch }) {
   );
 }
 
-function StepScript({ s, dispatch, onAi, onDemo }) {
+function StepScript({ s, dispatch, onAi, onDemo }) { // s.scriptError shown inline
   const segments = split(s.script);
   return (
     <section className="step-panel on">
       <Head eyebrow="Сценарий · Шаг 03" a="Текст" b="диктора" body="Сначала создаём историю. NeuroCine сам найдёт героев и соберёт Face Lock." />
       <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
-        <button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button>
+        <button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "⚡ AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button>
         <button className="mind-btn" disabled={s.busy} onClick={onDemo} style={{ opacity:0.6, fontSize:"0.85em" }}>📝 Вставить пример</button>
       </div>
+      {s.scriptError && (
+        <div style={{ marginTop:8, padding:"10px 14px", borderRadius:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.4)", color:"#fca5a5", fontSize:"0.82em", lineHeight:1.4 }}>
+          ⚠ {s.scriptError}
+        </div>
+      )}
       <Field label="Голос">
         <div className="v-row">
           {VOICES.map(([value,label]) => <button key={value} className={`v-b${s.voice === value ? " on" : ""}`} onClick={() => dispatch({ type:"set", key:"voice", value })}>{label}</button>)}
