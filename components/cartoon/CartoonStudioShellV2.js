@@ -8,6 +8,7 @@ import SideDrawer from "../SideDrawer";
 import CreateHub from "../CreateHub";
 import QuantumCartoonCreatorV2 from "./QuantumCartoonCreatorV2";
 import CartoonAutosaveBridge from "./CartoonAutosaveBridge";
+import CartoonPaidScriptBridge from "./CartoonPaidScriptBridge";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
 
 export default function CartoonStudioShellV2() {
@@ -23,6 +24,7 @@ export default function CartoonStudioShellV2() {
   const isSignedIn = !!account?.session?.user;
   const liveAllowed = forceLiveForAdmin || (isSignedIn && accountAccess.canLive);
   const devMode = !liveAllowed;
+  const authToken = account?.session?.access_token || "";
 
   useEffect(() => {
     try {
@@ -87,9 +89,8 @@ export default function CartoonStudioShellV2() {
       for (let i = 0; i < (window.sessionStorage?.length || 0); i++) ssKeys.push(window.sessionStorage.key(i));
       ssKeys.forEach((key) => { if (match(key)) window.sessionStorage.removeItem(key); });
     } catch {}
-    // Remove bridge-injected DOM elements
     try {
-      document.querySelectorAll(".nc-frame2x2-quick, .nc-cartoon-frame2x2-toast, .nc-cartoon-script-fallback-toast").forEach((el) => el.remove());
+      document.querySelectorAll(".nc-frame2x2-quick, .nc-cartoon-frame2x2-toast, .nc-cartoon-script-fallback-toast, .nc-cartoon-paid-script-toast").forEach((el) => el.remove());
     } catch {}
   }
 
@@ -170,9 +171,6 @@ export default function CartoonStudioShellV2() {
           color:#991b1b;
         }
         html[data-theme="light"] .nc-cartoon-clean-note{color:#166534;background:rgba(255,255,255,.88);border-color:rgba(22,163,74,.20);}
-        @media(max-width:430px){
-
-        }
       `}</style>
 
       <div className="nc-mobile-shell" id="tools">
@@ -203,6 +201,7 @@ export default function CartoonStudioShellV2() {
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
       <CartoonAutosaveBridge />
+      <CartoonPaidScriptBridge liveAllowed={liveAllowed} authToken={authToken} />
 
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
         <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
