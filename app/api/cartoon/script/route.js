@@ -1,5 +1,5 @@
 // app/api/cartoon/script/route.js
-// AI cartoon script route. Paid API is never silently replaced by local text.
+// AI cartoon script route. No local text generation: paid API only.
 
 import { callOpenRouter, TASK_TYPES } from "../../../../lib/modelRouter";
 import { requireOpenRouterAccess } from "../../../../lib/apiAccess";
@@ -20,41 +20,13 @@ function wordTarget(durationSec = 60, lang = "ru") {
   };
 }
 
-function localScriptFallback(project) {
-  const lang = project.project.language || "ru";
-  const title = project.project.title || "Untitled Cartoon";
-  const dur = Number(project.project.duration_sec || 60);
-  const target = wordTarget(dur, lang);
-  const text = lang === "en"
-    ? `One ordinary day, ${title} began with a strange glowing sign. The main hero noticed it near the place where everything usually felt safe. The sign pulsed softly, as if it was calling for help. The hero followed it and stepped into a world where toys moved, shadows whispered, and tiny lights showed the way. At first the hero was afraid and wanted to run back home. Then a small creature appeared and explained that the light was fading. Without that light, the whole cartoon world would become silent. The hero chose kindness instead of fear. Step by step, the hero helped the creatures gather courage, repair the broken glow, and believe in each other again. In the end, the sign shone brighter than before, and the hero returned home with a new spark inside.`
-    : `Однажды история «${title}» началась со странного светящегося знака. Главный герой заметил его там, где обычно всё было тихо и безопасно. Знак мягко пульсировал, будто звал на помощь. Герой пошёл за светом и оказался в мире, где игрушки двигались, тени шептали, а маленькие огоньки показывали дорогу. Сначала герой испугался и хотел вернуться домой. Но рядом появилось маленькое существо и объяснило, что волшебный свет почти погас. Если он исчезнет, весь мультяшный мир станет пустым и немым. Герой выбрал доброту вместо страха. Шаг за шагом он помог жителям собрать смелость, починить сломанное сияние и снова поверить друг в друга. В финале знак загорелся ярче прежнего, а герой вернулся домой с новой искрой внутри.`;
-  return {
-    title,
-    logline: lang === "en" ? "A small hero follows a mysterious sign and restores light through kindness." : "Маленький герой идёт за загадочным знаком и возвращает свет силой доброты.",
-    voice_style: project.script.voice_style || "neutral",
-    full_text: text,
-    beats: text.split(/(?<=[.!?…])\s+/).filter(Boolean),
-    visual_dna: `Voiceover target for ${dur}s: ${target.min}-${target.max} words. Keep a clean, expressive cartoon style and stable hero identity across every scene.`,
-  };
-}
-
-function localOk(project, reason = "local_requested") {
-  return Response.json({
-    ok: true,
-    mode: "local",
-    model_used: reason,
-    warning: reason,
-    script: localScriptFallback(project),
-  });
-}
-
-function apiError(project, message, status = 500, extra = {}) {
+function apiError(message, status = 500, extra = {}) {
   return Response.json({
     ok: false,
-    mode: "api_error",
-    error: message || "Cartoon script API failed",
-    fallback_available: true,
-    fallback: localScriptFallback(project),
+    mode: "api_required",
+    error: message || "Платный AI API недоступен. Локальная генерация отключена.",
+    fallback_available: false,
+    script: null,
     ...extra,
   }, { status });
 }
@@ -62,20 +34,14 @@ function apiError(project, message, status = 500, extra = {}) {
 export async function POST(req) {
   const started = Date.now();
   let body = {};
-  let project = null;
   try {
     body = await req.json();
-    project = normalizeCartoonProject(body || {});
-    const mode = String(body.mode || "ai").toLowerCase();
+    const project = normalizeCartoonProject(body || {});
     const target = wordTarget(project.project.duration_sec, project.project.language);
-
-    if (mode === "local") {
-      return localOk(project, "local_requested");
-    }
 
     const guard = await requireOpenRouterAccess(req);
     if (!guard.ok) {
-      return apiError(project, guard.message || guard.error || guard.reason || "OpenRouter access closed", guard.status || 403, {
+      return apiError(guard.message || guard.error || guard.reason || "OpenRouter access closed", guard.status || 403, {
         accessDenied: true,
       });
     }
@@ -111,7 +77,7 @@ export async function POST(req) {
         durationMs: Date.now() - started,
         metadata: usageMeta(body),
       });
-      return apiError(project, r.error || "OpenRouter failed", 500, { model_used: r.model_used });
+      return apiError(r.error || "OpenRouter failed", 500, { model_used: r.model_used });
     }
 
     let parsed;
@@ -126,7 +92,7 @@ export async function POST(req) {
         durationMs: Date.now() - started,
         metadata: usageMeta(body),
       });
-      return apiError(project, "Invalid AI JSON: " + e.message, 500, { model_used: r.model_used, raw: r.content?.slice(0, 700) });
+      return apiError("Invalid AI JSON: " + e.message, 500, { model_used: r.model_used, raw: r.content?.slice(0, 700) });
     }
 
     await logUsageFromGuard(guard, {
@@ -139,7 +105,6 @@ export async function POST(req) {
     });
     return Response.json({ ok: true, mode: "ai", model_used: r.model_used, script: parsed, target_voiceover_words: target });
   } catch (e) {
-    const fallbackProject = project || normalizeCartoonProject(body || {});
-    return apiError(fallbackProject, e.message || "Cartoon script failed", 500);
+    return apiError(e.message || "Cartoon script failed", 500);
   }
 }
