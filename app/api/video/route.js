@@ -1,6 +1,5 @@
 // app/api/video/route.js
-// NeuroCine Video Prompt API v3.0 — deterministic clean I2V prompt layer + world/audio logic guard
-// /api/video отвечает ТОЛЬКО за video prompt. analyze отключён.
+// NeuroCine Video Prompt API v3.1 — clean I2V prompt layer + world/style brain.
 
 import {
   buildVideoPromptFor,
@@ -53,13 +52,26 @@ function readDominantSfx(videoPrompt = "", fallback = "") {
   return cleanText(fallback || "subtle realistic ambience");
 }
 
+function mergeStyleContext(rawStoryboard = {}, body = {}) {
+  const styleProfile = body.styleProfile || body.style_profile || {};
+  return {
+    ...(rawStoryboard || {}),
+    style_profile: styleProfile,
+    selected_style: body.stylePreset || body.style || rawStoryboard?.selected_style || styleProfile?.style_preset || "",
+    selected_style_label: rawStoryboard?.selected_style_label || styleProfile?.style_label || "",
+    project_type: rawStoryboard?.project_type || styleProfile?.project_type || "",
+    project_type_label: rawStoryboard?.project_type_label || styleProfile?.project_type_label || "",
+    global_style_lock: styleProfile?.style_lock || rawStoryboard?.global_style_lock || "",
+  };
+}
+
 export async function POST(req) {
   try {
     const guard = await requireSignedInAccess(req);
     if (!guard.ok) return guardErrorJson(guard);
     const body = await req.json();
     const frame = body.frame || {};
-    const storyboard = body.storyboard || {};
+    const storyboard = mergeStyleContext(body.storyboard || {}, body);
     const target = normalizeTarget(body.target || frame.target || storyboard?.export_meta?.target || "veo3");
     const includeVo = body.includeVo === true || body.include_vo === true;
     const promptMode = body.promptMode || body.prompt_mode || (target === "grok" ? "cheap" : "pro");
@@ -72,20 +84,14 @@ export async function POST(req) {
       "SCENE PRIMARY FOCUS:"
     );
 
-    // The agent owns Action/Audio/SFX/Continuity assembly.
-    // The world brain then guards era/location/reference/audio logic.
     const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
     const cleanedVideo = finalizePromptCleaners(rawVideo, { frame, storyboard, includeVo, target });
     const worldSafeVideo = applyWorldBrainToVideoPrompt(cleanedVideo, frame, storyboard);
     const finalVideo = normalizePromptPrefix(worldSafeVideo, "ANIMATE CURRENT FRAME:");
     const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx || worldAudio.profile.allowedAudio);
 
-    const finalNegative = [
-      NEGATIVE_PROMPT_BASE,
-      "subtitles, captions, on-screen text, UI overlay, watermark, logo, deformed face, identity drift, clothing drift",
-      worldAudio.allowModernEmergency ? "" : worldAudio.profile.forbiddenAudio,
-      worldAudio.profile.forbiddenObjects,
-    ].filter(Boolean).join(", ").replace(/\s+/g, " ").trim();
+    const finalNegative = [NEGATIVE_PROMPT_BASE, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects]
+      .filter(Boolean).join(", ").replace(/\s+/g, " ").trim();
 
     const validation = validateFramePrompts({
       frame: { ...frame, video_prompt_en: finalVideo, image_prompt_en: imagePrompt, sfx: dominantSfx },
@@ -99,8 +105,8 @@ export async function POST(req) {
       endpoint: "/api/video",
       success: true,
       apiSource: "local_signed_in",
-      modelUsed: "local_v3.0_world_audio_brain",
-      metadata: usageMeta(body, { target, promptMode, consistency, world: worldAudio.profile.id }),
+      modelUsed: "local_v3.1_world_style_brain",
+      metadata: usageMeta(body, { target, promptMode, consistency, world: worldAudio.profile.id, style: storyboard.selected_style || storyboard.selected_style_label }),
     });
 
     return Response.json({
@@ -112,7 +118,7 @@ export async function POST(req) {
       validation,
       segment_plan: buildSegmentPlan(frame),
       target,
-      model_used: "local_v3.0_world_audio_brain",
+      model_used: "local_v3.1_world_style_brain",
       access_source: guard.access?.apiSource || "local_signed_in",
       pipeline_contract: {
         image_prefix: "SCENE PRIMARY FOCUS:",
@@ -121,18 +127,15 @@ export async function POST(req) {
         consistency,
         minor_safe_mode: minorSafe,
         world_audio_brain: true,
+        selected_style: storyboard.selected_style || storyboard.selected_style_label || "",
         world_profile: worldAudio.profile.id,
-        modern_emergency_audio_allowed: worldAudio.allowModernEmergency,
         sfx_embedded_in_video_prompt: true,
-        dominant_sfx_promoted: /alarm|siren|alert|warning/i.test(finalVideo),
         vo_dialogue_enabled: includeVo,
         analysis_disabled: true,
         continuity_lock: true,
         no_subtitles_ui_watermark: true,
       },
-      notes_ru: minorSafe
-        ? "Minor-safe режим включён автоматически. World/audio brain дополнительно проверил эпоху, локацию, допустимые звуки и reference-visibility."
-        : `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: ${promptMode}, ${consistency}. World/audio brain: ${worldAudio.profile.label}.`,
+      notes_ru: `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: ${promptMode}, ${consistency}. World/style brain: ${worldAudio.profile.label}.`,
     });
   } catch (e) {
     return Response.json({ error: e.message || "Video API error" }, { status: 500 });
