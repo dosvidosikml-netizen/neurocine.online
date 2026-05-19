@@ -218,7 +218,7 @@ export default function CartoonStudioShellV2() {
       </div>
 
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
-        <QuantumCartoonCreatorV2 key={creatorKey} />
+        <QuantumCartoonCreatorV2 key={creatorKey} liveAllowed={liveAllowed} />
       </section>
     </main>
   );

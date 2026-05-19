@@ -570,7 +570,7 @@ function reducer(s, a) {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
-export default function QuantumCartoonCreatorV2() {
+export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
   const [s, dispatch] = useReducer(reducer, initial);
   const fieldRef = useRef(null), waveRef = useRef(null), tagRef = useRef(null);
   const waveRefApi = useRef(null), snapInputRef = useRef(null);
@@ -607,12 +607,24 @@ export default function QuantumCartoonCreatorV2() {
   }
 
   function generateScript() {
-    // Synchronous dispatch — renders BEFORE fetch starts
+    const title = s.title || "";
+    const lang = s.lang; const mood = s.mood; const style = s.style; const voice = s.voice;
+
+    // Mirror storyboard pattern: if no live access → skip API, use local instantly
+    if (!liveAllowed) {
+      const localText = buildLocalThemedScript(title, lang, mood, style);
+      dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
+      dispatch({ type:"scriptError", value:"" });
+      window.setTimeout(() => {
+        try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
+      }, 200);
+      return;
+    }
+
+    // Live mode: show busy, fetch API
     dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ" });
     dispatch({ type:"scriptError", value:"" });
 
-    // Defer fetch so React flushes busy=true state first
-    const title = s.title; const lang = s.lang; const mood = s.mood; const style = s.style; const voice = s.voice;
     const localText = buildLocalThemedScript(title, lang, mood, style);
     const payload = JSON.stringify(projectPayload(s));
 
@@ -628,6 +640,7 @@ export default function QuantumCartoonCreatorV2() {
             dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
           }
           dispatch({ type:"scriptError", value:"" });
+          try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
         })
         .catch(() => {
           dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
