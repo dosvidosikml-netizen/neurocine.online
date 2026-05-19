@@ -1,5 +1,5 @@
 // app/api/video/route.js
-// NeuroCine Video Prompt API v2.9 — deterministic clean I2V prompt layer
+// NeuroCine Video Prompt API v3.0 — deterministic clean I2V prompt layer + world/audio logic guard
 // /api/video отвечает ТОЛЬКО за video prompt. analyze отключён.
 
 import {
@@ -12,6 +12,7 @@ import {
   hasMinorContext,
 } from "../../../engine/videoPromptAgent";
 import { normalizeTarget } from "../../../engine/sceneEngine_v2";
+import { applyWorldBrainToVideoPrompt, buildWorldAudioBlock } from "../../../engine/storyboardWorldBrain";
 import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageEvent, usageMeta } from "../../../lib/usageLogger";
 
@@ -45,7 +46,7 @@ function buildSegmentPlan(frame = {}) {
 
 function readDominantSfx(videoPrompt = "", fallback = "") {
   const text = cleanText(videoPrompt || "");
-  const primary = text.match(/PRIMARY SFX\s*—\s*([^.]*)\./i)?.[1];
+  const primary = text.match(/PRIMARY SFX\s*(?:—|-|:)\s*([^.]*)\./i)?.[1];
   if (primary) return cleanText(primary);
   const sfx = text.match(/\bSFX\s*:\s*([^.]*)\./i)?.[1];
   if (sfx) return cleanText(sfx);
@@ -64,26 +65,30 @@ export async function POST(req) {
     const promptMode = body.promptMode || body.prompt_mode || (target === "grok" ? "cheap" : "pro");
     const consistency = body.consistency || body.videoConsistency || body.video_consistency || "ultra";
     const minorSafe = hasMinorContext(frame, storyboard);
+    const worldAudio = buildWorldAudioBlock(frame, storyboard);
 
     const imagePrompt = normalizePromptPrefix(
       stripBannedWords(buildImagePrompt({ frame, storyboard, target })),
       "SCENE PRIMARY FOCUS:"
     );
 
-    // The agent now owns Action/Audio/SFX/Continuity assembly.
-    // Do NOT append SFX or continuity again here, otherwise prompt duplicates return.
+    // The agent owns Action/Audio/SFX/Continuity assembly.
+    // The world brain then guards era/location/reference/audio logic.
     const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
     const cleanedVideo = finalizePromptCleaners(rawVideo, { frame, storyboard, includeVo, target });
-    const finalVideo = normalizePromptPrefix(cleanedVideo, "ANIMATE CURRENT FRAME:");
-    const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx);
+    const worldSafeVideo = applyWorldBrainToVideoPrompt(cleanedVideo, frame, storyboard);
+    const finalVideo = normalizePromptPrefix(worldSafeVideo, "ANIMATE CURRENT FRAME:");
+    const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx || worldAudio.profile.allowedAudio);
 
     const finalNegative = [
       NEGATIVE_PROMPT_BASE,
       "subtitles, captions, on-screen text, UI overlay, watermark, logo, deformed face, identity drift, clothing drift",
-    ].join(", ").replace(/\s+/g, " ").trim();
+      worldAudio.allowModernEmergency ? "" : worldAudio.profile.forbiddenAudio,
+      worldAudio.profile.forbiddenObjects,
+    ].filter(Boolean).join(", ").replace(/\s+/g, " ").trim();
 
     const validation = validateFramePrompts({
-      frame: { ...frame, video_prompt_en: finalVideo, image_prompt_en: imagePrompt },
+      frame: { ...frame, video_prompt_en: finalVideo, image_prompt_en: imagePrompt, sfx: dominantSfx },
       storyboard,
       target,
     });
@@ -94,19 +99,20 @@ export async function POST(req) {
       endpoint: "/api/video",
       success: true,
       apiSource: "local_signed_in",
-      modelUsed: "local_v2.9_clean_audio_priority",
-      metadata: usageMeta(body, { target, promptMode, consistency }),
+      modelUsed: "local_v3.0_world_audio_brain",
+      metadata: usageMeta(body, { target, promptMode, consistency, world: worldAudio.profile.id }),
     });
 
     return Response.json({
       video_prompt_en: finalVideo,
       image_prompt_en: imagePrompt,
       sfx: dominantSfx,
+      world_audio: worldAudio,
       negative_prompt: finalNegative,
       validation,
       segment_plan: buildSegmentPlan(frame),
       target,
-      model_used: "local_v2.9_clean_audio_priority",
+      model_used: "local_v3.0_world_audio_brain",
       access_source: guard.access?.apiSource || "local_signed_in",
       pipeline_contract: {
         image_prefix: "SCENE PRIMARY FOCUS:",
@@ -114,6 +120,9 @@ export async function POST(req) {
         prompt_mode: promptMode,
         consistency,
         minor_safe_mode: minorSafe,
+        world_audio_brain: true,
+        world_profile: worldAudio.profile.id,
+        modern_emergency_audio_allowed: worldAudio.allowModernEmergency,
         sfx_embedded_in_video_prompt: true,
         dominant_sfx_promoted: /alarm|siren|alert|warning/i.test(finalVideo),
         vo_dialogue_enabled: includeVo,
@@ -122,8 +131,8 @@ export async function POST(req) {
         no_subtitles_ui_watermark: true,
       },
       notes_ru: minorSafe
-        ? "Minor-safe режим включён автоматически: промт очищен от речи/VO, human voices, явных слов казни/насилия и переведён в I2V-lock формат. Если Flow запрещает загрузку несовершеннолетних, используй prompt-only/символические кадры/взрослого актёра — сайт не обходит правила платформы."
-        : `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: ${promptMode}, ${consistency}, VO/диалоги ${includeVo ? "включены пользователем" : "выключены"}.`,
+        ? "Minor-safe режим включён автоматически. World/audio brain дополнительно проверил эпоху, локацию, допустимые звуки и reference-visibility."
+        : `Промт построен под ${target === "veo3" ? "Veo 3" : "Grok Imagine"}: ${promptMode}, ${consistency}. World/audio brain: ${worldAudio.profile.label}.`,
     });
   } catch (e) {
     return Response.json({ error: e.message || "Video API error" }, { status: 500 });
