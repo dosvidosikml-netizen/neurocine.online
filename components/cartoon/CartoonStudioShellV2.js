@@ -19,7 +19,9 @@ export default function CartoonStudioShellV2() {
   const [cleanNote, setCleanNote] = useState("");
 
   const accountAccess = getAccountAccess(account?.profile, account?.session);
-  const liveAllowed = shouldForceLiveForAccount(accountAccess);
+  const forceLiveForAdmin = shouldForceLiveForAccount(account?.profile, account?.session);
+  const isSignedIn = !!account?.session?.user;
+  const liveAllowed = forceLiveForAdmin || (isSignedIn && accountAccess.canLive);
   const devMode = !liveAllowed;
 
   useEffect(() => {
