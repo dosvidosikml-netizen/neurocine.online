@@ -25,6 +25,11 @@ function fieldKey(el, index) {
   return `${label || placeholder || el.name || el.id || "field"}#${index}`;
 }
 
+function isScriptFieldKey(key = "") {
+  const text = String(key || "").toLowerCase();
+  return text.includes("сценар") || text.includes("диктор") || text.includes("script");
+}
+
 function setNativeValue(el, value) {
   if (!el || typeof value !== "string") return;
   const proto = Object.getPrototypeOf(el);
@@ -47,6 +52,14 @@ function clickStep(step) {
   if (btn) btn.click();
 }
 
+function findScriptTextarea() {
+  const areas = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root textarea.q-inp, body.route-cartoon .qcc-root textarea"));
+  return areas.find((el) => {
+    const text = `${el.placeholder || ""} ${el.closest(".q-field")?.textContent || ""}`.toLowerCase();
+    return text.includes("сценар") || text.includes("диктор") || text.includes("script");
+  }) || null;
+}
+
 function collectFields() {
   const fields = {};
   const els = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root input.q-inp, body.route-cartoon .qcc-root textarea.q-inp"));
@@ -58,12 +71,14 @@ function collectFields() {
 
 function restoreFields(saved) {
   if (!saved?.fields) return;
+  const scriptClearUntil = Number(window.neurocineCartoonScriptClearedUntil || 0);
   const els = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root input.q-inp, body.route-cartoon .qcc-root textarea.q-inp"));
   els.forEach((el, index) => {
     const key = fieldKey(el, index);
+    if (scriptClearUntil > Date.now() && isScriptFieldKey(key)) return;
     if (Object.prototype.hasOwnProperty.call(saved.fields, key) && el.value !== saved.fields[key]) {
       // Never overwrite a non-empty field with an empty saved value —
-      // this was wiping AI-generated scripts on every DOM mutation
+      // this was wiping AI-generated scripts on every DOM mutation.
       if (!String(saved.fields[key] || "").trim() && String(el.value || "").trim()) return;
       setNativeValue(el, saved.fields[key]);
     }
@@ -81,6 +96,28 @@ function saveNow() {
     step: getActiveStep(),
     fields: { ...(current.fields || {}), ...fields },
   });
+}
+
+function clearScriptAutosave() {
+  try {
+    window.neurocineCartoonScriptClearedUntil = Date.now() + 4000;
+    const current = readSaved();
+    const fields = { ...(current.fields || {}) };
+    Object.keys(fields).forEach((key) => {
+      if (isScriptFieldKey(key)) delete fields[key];
+    });
+    writeSaved({ ...current, fields, step: 3, scriptClearedAt: Date.now() });
+  } catch {}
+
+  const area = findScriptTextarea();
+  if (area) setNativeValue(area, "");
+}
+
+function isClearScriptButton(target) {
+  const btn = target?.closest?.("button");
+  if (!btn) return false;
+  const text = String(btn.textContent || "").toLowerCase();
+  return text.includes("очистить текст сценар") || text.includes("clear script");
 }
 
 function mountToast(text) {
@@ -136,7 +173,16 @@ export default function CartoonAutosaveBridge() {
     }, 1100);
 
     const onInput = () => saveNow();
-    const onClick = () => window.setTimeout(saveNow, 80);
+    const onClick = (event) => {
+      if (isClearScriptButton(event.target)) {
+        window.setTimeout(() => {
+          clearScriptAutosave();
+          mountToast("Текст сценария очищен");
+        }, 0);
+        return;
+      }
+      window.setTimeout(saveNow, 80);
+    };
     const onBeforeUnload = () => saveNow();
     document.addEventListener("input", onInput, true);
     document.addEventListener("change", onInput, true);
@@ -150,6 +196,10 @@ export default function CartoonAutosaveBridge() {
     window.neurocineClearCartoonAutosave = () => {
       try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
       mountToast("История мульт-проекта очищена");
+    };
+    window.neurocineClearCartoonScriptAutosave = () => {
+      clearScriptAutosave();
+      mountToast("Текст сценария очищен");
     };
 
     return () => {
