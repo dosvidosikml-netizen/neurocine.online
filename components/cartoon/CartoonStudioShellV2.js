@@ -177,8 +177,8 @@ export default function CartoonStudioShellV2() {
         }
         html[data-theme="light"] .nc-cartoon-clean-note{color:#166534;background:rgba(255,255,255,.88);border-color:rgba(22,163,74,.20);}
         @media(max-width:430px){
-          .nc-cartoon-clean-start{left:14px;right:14px;bottom:134px;gap:8px;}
-          .nc-cartoon-clean-start button{min-height:43px;border-radius:15px;font-size:11px;}
+          .nc-cartoon-clean-start{left:0;right:0;padding:3px 10px;}
+          .nc-cartoon-clean-start button{height:26px;font-size:9px;}
         }
       `}</style>
 
@@ -217,7 +217,7 @@ export default function CartoonStudioShellV2() {
         {cleanNote && <div className="nc-cartoon-clean-note">{cleanNote}</div>}
       </div>
 
-      <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator" style={{ paddingTop: "36px" }}>
+      <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
         <QuantumCartoonCreatorV2 key={creatorKey} />
       </section>
     </main>
