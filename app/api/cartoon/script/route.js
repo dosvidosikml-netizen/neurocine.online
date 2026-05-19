@@ -46,14 +46,20 @@ export async function POST(req) {
       });
     }
 
+    const frameSecRaw = project.project.frame_duration_sec || 3;
+    const frameSec = Math.max(2, Math.min(4, Number(frameSecRaw) || 3));
+    const targetScenes = project.project.target_scene_count || Math.round(project.project.duration_sec / frameSec);
+
     const userMessage = JSON.stringify({
       project: project.project,
       characters: project.characters,
       requested_voice_style: project.script.voice_style,
       existing_script_hint: project.script.full_text || null,
       duration_sec: project.project.duration_sec,
+      frame_duration_sec: frameSec,
+      target_scene_count: targetScenes,
       target_voiceover_words: target,
-      instruction: `Generate a complete cartoon voiceover script for exactly about ${project.project.duration_sec}s. Use ${target.min}-${target.max} words, target ${target.target}. Do not write a short placeholder.`,
+      instruction: `STRICT RULES: 1) Write ONLY about the project title and theme. If title is empty use style="${project.project.style?.preset}" and mood="${project.project.style?.mood}" as the topic. Do NOT invent an unrelated story. 2) Write EXACTLY ${targetScenes} short sentences — one sentence per scene. 3) Each sentence = ${frameSec} seconds. Total = ${project.project.duration_sec}s. Use ${target.min}-${target.max} words total.`,
     }, null, 2);
 
     const r = await callOpenRouter({

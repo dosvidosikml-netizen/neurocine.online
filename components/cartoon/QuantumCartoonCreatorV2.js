@@ -1101,6 +1101,11 @@ function StepScript({ s, dispatch, onAi, onDemo, genBusy = false, genStat = "" }
   return (
     <section className="step-panel on">
       <Head eyebrow="Сценарий · Шаг 03" a="Текст" b="диктора" body="Сначала создаём историю. NeuroCine сам найдёт героев и соберёт Face Lock." />
+      {!s.title.trim() && (
+        <div style={{ padding:"8px 12px", marginBottom:8, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:6, fontSize:"0.78em", color:"#fbbf24" }}>
+          ⚠ Задай название на шаге 01 — AI создаст сценарий строго по теме
+        </div>
+      )}
       <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
         <button className="mind-btn" disabled={genBusy} onClick={onAi}>{genBusy ? "⚡ " + (genStat || "AI ДУМАЕТ...") : "✦ Сгенерировать сценарий"}</button>
         <button className="mind-btn" disabled={s.busy} onClick={onDemo} style={{ opacity:0.6, fontSize:"0.85em" }}>📝 Вставить пример</button>
