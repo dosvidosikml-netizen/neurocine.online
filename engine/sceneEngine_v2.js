@@ -1,13 +1,13 @@
 // engine/sceneEngine_v2.js
-// NeuroCine Storyboard Engine v2.3
-// Fix: normalize every storyboard scene after AI generation so validation cannot fail on
-// missing continuity lines or overlong Grok prompts.
+// NeuroCine Storyboard Engine v2.4
+// Normalizes every storyboard scene after AI generation and applies world/audio/reference guards.
 
 import {
   buildFramePromptsForTarget,
   stripBannedWords,
   NEGATIVE_PROMPT_BASE,
 } from "./videoPromptAgent";
+import { applyWorldBrainToFrame, buildWorldAudioBlock } from "./storyboardWorldBrain";
 
 export const DURATION_PRESETS = {
   30:  { targetScenes: 10,  wordsMin: 65,   wordsMax: 85,   longForm: false },
@@ -49,7 +49,7 @@ export const STORYBOARD_TARGETS = {
 };
 
 const EXACT_CONTINUITY = "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
-const DEFAULT_VIDEO_LOCK = "grounded physical realism, realistic inertia, organic handheld camera drift, visible environmental reaction, fabric responding to motion";
+const DEFAULT_VIDEO_LOCK = "grounded physical realism, realistic inertia, organic handheld camera drift, visible environmental reaction, fabric responding to motion, audio must be physically possible for the script era, location and visible objects";
 const DEFAULT_STYLE_LOCK = "RAW unretouched photograph, NOT CGI, NOT rendered, shot on ARRI Alexa 35, Zeiss Master Prime, natural available light, Kodak Portra 400, 35mm film grain, no subtitles, no UI, no watermark";
 
 export function getDurationPreset(duration = 60) {
@@ -171,17 +171,11 @@ function getMotion(scene = {}) {
   );
 }
 
-// Number of words in the continuity sentinel — reserved at the tail so
-// trimWords cannot truncate it. Word-count once, reuse everywhere.
 const CONTINUITY_WORD_COUNT = EXACT_CONTINUITY.trim().split(/\s+/).filter(Boolean).length;
 
-// Append the continuity line cleanly after enforcing a max-words budget
-// on the body, so it always survives trimming and validation.
 function appendContinuity(body = "", maxTotalWords = 118) {
   let trimmed = String(body || "").replace(/\s+/g, " ").trim();
-  // Strip any incomplete continuity tail the caller may already have
   trimmed = trimmed.replace(/\s*Maintain EXACT[\s\S]*$/i, "").trim();
-  // Reserve room for the continuity sentence + 1 separator word
   const bodyBudget = Math.max(20, maxTotalWords - CONTINUITY_WORD_COUNT - 1);
   trimmed = trimWords(trimmed, bodyBudget);
   return `${trimmed} ${EXACT_CONTINUITY}`.replace(/\s+/g, " ").trim();
@@ -190,17 +184,11 @@ function appendContinuity(body = "", maxTotalWords = 118) {
 function compactGrokVideo(scene = {}, baseVideo = "") {
   const visual = getSceneVisual(scene);
   const motion = getMotion(scene);
-  // Cap each variable section so the structure stays compact even when
-  // the LLM returns a very verbose `camera` description.
-  const hook = trimWords(visual, 18);
-  const action = trimWords(motion, 18);
   const camera = trimWords(cleanPrompt(scene.camera || "handheld documentary fragment"), 14);
-  const body = `ANIMATE CURRENT FRAME: ${hook}. Single action only: ${action}. Shot like a grounded documentary fragment; ${camera}; tactile atmosphere, real inertia, fabric and particles react naturally.`;
+  const body = `ANIMATE CURRENT FRAME: ${trimWords(visual, 18)}. Single action only: ${trimWords(motion, 18)}. Shot like a grounded documentary fragment; ${camera}; tactile atmosphere, real inertia, fabric and particles react naturally.`;
   return appendContinuity(body, 118);
 }
 
-// Pull the Audio: ... SFX: ... block out of a Veo prompt so it can be
-// re-anchored after the body is trimmed (otherwise trimming drops it).
 function extractAudioBlock(text = "") {
   const re = /\bAudio:[\s\S]*?(?=\bMaintain EXACT|$)/i;
   const match = String(text || "").match(re);
@@ -216,17 +204,13 @@ function ensureVeoVideo(scene = {}, baseVideo = "") {
   if (!out) out = `ANIMATE CURRENT FRAME: slow 3-second push-in on ${getSceneVisual(scene)}. Physical motion stays restrained, realistic, and grounded.`;
   if (!out.startsWith("ANIMATE CURRENT FRAME:")) out = `ANIMATE CURRENT FRAME: ${out}`;
 
-  // Pull the Audio/SFX block aside before trimming so word-budget pressure
-  // never strips it. If it's missing entirely, synthesise a minimal one.
   let { body, audio } = extractAudioBlock(out);
   if (!audio) {
     audio = `Audio: restrained documentary ambience. SFX: ${scene.sfx || "low room tone, subtle environmental texture"}. No dialogue, no voiceover.`;
   }
-  // Cap the audio block to ~25 words so it cannot eat the whole budget.
   const audioWords = audio.trim().split(/\s+/).filter(Boolean).length;
   if (audioWords > 25) audio = trimWords(audio, 25);
 
-  // Reserve room for audio + continuity, trim only the variable body.
   const reservedTail = ` ${audio} ${EXACT_CONTINUITY}`;
   const reservedWords = reservedTail.trim().split(/\s+/).filter(Boolean).length;
   const bodyBudget = Math.max(25, 125 - reservedWords);
@@ -286,6 +270,18 @@ VIDEO TARGET: ${normalizedTarget}. ${STORYBOARD_TARGETS[normalizedTarget].descri
 DURATION: ${d}s. Generate EXACTLY ${preset.targetScenes} scenes. Every scene duration must be 2, 3, or 4 seconds. total_duration must equal ${d}.
 ASPECT RATIO: ${aspectRatio}.
 
+WORLD / ERA / AUDIO LOGIC — MANDATORY:
+Before writing scenes, infer the physical world, era, location, technology level and allowed sound sources from the script.
+Audio must come from objects, bodies, weather, animals, water, fire, rooms or machines that physically exist in that world and in the visible frame.
+Do NOT add modern sirens, alarms, ambulance, police, cars, engines, phones, radio, electronic warning tones or city noise unless the user script explicitly contains them or the visible scene physically contains them.
+A dramatic flood, disaster, danger, fear or tension does NOT automatically allow a siren.
+For historical / ancient / medieval scenes, use only era-plausible natural sound and physical ambience.
+
+REFERENCE VISIBILITY LOGIC — MANDATORY:
+If a character reference/anchor is used and the face is visible, preserve exact face identity.
+If the shot is legs/back/silhouette, preserve identity through body type, hair, clothing, posture and continuity; do not invent a new face.
+If the uploaded reference has modern clothing/background but the script is historical, use the reference for face identity only and replace wardrobe/world according to the script era.
+
 ${isObserverMode ? `OBSERVER MODE: The script speaks to the viewer as "you". Do NOT invent a named recurring hero. character_lock should be [] or only unnamed background figures. Use POV framing where useful.` : `STANDARD MODE: If a recurring protagonist exists, create character_lock and reuse the same identity in prompts.`}
 
 MANDATORY scene fields:
@@ -300,6 +296,7 @@ IMAGE PROMPT:
 VIDEO PROMPT:
 - starts with "ANIMATE CURRENT FRAME:"
 - ${normalizedTarget === "grok" ? "40-80 words, compact, visual hook first, no Audio block" : "60-120 words, includes Audio and SFX block"}
+- audio/SFX must obey WORLD / ERA / AUDIO LOGIC above
 - MUST include this exact sentence at the end or near end:
 "${EXACT_CONTINUITY}"
 
@@ -343,7 +340,11 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
   })) : [];
 
   const storyboardMeta = {
+    project_name: raw.project_name || "NeuroCine Storyboard",
+    topic: raw.topic || raw.project_topic || "",
+    script: raw.script || raw.full_script || "",
     aspect_ratio: raw.aspect_ratio || "9:16",
+    global_style_lock: raw.global_style_lock || DEFAULT_STYLE_LOCK,
     character_lock: characterLockSafe,
   };
 
@@ -381,7 +382,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       negativePrompt = agentPrompts.negative_prompt || negativePrompt;
     } catch {}
 
-    const finalScene = {
+    const preWorldScene = {
       ...sourceScene,
       end: start + duration,
       image_prompt_en: ensureImagePrompt(imagePrompt, raw.aspect_ratio || "9:16"),
@@ -390,11 +391,20 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       target,
     };
 
+    const worldScene = applyWorldBrainToFrame(preWorldScene, storyboardMeta);
+    const worldAudio = buildWorldAudioBlock(worldScene, storyboardMeta);
+    const finalScene = {
+      ...worldScene,
+      world_profile: worldAudio.profile.id,
+      world_audio_rule: worldAudio.profile.rule,
+      negative_prompt: [worldScene.negative_prompt, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects].filter(Boolean).join(", "),
+    };
+
     if (target === "grok") {
       finalScene.image_prompt_grok_en = finalScene.image_prompt_en;
       finalScene.video_prompt_grok_en = finalScene.video_prompt_en;
-      finalScene.grok_sfx = sourceScene.sfx;
-      finalScene.grok_camera = sourceScene.camera;
+      finalScene.grok_sfx = finalScene.sfx;
+      finalScene.grok_camera = finalScene.camera;
     }
 
     start += duration;
@@ -410,6 +420,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     global_style_lock: raw.global_style_lock || DEFAULT_STYLE_LOCK,
     global_video_lock: raw.global_video_lock || DEFAULT_VIDEO_LOCK,
     global_negative_prompt: NEGATIVE_PROMPT_BASE,
+    world_audio_lock: "Audio and SFX must be physically possible for the script era, location and visible objects. No modern sirens/alarms unless explicitly scripted or visible.",
     character_lock: characterLockSafe,
     postprocess: raw.postprocess || { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     scenes,
@@ -419,8 +430,9 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       mode,
       target,
       model: modelUsed,
-      version: "neurocine_storyboard_v2_3_continuity_safe",
+      version: "neurocine_storyboard_v2_4_world_audio_brain",
       auto_safe_to_grok: mode === "safe",
+      world_audio_brain: true,
       postprocess: { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     },
   };
@@ -453,6 +465,8 @@ export function validateStoryboard(data = {}, requestedMode = "safe", requestedT
         const wc = wordCount(vid);
         if (wc > 130) errors.push(`${expectedId}: Grok video prompt too long (${wc} words, max ~120)`);
       }
+
+      if (!s.world_profile && !/WORLD LOGIC|ALLOWED AUDIO|FORBIDDEN AUDIO/i.test(vid)) errors.push(`${expectedId}: world/audio brain metadata missing`);
 
       if (!["low", "medium", "high"].includes(String(s.cut_energy || "").toLowerCase())) errors.push(`${expectedId}: cut_energy must be low, medium, or high`);
 
