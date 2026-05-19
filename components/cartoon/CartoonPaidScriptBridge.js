@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+let rememberedTopic = "";
+
 function setNativeValue(el, value) {
   if (!el) return false;
   const proto = Object.getPrototypeOf(el);
@@ -20,6 +22,16 @@ function normalizeTopic(value = "") {
     .trim();
 }
 
+function isTitleMeta(meta = "") {
+  return /название|мультфильм|точная тема|тема|title|project|topic/i.test(String(meta || ""));
+}
+
+function rememberTopic(value) {
+  const clean = normalizeTopic(value);
+  if (clean.length >= 3) rememberedTopic = clean;
+  return clean;
+}
+
 function findScriptTextarea() {
   const areas = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root textarea.q-inp, body.route-cartoon textarea"));
   return areas.find((el) => {
@@ -31,10 +43,19 @@ function findScriptTextarea() {
 function getVisibleInputs() {
   return Array.from(document.querySelectorAll("body.route-cartoon .qcc-root input, body.route-cartoon input"))
     .filter((el) => {
-      if (el.type === "file" || el.type === "hidden") return false;
+      if (el.type === "file" || el.type === "hidden" || el.type === "range") return false;
       const rect = el.getBoundingClientRect?.();
       return !rect || (rect.width > 20 && rect.height > 10);
     });
+}
+
+function maybeRememberFromInput(el) {
+  if (!el) return "";
+  if (el.type === "file" || el.type === "hidden" || el.type === "range") return "";
+  const value = normalizeTopic(el.value);
+  const meta = `${el.placeholder || ""} ${el.getAttribute("aria-label") || ""} ${el.closest(".q-field")?.textContent || ""}`;
+  if (value.length >= 3 && isTitleMeta(meta)) return rememberTopic(value);
+  return "";
 }
 
 function readTitle() {
@@ -47,11 +68,13 @@ function readTitle() {
     }))
     .filter((x) => x.value.length >= 3);
 
-  const exact = filled.find((x) => /название|мультфильм|title|project/.test(x.meta));
-  if (exact?.value) return exact.value;
+  const exact = filled.find((x) => isTitleMeta(x.meta));
+  if (exact?.value) return rememberTopic(exact.value);
+
+  if (rememberedTopic) return rememberedTopic;
 
   const longest = filled.sort((a, b) => b.value.length - a.value.length)[0];
-  if (longest?.value) return longest.value;
+  if (longest?.value) return rememberTopic(longest.value);
 
   return "";
 }
@@ -181,6 +204,11 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
 
     let busy = false;
 
+    const rememberFromEvent = (event) => {
+      const input = event.target?.closest?.("input");
+      if (input) maybeRememberFromInput(input);
+    };
+
     async function onClick(event) {
       const btn = isGenerateScriptButton(event.target);
       if (!btn) return;
@@ -202,7 +230,7 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
 
       const payload = buildPayload();
       if (!payload.concept.title || payload.concept.title.length < 4) {
-        mountToast("Сначала введи точную тему / название мультфильма", true);
+        mountToast("Тема не найдена. Вернись на шаг 01 и проверь название.", true);
         return;
       }
 
@@ -230,10 +258,6 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
         }
 
         setNativeValue(area, text);
-        try {
-          window.localStorage.setItem("neurocine.cartoon.lastPaidScriptAt", String(Date.now()));
-          window.localStorage.setItem("neurocine.cartoon.lastPaidTopic", payload.concept.title);
-        } catch {}
         mountToast(`AI сценарий готов · ${data.model_used || "OpenRouter"}`);
       } catch (e) {
         mountToast(e.message || "Сетевая ошибка API", true);
@@ -243,8 +267,12 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
       }
     }
 
+    document.addEventListener("input", rememberFromEvent, true);
+    document.addEventListener("change", rememberFromEvent, true);
     document.addEventListener("click", onClick, true);
     return () => {
+      document.removeEventListener("input", rememberFromEvent, true);
+      document.removeEventListener("change", rememberFromEvent, true);
       document.removeEventListener("click", onClick, true);
       style.remove();
     };
