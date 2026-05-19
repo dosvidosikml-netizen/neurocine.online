@@ -14,6 +14,19 @@ const MODS    = [
   ["mask","маска"],["tiny","маленький"],["fluffy","пушистый"],["robotic","робот"],
   ["battle","боевые следы"],["wet","мокрый"],["dirt","грязный"],["glitter","блёстки"],
 ];
+
+// Character Override — глобальные модификаторы (как в storyboard)
+const CHAR_MODS = [
+  ["beard","Щетина"],["scar","Шрам"],["dirt","Грязь"],["bruises","Синяки"],
+  ["sweat","Пот"],["exhaustion","Истощение"],["pale","Бледность"],["blood","Кровь (сдержанно)"],
+];
+const CHAR_MOD_LABELS = {
+  beard:"beard/stubble", scar:"visible scar tissue", dirt:"mud and dirt on skin and clothing",
+  bruises:"visible bruising", sweat:"sweat-soaked skin and fabric",
+  exhaustion:"extreme exhaustion — hollow eyes, slack posture",
+  pale:"abnormal pallor — pale skin, dark under-eyes",
+  blood:"restrained blood traces (safe framing)",
+};
 const FORMATS = [
   { f:"shorts",  a:"9:16",  d:60,  ket:"|shorts⟩", name:"SHORTS · REELS", spec:"9:16 · до 90с" },
   { f:"tiktok",  a:"9:16",  d:45,  ket:"|tiktok⟩", name:"TIKTOK",         spec:"9:16 · до 60с" },
@@ -269,6 +282,41 @@ function splitIntoParts(scenes, partSize) {
   return parts;
 }
 
+// ─── VALIDATE SCRIPT ──────────────────────────────────────────────────────────
+
+function validateScript(script) {
+  if (!script.trim()) return { ok: false, msg: "Сценарий пуст" };
+  const words = script.trim().split(/\s+/).length;
+  if (words < 8) return { ok: false, msg: `Слишком короткий (${words} слов, нужно ≥8)` };
+  if (words > 6000) return { ok: false, msg: `Слишком длинный (${words} слов)` };
+  const sents = script.split(/(?<=[.!?…])\s+|\n+/).filter((s) => s.trim().length > 3);
+  return { ok: true, words, sentences: sents.length, msg: `${words} слов · ~${sents.length} сцен` };
+}
+
+// Context-aware character modifier suggestions (adapted from storyboard)
+function suggestedCharMods(s) {
+  const t = (s.style + " " + s.mood + " " + s.title + " " + (s.script || "")).toLowerCase();
+  const out = [];
+  if (/war|войн|battle|солдат|combat/.test(t))          out.push("dirt","scar","bruises");
+  if (/prison|тюрьм|jail|заключ/.test(t))               out.push("pale","bruises","exhaustion");
+  if (/surviv|выживан|wild|jungle|дикий/.test(t))       out.push("dirt","sweat","scar");
+  if (/dark_fantasy|horror|ужас|monster/.test(t))        out.push("scar","pale","blood");
+  if (/epic|hero|battle|fight|fight/.test(t))           out.push("sweat","exhaustion");
+  if (/space|космос|sci.fi|фантаст/.test(t))            out.push("pale","exhaustion");
+  if (/medieval|средневеков|slave|раб/.test(t))         out.push("dirt","exhaustion","beard");
+  return [...new Set(out)];
+}
+
+// Build character override block string for prompts
+function buildCharOverrideBlock(s) {
+  if (!s.charOverrideEnabled) return "";
+  const mods = Object.entries(s.charModifiers).filter(([,v]) => v).map(([k]) => CHAR_MOD_LABELS[k] || k);
+  const lines = [];
+  if (s.charFaceLock.trim()) lines.push(`FACE IDENTITY LOCK (from hero anchor — do NOT change): ${s.charFaceLock.trim()}`);
+  if (mods.length) lines.push(`CHARACTER APPEARANCE MODIFIERS (apply to all frames): ${mods.join(", ")}`);
+  return lines.join("\n");
+}
+
 function stripPreview(sc) { if (!sc) return sc; const { frame_preview, ...rest } = sc; return frame_preview ? { ...rest, frame_reference: "uploaded_frame_attached_in_ui" } : rest; }
 
 function projectPayload(s, forcedScript) {
@@ -414,6 +462,8 @@ const initial = {
   heroAnchor: null, prevPartAnchor: null,
   busy: false, status: "ГОТОВО",
   serverProject: null, snapshotStatus: "",
+  charOverrideEnabled: false, charFaceLock: "", charModifiers: { beard:false, scar:false, dirt:false, bruises:false, sweat:false, exhaustion:false, pale:false, blood:false },
+  gridColsOverride: null, gridManualFrames: null, scriptValidation: null,
 };
 
 function reducer(s, a) {
@@ -447,6 +497,10 @@ function reducer(s, a) {
   if (a.type === "partIndex") return { ...s, partIndex: a.i };
   if (a.type === "busy")    return { ...s, busy: a.value, status: a.status ?? s.status };
   if (a.type === "status")  return { ...s, status: a.status };
+  if (a.type === "charOverride") return { ...s, charOverrideEnabled: a.value, serverProject: null };
+  if (a.type === "charMod")      return { ...s, charModifiers: { ...s.charModifiers, [a.key]: !s.charModifiers[a.key] }, serverProject: null, scenes: [] };
+  if (a.type === "charFaceLock") return { ...s, charFaceLock: a.value, serverProject: null };
+  if (a.type === "scriptValidation") return { ...s, scriptValidation: a.value };
   if (a.type === "heroAnchor")   return { ...s, heroAnchor: a.value, status: "HERO ANCHOR ЗАГРУЖЕН" };
   if (a.type === "prevAnchor")   return { ...s, prevPartAnchor: a.value, status: "PREVIOUS PART ЗАГРУЖЕН" };
   if (a.type === "snapshotStatus") return { ...s, snapshotStatus: a.value };
@@ -517,6 +571,12 @@ export default function QuantumCartoonCreatorV2() {
   }
 
   // — Script generation
+  function runScriptValidation(text) {
+    const v = validateScript(text);
+    dispatch({ type:"scriptValidation", value: v });
+    return v;
+  }
+
   async function generateScript() {
     dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ" });
     try {
@@ -600,8 +660,10 @@ export default function QuantumCartoonCreatorV2() {
   // — Crop grid frame
   async function doCropGrid(gridDataUrl, frameLocalIndex, cols = 2) {
     try {
+      const effectiveCols = s.gridColsOverride || cols;
+      const effectiveFrames = s.gridManualFrames || currentPartScenes.length;
       const globalIndex = s.partIndex * s.partSize + frameLocalIndex;
-      const cropped = await cropGridFrame(gridDataUrl, frameLocalIndex, currentPartScenes.length, cols);
+      const cropped = await cropGridFrame(gridDataUrl, frameLocalIndex, effectiveFrames, effectiveCols);
       dispatch({ type:"frame", i: globalIndex, preview: cropped, name: `crop_f${globalIndex+1}.jpg` });
     } catch (e) {
       dispatch({ type:"status", status:`⚠ Crop ошибка: ${e.message}` });
@@ -645,6 +707,25 @@ export default function QuantumCartoonCreatorV2() {
   function exportJson()   { downloadText(jsonText, `${safeName(s.title)}.cartoon.json`, "application/json"); dispatch({ type:"status", status:"JSON СКАЧАН" }); }
   function exportTxt()    { downloadText(buildExportTxt(s, json), `${safeName(s.title)}.cartoon.txt`); dispatch({ type:"status", status:"TXT СКАЧАН" }); }
   function exportFlow()   { downloadText(buildExportFlow(s, json), `${safeName(s.title)}.cartoon-flow.txt`); dispatch({ type:"status", status:"FLOW СКАЧАН" }); }
+  function exportAutoChainJson() {
+    const partsPrompts = parts.map((partScenes, i) => ({
+      part: i + 1,
+      frames: partScenes.map((sc) => sc.id),
+      prompt: buildCartoonAutoChainPartClient({ s, scenes, partScenes, partIndex: i, partSize: s.partSize, heroAnchorUploaded: !!s.heroAnchor }),
+    }));
+    downloadText(JSON.stringify({ title: s.title, chain_mode: s.chainMode, strict_level: s.strictLevel, reference_mode: s.referenceMode, total_parts: partsPrompts.length, parts: partsPrompts }, null, 2), `${safeName(s.title)}-autochain.json`, "application/json");
+    dispatch({ type:"status", status:"AUTO-CHAIN JSON СКАЧАН" });
+  }
+
+  function exportAutoChainTxt() {
+    const txt = parts.map((partScenes, i) => {
+      const prompt = buildCartoonAutoChainPartClient({ s, scenes, partScenes, partIndex: i, partSize: s.partSize, heroAnchorUploaded: !!s.heroAnchor });
+      return `===== AUTO-CHAIN PART ${i+1} =====\n\n${prompt}`;
+    }).join("\n\n");
+    downloadText(txt, `${safeName(s.title)}-autochain.txt`);
+    dispatch({ type:"status", status:"AUTO-CHAIN TXT СКАЧАН" });
+  }
+
   function saveSnapshot() {
     const snap = { neurocine_cartoon_snapshot:true, version:"cartoon_creator_v2", saved_at:new Date().toISOString(), ...json, settings:{ voToggle:s.voToggle, videoConsistency:s.videoConsistency }, chain:{ mode:s.chainMode, strictLevel:s.strictLevel, referenceMode:s.referenceMode, appearanceMode:s.appearanceMode, partSize:s.partSize } };
     downloadText(JSON.stringify(snap, null, 2), `${safeName(s.title)}.neurocine.json`, "application/json");
@@ -710,6 +791,7 @@ export default function QuantumCartoonCreatorV2() {
           <StepExport
             s={s} jsonText={jsonText} snapInputRef={snapInputRef}
             onExportJson={exportJson} onExportTxt={exportTxt} onExportFlow={exportFlow}
+            onExportAutoChainJson={exportAutoChainJson} onExportAutoChainTxt={exportAutoChainTxt}
             onSaveSnapshot={saveSnapshot} onLoadSnapshot={loadSnapshot}
             copyJson={() => copyText(jsonText, "JSON СКОПИРОВАН")}
           />
@@ -726,6 +808,22 @@ export default function QuantumCartoonCreatorV2() {
 }
 
 // ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
+
+// ─── UPLOAD ZONE ─────────────────────────────────────────────────────────────
+
+function UploadZone({ label, hint, onFile, accept = "image/*", compact = false }) {
+  return (
+    <label style={{ display:"flex", flexDirection: compact ? "row" : "column", alignItems:"center", gap: compact ? 8 : 6, padding: compact ? "6px 12px" : "12px 16px", border:"1px dashed #444", borderRadius:8, cursor:"pointer", background:"#0d0416", minWidth: compact ? "auto" : 120, textAlign:"center" }}>
+      <input type="file" accept={accept} style={{ display:"none" }} onChange={async (e) => {
+        const f = e.target.files?.[0];
+        if (f) { const reader = new FileReader(); reader.onload = (ev) => { onFile(ev.target?.result); }; reader.readAsDataURL(f); e.target.value = ""; }
+      }} />
+      <span style={{ fontSize: compact ? "1em" : "1.5em" }}>📎</span>
+      <span style={{ fontSize:"0.78em", color:"#c084fc", fontWeight:700 }}>{label}</span>
+      {hint && !compact && <span style={{ fontSize:"0.68em", color:"#555" }}>{hint}</span>}
+    </label>
+  );
+}
 
 function ProductionStatusBar({ s, scenes }) {
   const cells = [
@@ -894,7 +992,18 @@ function StepScript({ s, dispatch, onAi, onDemo }) {
       <div className="meta-strip">
         <div className="q-meta">СЛОВА: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div>
         <div className="q-meta">СЦЕН: <span>{segments.length}</span></div>
+        {s.script.trim() && (
+          <button className="q-meta" style={{ cursor:"pointer", background:"none", border:"none", color:"#8b00ff", fontSize:"inherit" }}
+            onClick={() => { const v = validateScript(s.script); dispatch({ type:"scriptValidation", value: v }); }}>
+            ↺ Проверить
+          </button>
+        )}
       </div>
+      {s.scriptValidation && (
+        <div style={{ padding:"6px 12px", borderRadius:6, marginTop:6, fontSize:"0.78em", background: s.scriptValidation.ok ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", border:`1px solid ${s.scriptValidation.ok ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, color: s.scriptValidation.ok ? "#4ade80" : "#f87171" }}>
+          {s.scriptValidation.ok ? "✓" : "✗"} {s.scriptValidation.msg}
+        </div>
+      )}
     </section>
   );
 }
@@ -928,6 +1037,44 @@ function StepHeroes({ s, dispatch, copyText }) {
           💡 Авто-предложение для стиля «{s.style}» + mood «{s.mood}»: <b>{suggestedMods.join(", ")}</b>
         </div>
       )}
+      {/* ─ Global Character Override (из storyboard) ─ */}
+      <div className="qv2-divider" />
+      <div style={{ padding:"10px 14px", background:"#0a0020", border:"1px solid #333", borderRadius:8, marginBottom:12 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: s.charOverrideEnabled ? 12 : 0 }}>
+          <div>
+            <div style={{ fontSize:"0.82em", fontWeight:700, color:"#c084fc", letterSpacing:"0.05em" }}>CHARACTER OVERRIDE</div>
+            <div style={{ fontSize:"0.72em", color:"#555", marginTop:2 }}>Глобальные модификаторы и Face Lock для всех сцен</div>
+          </div>
+          <button className={`ent-toggle${s.charOverrideEnabled ? " on" : ""}`} onClick={() => dispatch({ type:"charOverride", value:!s.charOverrideEnabled })}><i /></button>
+        </div>
+        {s.charOverrideEnabled && (<>
+          <Field label="Face Identity Lock — описание лица для всех кадров">
+            <textarea className="q-inp" rows={2} value={s.charFaceLock} placeholder="Опиши черты лица из reference: форма лица, глаза, нос, причёска, характерные детали..." onChange={(e) => dispatch({ type:"charFaceLock", value:e.target.value })} />
+          </Field>
+          <Field label="Appearance Modifiers — применятся ко всем кадрам">
+            {(() => {
+              const suggested = suggestedCharMods(s);
+              return (<>
+                {suggested.length > 0 && <div style={{ fontSize:"0.72em", color:"#7c3aed", marginBottom:6 }}>💡 Предложение по контексту: <b>{suggested.join(", ")}</b></div>}
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {CHAR_MODS.map(([key, label]) => (
+                    <button key={key} onClick={() => dispatch({ type:"charMod", key })}
+                      style={{ padding:"4px 10px", borderRadius:4, fontSize:"0.76em", cursor:"pointer", border:`1px solid ${s.charModifiers[key] ? "#8b00ff" : suggested.includes(key) ? "#7c3aed" : "#333"}`, background: s.charModifiers[key] ? "rgba(139,0,255,0.2)" : suggested.includes(key) ? "rgba(124,58,237,0.08)" : "transparent", color: s.charModifiers[key] ? "#c084fc" : suggested.includes(key) ? "#a78bfa" : "#666" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>);
+            })()}
+          </Field>
+          {buildCharOverrideBlock(s) && (
+            <div style={{ marginTop:8, padding:"8px 10px", background:"#0d0416", border:"1px solid #2d1050", borderRadius:6, fontSize:"0.72em", color:"#a78bfa", whiteSpace:"pre-wrap", fontFamily:"monospace" }}>
+              {buildCharOverrideBlock(s)}
+            </div>
+          )}
+        </>)}
+      </div>
+
       {!s.heroes.length && (
         <div className="qv2-empty"><b>Герои появятся здесь</b><span>Нажми авто-поиск или ДАЛЕЕ — NeuroCine сам создаст героев из сценария.</span></div>
       )}
@@ -993,20 +1140,30 @@ function StepStoryboard({ s, dispatch, scenes, parts, currentPartScenes, curScen
 
       {/* — Hero Anchor + Prev Part uploads */}
       <div style={{ display:"flex", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
-        <label className="qframe-upload">
-          <input type="file" accept="image/*" onChange={(e) => uploadHeroAnchor(e.target.files)} />
-          <b>{s.heroAnchor ? "✓ HERO ANCHOR" : "⬆ Загрузить Hero Anchor"}</b>
-          <span>reference лица для AutoChain</span>
-        </label>
+        <UploadZone label={s.heroAnchor ? "✓ HERO ANCHOR" : "⬆ Hero Anchor"} hint="reference лица" onFile={(url) => dispatch({ type:"heroAnchor", value:url })} />
         {s.partIndex > 0 && (
-          <label className="qframe-upload">
-            <input type="file" accept="image/*" onChange={(e) => uploadPrevAnchor(e.target.files)} />
-            <b>{s.prevPartAnchor ? "✓ PREV PART" : "⬆ Загрузить PART " + s.partIndex}</b>
-            <span>continuity anchor</span>
-          </label>
+          <UploadZone label={s.prevPartAnchor ? "✓ PREV PART" : `⬆ PART ${s.partIndex}`} hint="continuity anchor" onFile={(url) => dispatch({ type:"prevAnchor", value:url })} />
         )}
         {s.heroAnchor && <img src={s.heroAnchor} alt="hero anchor" style={{ width:60, height:80, objectFit:"cover", borderRadius:4, border:"1px solid #8b00ff" }} />}
         {s.prevPartAnchor && <img src={s.prevPartAnchor} alt="prev part" style={{ width:60, height:80, objectFit:"cover", borderRadius:4, border:"1px solid #444" }} />}
+      </div>
+
+      {/* — Grid columns + manual frames control */}
+      <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10, flexWrap:"wrap" }}>
+        <div style={{ fontSize:"0.75em", color:"#666" }}>GRID COLUMNS:</div>
+        {[1,2,3,4].map((n) => (
+          <button key={n} onClick={() => dispatch({ type:"chain", key:"gridColsOverride", value: s.gridColsOverride === n ? null : n })}
+            style={{ padding:"3px 10px", borderRadius:4, fontSize:"0.76em", cursor:"pointer", border:`1px solid ${s.gridColsOverride === n ? "#8b00ff" : "#333"}`, background: s.gridColsOverride === n ? "rgba(139,0,255,0.2)" : "transparent", color: s.gridColsOverride === n ? "#c084fc" : "#666" }}>
+            {n}×
+          </button>
+        ))}
+        <div style={{ fontSize:"0.75em", color:"#666", marginLeft:8 }}>FRAMES:</div>
+        {[2,3,4,6,8].map((n) => (
+          <button key={n} onClick={() => dispatch({ type:"chain", key:"gridManualFrames", value: s.gridManualFrames === n ? null : n })}
+            style={{ padding:"3px 10px", borderRadius:4, fontSize:"0.76em", cursor:"pointer", border:`1px solid ${s.gridManualFrames === n ? "#8b00ff" : "#333"}`, background: s.gridManualFrames === n ? "rgba(139,0,255,0.2)" : "transparent", color: s.gridManualFrames === n ? "#c084fc" : "#666" }}>
+            {n}
+          </button>
+        ))}
       </div>
 
       {/* — Grid crop upload */}
@@ -1075,7 +1232,7 @@ function StepStoryboard({ s, dispatch, scenes, parts, currentPartScenes, curScen
           <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
             <label className="qframe-upload qframe-upload-top">
               <input type="file" accept="image/*" onChange={(e) => uploadFrame(s.selected, e.target.files)} />
-              <b>Загрузить Frame</b><span>прикрепить кадр</span>
+              <b>⬆ Загрузить Frame</b><span>прикрепить кадр</span>
             </label>
             {curScene.frame_preview && (
               <>
@@ -1103,7 +1260,7 @@ function StepStoryboard({ s, dispatch, scenes, parts, currentPartScenes, curScen
   );
 }
 
-function StepExport({ s, jsonText, snapInputRef, onExportJson, onExportTxt, onExportFlow, onSaveSnapshot, onLoadSnapshot, copyJson }) {
+function StepExport({ s, jsonText, snapInputRef, onExportJson, onExportTxt, onExportFlow, onExportAutoChainJson, onExportAutoChainTxt, onSaveSnapshot, onLoadSnapshot, copyJson }) {
   return (
     <section className="step-panel on">
       <Head eyebrow="Экспорт · Шаг 06" a="JSON" b="+ TXT + Flow + Snapshot" body="Финальный пакет: проект, стиль, герои, reference prompts, storyboard, image/video prompts." />
@@ -1112,6 +1269,8 @@ function StepExport({ s, jsonText, snapInputRef, onExportJson, onExportTxt, onEx
         <button className="qv2-primary" onClick={onExportJson} style={{ background:"#0d0416", border:"1px solid #8b00ff" }}>💾 JSON файл</button>
         <button className="qv2-primary" onClick={onExportTxt}  style={{ background:"#0d0416", border:"1px solid #555" }}>📄 TXT экспорт</button>
         <button className="qv2-primary" onClick={onExportFlow} style={{ background:"#0d0416", border:"1px solid #555" }}>🎬 Flow VEO3</button>
+        <button className="qv2-primary" onClick={onExportAutoChainJson} style={{ background:"#0d0416", border:"1px solid #7c3aed" }}>⛓ AutoChain JSON</button>
+        <button className="qv2-primary" onClick={onExportAutoChainTxt} style={{ background:"#0d0416", border:"1px solid #7c3aed" }}>⛓ AutoChain TXT</button>
       </div>
       <div style={{ marginTop:"12px", padding:"12px", background:"#0a0020", border:"1px solid #333", borderRadius:"8px" }}>
         <div style={{ fontSize:"0.78em", color:"#888", marginBottom:"8px", letterSpacing:"0.08em" }}>PROJECT SNAPSHOT — сохрани / загрузи весь проект</div>
