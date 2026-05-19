@@ -309,7 +309,7 @@ function buildScenes(s, forcedScript) {
       camera,
       characters_in_scene: chars,
       image_prompt_en: buildCartoonImagePromptClient(sceneObj, { ...s, heroes }),
-      video_prompt_en: buildCartoonVideoPromptClient(sceneObj, { ...s, heroes }, dur),
+      video_prompt_en: buildCartoonVideoPromptClient(sceneObj, { ...s, heroes }, sceneDur),
       continuity_note: "Preserve Style Lock, Hero Anchor, Face Lock and world continuity.",
     };
   });
