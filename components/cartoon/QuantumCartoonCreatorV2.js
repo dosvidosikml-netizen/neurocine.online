@@ -610,14 +610,17 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
     const title = s.title || "";
     const lang = s.lang; const mood = s.mood; const style = s.style; const voice = s.voice;
 
-    // Mirror storyboard pattern: if no live access → skip API, use local instantly
+    // No live access — generate locally. Show busy first so user sees feedback.
     if (!liveAllowed) {
-      const localText = buildLocalThemedScript(title, lang, mood, style);
-      dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
-      dispatch({ type:"scriptError", value:"" });
+      dispatch({ type:"busy", value:true, status:"СОЗДАЮ СЦЕНАРИЙ..." });
       window.setTimeout(() => {
-        try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
-      }, 200);
+        const localText = buildLocalThemedScript(title, lang, mood, style);
+        dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
+        dispatch({ type:"scriptError", value:"" });
+        window.setTimeout(() => {
+          try { document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }); } catch {}
+        }, 150);
+      }, 80);
       return;
     }
 
@@ -1038,7 +1041,7 @@ function StepScript({ s, dispatch, onAi, onDemo }) { // s.scriptError shown inli
     <section className="step-panel on">
       <Head eyebrow="Сценарий · Шаг 03" a="Текст" b="диктора" body="Сначала создаём историю. NeuroCine сам найдёт героев и соберёт Face Lock." />
       <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
-        <button className="mind-btn" disabled={s.busy} onClick={(e) => { e.currentTarget.textContent = "⚡ Создаётся..."; e.currentTarget.disabled = true; onAi(); }}>{s.busy ? "⚡ AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button>
+        <button className="mind-btn" disabled={s.busy} onClick={onAi}>{s.busy ? "⚡ AI ДУМАЕТ..." : "✦ Сгенерировать сценарий"}</button>
         <button className="mind-btn" disabled={s.busy} onClick={onDemo} style={{ opacity:0.6, fontSize:"0.85em" }}>📝 Вставить пример</button>
       </div>
       {s.scriptError && (
