@@ -37,11 +37,21 @@ export async function POST(req) {
 
     const local = buildLocalStoryboard(project);
 
+    const timing = project.project.timing || {
+      duration_sec: project.project.duration_sec,
+      frame_duration_sec: project.project.frame_duration_sec || 3,
+      target_scene_count: project.project.target_scene_count || Math.round(project.project.duration_sec / 3),
+    };
+
     const userMessage = JSON.stringify({
       project: project.project,
       characters: project.characters,
       script: project.script,
       settings: project.settings,
+      timing: {
+        ...timing,
+        rule: "STRICT: Total scenes MUST equal target_scene_count. Each scene duration_sec MUST be 2, 3 or 4. Sum of durations should equal duration_sec. Do NOT return 9 scenes for 60 seconds.",
+      },
       continuity_contract: buildCartoonContinuityContract(project),
       local_draft: local.storyboard,
     }, null, 2).slice(0, 24000);
@@ -71,7 +81,21 @@ export async function POST(req) {
 
     const base     = buildCartoonExport(body);
     const storyboard = parsed.storyboard || parsed;
-    const scenes   = Array.isArray(storyboard.scenes) ? storyboard.scenes : base.storyboard.scenes;
+    let scenes = Array.isArray(storyboard.scenes) ? storyboard.scenes : base.storyboard.scenes;
+    const targetCount = project.project.target_scene_count || scenes.length;
+    const validFrameDur = (n) => Math.max(2, Math.min(4, Number(n) || project.project.frame_duration_sec || 3));
+    // Normalize scene durations to 2-4s
+    scenes = scenes.map((sc) => ({ ...sc, duration_sec: validFrameDur(sc.duration_sec) }));
+    // If AI returned too few scenes, pad from local draft
+    if (scenes.length < targetCount) {
+      const localScenes = base.storyboard.scenes || [];
+      while (scenes.length < targetCount) {
+        const idx = scenes.length % Math.max(1, localScenes.length);
+        scenes.push({ ...(localScenes[idx] || scenes[scenes.length - 1] || {}), id: `scene_${String(scenes.length + 1).padStart(2, "0")}`, index: scenes.length + 1 });
+      }
+    }
+    // Trim if AI returned too many
+    if (scenes.length > targetCount && targetCount > 0) scenes = scenes.slice(0, targetCount);
 
     const finalProject = {
       ...base,

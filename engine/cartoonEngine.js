@@ -56,14 +56,23 @@ export function normalizeCartoonProject(input = {}) {
   const storyboard = input.storyboard || {};
 
   return {
-    project: {
+    project: (() => {
+      const rawDuration = Number(concept.duration_sec || concept.duration || input.timing?.duration_sec || input.duration_sec || 60);
+      const rawFrameSec = Number(concept.frame_duration_sec || input.timing?.frame_duration_sec || input.frame_duration_sec || 3);
+      const safeDuration  = Math.max(15, Math.min(600, rawDuration));
+      const safeFrameSec  = Math.max(2, Math.min(4, rawFrameSec));
+      const targetScenes  = Number(concept.target_scene_count || input.timing?.target_scene_count || input.target_scene_count) || Math.round(safeDuration / safeFrameSec);
+      return {
       id:           String(concept.id   || input.id   || `cartoon_${Date.now()}`),
       title:        String(concept.title || input.title || "Untitled Cartoon").slice(0, 160),
       created_at:   concept.created_at  || new Date().toISOString(),
       format:       String(concept.format || input.format || "shorts"),
-      duration_sec: Number(concept.duration_sec || concept.duration || input.duration_sec || 60),
+      duration_sec: safeDuration,
+      frame_duration_sec: safeFrameSec,
+      target_scene_count: Math.max(1, targetScenes),
       aspect_ratio: String(concept.aspect_ratio  || concept.aspect  || input.aspect_ratio || "9:16"),
       language:     String(concept.language || concept.lang || input.language || "ru"),
+      timing: { duration_sec: safeDuration, frame_duration_sec: safeFrameSec, target_scene_count: Math.max(1, targetScenes) },
       style: {
         preset:        String(style.preset || style.style || input.stylePreset || "anime"),
         custom_prompt: style.custom_prompt || style.custom || input.custom_prompt || null,
@@ -78,7 +87,8 @@ export function normalizeCartoonProject(input = {}) {
         appearanceMode: String(chain.appearanceMode || input.appearanceMode || "full"),
         partSize:       Number(chain.partSize       || input.partSize       || 4),
       },
-    },
+    };
+    })()
     characters: characters.slice(0, 3).map((c, i) => ({
       id:                  String(c.id   || `char_${i + 1}`),
       name:                String(c.name || `Hero ${i + 1}`).slice(0, 80),

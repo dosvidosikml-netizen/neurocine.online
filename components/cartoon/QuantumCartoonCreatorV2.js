@@ -70,6 +70,39 @@ const DEMO = {
   ua:"Одного дня маленький дракон прокинувся і зрозумів, що вміє літати. Він піднявся вище хмар і побачив увесь світ.",
 };
 
+// ─── TIMING HELPERS ──────────────────────────────────────────────────────────
+
+function getTimingPlan(duration, frameSeconds) {
+  const safeDuration  = Math.max(15, Math.min(600, Number(duration)    || 60));
+  const safeFrameSecs = Math.max(2,  Math.min(4,   Number(frameSeconds) || 3));
+  const scenes        = Math.max(1, Math.round(safeDuration / safeFrameSecs));
+  return { duration: safeDuration, frameSeconds: safeFrameSecs, scenes };
+}
+
+function distributeSceneDurations(duration, targetScenes, frameSeconds) {
+  const safeDuration = Math.max(15, Math.min(600, Number(duration) || 60));
+  const scenes       = Math.max(1, Number(targetScenes) || Math.round(safeDuration / (Number(frameSeconds) || 3)));
+  const preferred    = Math.max(2, Math.min(4, Number(frameSeconds) || 3));
+  const durations    = Array.from({ length: scenes }, () => preferred);
+  let total = durations.reduce((a, b) => a + b, 0);
+  let guard = 0;
+  while (total < safeDuration && guard < 10000) {
+    for (let i = 0; i < durations.length && total < safeDuration; i++) {
+      if (durations[i] < 4) { durations[i]++; total++; }
+    }
+    guard++;
+    if (!durations.some((v) => v < 4)) break;
+  }
+  while (total > safeDuration && guard < 20000) {
+    for (let i = durations.length - 1; i >= 0 && total > safeDuration; i--) {
+      if (durations[i] > 2) { durations[i]--; total--; }
+    }
+    guard++;
+    if (!durations.some((v) => v > 2)) break;
+  }
+  return durations;
+}
+
 // ─── CLIENT-SIDE PROMPT BUILDERS ─────────────────────────────────────────────
 
 function stylePrompt(s) {
@@ -255,20 +288,15 @@ function buildScenes(s, forcedScript) {
   const script = forcedScript ?? s.script;
   const rawParts = split(script);
   const heroes = s.heroes.length ? s.heroes : inferHeroes({ ...s, script });
-  // Target 3-4 seconds per scene based on duration setting
-  const targetScenes = Math.max(4, Math.round(Number(s.duration || 60) / 3.5));
-  const dur = Math.max(2, Math.round(Number(s.duration || 60) / targetScenes));
+  const timing = getTimingPlan(s.duration, s.frameSeconds);
+  const targetScenes = timing.scenes;
+  const frameDurations = distributeSceneDurations(s.duration, targetScenes, s.frameSeconds);
   // Expand or trim parts to match target scene count
   const parts = rawParts.length >= targetScenes
     ? rawParts.slice(0, targetScenes)
-    : (() => {
-        const expanded = [];
-        for (let i = 0; i < targetScenes; i++) {
-          expanded.push(rawParts[i % rawParts.length] || "");
-        }
-        return expanded;
-      })();
+    : Array.from({ length: targetScenes }, (_, i) => rawParts[i % Math.max(1, rawParts.length)] || "");
   return parts.map((line, i) => {
+    const sceneDur = frameDurations[i] || timing.frameSeconds;
     const camera   = CAMS[i % CAMS.length];
     const chars    = heroes.slice(0, 2).map((h) => h.name).filter(Boolean);
     const sceneObj = { voice_line: line, camera, act: act(i, parts.length), characters_in_scene: chars };
@@ -277,7 +305,7 @@ function buildScenes(s, forcedScript) {
       order: i+1,
       act: act(i, parts.length),
       voice_line: line,
-      duration_sec: dur,
+      duration_sec: sceneDur,
       camera,
       characters_in_scene: chars,
       image_prompt_en: buildCartoonImagePromptClient(sceneObj, { ...s, heroes }),
@@ -332,8 +360,10 @@ function buildCharOverrideBlock(s) {
 function stripPreview(sc) { if (!sc) return sc; const { frame_preview, ...rest } = sc; return frame_preview ? { ...rest, frame_reference: "uploaded_frame_attached_in_ui" } : rest; }
 
 function projectPayload(s, forcedScript) {
+  const timing = getTimingPlan(s.duration, s.frameSeconds);
   return {
-    concept: { title: s.title, format: s.format, aspect_ratio: s.aspect, duration_sec: Number(s.duration), language: s.lang },
+    concept: { title: s.title, format: s.format, aspect_ratio: s.aspect, duration_sec: timing.duration, frame_duration_sec: timing.frameSeconds, target_scene_count: timing.scenes, language: s.lang },
+    timing: { duration_sec: timing.duration, frame_duration_sec: timing.frameSeconds, target_scene_count: timing.scenes, rule: "Each storyboard scene/frame must be 2-4 seconds." },
     style: { preset: s.style, label: STYLE_PRESETS.find((x) => x.id === s.style)?.label || s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette, dna: stylePrompt(s) },
     chain: { mode: s.chainMode, strictLevel: s.strictLevel, referenceMode: s.referenceMode, appearanceMode: s.appearanceMode, partSize: s.partSize },
     settings: { voToggle: s.voToggle, videoConsistency: s.videoConsistency },
@@ -345,6 +375,7 @@ function projectPayload(s, forcedScript) {
 
 function makeJson(s) {
   const scenes = (s.scenes.length ? s.scenes : buildScenes(s)).map(stripPreview);
+  const timing = getTimingPlan(s.duration, s.frameSeconds);
   return s.serverProject || {
     project: {
       id: `cartoon_${Date.now()}`, title: s.title || "Untitled Cartoon",
@@ -357,10 +388,12 @@ function makeJson(s) {
     script: { full_text: s.script, voice_style: s.voice, word_count: s.script.trim() ? s.script.trim().split(/\s+/).length : 0, language: s.lang },
     storyboard: {
       total_scenes: scenes.length,
+      target_scene_count: timing.scenes,
       total_duration_sec: scenes.reduce((a, x) => a + Number(x.duration_sec || 0), 0),
       part_size: s.partSize, scenes,
     },
     settings: { voToggle: s.voToggle, videoConsistency: s.videoConsistency },
+    timing: { duration_sec: timing.duration, frame_duration_sec: timing.frameSeconds, target_scene_count: timing.scenes },
     generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", pipeline: "cartoon_creator_v2" },
   };
 }
@@ -502,6 +535,7 @@ const initial = {
   step: 1,
   title: "", format: "shorts", aspect: "9:16", duration: 60, lang: "ru",
   style: "pixar3d", mood: "light", palette: "AUTO", custom: "",
+  frameSeconds: 3,
   chainMode: "styleDNA", strictLevel: "hard", referenceMode: "heroAndPrevious",
   appearanceMode: "full", voToggle: true, videoConsistency: "ultra",
   partSize: 4, partIndex: 0,
@@ -982,10 +1016,20 @@ function Step1({ s, dispatch, waveRef }) {
         <div className="dur-panel">
           <div className="dur-display">
             <div><span className="dur-num">{s.duration}</span><span className="dur-s">с</span></div>
-            <div className="dur-sc">≈ {Math.max(1, Math.round(s.duration / 7))} сцен</div>
+            <div className="dur-sc">≈ {getTimingPlan(s.duration, s.frameSeconds).scenes} сцен · {s.frameSeconds}с/кадр</div>
           </div>
           <canvas ref={waveRef} className="wave-canvas" />
           <input type="range" min="15" max="600" step="5" value={s.duration} onChange={(e) => dispatch({ type:"set", key:"duration", value: Number(e.target.value) })} />
+        </div>
+      </Field>
+      <Field label="Секунд на кадр">
+        <div className="mood-row">
+          {[2, 3, 4].map((n) => (
+            <button key={n} type="button" className={`mood-chip${s.frameSeconds === n ? " on" : ""}`}
+              onClick={() => dispatch({ type: "set", key: "frameSeconds", value: n })}>
+              {n}с / кадр
+            </button>
+          ))}
         </div>
       </Field>
     </section>
