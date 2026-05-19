@@ -193,6 +193,7 @@ export default function CartoonAutosaveBridge() {
     observer.observe(document.body, { childList: true, subtree: true });
     const timer = window.setInterval(saveNow, 1200);
 
+    window.neurocineSaveNow = saveNow;
     window.neurocineClearCartoonAutosave = () => {
       try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
       mountToast("История мульт-проекта очищена");

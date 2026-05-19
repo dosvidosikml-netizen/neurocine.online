@@ -677,6 +677,7 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
     if (!liveAllowed) {
       dispatch({ type:"script", value: localText });
       setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
+      window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
       try { window.setTimeout(() => document.querySelector(".qcc-root textarea")?.scrollIntoView({ behavior:"smooth", block:"center" }), 200); } catch {}
       return;
     }
@@ -691,9 +692,11 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
       if (data?.ok && ft) {
         dispatch({ type:"script", value: ft });
         setGenStat("СЦЕНАРИЙ ГОТОВ · AI");
+        window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
       } else {
         dispatch({ type:"script", value: localText });
         setGenStat("СЦЕНАРИЙ ГОТОВ · локально");
+        window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 150);
       }
     } catch {
       dispatch({ type:"script", value: localText });
