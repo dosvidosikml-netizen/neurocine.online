@@ -110,14 +110,10 @@ export async function POST(req) {
       metadata: usageMeta(body),
     });
     // Trim full_text to exactly targetScenes sentences so script matches timing
-    if (parsed?.full_text && targetScenes > 0) {
-      const sentences = parsed.full_text
-        .split(/(?<=[.!?…])\s+|
-+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 3);
-      if (sentences.length > targetScenes) {
-        parsed.full_text = sentences.slice(0, targetScenes).join(" ");
+    if (parsed && parsed.full_text && targetScenes > 0) {
+      const allSentences = parsed.full_text.split(/[.!?]+[ \t]+|[\n]+/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 3; });
+      if (allSentences.length > targetScenes) {
+        parsed.full_text = allSentences.slice(0, targetScenes).join(". ") + ".";
       }
     }
 
