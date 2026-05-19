@@ -8,7 +8,6 @@ import SideDrawer from "../SideDrawer";
 import CreateHub from "../CreateHub";
 import QuantumCartoonCreatorV2 from "./QuantumCartoonCreatorV2";
 import CartoonAutosaveBridge from "./CartoonAutosaveBridge";
-import CartoonScriptFallbackBridge from "./CartoonScriptFallbackBridge";
 import CartoonFrame2x2QuickBridge from "./CartoonFrame2x2QuickBridge";
 import CartoonProductionCoreBridge from "./CartoonProductionCoreBridge";
 import { getAccountAccess, shouldForceLiveForAccount } from "../../lib/accountRoles";
@@ -76,17 +75,21 @@ export default function CartoonStudioShellV2() {
   }
 
   function clearCartoonStorage() {
-    const match = (key) => /cartoon|qcc|quantumCartoon|neurocine\.cartoon/i.test(String(key || ""));
+    const match = (key) => /cartoon|qcc|quantumCartoon|neurocine|frame2x2|production\.core/i.test(String(key || ""));
     try {
       window.neurocineClearCartoonAutosave?.();
-      for (const key of Object.keys(window.localStorage || {})) {
-        if (match(key)) window.localStorage.removeItem(key);
-      }
+      const lsKeys = [];
+      for (let i = 0; i < (window.localStorage?.length || 0); i++) lsKeys.push(window.localStorage.key(i));
+      lsKeys.forEach((key) => { if (match(key)) window.localStorage.removeItem(key); });
     } catch {}
     try {
-      for (const key of Object.keys(window.sessionStorage || {})) {
-        if (match(key)) window.sessionStorage.removeItem(key);
-      }
+      const ssKeys = [];
+      for (let i = 0; i < (window.sessionStorage?.length || 0); i++) ssKeys.push(window.sessionStorage.key(i));
+      ssKeys.forEach((key) => { if (match(key)) window.sessionStorage.removeItem(key); });
+    } catch {}
+    // Remove bridge-injected DOM elements
+    try {
+      document.querySelectorAll(".nc-frame2x2-quick, .nc-cartoon-frame2x2-toast, .nc-cartoon-script-fallback-toast").forEach((el) => el.remove());
     } catch {}
   }
 
@@ -117,25 +120,27 @@ export default function CartoonStudioShellV2() {
           position:fixed !important;
           left:16px;
           right:16px;
-          bottom:148px;
-          z-index:2147483000;
+          bottom:72px;
+          z-index:200;
           width:auto;
           display:grid !important;
           grid-template-columns:1fr 1fr;
-          gap:10px;
+          gap:8px;
           pointer-events:auto;
+          opacity:0.85;
         }
         .nc-cartoon-clean-start button{
-          min-height:46px;
-          border-radius:16px;
-          border:1px solid rgba(0,212,255,.34);
-          background:rgba(5,10,28,.86);
-          color:rgba(225,246,255,.94);
-          font-weight:900;
-          letter-spacing:.06em;
-          box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 34px rgba(0,0,0,.30), 0 0 24px rgba(0,212,255,.10);
-          backdrop-filter:blur(16px);
-          -webkit-backdrop-filter:blur(16px);
+          min-height:36px;
+          border-radius:10px;
+          border:1px solid rgba(0,212,255,.25);
+          background:rgba(5,10,28,.92);
+          color:rgba(225,246,255,.80);
+          font-weight:700;
+          font-size:11px;
+          letter-spacing:.04em;
+          box-shadow:0 4px 12px rgba(0,0,0,.40);
+          backdrop-filter:blur(12px);
+          -webkit-backdrop-filter:blur(12px);
         }
         .nc-cartoon-clean-start button.danger{
           border-color:rgba(255,77,95,.46);
@@ -204,7 +209,6 @@ export default function CartoonStudioShellV2() {
 
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
       <CartoonAutosaveBridge />
-      <CartoonScriptFallbackBridge />
       <CartoonFrame2x2QuickBridge />
       <CartoonProductionCoreBridge />
 
@@ -214,7 +218,7 @@ export default function CartoonStudioShellV2() {
         {cleanNote && <div className="nc-cartoon-clean-note">{cleanNote}</div>}
       </div>
 
-      <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
+      <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator" style={{ paddingBottom: "120px" }}>
         <QuantumCartoonCreatorV2 key={creatorKey} />
       </section>
     </main>
