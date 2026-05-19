@@ -13,6 +13,13 @@ function setNativeValue(el, value) {
   return true;
 }
 
+function normalizeTopic(value = "") {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\.([А-ЯA-ZЁ])/g, ". $1")
+    .trim();
+}
+
 function findScriptTextarea() {
   const areas = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root textarea.q-inp, body.route-cartoon textarea"));
   return areas.find((el) => {
@@ -21,13 +28,39 @@ function findScriptTextarea() {
   }) || areas[0] || null;
 }
 
+function getVisibleInputs() {
+  return Array.from(document.querySelectorAll("body.route-cartoon .qcc-root input, body.route-cartoon input"))
+    .filter((el) => {
+      if (el.type === "file" || el.type === "hidden") return false;
+      const rect = el.getBoundingClientRect?.();
+      return !rect || (rect.width > 20 && rect.height > 10);
+    });
+}
+
 function readTitle() {
-  const inputs = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root input.q-inp, body.route-cartoon input"));
-  const titleInput = inputs.find((el) => {
-    const text = `${el.placeholder || ""} ${el.closest(".q-field")?.textContent || ""}`.toLowerCase();
-    return text.includes("название") || text.includes("мультфильма") || text.includes("кот");
-  });
-  return (titleInput?.value || "мультфильм").trim() || "мультфильм";
+  const inputs = getVisibleInputs();
+  const filled = inputs
+    .map((el) => ({
+      el,
+      value: normalizeTopic(el.value),
+      meta: `${el.placeholder || ""} ${el.getAttribute("aria-label") || ""} ${el.closest(".q-field")?.textContent || ""}`.toLowerCase(),
+    }))
+    .filter((x) => x.value.length >= 3);
+
+  const exact = filled.find((x) => /название|мультфильм|title|project/.test(x.meta));
+  if (exact?.value) return exact.value;
+
+  const longest = filled.sort((a, b) => b.value.length - a.value.length)[0];
+  if (longest?.value) return longest.value;
+
+  return "";
+}
+
+function readProjectLanguage() {
+  const text = document.body?.innerText || "";
+  if (/UA\s*·\s*Укр|UA\b/.test(text)) return "ua";
+  if (/EN\s*·\s*Eng|EN\b/.test(text)) return "en";
+  return "ru";
 }
 
 function readDuration() {
@@ -35,6 +68,63 @@ function readDuration() {
   const m = txt.match(/(\d{2,3})\s*с\b/i);
   const n = Number(m?.[1] || 60);
   return Number.isFinite(n) ? n : 60;
+}
+
+function readSelectedText(options) {
+  const body = document.body?.innerText || "";
+  for (const item of options) {
+    if (body.includes(item.label) || body.includes(item.id)) return item.id;
+  }
+  return options[0]?.id || "";
+}
+
+function buildPayload() {
+  const title = readTitle();
+  const duration = readDuration();
+  const language = readProjectLanguage();
+  const style = readSelectedText([
+    { id: "pixar3d", label: "3D Pixar" },
+    { id: "cinematic", label: "Кинематограф" },
+    { id: "storybook_anime", label: "Studio Ghibli" },
+    { id: "watercolor", label: "Акварель" },
+    { id: "comic", label: "Комикс" },
+    { id: "kids_book", label: "Детская книжка" },
+    { id: "flat_design", label: "Flat" },
+    { id: "clay", label: "Пластилин" },
+    { id: "cyberpunk", label: "Киберпанк" },
+    { id: "dark_fantasy", label: "Тёмное фэнтези" },
+    { id: "anime_manga", label: "Аниме" },
+  ]);
+  const mood = readSelectedText([
+    { id: "light", label: "СВЕТЛЫЙ" },
+    { id: "dark", label: "ТЁМНЫЙ" },
+    { id: "epic", label: "ЭПИК" },
+    { id: "cute", label: "МИЛЫЙ" },
+    { id: "mystery", label: "ТАЙНА" },
+  ]);
+
+  return {
+    concept: {
+      title,
+      topic: title,
+      exact_user_topic: title,
+      language,
+      duration_sec: duration,
+      format: "shorts",
+      aspect_ratio: "9:16",
+    },
+    style: {
+      preset: style || "pixar3d",
+      mood: mood || "light",
+      palette: "AUTO",
+    },
+    script: {
+      voice_style: "neutral",
+      full_text: "",
+      language,
+    },
+    instruction: `Write ONLY about this exact topic: ${title}. Do not introduce cats, stars, city, paper kite, or any unrelated cute story unless those are explicitly in the topic.`,
+  };
 }
 
 function mountToast(text, danger = false) {
@@ -47,7 +137,7 @@ function mountToast(text, danger = false) {
   el.textContent = text;
   el.setAttribute("data-show", "true");
   el.setAttribute("data-danger", danger ? "true" : "false");
-  window.setTimeout(() => el?.removeAttribute("data-show"), 3400);
+  window.setTimeout(() => el?.removeAttribute("data-show"), 4200);
 }
 
 function isGenerateScriptButton(target) {
@@ -110,9 +200,15 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
         return;
       }
 
+      const payload = buildPayload();
+      if (!payload.concept.title || payload.concept.title.length < 4) {
+        mountToast("Сначала введи точную тему / название мультфильма", true);
+        return;
+      }
+
       busy = true;
       setButtonBusy(btn, true);
-      mountToast("Платный API пишет текст диктора...");
+      mountToast(`Платный API пишет: ${payload.concept.title.slice(0, 58)}`);
 
       try {
         const res = await fetch("/api/cartoon/script", {
@@ -121,16 +217,7 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
             "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
-          body: JSON.stringify({
-            concept: {
-              title: readTitle(),
-              language: "ru",
-              duration_sec: readDuration(),
-              format: "shorts",
-              aspect_ratio: "9:16",
-            },
-            script: { voice_style: "neutral" },
-          }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -143,7 +230,10 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
         }
 
         setNativeValue(area, text);
-        try { window.localStorage.setItem("neurocine.cartoon.lastPaidScriptAt", String(Date.now())); } catch {}
+        try {
+          window.localStorage.setItem("neurocine.cartoon.lastPaidScriptAt", String(Date.now()));
+          window.localStorage.setItem("neurocine.cartoon.lastPaidTopic", payload.concept.title);
+        } catch {}
         mountToast(`AI сценарий готов · ${data.model_used || "OpenRouter"}`);
       } catch (e) {
         mountToast(e.message || "Сетевая ошибка API", true);
