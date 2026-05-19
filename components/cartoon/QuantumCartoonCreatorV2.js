@@ -1076,6 +1076,11 @@ function StepScript({ s, dispatch, onAi, onDemo, genBusy = false, genStat = "" }
         <textarea className="q-inp" rows={8} value={s.script}
           placeholder="Вставь сценарий или нажми генерацию. На следующем шаге AI сам вытащит героев."
           onChange={(e) => dispatch({ type:"script", value:e.target.value })} />
+        {s.script.trim() && (
+          <button onClick={() => dispatch({ type:"script", value:"" })} style={{ marginTop:6, background:"none", border:"1px solid rgba(239,68,68,.3)", borderRadius:6, color:"rgba(255,120,120,.7)", fontSize:"0.75em", padding:"4px 12px", cursor:"pointer", width:"100%" }}>
+            ✕ Очистить текст сценария
+          </button>
+        )}
       </Field>
       <div className="meta-strip">
         <div className="q-meta">СЛОВА: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div>

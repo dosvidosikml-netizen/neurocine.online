@@ -117,37 +117,29 @@ export default function CartoonStudioShellV2() {
     <main className="studio nc-cartoon-studio-shell">
       <style jsx global>{`
         .nc-cartoon-clean-start{
-          position:fixed !important;
-          left:0;
-          right:0;
-          top:64px;
-          z-index:150;
           display:flex !important;
           flex-direction:row;
-          gap:6px;
-          padding:4px 12px;
+          gap:8px;
+          padding:6px 14px 0;
           pointer-events:auto;
-          background:rgba(2,4,16,0.85);
-          border-bottom:1px solid rgba(139,0,255,0.15);
-          backdrop-filter:blur(8px);
-          -webkit-backdrop-filter:blur(8px);
         }
         .nc-cartoon-clean-start button{
-          height:28px;
-          padding:0 12px;
-          border-radius:6px;
-          border:1px solid rgba(139,0,255,.30);
-          background:rgba(5,10,28,.80);
-          color:rgba(200,180,255,.85);
+          height:30px;
+          padding:0 14px;
+          border-radius:8px;
+          border:1px solid rgba(139,0,255,.25);
+          background:rgba(5,10,28,.70);
+          color:rgba(180,160,255,.80);
           font-weight:600;
           font-size:10px;
           letter-spacing:.04em;
           white-space:nowrap;
+          cursor:pointer;
         }
         .nc-cartoon-clean-start button.danger{
-          border-color:rgba(239,68,68,.30);
-          color:rgba(255,180,180,.80);
-          background:rgba(44,8,18,.75);
+          border-color:rgba(239,68,68,.25);
+          color:rgba(255,160,160,.75);
+          background:rgba(30,5,10,.70);
         }
 
         .nc-cartoon-clean-note{
@@ -179,8 +171,7 @@ export default function CartoonStudioShellV2() {
         }
         html[data-theme="light"] .nc-cartoon-clean-note{color:#166534;background:rgba(255,255,255,.88);border-color:rgba(22,163,74,.20);}
         @media(max-width:430px){
-          .nc-cartoon-clean-start{left:0;right:0;padding:3px 10px;}
-          .nc-cartoon-clean-start button{height:26px;font-size:9px;}
+
         }
       `}</style>
 
@@ -213,13 +204,12 @@ export default function CartoonStudioShellV2() {
       <AuthPanel devMode={devMode} onAccountChange={setAccount} />
       <CartoonAutosaveBridge />
 
-      <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
-        <button type="button" onClick={cleanStart}>🧹 Новый проект</button>
-        <button type="button" className="danger" onClick={hardCleanStart}>🗑 Очистить всё</button>
-        {cleanNote && <div className="nc-cartoon-clean-note">{cleanNote}</div>}
-      </div>
-
       <section className="nc-cartoon-workspace" aria-label="Quantum Cartoon Creator">
+        <div className="nc-cartoon-clean-start" aria-label="Cartoon clean start controls">
+          <button type="button" onClick={cleanStart}>🧹 Новый проект</button>
+          <button type="button" className="danger" onClick={hardCleanStart}>🗑 Очистить всё</button>
+          {cleanNote && <div className="nc-cartoon-clean-note">{cleanNote}</div>}
+        </div>
         <QuantumCartoonCreatorV2 key={creatorKey} liveAllowed={liveAllowed} />
       </section>
     </main>
