@@ -64,7 +64,7 @@ function restoreFields(saved) {
     if (Object.prototype.hasOwnProperty.call(saved.fields, key) && el.value !== saved.fields[key]) {
       // Never overwrite a non-empty field with an empty saved value —
       // this was wiping AI-generated scripts on every DOM mutation
-      if (!String(saved.fields[key] || "").trim() && String(el.value || "").trim()) continue;
+      if (!String(saved.fields[key] || "").trim() && String(el.value || "").trim()) return;
       setNativeValue(el, saved.fields[key]);
     }
   });
