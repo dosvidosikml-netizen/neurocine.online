@@ -606,23 +606,34 @@ export default function QuantumCartoonCreatorV2() {
     return v;
   }
 
-  async function generateScript() {
-    dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ", scriptError: "" });
-    try {
-      const data = await postJson("/api/cartoon/script", projectPayload(s));
-      const modelLabel = (data.model_used || "model").replace(/openrouter_access_closed|local_fallback|local_requested/g, "локально");
-      dispatch({ type:"aiScript", script: data.script, status:`СЦЕНАРИЙ ГОТОВ · ${modelLabel}` });
-      dispatch({ type:"scriptError", value: "" });
-    } catch (e) {
-      if (e.status === 403 || e.status === 401) {
-        // No API key — generate locally using title/theme
-        const localText = buildLocalThemedScript(s.title, s.lang, s.mood, s.style);
-        dispatch({ type:"aiScript", script: { full_text: localText, title: s.title, voice_style: s.voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
-        dispatch({ type:"scriptError", value: "" });
-      } else {
-        dispatch({ type:"scriptError", value: e.message || "AI недоступен — попробуй ещё раз" });
-      }
-    }
+  function generateScript() {
+    // Synchronous dispatch — renders BEFORE fetch starts
+    dispatch({ type:"busy", value:true, status:"AI ДУМАЕТ · СЦЕНАРИЙ" });
+    dispatch({ type:"scriptError", value:"" });
+
+    // Defer fetch so React flushes busy=true state first
+    const title = s.title; const lang = s.lang; const mood = s.mood; const style = s.style; const voice = s.voice;
+    const localText = buildLocalThemedScript(title, lang, mood, style);
+    const payload = JSON.stringify(projectPayload(s));
+
+    window.setTimeout(() => {
+      fetch("/api/cartoon/script", { method:"POST", headers:{"Content-Type":"application/json"}, body: payload })
+        .then((r) => r.json())
+        .then((data) => {
+          const ft = String(data?.script?.full_text || "").trim();
+          if (data?.ok && ft) {
+            const label = String(data.model_used || "model").replace(/openrouter_access_closed|local_fallback|local_requested/g, "локально");
+            dispatch({ type:"aiScript", script: data.script, status:"СЦЕНАРИЙ ГОТОВ · " + label });
+          } else {
+            dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
+          }
+          dispatch({ type:"scriptError", value:"" });
+        })
+        .catch(() => {
+          dispatch({ type:"aiScript", script: { full_text: localText, title, voice_style: voice }, status:"СЦЕНАРИЙ ГОТОВ · локально" });
+          dispatch({ type:"scriptError", value:"" });
+        });
+    }, 60);
   }
 
   // — Storyboard generation
@@ -869,7 +880,7 @@ function ProductionStatusBar({ s, scenes }) {
     { label:"PART",       ok: scenes.length > 0,    val: scenes.length > 0 ? `#${s.partIndex+1}/${Math.ceil(scenes.length/s.partSize)}` : "—" },
     { label:"HEROES",     ok: s.heroes.length > 0,  val: s.heroes.length > 0 ? `${s.heroes.length} locked` : "—" },
     { label:"ANCHOR",     ok: !!s.heroAnchor,        val: s.heroAnchor ? "READY" : "—" },
-    { label:"SNAPSHOT",   ok: !!s.snapshotStatus.startsWith("✓"), val: s.snapshotStatus || "—" },
+    { label:"SNAPSHOT",   ok: !!(s.snapshotStatus || "").startsWith("✓"), val: s.snapshotStatus || "—" },
   ];
   return (
     <div className="studio-status-bar-v33" style={{ display:"flex", gap:"6px", flexWrap:"wrap", margin:"8px 0" }}>
@@ -1042,8 +1053,8 @@ function StepScript({ s, dispatch, onAi, onDemo }) { // s.scriptError shown inli
         )}
       </div>
       {s.scriptValidation && (
-        <div style={{ padding:"6px 12px", borderRadius:6, marginTop:6, fontSize:"0.78em", background: s.scriptValidation.ok ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", border:`1px solid ${s.scriptValidation.ok ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, color: s.scriptValidation.ok ? "#4ade80" : "#f87171" }}>
-          {s.scriptValidation.ok ? "✓" : "✗"} {s.scriptValidation.msg}
+        <div style={{ padding:"6px 12px", borderRadius:6, marginTop:6, fontSize:"0.78em", background: s.scriptValidation?.ok ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", border:`1px solid ${s.scriptValidation?.ok ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, color: s.scriptValidation?.ok ? "#4ade80" : "#f87171" }}>
+          {s.scriptValidation?.ok ? "✓" : "✗"} {s.scriptValidation.msg}
         </div>
       )}
     </section>
@@ -1101,7 +1112,7 @@ function StepHeroes({ s, dispatch, copyText }) {
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                   {CHAR_MODS.map(([key, label]) => (
                     <button key={key} onClick={() => dispatch({ type:"charMod", key })}
-                      style={{ padding:"4px 10px", borderRadius:4, fontSize:"0.76em", cursor:"pointer", border:`1px solid ${s.charModifiers[key] ? "#8b00ff" : suggested.includes(key) ? "#7c3aed" : "#333"}`, background: s.charModifiers[key] ? "rgba(139,0,255,0.2)" : suggested.includes(key) ? "rgba(124,58,237,0.08)" : "transparent", color: s.charModifiers[key] ? "#c084fc" : suggested.includes(key) ? "#a78bfa" : "#666" }}>
+                      style={{ padding:"4px 10px", borderRadius:4, fontSize:"0.76em", cursor:"pointer", border:`1px solid ${s.charModifiers?.[key] ? "#8b00ff" : suggested.includes(key) ? "#7c3aed" : "#333"}`, background: s.charModifiers?.[key] ? "rgba(139,0,255,0.2)" : suggested.includes(key) ? "rgba(124,58,237,0.08)" : "transparent", color: s.charModifiers?.[key] ? "#c084fc" : suggested.includes(key) ? "#a78bfa" : "#666" }}>
                       {label}
                     </button>
                   ))}
@@ -1324,7 +1335,7 @@ function StepExport({ s, jsonText, snapInputRef, onExportJson, onExportTxt, onEx
             <input ref={snapInputRef} type="file" accept=".json" style={{ display:"none" }} onChange={(e) => onLoadSnapshot(e.target.files)} />
             ⬆ Загрузить Snapshot
           </label>
-          {s.snapshotStatus && <span style={{ fontSize:"0.78em", color: s.snapshotStatus.startsWith("✓") ? "#a78bfa" : "#ef4444" }}>{s.snapshotStatus}</span>}
+          {s.snapshotStatus && <span style={{ fontSize:"0.78em", color: (s.snapshotStatus || "").startsWith("✓") ? "#a78bfa" : "#ef4444" }}>{s.snapshotStatus}</span>}
         </div>
       </div>
       <div className="qprompt" style={{ marginTop:"12px" }}>
