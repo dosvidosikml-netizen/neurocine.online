@@ -112,13 +112,20 @@ function stylePrompt(s) {
 function buildCartoonImagePromptClient(scene, s) {
   const char0 = s.heroes[0];
   const charRef = char0
-    ? `Character: ${char0.name}. ${char0.description || ""}. Face Lock: preserve face, silhouette, outfit, color DNA.`
+    ? [
+        `Character: ${char0.name}. ${char0.description || ""}.`,
+        char0.charFaceLock ? `Face Identity: ${char0.charFaceLock}.` : "",
+        char0.modifiers?.length ? `Modifiers: ${char0.modifiers.join(", ")}.` : "",
+        "Face Lock: preserve face, silhouette, outfit, color DNA.",
+      ].filter(Boolean).join(" ")
     : "";
+  const charOverride = buildCharOverrideBlock(s);
   const sceneDesc = String(scene.voice_line || "").split(/(?<=[.!?])/)[0] || scene.voice_line || "";
   return `SCENE PRIMARY FOCUS: ${[
     sceneDesc,
     `STYLE: ${stylePrompt(s)}. Mood: ${s.mood}. Palette: ${s.palette}.`,
     charRef,
+    charOverride,
     `Camera: ${scene.camera || "Medium Shot"}.`,
     `Format: ${s.aspect} cartoon frame. Clean composition, strong focal point, no text, no watermark.`,
   ].filter(Boolean).join(" ")}`;
@@ -127,8 +134,13 @@ function buildCartoonImagePromptClient(scene, s) {
 function buildCartoonVideoPromptClient(scene, s, duration) {
   const char0 = s.heroes[0];
   const charLock = char0
-    ? `${char0.name}: preserve face, silhouette, outfit, proportions, color DNA.`
+    ? [
+        `${char0.name}: preserve face, silhouette, outfit, proportions, color DNA.`,
+        char0.charFaceLock ? `Face Identity: ${char0.charFaceLock}.` : "",
+        char0.modifiers?.length ? `Modifiers: ${char0.modifiers.join(", ")}.` : "",
+      ].filter(Boolean).join(" ")
     : "";
+  const charOverride = buildCharOverrideBlock(s);
   const action = String(scene.voice_line || "subtle expressive cartoon motion")
     .split(/(?<=[.!?])/)[0].trim() || "subtle expressive cartoon motion";
   const sfx    = MOOD_SFX[s.mood] || MOOD_SFX.light;
@@ -139,6 +151,7 @@ function buildCartoonVideoPromptClient(scene, s, duration) {
   return `ANIMATE CURRENT FRAME: ${[
     `STYLE: ${stylePrompt(s)}. Mood: ${s.mood}. Palette: ${s.palette}.`,
     charLock,
+    charOverride,
     `Action: ${action}.`,
     `Camera: ${scene.camera || "Medium Shot"}.`,
     `SFX: ${sfx}.`,
@@ -166,6 +179,8 @@ function buildCartoonAutoChainPartClient({
     const fld  = c.charFaceLock ? ` Face ref: ${c.charFaceLock}.` : "";
     return `${c.name} (${c.role || "main"}): ${c.description || "cartoon character"}.${mods}${fld} FACE LOCK ON.`;
   }).join("\n") || "No locked characters.";
+  const charOverride = buildCharOverrideBlock(s);
+  const characterLock = [charBlock, charOverride].filter(Boolean).join("\n");
 
   const refText = isFirst
     ? (heroAnchorUploaded
@@ -210,7 +225,7 @@ CHAIN MODE: ${chainText}
 STRICTNESS: ${strictText}
 
 CHARACTER LOCK:
-${charBlock}
+${characterLock}
 
 FRAMES:
 ${frameBlocks}
@@ -262,7 +277,9 @@ function heroDescription(name, s) {
 }
 
 function referencePrompt(hero, s) {
-  return `CHARACTER REFERENCE SHEET: ${hero.name}. ${hero.description || heroDescription(hero.name, s)} Full body front view, side view, 3/4 view, facial expressions, outfit lock, color palette lock. STYLE DNA: ${stylePrompt(s)}. Clean cartoon model sheet, white background, no text, no watermark.`;
+  const face = hero.charFaceLock ? `Face Identity Lock: ${hero.charFaceLock}.` : "";
+  const mods = hero.modifiers?.length ? `Appearance modifiers: ${hero.modifiers.join(", ")}.` : "";
+  return `CHARACTER REFERENCE SHEET: ${hero.name}. ${hero.description || heroDescription(hero.name, s)} ${face} ${mods} Full body front view, side view, 3/4 view, facial expressions, outfit lock, color palette lock. STYLE DNA: ${stylePrompt(s)}. Clean cartoon model sheet, white background, no text, no watermark.`;
 }
 
 function inferHeroes(s) {
@@ -366,17 +383,41 @@ function buildCharOverrideBlock(s) {
   return lines.join("\n");
 }
 
+function activeCharModifierKeys(s) {
+  return Object.entries(s.charModifiers || {}).filter(([, v]) => v).map(([k]) => k);
+}
+
+function applyCharacterOverride(hero, s) {
+  if (!hero) return hero;
+  const globalFace = s.charOverrideEnabled ? String(s.charFaceLock || "").trim() : "";
+  const globalMods = s.charOverrideEnabled ? activeCharModifierKeys(s) : [];
+  return {
+    ...hero,
+    description: [hero.description, buildCharOverrideBlock(s)].filter(Boolean).join("\n"),
+    charFaceLock: [hero.charFaceLock, globalFace].filter(Boolean).join("\n"),
+    modifiers: uniq([...(hero.modifiers || []), ...globalMods]),
+  };
+}
+
+function buildPromptCharacters(s) {
+  return (s.heroes || []).map((h) => {
+    const hero = applyCharacterOverride(h, s);
+    return { ...hero, reference_prompt: h.reference_prompt || referencePrompt(hero, s) };
+  });
+}
+
 function stripPreview(sc) { if (!sc) return sc; const { frame_preview, ...rest } = sc; return frame_preview ? { ...rest, frame_reference: "uploaded_frame_attached_in_ui" } : rest; }
 
 function projectPayload(s, forcedScript) {
   const timing = getTimingPlan(s.duration, s.frameSeconds);
+  const characters = buildPromptCharacters(s);
   return {
     concept: { title: s.title, format: s.format, aspect_ratio: s.aspect, duration_sec: timing.duration, frame_duration_sec: timing.frameSeconds, target_scene_count: timing.scenes, language: s.lang },
     timing: { duration_sec: timing.duration, frame_duration_sec: timing.frameSeconds, target_scene_count: timing.scenes, rule: "Each storyboard scene/frame must be 2-4 seconds." },
     style: { preset: s.style, label: STYLE_PRESETS.find((x) => x.id === s.style)?.label || s.style, custom_prompt: s.custom || null, mood: s.mood, palette: s.palette, dna: stylePrompt(s) },
     chain: { mode: s.chainMode, strictLevel: s.strictLevel, referenceMode: s.referenceMode, appearanceMode: s.appearanceMode, partSize: s.partSize },
-    settings: { voToggle: s.voToggle, videoConsistency: s.videoConsistency },
-    characters: s.heroes.map((h) => ({ ...h, reference_prompt: h.reference_prompt || referencePrompt(h, s) })),
+    settings: { voToggle: s.voToggle, videoConsistency: s.videoConsistency, charOverrideEnabled: s.charOverrideEnabled, charFaceLock: s.charFaceLock, charModifiers: activeCharModifierKeys(s) },
+    characters,
     script: { full_text: forcedScript ?? s.script, voice_style: s.voice, language: s.lang },
     storyboard: { scenes: (s.scenes || []).map(stripPreview) },
   };
@@ -385,6 +426,7 @@ function projectPayload(s, forcedScript) {
 function makeJson(s) {
   const scenes = (s.scenes.length ? s.scenes : buildScenes(s)).map(stripPreview);
   const timing = getTimingPlan(s.duration, s.frameSeconds);
+  const characters = buildPromptCharacters(s);
   return s.serverProject || {
     project: {
       id: `cartoon_${Date.now()}`, title: s.title || "Untitled Cartoon",
@@ -393,7 +435,7 @@ function makeJson(s) {
       style: { preset: s.style, label: STYLE_PRESETS.find((x) => x.id === s.style)?.label || s.style, mood: s.mood, palette: s.palette, dna: stylePrompt(s) },
       chain: { mode: s.chainMode, strictLevel: s.strictLevel, referenceMode: s.referenceMode, appearanceMode: s.appearanceMode, partSize: s.partSize },
     },
-    characters: s.heroes.map((h) => ({ ...h, reference_prompt: h.reference_prompt || referencePrompt(h, s) })),
+    characters,
     script: { full_text: s.script, voice_style: s.voice, word_count: s.script.trim() ? s.script.trim().split(/\s+/).length : 0, language: s.lang },
     storyboard: {
       total_scenes: scenes.length,
@@ -401,7 +443,7 @@ function makeJson(s) {
       total_duration_sec: scenes.reduce((a, x) => a + Number(x.duration_sec || 0), 0),
       part_size: s.partSize, scenes,
     },
-    settings: { voToggle: s.voToggle, videoConsistency: s.videoConsistency },
+    settings: { voToggle: s.voToggle, videoConsistency: s.videoConsistency, charOverrideEnabled: s.charOverrideEnabled, charFaceLock: s.charFaceLock, charModifiers: activeCharModifierKeys(s) },
     timing: { duration_sec: timing.duration, frame_duration_sec: timing.frameSeconds, target_scene_count: timing.scenes },
     generation: { target: "veo3", mode: "safe", model_script: "gpt-5.4", model_storyboard: "gpt-5.4", pipeline: "cartoon_creator_v2" },
   };
@@ -559,7 +601,10 @@ const initial = {
 
 function reducer(s, a) {
   if (a.type === "set")     return { ...s, [a.key]: a.value, serverProject: null, scenes: ["style","mood","palette","custom","voToggle","videoConsistency"].includes(a.key) ? [] : s.scenes };
-  if (a.type === "chain")   return { ...s, [a.key]: a.value, serverProject: null };
+  if (a.type === "chain") {
+    const label = { referenceMode:"REFERENCE MODE", appearanceMode:"APPEARANCE MODE", gridColsOverride:"GRID COLUMNS", gridManualFrames:"FRAMES" }[a.key] || "НАСТРОЙКА";
+    return { ...s, [a.key]: a.value, serverProject: null, status: `${label} ОБНОВЛЁН` };
+  }
   if (a.type === "v2")      return { ...s, v2: { ...s.v2, [a.key]: a.value }, serverProject: null };
   if (a.type === "format")  return { ...s, format: a.f, aspect: a.a, duration: a.d, serverProject: null };
   if (a.type === "step")    return { ...s, step: Math.min(6, Math.max(1, a.step)), scenes: a.step >= 5 && !s.scenes.length ? buildScenes(s) : s.scenes };
@@ -569,11 +614,17 @@ function reducer(s, a) {
     if (!fullText) return { ...s, scriptError: "AI вернул пустой сценарий — попробуй ещё раз", busy: false };
     return { ...s, title: a.script?.title || s.title, voice: a.script?.voice_style || s.voice, script: fullText, scriptError: "", heroes: [], scenes: [], serverProject: null, busy: false, status: a.status || "СЦЕНАРИЙ AI ГОТОВ" };
   }
-  if (a.type === "extractHeroes") return { ...s, heroes: inferHeroes(s), scenes: [], serverProject: null, status: "ГЕРОИ НАЙДЕНЫ" };
-  if (a.type === "addHero") return s.heroes.length >= 3 ? s : { ...s, heroes: [...s.heroes, { id:`char_${s.heroes.length+1}`, name:`Герой ${s.heroes.length+1}`, role:"main", description:"", face_lock:true, charFaceLock:"", modifiers:[], reference_prompt:"" }], serverProject: null };
+  if (a.type === "extractHeroes") {
+    if (!s.script.trim()) return { ...s, status: "⚠ СНАЧАЛА НУЖЕН СЦЕНАРИЙ" };
+    const heroes = inferHeroes(s);
+    return { ...s, heroes, scenes: [], serverProject: null, status: `ГЕРОИ НАЙДЕНЫ · ${heroes.length}` };
+  }
+  if (a.type === "addHero") return s.heroes.length >= 3
+    ? { ...s, status: "⚠ МАКСИМУМ 3 ГЕРОЯ" }
+    : { ...s, heroes: [...s.heroes, { id:`char_${s.heroes.length+1}`, name:`Герой ${s.heroes.length+1}`, role:"main", description:"", face_lock:true, charFaceLock:"", modifiers:[], reference_prompt:"" }], serverProject: null, status: "ГЕРОЙ ДОБАВЛЕН" };
   if (a.type === "hero")    return { ...s, heroes: s.heroes.map((h,i) => i === a.i ? { ...h, [a.key]: a.value } : h), serverProject: null, scenes: [] };
-  if (a.type === "heroMod") return { ...s, heroes: s.heroes.map((h,i) => i === a.i ? { ...h, modifiers: h.modifiers.includes(a.mod) ? h.modifiers.filter((x) => x !== a.mod) : [...h.modifiers, a.mod] } : h), serverProject: null, scenes: [] };
-  if (a.type === "deleteHero") return { ...s, heroes: s.heroes.filter((_, i) => i !== a.i), serverProject: null, scenes: [] };
+  if (a.type === "heroMod") return { ...s, heroes: s.heroes.map((h,i) => i === a.i ? { ...h, modifiers: h.modifiers.includes(a.mod) ? h.modifiers.filter((x) => x !== a.mod) : [...h.modifiers, a.mod] } : h), serverProject: null, scenes: [], status: "МОДИФИКАТОР ГЕРОЯ ОБНОВЛЁН" };
+  if (a.type === "deleteHero") return { ...s, heroes: s.heroes.filter((_, i) => i !== a.i), serverProject: null, scenes: [], status: "ГЕРОЙ УДАЛЁН" };
   if (a.type === "localStoryboard") {
     const nextScenes = Array.isArray(a.scenes) ? a.scenes : buildScenes(s, a.script);
     return {
@@ -592,9 +643,9 @@ function reducer(s, a) {
   if (a.type === "partIndex") return { ...s, partIndex: a.i };
   if (a.type === "busy")    return { ...s, busy: a.value, status: a.status ?? s.status, scriptError: a.scriptError !== undefined ? a.scriptError : s.scriptError };
   if (a.type === "status")  return { ...s, status: a.status };
-  if (a.type === "charOverride") return { ...s, charOverrideEnabled: a.value, serverProject: null };
-  if (a.type === "charMod")      return { ...s, charModifiers: { ...s.charModifiers, [a.key]: !s.charModifiers[a.key] }, serverProject: null, scenes: [] };
-  if (a.type === "charFaceLock") return { ...s, charFaceLock: a.value, serverProject: null };
+  if (a.type === "charOverride") return { ...s, charOverrideEnabled: a.value, serverProject: null, scenes: [], status: a.value ? "CHARACTER OVERRIDE ВКЛЮЧЁН" : "CHARACTER OVERRIDE ВЫКЛЮЧЕН" };
+  if (a.type === "charMod")      return { ...s, charModifiers: { ...s.charModifiers, [a.key]: !s.charModifiers[a.key] }, serverProject: null, scenes: [], status: "GLOBAL MODIFIERS ОБНОВЛЕНЫ" };
+  if (a.type === "charFaceLock") return { ...s, charFaceLock: a.value, serverProject: null, scenes: [] };
   if (a.type === "scriptValidation") return { ...s, scriptValidation: a.value };
   if (a.type === "scriptError")      return { ...s, scriptError: a.value, busy: false };
   if (a.type === "heroAnchor")   return { ...s, heroAnchor: a.value, status: "HERO ANCHOR ЗАГРУЖЕН" };
@@ -606,6 +657,10 @@ function reducer(s, a) {
   }
   if (a.type === "applySnapshot") {
     const d = a.data;
+    const savedCharMods = d.settings?.charModifiers ?? d.charModifiers;
+    const charModifiers = Array.isArray(savedCharMods)
+      ? { ...s.charModifiers, ...Object.fromEntries(savedCharMods.map((key) => [key, true])) }
+      : (savedCharMods && typeof savedCharMods === "object" ? { ...s.charModifiers, ...savedCharMods } : s.charModifiers);
     return {
       ...s,
       title: d.title || s.title,
@@ -624,6 +679,9 @@ function reducer(s, a) {
       partSize: d.chain?.partSize || d.partSize || s.partSize,
       voToggle: d.settings?.voToggle ?? d.voToggle ?? s.voToggle,
       videoConsistency: d.settings?.videoConsistency || d.videoConsistency || s.videoConsistency,
+      charOverrideEnabled: d.settings?.charOverrideEnabled ?? d.charOverrideEnabled ?? s.charOverrideEnabled,
+      charFaceLock: d.settings?.charFaceLock ?? d.charFaceLock ?? s.charFaceLock,
+      charModifiers,
       script: d.script?.full_text || d.script || s.script,
       voice: d.script?.voice_style || d.voice || s.voice,
       heroes: Array.isArray(d.characters) ? d.characters.map((c) => ({ ...c, charFaceLock: c.face_lock_description || c.charFaceLock || "" })) : s.heroes,
@@ -866,7 +924,7 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
   }
 
   function saveSnapshot() {
-    const snap = { neurocine_cartoon_snapshot:true, version:"cartoon_creator_v2", saved_at:new Date().toISOString(), ...json, settings:{ voToggle:s.voToggle, videoConsistency:s.videoConsistency }, chain:{ mode:s.chainMode, strictLevel:s.strictLevel, referenceMode:s.referenceMode, appearanceMode:s.appearanceMode, partSize:s.partSize } };
+    const snap = { neurocine_cartoon_snapshot:true, version:"cartoon_creator_v2", saved_at:new Date().toISOString(), ...json, settings:{ ...(json.settings || {}), voToggle:s.voToggle, videoConsistency:s.videoConsistency, charOverrideEnabled:s.charOverrideEnabled, charFaceLock:s.charFaceLock, charModifiers:activeCharModifierKeys(s) }, chain:{ mode:s.chainMode, strictLevel:s.strictLevel, referenceMode:s.referenceMode, appearanceMode:s.appearanceMode, partSize:s.partSize } };
     downloadText(JSON.stringify(snap, null, 2), `${safeName(s.title)}.neurocine.json`, "application/json");
     dispatch({ type:"snapshotStatus", value:"✓ Snapshot сохранён" });
   }
@@ -1184,6 +1242,8 @@ function StepScript({ s, dispatch, onAi, onDemo, genBusy = false, genStat = "" }
 
 function StepHeroes({ s, dispatch, copyText }) {
   const suggestedMods = getAutoSuggestedMods(s);
+  const canAddHero = s.heroes.length < 3;
+  const autoHeroLabel = s.heroes.length ? `⚛ Обновить героев из сценария · ${s.heroes.length}` : "⚛ Авто-найти героев из сценария";
   return (
     <section className="step-panel on">
       <Head eyebrow="Герои · Шаг 04" a="Reference" b="Face Lock" body="AI берёт сценарий, находит персонажей и создаёт reference pack: Hero Anchor, Face Lock, outfit lock, color DNA." />
@@ -1203,8 +1263,8 @@ function StepHeroes({ s, dispatch, copyText }) {
       <div className="qv2-divider" />
 
       <div className="qv2-actions">
-        <button className="qv2-primary" onClick={() => dispatch({ type:"extractHeroes" })}>⚛ Авто-найти героев из сценария</button>
-        <button className="add-neural" onClick={() => dispatch({ type:"addHero" })}>⊕ Добавить героя вручную</button>
+        <button className="qv2-primary" onClick={() => dispatch({ type:"extractHeroes" })}>{autoHeroLabel}</button>
+        <button className="add-neural" disabled={!canAddHero} onClick={() => dispatch({ type:"addHero" })} style={{ opacity: canAddHero ? 1 : 0.45, cursor: canAddHero ? "pointer" : "not-allowed" }}>⊕ Добавить героя вручную</button>
       </div>
       {suggestedMods.length > 0 && (
         <div className="qv2-hint" style={{ padding:"6px 12px", background:"#1a0a2e", borderRadius:"6px", fontSize:"0.8em", color:"#a78bfa", marginBottom:"8px" }}>
@@ -1253,7 +1313,9 @@ function StepHeroes({ s, dispatch, copyText }) {
         <div className="qv2-empty"><b>Герои появятся здесь</b><span>Нажми авто-поиск или ДАЛЕЕ — NeuroCine сам создаст героев из сценария.</span></div>
       )}
       <div className="neural-list">
-        {s.heroes.map((h, i) => (
+        {s.heroes.map((h, i) => {
+          const promptHero = applyCharacterOverride(h, s);
+          return (
           <div className="neural-card on" key={h.id}>
             <div className="nc-head">
               <div className="nc-orb">{String(i+1).padStart(2,"0")}</div>
@@ -1283,14 +1345,14 @@ function StepHeroes({ s, dispatch, copyText }) {
               <div className="qprompt">
                 <div className="qprompt-title">
                   <span>REFERENCE SHEET PROMPT</span>
-                  <button onClick={() => copyText(referencePrompt(h, s), "REFERENCE PROMPT СКОПИРОВАН")}>COPY</button>
+                  <button onClick={() => copyText(referencePrompt(promptHero, s), "REFERENCE PROMPT СКОПИРОВАН")}>COPY</button>
                 </div>
-                <pre>{referencePrompt(h, s)}</pre>
+                <pre>{referencePrompt(promptHero, s)}</pre>
               </div>
               <button className="q-del" onClick={() => dispatch({ type:"deleteHero", i })}>Удалить героя</button>
             </div>
           </div>
-        ))}
+        );})}
       </div>
     </section>
   );
