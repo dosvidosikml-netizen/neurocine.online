@@ -2797,7 +2797,7 @@ input:disabled{
 .ap-event-v621.usage-error b { color: #ff8c7a; }
 
 /* v64 Mobile AI App Shell + Create Hub */
-.nc-mobile-shell { display: none; }
+.nc-mobile-shell { display: block; }
 .nc-top-action-bar {
   position: fixed;
   top: 0;
@@ -4053,5 +4053,111 @@ html[data-theme="light"] .nc-lang-flag {
 }
 html[data-theme="light"] .nc-profile-plan-dot {
   border-color: #f6f6fa;
+}
+
+/* ============================================================
+   v69 — Desktop shell parity with mobile tools
+   ============================================================ */
+@media (min-width: 861px) {
+  .studio:has(.nc-mobile-shell) {
+    padding-top: 98px !important;
+    padding-bottom: 124px !important;
+  }
+
+  .nc-studio-home-page-v1 .nc-mobile-shell {
+    position: static !important;
+  }
+
+  .nc-top-action-bar {
+    top: 16px !important;
+    left: 50% !important;
+    right: auto !important;
+    width: min(1180px, calc(100vw - 40px)) !important;
+    height: 64px !important;
+    transform: translateX(-50%) !important;
+    padding: 10px 12px !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+    border-radius: 24px !important;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(255,118,95,.16), transparent 32%),
+      linear-gradient(135deg, rgba(16,16,24,.92), rgba(7,9,14,.88)) !important;
+    box-shadow: 0 22px 80px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.08) !important;
+  }
+
+  .nc-top-icon,
+  .nc-top-logo,
+  .nc-lang-flag,
+  .nc-profile-avatar {
+    flex: 0 0 auto !important;
+  }
+
+  .nc-drawer {
+    width: min(420px, calc(100vw - 56px)) !important;
+    padding: 24px 20px 112px !important;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(124,92,255,.16), transparent 34%),
+      rgba(9,9,14,.98) !important;
+  }
+
+  .nc-drawer-backdrop {
+    background: rgba(0,0,0,.48) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+
+  .nc-create-panel {
+    inset: 92px auto 32px 50% !important;
+    width: min(1120px, calc(100vw - 56px)) !important;
+    transform: translateX(-50%) !important;
+    padding: 30px !important;
+    border: 1px solid rgba(255,255,255,.12) !important;
+    border-radius: 34px !important;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255,91,91,.13), transparent 34%),
+      radial-gradient(circle at 88% 0%, rgba(124,92,255,.13), transparent 32%),
+      #07070b !important;
+    box-shadow: 0 28px 110px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.07) !important;
+  }
+
+  .nc-create-head h2 {
+    font-size: 64px !important;
+  }
+
+  .nc-tool-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .nc-group-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: start !important;
+  }
+
+  .nc-bottom-nav {
+    width: min(720px, calc(100vw - 44px)) !important;
+    min-height: 72px !important;
+    bottom: 18px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    border-radius: 28px !important;
+    z-index: 1200 !important;
+  }
+
+  .nc-bottom-nav .nc-create-plus {
+    width: 66px !important;
+    height: 66px !important;
+    min-height: 66px !important;
+  }
+
+  .studio-topbar-v40 {
+    margin-top: 0 !important;
+  }
+}
+
+@media (min-width: 1180px) {
+  .nc-drawer-section button {
+    min-height: 44px !important;
+  }
+
+  .nc-create-panel {
+    padding: 34px !important;
+  }
 }
 
