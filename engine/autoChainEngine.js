@@ -170,7 +170,9 @@ export function buildAutoChainPartPrompt({
   const characterLock = storyboard?.character_lock || [];
   const start = frameNumber(partScenes[0], partIndex * partSize);
   const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
-  const rows = Math.ceil(partScenes.length / 2);
+  const cols = partScenes.length <= 2 ? partScenes.length : 2;
+  const rows = Math.ceil(partScenes.length / cols);
+  const aspect = storyboard?.aspect_ratio || "9:16";
   const isFirstPart = partIndex === 0;
 
   const refText = isFirstPart
@@ -210,9 +212,9 @@ ${refText}
 This PART must continue the same project, but each frame must follow its own scenario input.
 ${appearanceNote}
 FORMAT:
-2 columns × ${rows} rows — exactly ${partScenes.length} equal cells.
-Each cell format: 9:16 portrait.
-Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to 9:16.
+${cols} columns × ${rows} rows — exactly ${partScenes.length} equal cells.
+Each cell format: ${aspect}${aspect === "9:16" ? " portrait" : ""}.
+Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to ${aspect}.
 Use simple black separators between frames. Do NOT use parchment, beige paper, decorative background, or illustrated page layout.
 
 FRAME LABELS:
@@ -305,6 +307,7 @@ export function buildAutoChainJson({
   strictLevel = "hard", referenceMode = "previousPart", appearanceMode = "full", includeVo = true
 } = {}) {
   const scenes = storyboard?.scenes || [];
+  const characterLock = storyboard?.character_lock || [];
   const parts = splitScenesIntoParts(scenes, partSize);
   return {
     engine: "NeuroCine Auto-Chain Strict Engine",
@@ -327,7 +330,7 @@ export function buildAutoChainJson({
       frames: partScenes.map((s, localIdx) => ({
         id: s.id || frameLabel(s, i * partSize + localIdx),
         label: frameLabel(s, i * partSize + localIdx),
-        scenario_input: sceneText(s),
+        scenario_input: sceneText(s, { characterLock, appearanceMode }),
         vo_ru: s.vo_ru || "",
         sfx: s.sfx || "",
         image_prompt_en: s.image_prompt_en || "",
@@ -348,6 +351,7 @@ export function buildFlowCompactPartPrompt({
   const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
   const labels = partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i)).join(", ");
   const isFirstPart = partIndex === 0;
+  const aspect = storyboard?.aspect_ratio || "9:16";
 
   const refLine = isFirstPart
     ? "Use Hero Anchor only if uploaded for recurring identity. No Previous PART exists yet."
@@ -372,12 +376,30 @@ export function buildFlowCompactPartPrompt({
 
   const cols = partScenes.length <= 2 ? partScenes.length : 2;
   const rows = Math.ceil(partScenes.length / cols);
+  const styleLock = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
+  const chainLine = chainMode === "worldOnly"
+    ? "WORLD ONLY — lock the same world, period, lighting family and realism; characters may change only when the scenario changes."
+    : "WORLD + HERO — lock the world and keep recurring hero identity stable whenever the scenario includes that hero.";
+  const strictLine = strictLevel === "maximum"
+    ? "MAXIMUM — literal scenario execution only. No decorative narrative expansion."
+    : strictLevel === "soft"
+      ? "SOFT — cinematic polish is allowed, but never contradict the scenario."
+      : "HARD — strict to the scenario; cinematic framing is allowed without adding plot content.";
 
   return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
-Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell is vertical 9:16 portrait. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.
+Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.
 
 STYLE LOCK:
-dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, cold overcast light, realistic skin and fabric, dirty hands, smoke, mud, damp stone, shallow depth of field, subtle 35mm film grain. Not illustration, not painting, not concept art, not parchment, not fantasy art.
+${styleLock || "dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, cold overcast light, realistic skin and fabric, dirty hands, smoke, mud, damp stone, shallow depth of field, subtle 35mm film grain."}
+
+MANDATORY VISUAL TYPE:
+camera-photographed live-action film stills, natural imperfections, realistic skin and fabric, physical documentary realism. Not illustration, not painting, not concept art, not parchment, not fantasy art.
+
+CHAIN MODE:
+${chainLine}
+
+STRICTNESS:
+${strictLine}
 
 CONTINUITY:
 ${refLine}
