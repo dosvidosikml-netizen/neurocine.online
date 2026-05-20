@@ -1,0 +1,32 @@
+name: Restore storyboard page from last live deploy
+
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-storyboard-page-from-live.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore storyboard page from last live commit
+        run: |
+          set -e
+          git show 59a5f3d793617072e8ac842e1c4727df81089cc0:app/storyboard/page.js > app/storyboard/page.js
+          test "$(cat app/storyboard/page.js | tr -d '[:space:]')" != "PLACEHOLDER"
+          rm -f .github/workflows/restore-storyboard-page-from-live.yml
+          rm -f .github/workflows/restore-storyboard-page-from-cloud.yml
+          rm -f .github/workflows/restore-storyboard-page-safe.yml
+          rm -f .github/workflows/restore-storyboard-page.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/storyboard/page.js .github/workflows/restore-storyboard-page-from-live.yml .github/workflows/restore-storyboard-page-from-cloud.yml .github/workflows/restore-storyboard-page-safe.yml .github/workflows/restore-storyboard-page.yml
+          git commit -m "fix(storyboard): restore page from last live deploy"
+          git push
