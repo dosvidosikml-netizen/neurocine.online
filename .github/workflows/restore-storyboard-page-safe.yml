@@ -1,0 +1,33 @@
+name: Restore storyboard page safe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-storyboard-page-safe.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
+      - name: Restore file from previous revision
+        run: |
+          git show HEAD~1:app/storyboard/page.js > app/storyboard/page.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/storyboard/page.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('''                    ) : (\n                      {anchorAnalyzing === "Анализирую лицо..." && <div style={{ fontSize: "0.78em", color: "#a78bfa", padding: "4px 0" }}>⚡ {anchorAnalyzing}</div>}\n                      <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); analyzeAnchor(url, "hero_face").then((desc) => { if (desc) setCharFaceLock((prev) => prev.trim() ? prev : desc); }); }} />\n                    )}''', '''                    ) : (\n                      <>\n                        {anchorAnalyzing === "Анализирую лицо..." && <div style={{ fontSize: "0.78em", color: "#a78bfa", padding: "4px 0" }}>⚡ {anchorAnalyzing}</div>}\n                        <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); analyzeAnchor(url, "hero_face").then((desc) => { if (desc) setCharFaceLock((prev) => prev.trim() ? prev : desc); }); }} />\n                      </>\n                    )}''')
+          p.write_text(s, encoding='utf-8')
+          Path('.github/workflows/restore-storyboard-page-safe.yml').unlink()
+          PY
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add app/storyboard/page.js .github/workflows/restore-storyboard-page-safe.yml
+          git commit -m "fix(storyboard): restore page and fix anchor JSX"
+          git push
