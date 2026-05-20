@@ -38,6 +38,9 @@ function scopedDraftKey(base, ownerId) {
 
 /* ─── grid cols helper ─── */
 function gridCols(n) { return n <= 8 ? 2 : 3; }
+function partGridCols(n) { const count = Math.max(1, Number(n) || 1); return count <= 2 ? count : 2; }
+function gridRows(n, cols = gridCols(n)) { return Math.max(1, Math.ceil(Math.max(1, Number(n) || 1) / Math.max(1, cols))); }
+function partCellLabel(i) { return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i] || String(i + 1); }
 
 /* ─── Flow/VEO TXT export ─── */
 function buildFlowTxt(storyboard, styleProfile) {
@@ -717,7 +720,18 @@ export default function StudioPage() {
 ${lines.join("\n")}` : "";
   })() : "";
 
-  const autoAllPrompts = useMemo(() => buildAutoChainAllParts({ storyboard, styleProfile, partSize: autoPartSize, chainMode: autoChainMode, strictLevel: autoStrictLevel, referenceMode: autoReferenceMode, appearanceMode: autoAppearanceMode }), [storyboard, styleProfile, autoPartSize, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode]);
+  const autoPartCols = partGridCols(autoPartScenes.length || autoPartSize);
+  const autoPartRows = gridRows(autoPartScenes.length || autoPartSize, autoPartCols);
+  const autoPartGridLabel = `${autoPartCols}×${autoPartRows}`;
+  const autoPartCellLabels = autoPartScenes.map((_, i) => partCellLabel(i));
+
+  const autoAllPrompts = useMemo(() => {
+    return buildAutoChainAllParts({
+      storyboard, styleProfile, partSize: autoPartSize,
+      chainMode: autoChainMode, strictLevel: autoStrictLevel,
+      referenceMode: autoReferenceMode, appearanceMode: autoAppearanceMode
+    }).map((prompt) => `${prompt}${charOverrideBlock}`);
+  }, [storyboard, styleProfile, autoPartSize, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, charOverrideBlock]);
 
   const chunkGridPrompt = useMemo(() => {
     if (!activeChunkScenes.length) return "";
@@ -759,6 +773,24 @@ ${lines.join("\n")}` : "";
       appearanceMode: autoAppearanceMode,
     });
   }, [storyboard, styleProfile, autoPartScenes, autoPartIndex, scenes.length, autoPartSize, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode]);
+
+  const autoAnchorPromptNote = useMemo(() => {
+    if (!storyboard || !autoPartScenes.length) return "";
+    const usesHero = autoReferenceMode !== "previousPart";
+    const usesPrev = autoPartIndex > 0 && autoReferenceMode !== "heroOnly";
+    const lines = [
+      "ANCHOR ATTACHMENT STATUS:",
+      `Hero Anchor: ${usesHero ? (autoHeroAnchor ? "uploaded in NeuroCine — attach this same image to the generator request" : "selected by Reference mode, but not uploaded yet") : "not used by current Reference mode"}.`,
+      `Previous PART: ${usesPrev ? (autoPrevPartAnchor ? "uploaded in NeuroCine — attach this same image to the generator request" : "needed for PART 2+ continuity, but not uploaded yet") : autoPartIndex === 0 ? "not needed for PART 1" : "not used by current Reference mode"}.`,
+      "If an anchor is marked uploaded here, the prompt expects you to attach that image manually in Flow / VEO / image generator."
+    ];
+    return `\n\n${lines.join("\n")}`;
+  }, [storyboard, autoPartScenes.length, autoReferenceMode, autoPartIndex, autoHeroAnchor, autoPrevPartAnchor]);
+
+  const frameGridPromptWithDirectives = useMemo(() => {
+    if (!frameGridPrompt) return "";
+    return `${frameGridPrompt}${charOverrideBlock}${autoAnchorPromptNote}`;
+  }, [frameGridPrompt, charOverrideBlock, autoAnchorPromptNote]);
 
   const scriptJson = script
     ? JSON.stringify({ project_name: projectName, script, topic, duration, aspect_ratio: aspectRatio, style: stylePreset, project_type: projectType, tone }, null, 2)
@@ -1261,6 +1293,25 @@ ${lines.join("\n")}` : "";
     selectFrame(((frameIdx ?? -1) + 1) % scenes.length);
   }
 
+  function clearAutoChainOutputs({ clearGrid = false, clearVideo = false } = {}) {
+    setAutoPartPrompt("");
+    setAutoVideoPack("");
+    setAutoAllPromptText("");
+    if (clearVideo) {
+      setVideoP("");
+      setAnalysis(null);
+    }
+    if (clearGrid) {
+      setGridImg(null);
+      setFrameIdx(null);
+      setCroppedFrame(null);
+      setFinalImg(null);
+      setVideoP("");
+      setAnalysis(null);
+      setShowFrameRu(false);
+    }
+  }
+
   function generateAutoChainPart() {
     if (!storyboard || !autoPartScenes.length) return;
     const prompt = buildAutoChainPartPrompt({
@@ -1288,7 +1339,7 @@ ${lines.join("\n")}` : "";
       ? `\n\n━━━ ИНСТРУКЦИЯ ПО ЗАГРУЗКЕ ЯКОРЕЙ ━━━\nДля этого PART нужно прикрепить изображения к запросу в генераторе:\n${anchorLines.join("\n")}\n\nСайт сформировал промт — якоря нужно загрузить в Flow/Midjourney/DALL-E вручную.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
       : "";
 
-    const video = buildAutoVideoPack({ storyboard, styleProfile, partScenes: autoPartScenes, chainMode: autoChainMode });
+    const video = buildAutoVideoPack({ storyboard, styleProfile, partScenes: autoPartScenes, chainMode: autoChainMode, includeVo: autoIncludeVo });
     setAutoPartPrompt(prompt + charOverrideBlock + anchorNote);
     setAutoVideoPack(video);
   }
@@ -1315,6 +1366,14 @@ ${lines.join("\n")}` : "";
 
   function exportAutoChainJson() {
     const obj = buildAutoChainJson({ storyboard, styleProfile, partSize: autoPartSize, chainMode: autoChainMode, strictLevel: autoStrictLevel, referenceMode: autoReferenceMode, appearanceMode: autoAppearanceMode, includeVo: autoIncludeVo });
+    if (charOverrideBlock) {
+      obj.character_override = {
+        enabled: charOverrideEnabled,
+        face_lock: charFaceLock,
+        modifiers: Object.entries(charModifiers).filter(([, v]) => v).map(([k]) => k),
+      };
+      obj.parts = (obj.parts || []).map((part) => ({ ...part, image_prompt: `${part.image_prompt}${charOverrideBlock}` }));
+    }
     downloadTextFile(JSON.stringify(obj, null, 2), safeFileName(projectName) + "-auto-chain-v2.json", "application/json;charset=utf-8");
   }
 
@@ -1558,7 +1617,7 @@ ${lines.join("\n")}` : "";
           topic={topic}
           script={script}
           storyboard={storyboard}
-          frameGridPrompt={frameGridPrompt}
+          frameGridPrompt={frameGridPromptWithDirectives}
           videoPrompt={videoP}
           productionReady={Boolean(script.trim() || storyboard)}
           access={accountAccess}
@@ -1855,7 +1914,7 @@ ${lines.join("\n")}` : "";
             <div className="brow" style={{ marginBottom: 10 }}>
               <button
                 className={"btn btn-sm" + (charOverrideEnabled ? " btn-red" : "")}
-                onClick={() => setCharOverrideEnabled(v => !v)}
+                onClick={() => { setCharOverrideEnabled(v => !v); clearAutoChainOutputs({ clearGrid: true }); }}
               >
                 {charOverrideEnabled ? "✓ Включён" : "Включить"}
               </button>
@@ -1873,7 +1932,7 @@ ${lines.join("\n")}` : "";
                   <label className="field-label">Описание лица (из reference card)</label>
                   <textarea className="inp" rows={2} style={{ minHeight: 60 }}
                     value={charFaceLock}
-                    onChange={e => setCharFaceLock(e.target.value)}
+                    onChange={e => { setCharFaceLock(e.target.value); clearAutoChainOutputs({ clearGrid: true }); }}
                     placeholder="round face shape, brown eyes, light olive skin, buzz cut dark hair, calm expression, slight under-eye shadows, Eastern European features"
                   />
                   <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
@@ -1891,7 +1950,7 @@ ${lines.join("\n")}` : "";
                       {suggestedMods.map(mod => (
                         <button key={mod.key}
                           className={"btn btn-xs" + (charModifiers[mod.key] ? " btn-red" : "")}
-                          onClick={() => setCharModifiers(prev => ({ ...prev, [mod.key]: !prev[mod.key] }))}
+                          onClick={() => { setCharModifiers(prev => ({ ...prev, [mod.key]: !prev[mod.key] })); clearAutoChainOutputs({ clearGrid: true }); }}
                           title={mod.reason}
                         >
                           {charModifiers[mod.key] ? "✓ " : ""}{mod.label}
@@ -1920,7 +1979,7 @@ ${lines.join("\n")}` : "";
                     ].map(mod => (
                       <button key={mod.key}
                         className={"btn btn-xs" + (charModifiers[mod.key] ? " btn-red" : "")}
-                        onClick={() => setCharModifiers(prev => ({ ...prev, [mod.key]: !prev[mod.key] }))}
+                        onClick={() => { setCharModifiers(prev => ({ ...prev, [mod.key]: !prev[mod.key] })); clearAutoChainOutputs({ clearGrid: true }); }}
                       >
                         {charModifiers[mod.key] ? "✓ " : ""}{mod.label}
                       </button>
@@ -1959,20 +2018,20 @@ ${lines.join("\n")}` : "";
                     {autoHeroAnchor ? (
                       <>
                         <div className="img-viewer"><img src={autoHeroAnchor} alt="Hero anchor" /></div>
-                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoHeroAnchor(null); setAutoPartPrompt(""); setAutoAllPromptText(""); }}>Заменить hero anchor</button>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoHeroAnchor(null); clearAutoChainOutputs({ clearGrid: true }); }}>Заменить hero anchor</button>
                       </>
                     ) : (
-                      <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); }} />
+                      <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); clearAutoChainOutputs({ clearGrid: true }); }} />
                     )}
                   </div>
                   <div className="col">
                     {autoPrevPartAnchor ? (
                       <>
                         <div className="img-viewer"><img src={autoPrevPartAnchor} alt="Previous PART" /></div>
-                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoPrevPartAnchor(null); setAutoPartPrompt(""); setAutoAllPromptText(""); }}>Заменить previous PART</button>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoPrevPartAnchor(null); clearAutoChainOutputs({ clearGrid: true }); }}>Заменить previous PART</button>
                       </>
                     ) : (
-                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => { setAutoPrevPartAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); }} />
+                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => { setAutoPrevPartAnchor(url); clearAutoChainOutputs({ clearGrid: true }); }} />
                     )}
                   </div>
                 </div>
@@ -1986,14 +2045,14 @@ ${lines.join("\n")}` : "";
                 <div className="frow frow2">
                   <div className="field">
                     <label className="field-label">Логика</label>
-                    <select className="inp" value={autoChainMode} onChange={e => { setAutoChainMode(e.target.value); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}>
+                    <select className="inp" value={autoChainMode} onChange={e => { setAutoChainMode(e.target.value); clearAutoChainOutputs({ clearGrid: true }); }}>
                       <option value="worldHero">World + Hero — мир + главный герой</option>
                       <option value="worldOnly">World Only — разные персонажи, один мир</option>
                     </select>
                   </div>
                   <div className="field">
                     <label className="field-label">Строгость</label>
-                    <select className="inp" value={autoStrictLevel} onChange={e => { setAutoStrictLevel(e.target.value); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}>
+                    <select className="inp" value={autoStrictLevel} onChange={e => { setAutoStrictLevel(e.target.value); clearAutoChainOutputs({ clearGrid: true }); }}>
                       <option value="hard">Hard — строго по сценарию</option>
                       <option value="maximum">Maximum — буквально, без украшений</option>
                       <option value="soft">Soft — чуть больше кинематографа</option>
@@ -2003,7 +2062,7 @@ ${lines.join("\n")}` : "";
                 <div className="frow frow2">
                   <div className="field">
                     <label className="field-label">Reference mode</label>
-                    <select className="inp" value={autoReferenceMode} onChange={e => { setAutoReferenceMode(e.target.value); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}>
+                    <select className="inp" value={autoReferenceMode} onChange={e => { setAutoReferenceMode(e.target.value); clearAutoChainOutputs({ clearGrid: true }); }}>
                       <option value="heroAndPrevious">Hero anchor + previous PART</option>
                       <option value="previousPart">Previous PART only</option>
                       <option value="heroOnly">Hero anchor only</option>
@@ -2011,7 +2070,7 @@ ${lines.join("\n")}` : "";
                   </div>
                   <div className="field">
                     <label className="field-label">Кадров в PART</label>
-                    <select className="inp" value={autoPartSize} onChange={e => { setAutoPartSize(Number(e.target.value)); setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}>
+                    <select className="inp" value={autoPartSize} onChange={e => { setAutoPartSize(Number(e.target.value)); setAutoPartIndex(0); clearAutoChainOutputs({ clearGrid: true }); }}>
                       <option value={4}>4 кадра · 2×2</option>
                       <option value={6}>6 кадров · 2×3</option>
                       <option value={8}>8 кадров · 2×4</option>
@@ -2023,13 +2082,13 @@ ${lines.join("\n")}` : "";
                   <div className="brow">
                     <button
                       className={"btn btn-sm" + (autoAppearanceMode === "full" ? " btn-red" : "")}
-                      onClick={() => { setAutoAppearanceMode("full"); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}
+                      onClick={() => { setAutoAppearanceMode("full"); clearAutoChainOutputs({ clearGrid: true }); }}
                     >
                       🧬 Полная
                     </button>
                     <button
                       className={"btn btn-sm" + (autoAppearanceMode === "minimal" ? " btn-red" : "")}
-                      onClick={() => { setAutoAppearanceMode("minimal"); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}
+                      onClick={() => { setAutoAppearanceMode("minimal"); clearAutoChainOutputs({ clearGrid: true }); }}
                     >
                       🖼 Только действие
                     </button>
@@ -2045,13 +2104,13 @@ ${lines.join("\n")}` : "";
                   <div className="brow">
                     <button
                       className={"btn btn-sm" + (autoIncludeVo ? " btn-red" : "")}
-                      onClick={() => { setAutoIncludeVo(true); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}
+                      onClick={() => { setAutoIncludeVo(true); clearAutoChainOutputs({ clearVideo: true }); }}
                     >
                       ✓ Включить
                     </button>
                     <button
                       className={"btn btn-sm" + (!autoIncludeVo ? " btn-red" : "")}
-                      onClick={() => { setAutoIncludeVo(false); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText(""); }}
+                      onClick={() => { setAutoIncludeVo(false); clearAutoChainOutputs({ clearVideo: true }); }}
                     >
                       ✕ Убрать
                     </button>
@@ -2102,7 +2161,7 @@ ${lines.join("\n")}` : "";
                   {storyboard ? (
                     <>
                       <div style={{ color: "#22c55e", fontWeight: 900, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
-                      Дальше не запускай второй генератор: переходи в блок 03 — там FRAME GRID PROMPT, PART-сетка 2×2, A/B/C/D, кроп и video prompt.
+                      Дальше не запускай второй генератор: переходи в блок 03 — там FRAME GRID PROMPT, PART-сетка {autoPartGridLabel}, {autoPartCellLabels.join("/") || "выбор кадра"}, кроп и video prompt.
                     </>
                   ) : (
                     <>После нажатия верхней кнопки V2 здесь появится статус. Все PART-prompts перенесены в блок 03 как FRAME GRID PROMPT · FLOW COMPACT.</>
@@ -2231,7 +2290,7 @@ ${lines.join("\n")}` : "";
                   {storyboard ? (
                     <>
                       <div style={{ color: "#22c55e", fontWeight: 900, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
-                      Дальше работа идёт в блоке 03: FRAME GRID PROMPT → PART-сетка 2×2 → A/B/C/D → video prompt из JSON.
+                      Дальше работа идёт в блоке 03: FRAME GRID PROMPT → PART-сетка {autoPartGridLabel} → {autoPartCellLabels.join("/") || "кадр"} → video prompt из JSON.
                     </>
                   ) : (
                     <>Сначала создай storyboard JSON верхней кнопкой V2. После этого сразу переходи к блоку 03.</>
@@ -2251,7 +2310,7 @@ ${lines.join("\n")}` : "";
           <div className="step-num">03</div>
           <div className="step-info">
             <div className="step-title">Production Pipeline</div>
-            <div className="step-desc">FRAME GRID PROMPT → PART-сетка 2×2 → A/B/C/D → кроп → 2K → VIDEO PROMPT</div>
+            <div className="step-desc">FRAME GRID PROMPT → PART-сетка {autoPartGridLabel} → {autoPartCellLabels.join("/") || "кадр"} → кроп → 2K → VIDEO PROMPT</div>
           </div>
           {curFrame && <span className="step-badge">{curFrame.id}</span>}
         </div>
@@ -2259,7 +2318,7 @@ ${lines.join("\n")}` : "";
         <div className="step-body">
           {!scenes.length ? (
             <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--muted)", fontSize: 14 }}>
-              Сначала создай storyboard JSON в шаге 02 — здесь появится FRAME GRID PROMPT и загрузка PART-сетки 2×2.
+              Сначала создай storyboard JSON в шаге 02 — здесь появится FRAME GRID PROMPT и загрузка PART-сетки.
             </div>
           ) : (
             <>
@@ -2269,7 +2328,7 @@ ${lines.join("\n")}` : "";
                   <div className="pipe-dot act">A</div>
                   <div>
                     <div className="pipe-title">FRAME GRID PROMPT · выбери PART</div>
-                    <div className="pipe-sub">Скопируй этот prompt в Flow / Nano Banana / VEO, получи PART-сетку 2×2 и загрузи её ниже.</div>
+                    <div className="pipe-sub">Скопируй этот prompt в Flow / Nano Banana / VEO, получи PART-сетку {autoPartGridLabel} и загрузи её ниже.</div>
                   </div>
                 </div>
                 <div className="pipe-body">
@@ -2314,13 +2373,13 @@ ${lines.join("\n")}` : "";
                       })}
                     </div>
                     <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
-                      Сейчас выбран PART {autoPartIndex + 1}. A/B/C/D будут соответствовать кадрам: <b>{autoPartScenes.map(s => s.id).join(" / ") || "—"}</b>.
+                      Сейчас выбран PART {autoPartIndex + 1}. {autoPartCellLabels.join("/") || "Кадры"} будут соответствовать кадрам: <b>{autoPartScenes.map(s => s.id).join(" / ") || "—"}</b>.
                     </div>
                   </div>
 
                   <OutBox
                     label={`FRAME GRID PROMPT · FLOW COMPACT · PART ${autoPartIndex + 1}`}
-                    text={frameGridPrompt}
+                    text={frameGridPromptWithDirectives}
                     empty="Сначала создай storyboard JSON"
                   />
                 </div>
@@ -2331,7 +2390,7 @@ ${lines.join("\n")}` : "";
                 <div className="pipe-head">
                   <div className={`pipe-dot${gridImg ? " done" : " act"}`}>B</div>
                   <div>
-                    <div className="pipe-title">Загрузи PART-сетку 2×2 · выбери A/B/C/D</div>
+                    <div className="pipe-title">Загрузи PART-сетку {autoPartGridLabel} · выбери {autoPartCellLabels.join("/") || "кадр"}</div>
                     <div className="pipe-sub">Нажми прямо на кадр в сетке. Красная рамка покажет выбранную ячейку.</div>
                   </div>
                 </div>
@@ -2348,10 +2407,10 @@ ${lines.join("\n")}` : "";
                           marginBottom: 12
                         }}
                       >
-                        <img src={gridImg} alt="PART grid 2x2" style={{ width: "100%", display: "block", pointerEvents: "none" }} />
-                        <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr" }}>
+                        <img src={gridImg} alt={`PART grid ${autoPartGridLabel}`} style={{ width: "100%", display: "block", pointerEvents: "none" }} />
+                        <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${autoPartCols}, 1fr)`, gridTemplateRows: `repeat(${autoPartRows}, 1fr)` }}>
                           {autoPartScenes.map((s, localIdx) => {
-                            const label = ["A", "B", "C", "D"][localIdx] || String(localIdx + 1);
+                            const label = partCellLabel(localIdx);
                             const globalIdx = autoPartIndex * autoPartSize + localIdx;
                             const selected = frameIdx === globalIdx;
                             return (
@@ -2364,7 +2423,7 @@ ${lines.join("\n")}` : "";
                                   setVideoP("");
                                   setAnalysis(null);
                                   setFinalImg(null);
-                                  cropGridFrame(gridImg, localIdx, autoPartScenes.length, 2)
+                                  cropGridFrame(gridImg, localIdx, autoPartScenes.length, autoPartCols)
                                     .then(url => setCroppedFrame(url))
                                     .catch(() => setCroppedFrame(null));
                                 }}
@@ -2411,7 +2470,7 @@ ${lines.join("\n")}` : "";
 
                       <div className="brow" style={{ marginBottom: 12 }}>
                         {autoPartScenes.map((s, localIdx) => {
-                          const label = ["A", "B", "C", "D"][localIdx] || String(localIdx + 1);
+                          const label = partCellLabel(localIdx);
                           const globalIdx = autoPartIndex * autoPartSize + localIdx;
                           const selected = frameIdx === globalIdx;
                           return (
@@ -2425,7 +2484,7 @@ ${lines.join("\n")}` : "";
                                 setVideoP("");
                                 setAnalysis(null);
                                 setFinalImg(null);
-                                cropGridFrame(gridImg, localIdx, autoPartScenes.length, 2)
+                                cropGridFrame(gridImg, localIdx, autoPartScenes.length, autoPartCols)
                                   .then(url => setCroppedFrame(url))
                                   .catch(() => setCroppedFrame(null));
                               }}
@@ -2454,7 +2513,7 @@ ${lines.join("\n")}` : "";
                     </>
                   ) : (
                     <UploadZone
-                      label="Загрузи PART-сетку 2×2"
+                      label={`Загрузи PART-сетку ${autoPartGridLabel}`}
                       hint={`Текущий PART: ${autoPartScenes[0]?.id || "frame_01"}–${autoPartScenes[autoPartScenes.length - 1]?.id || "frame_04"}`}
                       onFile={(url) => {
                         setGridImg(url);
@@ -2482,7 +2541,7 @@ ${lines.join("\n")}` : "";
                 <div className="pipe-body">
                   {!curFrame ? (
                     <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 24 }}>
-                      Выбери A/B/C/D на PART-сетке выше — здесь появится окно FRAME с image prompt.
+                      Выбери {autoPartCellLabels.join("/") || "кадр"} на PART-сетке выше — здесь появится окно FRAME с image prompt.
                     </div>
                   ) : (
                     <div className="two-col">
@@ -2538,7 +2597,7 @@ ${lines.join("\n")}` : "";
                           </>
                         ) : (
                           <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 24 }}>
-                            Кроп появится после выбора A/B/C/D.
+                            Кроп появится после выбора {autoPartCellLabels.join("/") || "кадра"}.
                           </div>
                         )}
                       </div>
@@ -2559,7 +2618,7 @@ ${lines.join("\n")}` : "";
                 <div className="pipe-body">
                   {!curFrame ? (
                     <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 24 }}>
-                      Сначала выбери кадр A/B/C/D.
+                      Сначала выбери кадр {autoPartCellLabels.join("/") || "из PART-сетки"}.
                     </div>
                   ) : (
                     <div className="two-col">
