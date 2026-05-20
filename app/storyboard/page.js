@@ -675,6 +675,8 @@ export default function StudioPage() {
     return s;
   })();
   const [autoPrevPartAnchor, setAutoPrevPartAnchor] = useState(null);
+  const [prevPartStyleNotes, setPrevPartStyleNotes] = useState("");
+  const [anchorAnalyzing, setAnchorAnalyzing] = useState("");
   const [autoPartPrompt, setAutoPartPrompt] = useState("");
   const [autoVideoPack, setAutoVideoPack] = useState("");
   const [autoAllPromptText, setAutoAllPromptText] = useState("");
@@ -893,6 +895,19 @@ ${lines.join("\n")}` : "";
         .catch(() => {});
     }
   }, [gridColsOverride]);
+  async function analyzeAnchor(imageUrl, task) {
+    try {
+      setAnchorAnalyzing(task === "hero_face" ? "Анализирую лицо..." : "Анализирую стиль...");
+      const r = await fetch("/api/analyze-anchor", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ image: imageUrl, task }),
+      });
+      const data = await r.json();
+      return data?.ok ? data.description : null;
+    } catch { return null; } finally { setAnchorAnalyzing(""); }
+  }
+
   function resetStoryboardOutputs({ keepAnchors = true } = {}) {
     setSB(null); setValidation(null); setSbStat(""); setFrameIdx(null);
     setGridImg(null); setGridColsOverride(null); setGridManualFrames(null); setCroppedFrame(null);
@@ -1284,6 +1299,7 @@ ${lines.join("\n")}` : "";
       anchorLines.push("📎 ПРИКРЕПИ К ЗАПРОСУ: Previous PART (последняя сгенерированная сетка) — загружен в поле выше");
     }
 
+    if (prevPartStyleNotes) anchorLines.push("CONTINUITY STYLE NOTES (from previous grid AI analysis): " + prevPartStyleNotes);
     const anchorNote = anchorLines.length
       ? `\n\n━━━ ИНСТРУКЦИЯ ПО ЗАГРУЗКЕ ЯКОРЕЙ ━━━\nДля этого PART нужно прикрепить изображения к запросу в генераторе:\n${anchorLines.join("\n")}\n\nСайт сформировал промт — якоря нужно загрузить в Flow/Midjourney/DALL-E вручную.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
       : "";
@@ -1962,7 +1978,8 @@ ${lines.join("\n")}` : "";
                         <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoHeroAnchor(null); setAutoPartPrompt(""); setAutoAllPromptText(""); }}>Заменить hero anchor</button>
                       </>
                     ) : (
-                      <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); }} />
+                      {anchorAnalyzing === "Анализирую лицо..." && <div style={{ fontSize: "0.78em", color: "#a78bfa", padding: "4px 0" }}>⚡ {anchorAnalyzing}</div>}
+                      <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); analyzeAnchor(url, "hero_face").then((desc) => { if (desc) setCharFaceLock((prev) => prev.trim() ? prev : desc); }); }} />
                     )}
                   </div>
                   <div className="col">
@@ -1972,7 +1989,7 @@ ${lines.join("\n")}` : "";
                         <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoPrevPartAnchor(null); setAutoPartPrompt(""); setAutoAllPromptText(""); }}>Заменить previous PART</button>
                       </>
                     ) : (
-                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => { setAutoPrevPartAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); }} />
+                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => { setAutoPrevPartAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); analyzeAnchor(url, "grid_style").then((desc) => { if (desc) setPrevPartStyleNotes(desc); }); }} />
                     )}
                   </div>
                 </div>
