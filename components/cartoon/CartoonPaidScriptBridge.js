@@ -93,6 +93,33 @@ function readDuration() {
   return Number.isFinite(n) ? n : 60;
 }
 
+function readTimingPlan() {
+  const live = window.neurocineCartoonTiming || {};
+  const duration = Math.max(15, Math.min(600, Number(live.duration || live.duration_sec || readDuration()) || 60));
+  const frameSeconds = Math.max(2, Math.min(4, Number(live.frameSeconds || live.frame_duration_sec || 3) || 3));
+  const body = document.body?.innerText || "";
+  const sceneBadge = body.match(/STORYBOARD\s+(\d+)\s+сцен/i);
+  const scenes = Math.max(1, Number(live.scenes || live.target_scene_count || sceneBadge?.[1]) || Math.round(duration / frameSeconds));
+  return { duration, frameSeconds, scenes };
+}
+
+function splitScriptScenes(text = "") {
+  return String(text || "")
+    .split(/(?<=[.!?…])\s+|\n+/)
+    .map((line) => line.replace(/^\s*(?:[-*•]\s*|\d{1,3}[).:-]\s*)/, "").trim())
+    .filter((line) => line.length > 3);
+}
+
+function trimScriptToSceneCount(text = "", maxScenes = 1) {
+  const target = Math.max(1, Number(maxScenes) || 1);
+  if (typeof window.neurocineCartoonTrimToSceneCount === "function") {
+    return window.neurocineCartoonTrimToSceneCount(text, target);
+  }
+  const scenes = splitScriptScenes(text);
+  if (scenes.length <= target) return String(text || "").trim();
+  return scenes.slice(0, target).join(" ");
+}
+
 function readSelectedText(options) {
   const body = document.body?.innerText || "";
   for (const item of options) {
@@ -103,7 +130,7 @@ function readSelectedText(options) {
 
 function buildPayload() {
   const title = readTitle();
-  const duration = readDuration();
+  const timing = readTimingPlan();
   const language = readProjectLanguage();
   const style = readSelectedText([
     { id: "pixar3d", label: "3D Pixar" },
@@ -132,9 +159,16 @@ function buildPayload() {
       topic: title,
       exact_user_topic: title,
       language,
-      duration_sec: duration,
+      duration_sec: timing.duration,
+      frame_duration_sec: timing.frameSeconds,
+      target_scene_count: timing.scenes,
       format: "shorts",
       aspect_ratio: "9:16",
+    },
+    timing: {
+      duration_sec: timing.duration,
+      frame_duration_sec: timing.frameSeconds,
+      target_scene_count: timing.scenes,
     },
     style: {
       preset: style || "pixar3d",
@@ -236,6 +270,7 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
 
       busy = true;
       setButtonBusy(btn, true);
+      try { window.neurocineCartoonPauseAutosaveRestore?.(); } catch {}
       mountToast(`Платный API пишет: ${payload.concept.title.slice(0, 58)}`);
 
       try {
@@ -257,8 +292,11 @@ export default function CartoonPaidScriptBridge({ liveAllowed = false, authToken
           return;
         }
 
-        setNativeValue(area, text);
-        mountToast(`AI сценарий готов · ${data.model_used || "OpenRouter"}`);
+        const targetScenes = Number(data?.target_scene_count || payload.timing?.target_scene_count || payload.concept.target_scene_count || 1);
+        const finalText = trimScriptToSceneCount(text, targetScenes);
+        setNativeValue(area, finalText);
+        window.setTimeout(() => { try { window.neurocineSaveNow?.(); } catch {} }, 120);
+        mountToast(`AI сценарий готов · ${splitScriptScenes(finalText).length}/${targetScenes} сцен · ${data.model_used || "OpenRouter"}`);
       } catch (e) {
         mountToast(e.message || "Сетевая ошибка API", true);
       } finally {

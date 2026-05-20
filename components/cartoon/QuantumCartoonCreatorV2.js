@@ -222,7 +222,9 @@ Same cartoon style across ALL cells. Character identity stable. No new plot even
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 
 function trimToSceneCount(text, maxScenes) {
-  const s = String(text || "").split(/(?<=[.!?…])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 3);
+  const s = String(text || "").split(/(?<=[.!?…])\s+|\n+/)
+    .map((x) => x.replace(/^\s*(?:[-*•]\s*|\d{1,3}[).:-]\s*)/, "").trim())
+    .filter((x) => x.length > 3);
   if (s.length <= maxScenes || maxScenes < 1) return String(text || "");
   return s.slice(0, maxScenes).join(" ");
 }
@@ -230,7 +232,8 @@ function trimToSceneCount(text, maxScenes) {
 function split(text) {
   return String(text || "")
     .split(/(?<=[.!?…])\s+|\n+/)
-    .map((x) => x.trim()).filter((x) => x.length > 3).slice(0, 18);
+    .map((x) => x.replace(/^\s*(?:[-*•]\s*|\d{1,3}[).:-]\s*)/, "").trim())
+    .filter((x) => x.length > 3);
 }
 
 function act(i, n) {
@@ -658,6 +661,12 @@ export default function QuantumCartoonCreatorV2({ liveAllowed = false }) {
     return () => { document.body.classList.remove("route-cartoon"); stopField(); wave.destroy(); stopType(); };
   }, []);
   useEffect(() => { waveRefApi.current?.setDuration(s.duration); }, [s.duration]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timing = getTimingPlan(s.duration, s.frameSeconds);
+    window.neurocineCartoonTiming = timing;
+    window.neurocineCartoonTrimToSceneCount = (text, maxScenes = timing.scenes) => trimToSceneCount(text, maxScenes);
+  }, [s.duration, s.frameSeconds]);
 
   function go(step) { dispatch({ type:"step", step }); if (typeof window !== "undefined") window.scrollTo({ top:0, behavior:"smooth" }); }
   async function postJson(url, payload) {
@@ -1112,6 +1121,9 @@ function Step2({ s, dispatch }) {
 
 function StepScript({ s, dispatch, onAi, onDemo, genBusy = false, genStat = "" }) {
   const segments = split(s.script);
+  const timing = getTimingPlan(s.duration, s.frameSeconds);
+  const targetScenes = timing.scenes;
+  const sceneMismatch = !!s.script.trim() && segments.length !== targetScenes;
   return (
     <section className="step-panel on">
       <Head eyebrow="Сценарий · Шаг 03" a="Текст" b="диктора" body="Сначала создаём историю. NeuroCine сам найдёт героев и соберёт Face Lock." />
@@ -1147,7 +1159,13 @@ function StepScript({ s, dispatch, onAi, onDemo, genBusy = false, genStat = "" }
       </Field>
       <div className="meta-strip">
         <div className="q-meta">СЛОВА: <span>{s.script.trim() ? s.script.trim().split(/\s+/).length : 0}</span></div>
-        <div className="q-meta">СЦЕН: <span>{segments.length}</span></div>
+        <div className="q-meta">СЦЕН: <span style={{ color: sceneMismatch ? "#fbbf24" : undefined }}>{segments.length}/{targetScenes}</span></div>
+        {sceneMismatch && (
+          <button className="q-meta" style={{ cursor:"pointer", background:"none", border:"none", color:"#fbbf24", fontSize:"inherit" }}
+            onClick={() => dispatch({ type:"script", value: trimToSceneCount(s.script, targetScenes) })}>
+            ⇥ Подогнать
+          </button>
+        )}
         {s.script.trim() && (
           <button className="q-meta" style={{ cursor:"pointer", background:"none", border:"none", color:"#8b00ff", fontSize:"inherit" }}
             onClick={() => { const v = validateScript(s.script); dispatch({ type:"scriptValidation", value: v }); }}>
