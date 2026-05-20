@@ -15,8 +15,43 @@ import StoryboardStatusPatch from "../components/StoryboardStatusPatch";
 import StoryboardResetPatch from "../components/StoryboardResetPatch";
 
 export const metadata = {
-  title: "NeuroCine Director Studio",
-  description: "AI production pipeline"
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://neurocine.online"),
+  applicationName: "NeuroCine",
+  title: {
+    default: "NeuroCine Director Studio",
+    template: "%s | NeuroCine",
+  },
+  description: "AI production studio for scripts, storyboards, video prompts, and production packs.",
+  keywords: [
+    "AI video studio",
+    "AI storyboard generator",
+    "video prompt generator",
+    "NeuroCine",
+    "AI filmmaking",
+  ],
+  authors: [{ name: "NeuroCine" }],
+  creator: "NeuroCine",
+  publisher: "NeuroCine",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    url: "/",
+    siteName: "NeuroCine",
+    title: "NeuroCine Director Studio",
+    description: "AI production studio for scripts, storyboards, video prompts, and production packs.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NeuroCine Director Studio",
+    description: "AI production studio for scripts, storyboards, video prompts, and production packs.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({ children }) {

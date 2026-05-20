@@ -4,8 +4,16 @@ import "../../public/cartoon/quantum-fix.css";
 import "../../public/cartoon/quantum-clean-flow.css";
 
 export const metadata = {
-  title: "Quantum Cartoon Creator · NeuroCine",
-  description: "AI cartoon generator with quantum mind pipeline",
+  title: "Quantum Cartoon Creator",
+  description: "Generate cartoon scripts, storyboard beats, and production-ready animation prompts with NeuroCine.",
+  alternates: {
+    canonical: "/cartoon",
+  },
+  openGraph: {
+    title: "Quantum Cartoon Creator | NeuroCine",
+    description: "Generate cartoon scripts, storyboard beats, and production-ready animation prompts with NeuroCine.",
+    url: "/cartoon",
+  },
 };
 
 export const dynamic = "force-dynamic";

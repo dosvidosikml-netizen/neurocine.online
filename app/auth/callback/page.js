@@ -5,6 +5,10 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Вход — NeuroCine",
   description: "Завершение входа в NeuroCine",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function AuthCallbackPage({ searchParams }) {
