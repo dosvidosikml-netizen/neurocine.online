@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 
 const STORAGE_KEY = "neurocine.cartoon.autosave.dom.v1";
+const GENERATION_RESTORE_PAUSE_MS = 45000;
+const MUTATION_RESTORE_DEBOUNCE_MS = 90;
 
 function readSaved() {
   try {
@@ -28,6 +30,17 @@ function fieldKey(el, index) {
 function isScriptFieldKey(key = "") {
   const text = String(key || "").toLowerCase();
   return text.includes("сценар") || text.includes("диктор") || text.includes("script");
+}
+
+function pauseRestore(ms = GENERATION_RESTORE_PAUSE_MS) {
+  try {
+    const until = Date.now() + Math.max(500, Number(ms) || GENERATION_RESTORE_PAUSE_MS);
+    window.neurocineCartoonRestorePausedUntil = Math.max(Number(window.neurocineCartoonRestorePausedUntil || 0), until);
+  } catch {}
+}
+
+function isRestorePaused() {
+  return Number(window.neurocineCartoonRestorePausedUntil || 0) > Date.now();
 }
 
 function setNativeValue(el, value) {
@@ -70,18 +83,27 @@ function collectFields() {
 }
 
 function restoreFields(saved) {
-  if (!saved?.fields) return;
+  if (!saved?.fields || isRestorePaused()) return;
   const scriptClearUntil = Number(window.neurocineCartoonScriptClearedUntil || 0);
   const els = Array.from(document.querySelectorAll("body.route-cartoon .qcc-root input.q-inp, body.route-cartoon .qcc-root textarea.q-inp"));
   els.forEach((el, index) => {
     const key = fieldKey(el, index);
-    if (scriptClearUntil > Date.now() && isScriptFieldKey(key)) return;
-    if (Object.prototype.hasOwnProperty.call(saved.fields, key) && el.value !== saved.fields[key]) {
-      // Never overwrite a non-empty field with an empty saved value —
-      // this was wiping AI-generated scripts on every DOM mutation.
-      if (!String(saved.fields[key] || "").trim() && String(el.value || "").trim()) return;
-      setNativeValue(el, saved.fields[key]);
-    }
+    const isScript = isScriptFieldKey(key);
+    if (scriptClearUntil > Date.now() && isScript) return;
+    if (!Object.prototype.hasOwnProperty.call(saved.fields, key)) return;
+
+    const savedValue = String(saved.fields[key] || "");
+    const currentValue = String(el.value || "");
+    if (currentValue === savedValue) return;
+
+    // The script textarea is React-controlled. If it already contains fresh text,
+    // never replace it with an older non-empty autosave snapshot from MutationObserver.
+    if (isScript && currentValue.trim() && savedValue.trim()) return;
+
+    // Never overwrite a non-empty field with an empty saved value.
+    if (!savedValue.trim() && currentValue.trim()) return;
+
+    setNativeValue(el, savedValue);
   });
 }
 
@@ -120,6 +142,13 @@ function isClearScriptButton(target) {
   return text.includes("очистить текст сценар") || text.includes("clear script");
 }
 
+function isGenerateScriptButton(target) {
+  const btn = target?.closest?.("button");
+  if (!btn) return false;
+  const text = String(btn.textContent || "").toLowerCase();
+  return text.includes("сгенерировать сценар") || text.includes("generate script") || text.includes("ai думает");
+}
+
 function mountToast(text) {
   let el = document.querySelector(".nc-cartoon-autosave-toast");
   if (!el) {
@@ -152,6 +181,7 @@ export default function CartoonAutosaveBridge() {
 
     const saved = readSaved();
     let restored = false;
+    let mutationRestoreTimer = null;
 
     function restoreCycle() {
       const fresh = readSaved();
@@ -181,6 +211,7 @@ export default function CartoonAutosaveBridge() {
         }, 0);
         return;
       }
+      if (isGenerateScriptButton(event.target)) pauseRestore();
       window.setTimeout(saveNow, 80);
     };
     const onBeforeUnload = () => saveNow();
@@ -189,11 +220,15 @@ export default function CartoonAutosaveBridge() {
     document.addEventListener("click", onClick, true);
     window.addEventListener("beforeunload", onBeforeUnload);
 
-    const observer = new MutationObserver(() => restoreCycle());
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(mutationRestoreTimer);
+      mutationRestoreTimer = window.setTimeout(restoreCycle, MUTATION_RESTORE_DEBOUNCE_MS);
+    });
     observer.observe(document.body, { childList: true, subtree: true });
     const timer = window.setInterval(saveNow, 1200);
 
     window.neurocineSaveNow = saveNow;
+    window.neurocineCartoonPauseAutosaveRestore = pauseRestore;
     window.neurocineClearCartoonAutosave = () => {
       try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
       mountToast("История мульт-проекта очищена");
@@ -210,6 +245,7 @@ export default function CartoonAutosaveBridge() {
       window.removeEventListener("beforeunload", onBeforeUnload);
       observer.disconnect();
       window.clearInterval(timer);
+      window.clearTimeout(mutationRestoreTimer);
       style.remove();
     };
   }, []);

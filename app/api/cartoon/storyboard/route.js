@@ -79,14 +79,14 @@ export async function POST(req) {
       return Response.json({ ok: false, error: "Невалидный JSON storyboard: " + e.message, raw: r.content?.slice(0, 800), fallback: buildCartoonExport(body) }, { status: 500 });
     }
 
-    const base     = buildCartoonExport(body);
+    const base = buildCartoonExport(body);
     const storyboard = parsed.storyboard || parsed;
     let scenes = Array.isArray(storyboard.scenes) ? storyboard.scenes : base.storyboard.scenes;
-    const targetCount = project.project.target_scene_count || scenes.length;
+    const targetCount = Math.max(1, Number(project.project.target_scene_count) || scenes.length || 1);
     const validFrameDur = (n) => Math.max(2, Math.min(4, Number(n) || project.project.frame_duration_sec || 3));
-    // Normalize scene durations to 2-4s
+
     scenes = scenes.map((sc) => ({ ...sc, duration_sec: validFrameDur(sc.duration_sec) }));
-    // If AI returned too few scenes, pad from local draft
+
     if (scenes.length < targetCount) {
       const localScenes = base.storyboard.scenes || [];
       while (scenes.length < targetCount) {
@@ -94,14 +94,23 @@ export async function POST(req) {
         scenes.push({ ...(localScenes[idx] || scenes[scenes.length - 1] || {}), id: `scene_${String(scenes.length + 1).padStart(2, "0")}`, index: scenes.length + 1 });
       }
     }
-    // Trim if AI returned too many
-    if (scenes.length > targetCount && targetCount > 0) scenes = scenes.slice(0, targetCount);
 
+    if (scenes.length > targetCount) scenes = scenes.slice(0, targetCount);
+
+    scenes = scenes.map((sc, index) => ({
+      ...sc,
+      id: sc.id || `scene_${String(index + 1).padStart(2, "0")}`,
+      index: index + 1,
+      duration_sec: validFrameDur(sc.duration_sec),
+    }));
+
+    const totalDurationSec = scenes.reduce((sum, sc) => sum + Number(sc.duration_sec || 0), 0);
     const finalProject = {
       ...base,
       storyboard: {
-        total_scenes: Number(storyboard.total_scenes || scenes.length),
-        total_duration_sec: Number(storyboard.total_duration_sec || scenes.reduce((sum, sc) => sum + Number(sc.duration_sec || 0), 0)),
+        total_scenes: scenes.length,
+        target_scene_count: targetCount,
+        total_duration_sec: totalDurationSec,
         part_size: project.project?.chain?.partSize || body.partSize || body.chain?.partSize || 4,
         scenes,
       },
