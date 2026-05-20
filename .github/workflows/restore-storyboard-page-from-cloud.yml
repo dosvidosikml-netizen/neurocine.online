@@ -1,0 +1,48 @@
+name: Restore storyboard page from Cloud commit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-storyboard-page-from-cloud.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore storyboard page and fix JSX
+        run: |
+          git show 48c512f1d2d164dac9cd23d8cd6852b73594dbf3:app/storyboard/page.js > app/storyboard/page.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/storyboard/page.js')
+          s = p.read_text(encoding='utf-8')
+          bad = '''                    ) : (
+                      {anchorAnalyzing === "Анализирую лицо..." && <div style={{ fontSize: "0.78em", color: "#a78bfa", padding: "4px 0" }}>⚡ {anchorAnalyzing}</div>}
+                      <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); analyzeAnchor(url, "hero_face").then((desc) => { if (desc) setCharFaceLock((prev) => prev.trim() ? prev : desc); }); }} />
+                    )}'''
+          good = '''                    ) : (
+                      <>
+                        {anchorAnalyzing === "Анализирую лицо..." && <div style={{ fontSize: "0.78em", color: "#a78bfa", padding: "4px 0" }}>⚡ {anchorAnalyzing}</div>}
+                        <UploadZone label="Hero anchor" hint="Главный герой / style DNA" onFile={(url) => { setAutoHeroAnchor(url); setAutoPartPrompt(""); setAutoAllPromptText(""); analyzeAnchor(url, "hero_face").then((desc) => { if (desc) setCharFaceLock((prev) => prev.trim() ? prev : desc); }); }} />
+                      </>
+                    )}'''
+          if bad not in s:
+              raise SystemExit('Cloud JSX block not found; refusing unsafe restore')
+          s = s.replace(bad, good)
+          if s.strip() == 'PLACEHOLDER':
+              raise SystemExit('restore failed: placeholder remains')
+          p.write_text(s, encoding='utf-8')
+          PY
+          rm -f .github/workflows/restore-storyboard-page-safe.yml .github/workflows/restore-storyboard-page-from-cloud.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/storyboard/page.js .github/workflows/restore-storyboard-page-safe.yml .github/workflows/restore-storyboard-page-from-cloud.yml
+          git commit -m "fix(storyboard): restore page from cloud commit and fix JSX"
+          git push
