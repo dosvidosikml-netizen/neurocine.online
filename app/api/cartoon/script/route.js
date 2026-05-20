@@ -20,6 +20,20 @@ function wordTarget(durationSec = 60, lang = "ru") {
   };
 }
 
+function splitScriptScenes(text = "") {
+  return String(text || "")
+    .split(/(?<=[.!?\u2026])\s+|\n+/)
+    .map((line) => line.replace(/^\s*(?:[-*•]\s*|\d{1,3}[).:-]\s*)/, "").trim())
+    .filter((line) => line.length > 3);
+}
+
+function trimScriptToSceneCount(text = "", maxScenes = 1) {
+  const target = Math.max(1, Number(maxScenes) || 1);
+  const scenes = splitScriptScenes(text);
+  if (scenes.length <= target) return String(text || "").trim();
+  return scenes.slice(0, target).join(" ");
+}
+
 function apiError(message, status = 500, extra = {}) {
   return Response.json({
     ok: false,
@@ -48,7 +62,7 @@ export async function POST(req) {
 
     const frameSecRaw = project.project.frame_duration_sec || 3;
     const frameSec = Math.max(2, Math.min(4, Number(frameSecRaw) || 3));
-    const targetScenes = project.project.target_scene_count || Math.round(project.project.duration_sec / frameSec);
+    const targetScenes = Math.max(1, Number(project.project.target_scene_count) || Math.round(project.project.duration_sec / frameSec));
 
     const userMessage = JSON.stringify({
       project: project.project,
@@ -109,12 +123,12 @@ export async function POST(req) {
       durationMs: Date.now() - started,
       metadata: usageMeta(body),
     });
-    // Trim full_text to exactly targetScenes sentences so script matches timing
-    if (parsed && parsed.full_text && targetScenes > 0) {
-      const allSentences = parsed.full_text.split(/[.!?]+[ \t]+|[\n]+/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 3; });
-      if (allSentences.length > targetScenes) {
-        parsed.full_text = allSentences.slice(0, targetScenes).join(". ") + ".";
-      }
+
+    if (parsed?.full_text && targetScenes > 0) {
+      parsed.full_text = trimScriptToSceneCount(parsed.full_text, targetScenes);
+    }
+    if (Array.isArray(parsed?.beats) && parsed.beats.length > targetScenes) {
+      parsed.beats = parsed.beats.slice(0, targetScenes);
     }
 
     return Response.json({ ok: true, mode: "ai", model_used: r.model_used, script: parsed, target_voiceover_words: target, target_scene_count: targetScenes });
