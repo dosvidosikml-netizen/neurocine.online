@@ -425,11 +425,27 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
           <div className="field">
             <label>Стиль превью</label>
             <select value={style} onChange={(e) => setStyle(e.target.value)}>
-              <option value="viral">Viral Documentary</option>
-              <option value="netflix">Netflix Documentary</option>
-              <option value="conspiracy">Conspiracy / Classified</option>
-              <option value="truecrime">True Crime Evidence</option>
-              <option value="mrbeast">MrBeast Energy</option>
+              <optgroup label="── Классика ──">
+                <option value="viral">🔴 Viral Documentary</option>
+                <option value="netflix">🎬 Netflix / HBO</option>
+                <option value="truecrime">🔍 True Crime Evidence</option>
+                <option value="conspiracy">📁 Conspiracy / Classified</option>
+              </optgroup>
+              <optgroup label="── Энергетика ──">
+                <option value="mrbeast">⚡ MrBeast Energy</option>
+                <option value="neon_hype">🌐 Neon Hype / Cyberpunk</option>
+                <option value="retro_vhs">📼 Retro VHS 80s</option>
+              </optgroup>
+              <optgroup label="── Премиум ──">
+                <option value="gold_luxury">✨ Gold Luxury</option>
+                <option value="magazine">📰 Editorial Magazine</option>
+                <option value="minimalist">◼ Minimalist Impact</option>
+              </optgroup>
+              <optgroup label="── Спецэффекты ──">
+                <option value="newspaper">🗞 Breaking Newspaper</option>
+                <option value="glitch_dark">💀 Glitch / Hacker</option>
+                <option value="horror_poster">🎃 Horror Poster</option>
+              </optgroup>
             </select>
           </div>
         </div>
