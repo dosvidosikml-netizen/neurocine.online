@@ -44,7 +44,10 @@ function hasAny(source = "", words = []) {
 }
 
 export function detectCoverTheme(input = {}) {
-  const source = low(textSource(input));
+  // IMPORTANT: theme detection uses ONLY topic + script — NOT storyboard scene fields.
+  // Scene descriptions (visual, description_ru, etc.) contain atmospheric language
+  // ("луна освещает", "следующий кадр") that causes false theme matches.
+  const source = low([input.topic, input.script].filter(Boolean).join("\n"));
 
   // ── P0: highest priority overrides ────────────────────────────────────────
   if (hasAny(source, [
