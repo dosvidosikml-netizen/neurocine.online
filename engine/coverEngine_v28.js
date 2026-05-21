@@ -26,6 +26,10 @@ function hashString(input = "") {
 }
 
 function textSource({ topic = "", script = "", storyboard = null } = {}) {
+  // NOTE: exclude global_style_lock, image_prompt_en, video_prompt_en, sfx, continuity_note —
+  // these are STYLE/TECHNICAL fields, not narrative content.
+  // Including them causes false-positive theme detection (e.g. "true crime documentary" in style_lock
+  // triggers crime theme for unrelated scripts).
   const scenes = storyboard?.scenes || storyboard?.frames || [];
   return [
     topic,
@@ -33,10 +37,8 @@ function textSource({ topic = "", script = "", storyboard = null } = {}) {
     storyboard?.title,
     storyboard?.topic,
     storyboard?.hook,
-    storyboard?.global_style_lock,
     ...(scenes || []).flatMap((f) => [
-      f.description_ru, f.visual, f.voice, f.vo, f.vo_ru, f.text_on_screen,
-      f.sfx, f.image_prompt_en, f.video_prompt_en, f.continuity_note
+      f.description_ru, f.visual, f.voice, f.vo, f.vo_ru, f.text_on_screen
     ])
   ].filter(Boolean).join("\n");
 }
