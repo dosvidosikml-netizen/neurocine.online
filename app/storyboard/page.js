@@ -1312,6 +1312,19 @@ ${lines.join("\n")}` : "";
     }
   }
 
+  function switchAutoPart(nextIndex) {
+    if (!autoParts.length) return;
+    const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, autoParts.length - 1));
+    if (safeIndex === autoPartIndex) return;
+
+    if (gridImg && safeIndex === autoPartIndex + 1) {
+      setAutoPrevPartAnchor(gridImg);
+    }
+
+    setAutoPartIndex(safeIndex);
+    clearAutoChainOutputs({ clearGrid: true, clearVideo: true });
+  }
+
   function generateAutoChainPart() {
     if (!storyboard || !autoPartScenes.length) return;
     const prompt = buildAutoChainPartPrompt({
@@ -1358,10 +1371,7 @@ ${lines.join("\n")}` : "";
 
   function nextAutoPart() {
     if (!autoParts.length) return;
-    const next = Math.min(autoPartIndex + 1, autoParts.length - 1);
-    setAutoPartIndex(next);
-    setAutoPartPrompt("");
-    setAutoVideoPack("");
+    switchAutoPart(autoPartIndex + 1);
   }
 
   function exportAutoChainJson() {
@@ -2332,7 +2342,7 @@ ${lines.join("\n")}` : "";
                   <div className="pipe-dot act">A</div>
                   <div>
                     <div className="pipe-title">FRAME GRID PROMPT · выбери PART</div>
-                    <div className="pipe-sub">Скопируй этот prompt в Flow / Nano Banana / VEO, получи PART-сетку {autoPartGridLabel} и загрузи её ниже.</div>
+                    <div className="pipe-sub">Prompt пересобирается автоматически под выбранный PART, anchors и reference mode. Скопируй его в Flow / Nano Banana / VEO, получи PART-сетку {autoPartGridLabel} и загрузи её ниже.</div>
                   </div>
                 </div>
                 <div className="pipe-body">
@@ -2347,16 +2357,7 @@ ${lines.join("\n")}` : "";
                           <button
                             type="button"
                             key={i}
-                            onClick={() => {
-                              setAutoPartIndex(i);
-                              setFrameIdx(null);
-                              setGridImg(null);
-                              setCroppedFrame(null);
-                              setFinalImg(null);
-                              setVideoP("");
-                              setAnalysis(null);
-                              setShowFrameRu(false);
-                            }}
+                            onClick={() => switchAutoPart(i)}
                             style={{
                               width: "100%",
                               border: active ? "1px solid var(--red)" : "1px solid var(--border)",
@@ -2499,21 +2500,39 @@ ${lines.join("\n")}` : "";
                         })}
                       </div>
 
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => {
-                          setGridImg(null);
-                          setFrameIdx(null);
-                          setCroppedFrame(null);
-                          setFinalImg(null);
-                          setVideoP("");
-                          setAnalysis(null);
-                          setShowFrameRu(false);
-                        }}
-                      >
-                        Заменить PART-сетку
-                      </button>
+                      <div className="brow">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => {
+                            setGridImg(null);
+                            setFrameIdx(null);
+                            setCroppedFrame(null);
+                            setFinalImg(null);
+                            setVideoP("");
+                            setAnalysis(null);
+                            setShowFrameRu(false);
+                          }}
+                        >
+                          Заменить PART-сетку
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => setAutoPrevPartAnchor(gridImg)}
+                        >
+                          Использовать как Previous PART
+                        </button>
+                        {autoPartIndex < autoParts.length - 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-red btn-sm"
+                            onClick={nextAutoPart}
+                          >
+                            → PART {autoPartIndex + 2} prompt
+                          </button>
+                        )}
+                      </div>
                     </>
                   ) : (
                     <UploadZone
