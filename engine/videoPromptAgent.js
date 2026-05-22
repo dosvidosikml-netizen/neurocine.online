@@ -95,33 +95,36 @@ function hasAny(text = "", words = []) {
 }
 
 function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
-  const context = cleanText([
+  const frameAudioContext = cleanText([
     frame.sfx,
     frame.audio,
     frame.sound,
+    extractSection(frame.video_prompt_en, "Audio"),
+    extractSection(frame.video_prompt_en, "SFX"),
+  ].filter(Boolean).join(" "));
+
+  const context = cleanText([
+    frameAudioContext,
     frame.description_ru,
     frame.description_en,
     frame.image_prompt_en,
     frame.video_prompt_en,
     action,
-    storyboard?.topic,
   ].filter(Boolean).join(" "));
 
   const extracted = [
     frame.sfx,
     frame.audio,
     frame.sound,
-    extractSection(frame.video_prompt_en, "Audio"),
-    extractSection(frame.video_prompt_en, "SFX"),
   ].flatMap(splitCues);
 
   const cues = [];
 
-  if (hasAny(context, ["alarm", "siren", "alert", "warning", "beacon", "red alarm", "тревог", "сирен", "маяк"])) {
+  if (hasAny(frameAudioContext, ["alarm", "siren", "alert", "warning", "beacon", "red alarm", "тревог", "сирен", "маяк"])) {
     cues.push("loud rotating alarm siren synchronized with the flashing red beacon");
   }
   if (hasAny(context, ["ventilation", "ventilator", "air duct", "вентиляц", "вытяж"])) {
-    cues.push("bunker ventilation rumble");
+    cues.push("ventilation hum");
   }
   if (hasAny(context, ["electrical hum", "electric hum", "monitor", "console", "control panel", "электр", "гул", "монитор", "пульт"])) {
     cues.push("low electrical hum from monitors and control panels");
@@ -133,7 +136,7 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
     cues.push("soft dust movement in stale air");
   }
 
-  const finalCues = dedupeList([...cues, ...extracted]);
+  const finalCues = dedupeList([...extracted, ...cues]);
   if (!finalCues.length) finalCues.push("subtle realistic ambience");
 
   const primary = finalCues.find((x) => /alarm|siren|alert|warning|тревог|сирен/i.test(x)) || finalCues[0];
@@ -151,6 +154,10 @@ function stripGeneratedPromptSections(text = "") {
   let out = String(text || "");
   out = out.replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "");
   out = out.replace(/^SCENE PRIMARY FOCUS[:\s—-]*/i, "");
+  out = out.replace(/\bASPECT RATIO\s*:\s*[\d:]+\.?[\s\S]*$/i, "");
+  out = out.replace(/\bSubject\s*:\s*[\s\S]*$/i, "");
+  out = out.replace(/\bREFERENCE VISIBILITY RULE\s*:\s*[\s\S]*$/i, "");
+  out = out.replace(/\bWORLD OBJECT RULE\s*:\s*[\s\S]*$/i, "");
   out = out.replace(/\bShot progression\s*:[\s\S]*?(?=\bCamera behavior\s*:|\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
   out = out.replace(/\bCamera behavior\s*:[\s\S]*?(?=\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
   out = out.replace(/\bLighting\s*:[\s\S]*?(?=\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|\bMaintain\b|\bUltra consistency\b|$)/gi, "");
@@ -171,7 +178,6 @@ function removeGeneratedNames(text = "", storyboard = {}) {
   let out = String(text || "");
   const names = new Set([
     "Mikhail", "Tomas", "Thomas", "John", "Peter", "Aldric", "Marta", "Luc", "Matthieu", "Etienne",
-    ...(Array.isArray(storyboard?.character_lock) ? storyboard.character_lock.map((c) => c.name).filter(Boolean) : []),
   ]);
   for (const name of names) {
     const safe = String(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -320,6 +326,22 @@ export function buildCharacterBlock(characterLock = [], { compact = false, omitN
   }).join(" | ");
 }
 
+function getRelevantCharacterLock(characterLock = [], frame = {}) {
+  if (!Array.isArray(characterLock) || characterLock.length === 0) return [];
+  const haystack = cleanText([
+    frame.description_ru,
+    frame.description_en,
+    stripGeneratedPromptSections(frame.image_prompt_en),
+    stripGeneratedPromptSections(frame.video_prompt_en),
+    frame.vo_ru,
+  ].filter(Boolean).join(" ")).toLowerCase();
+  const relevant = characterLock.filter((c) => {
+    const name = cleanText(c.name || "").toLowerCase();
+    return name.length >= 3 && haystack.includes(name);
+  });
+  return relevant.length ? relevant : characterLock.slice(0, 1);
+}
+
 function getFrameAction(frame = {}) {
   const preferred = [
     frame.story_action_en,
@@ -329,7 +351,6 @@ function getFrameAction(frame = {}) {
     frame.description_en,
     frame.image_prompt_en,
     frame.description_ru,
-    frame.video_prompt_en,
   ];
   for (const value of preferred) {
     const cleaned = stripGeneratedPromptSections(value || "");
@@ -340,9 +361,9 @@ function getFrameAction(frame = {}) {
 
 export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" } = {}) {
   const aspectRatio = storyboard.aspect_ratio || "9:16";
-  const characterBlock = buildCharacterBlock(storyboard.character_lock, { compact: target === "grok", omitNames: target === "grok" });
-  const sceneVisual = cleanText(String(frame.image_prompt_en || frame.description_en || frame.description_ru || "")
-    .replace(/^SCENE PRIMARY FOCUS[:\s—-]*/i, ""));
+  const relevantCharacters = getRelevantCharacterLock(storyboard.character_lock, frame);
+  const characterBlock = buildCharacterBlock(relevantCharacters, { compact: target === "grok", omitNames: target === "grok" });
+  const sceneVisual = cleanText(stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || ""));
   const camera = cleanText(frame.camera || "static documentary frame, natural lens perspective");
   const anchors = [REALISM_ANCHORS_SKIN[0], REALISM_ANCHORS_HAIR_FABRIC[0], REALISM_ANCHORS_OPTICS[0]].join(", ");
 
@@ -462,7 +483,8 @@ export function buildVideoPromptFor({
   const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "subtle movement only";
   const camera = cleanText(frame.camera || "static documentary shot with subtle handheld drift");
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const characterBlock = buildCharacterBlock(storyboard.character_lock, { compact: false, omitNames: true });
+  const relevantCharacters = getRelevantCharacterLock(storyboard.character_lock, frame);
+  const characterBlock = buildCharacterBlock(relevantCharacters, { compact: false, omitNames: false });
   const audioBlock = includeVo && frame.vo_ru
     ? `Audio: primary ${audio.primary}; background ${audio.background.join(", ") || "subtle realistic ambience"}. Voice/dialogue allowed by user only if needed.`
     : `Audio: PRIMARY SFX — ${audio.primary}. Background: ${audio.background.join(", ") || "subtle realistic ambience"}. No dialogue, no voiceover; ambient sound and SFX only.`;

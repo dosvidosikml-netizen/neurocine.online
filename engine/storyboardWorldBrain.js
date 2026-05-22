@@ -24,13 +24,13 @@ function lowerContext(frame = {}, storyboard = {}) {
 
 function scriptAllowsModernEmergency(frame = {}, storyboard = {}) {
   const scriptText = cleanText([
-    storyboard?.script,
-    storyboard?.topic,
     frame?.vo_ru,
     frame?.description_ru,
     frame?.description_en,
+    frame?.sfx,
+    frame?.camera,
   ].filter(Boolean).join(" ")).toLowerCase();
-  return /(сирен|тревог|скорая|полици|машин|автомоб|город|мотор|двигател|ambulance|siren|alarm|police|car\b|cars\b|engine|city|modern emergency)/i.test(scriptText);
+  return /(сирен|тревог|скорая|полици|аварийн|маяк|alarm|siren|alert|warning|beacon|ambulance|police|modern emergency)/i.test(scriptText);
 }
 
 function inferWorldProfile(frame = {}, storyboard = {}) {
@@ -102,7 +102,10 @@ function hasFaceVisible(frame = {}) {
     frame?.image_prompt_en,
     frame?.video_prompt_en,
     frame?.camera,
-  ].filter(Boolean).join(" ")).toLowerCase();
+  ].filter(Boolean).join(" "))
+    .replace(/\bREFERENCE VISIBILITY RULE\s*:[\s\S]*$/i, "")
+    .toLowerCase();
+  if (/(tense face|reflected eye|three-quarter profile|face tilted|visible face|close-up|portrait|profile|лицо|крупный план)/i.test(text)) return true;
   if (/(ног|сандал|стоп|feet|foot|sandals|legs|low close-up|низкий план ног)/i.test(text)) return false;
   if (/(со спины|спина|затылок|back view|from behind|rear view|back of head)/i.test(text)) return false;
   if (/(close-up|portrait|3\/4|three-quarter|face|лицо|портрет|крупный план)/i.test(text)) return true;
