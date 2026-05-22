@@ -1810,6 +1810,8 @@ ${lines.join("\n")}` : "";
                         { key: "outro_strong", okText: "Концовка сильная", failText: "Банальная концовка" },
                         { key: "no_filler_words", okText: "Нет слов-паразитов", failText: "Есть слова-паразиты (вообще/типа/как бы)" },
                         { key: "no_long_lists", okText: "Нет сухих перечислений", failText: "Сухой список через запятую — заменить на 1 яркий образ" },
+                        { key: "storyboard_spine", okText: "Storyboard spine есть", failText: "Мало опор для раскадровки" },
+                        { key: "final_frame_grounded", okText: "Финальный кадр есть", failText: "Нет финального кадра перед вопросом" },
                       ].map(({ key, okText, failText }) => {
                         const ok = scriptValidation.checks?.[key];
                         return (
@@ -1856,11 +1858,13 @@ ${lines.join("\n")}` : "";
                         <span>Ср. слов: {scriptValidation.stats.avg_words_per_sentence}</span>
                         <span>Коротких фраз: {scriptValidation.stats.short_sentences}</span>
                         <span>«ты»-обращений: {scriptValidation.stats.you_address_count}</span>
+                        <span>Кадровых действий: {scriptValidation.stats.storyboard_actions ?? 0}</span>
+                        <span>Предметных деталей: {scriptValidation.stats.storyboard_anchors ?? 0}</span>
                       </div>
                     )}
 
                     {/* Подсказка регенерировать если плохо */}
-                    {scriptValidation.score < 70 && topic.trim() && (
+                    {!scriptValidation.ok && topic.trim() && (
                       <div style={{
                         marginTop: 12, padding: "10px 12px",
                         background: "rgba(229,53,53,0.08)",
@@ -1868,7 +1872,7 @@ ${lines.join("\n")}` : "";
                         borderRadius: 10,
                         fontSize: 11, color: "#fca5a5",
                       }}>
-                        💡 Низкий score — нажми «Создать сценарий» ещё раз: AI попробует переписать с учётом проблем.
+                        💡 Сценарий не прошёл проверку ({scriptValidation.score}/100) — нажми «Создать сценарий» ещё раз: AI попробует переписать с учётом проблем.
                       </div>
                     )}
                   </div>
@@ -2130,7 +2134,7 @@ ${lines.join("\n")}` : "";
               </div>
 
               {/* Warning если scriptValidation плохой */}
-              {scriptValidation && scriptValidation.score < 70 && script.trim() && !sbBusy && (
+              {scriptValidation && !scriptValidation.ok && script.trim() && !sbBusy && (
                 <div style={{
                   marginTop: 10, padding: "10px 12px",
                   background: "rgba(245,158,11,0.10)",
@@ -2138,7 +2142,7 @@ ${lines.join("\n")}` : "";
                   borderRadius: 10,
                   fontSize: 11, color: "#f59e0b", lineHeight: 1.5,
                 }}>
-                  ⚠ Качество сценария низкое ({scriptValidation.score}/100). Storyboard унаследует слабые места.
+                  ⚠ Сценарий не прошёл проверку ({scriptValidation.score}/100). Storyboard унаследует слабые места.
                   Рекомендуем сначала улучшить сценарий: вернись к шагу 01 и нажми «СОЗДАТЬ СЦЕНАРИЙ» снова.
                 </div>
               )}

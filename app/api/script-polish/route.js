@@ -1,19 +1,28 @@
 // app/api/script-polish/route.js
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
-import { validateScript } from "../../../lib/scriptValidator";
+import { validateScript, buildRetryHint } from "../../../lib/scriptValidator";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SYSTEM_PROMPT = `Ты сценарист коротких документальных видео. Верни только готовый текст диктора без markdown. Делай текст сильным, конкретным, с хорошим ритмом, без сухих списков через запятую.`;
+const SYSTEM_PROMPT = `Ты сценарист коротких вертикальных видео для Shorts/Reels/TikTok.
+Верни только готовый текст диктора без markdown, заголовков и объяснений.
+Делай текст сильным, конкретным, с хорошим ритмом, без сухих списков через запятую.
+
+ОБЯЗАТЕЛЬНО держи STORYBOARD SPINE:
+- герой или центральный субъект не должен растворяться;
+- каждые 2-3 фразы дают видимую опору: место, объект, жест, реакция, свет, звук или движение;
+- если тема художественная/sci-fi, зритель может быть адресатом, но не подменяет protagonist;
+- перед финальным вопросом должен быть конкретный физический кадр или действие героя, а не только условное "если...";
+- сохраняй смысл, объект, конфликт и финальный выбор исходного сценария.`;
 
 function buildPolishPrompt({ script, topic, tone, duration, validation, mode }) {
   const isImprove = mode === "improve";
   const issues = (validation?.issues || []).map((x, i) => `${i + 1}. ${x}`).join("\n") || "Нет явных ошибок.";
   const score = validation?.score ?? "unknown";
-  return `Тема: ${topic || "не указана"}\nТон: ${tone || "cinematic documentary thriller"}\nДлительность: ${duration || 60} секунд\nТекущий score: ${score}/100\nРежим: ${mode}\n\nОшибки валидатора:\n${issues}\n\nТекущий сценарий:\n${script}\n\nЗадача: ${isImprove ? "усиль драматургию, ритм и визуальные образы" : "минимально исправь ошибки валидатора до 100/100"}. Сохрани смысл и тему. Верни только новый текст диктора.`;
+  return `Тема: ${topic || "не указана"}\nТон: ${tone || "cinematic documentary thriller"}\nДлительность: ${duration || 60} секунд\nТекущий score: ${score}/100\nРежим: ${mode}\n\nОшибки валидатора:\n${issues}\n\nТекущий сценарий:\n${script}\n\nЗадача: ${isImprove ? "усиль драматургию, ритм и визуальные образы" : "минимально исправь ошибки валидатора до 100/100"}.\nСохрани смысл и тему.\nНе теряй героя/центральный субъект.\nУбери сухие списки, превращай их в один сильный видимый образ.\nПеред последним вопросом добавь конкретный финальный кадр-действие, который можно сразу раскадровать.\nВерни только новый текст диктора.`;
 }
 
 export async function POST(req) {
@@ -47,10 +56,34 @@ export async function POST(req) {
       return Response.json({ text: script, validation: currentValidation, warning: result.error });
     }
 
-    const text = result.content || script;
-    const validation = validateScript(text);
-    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/script-polish", success: true, modelUsed: result.model_used, metadata: usageMeta(body, { mode, duration, tone, validation_score: validation?.score }) });
-    return Response.json({ text, validation, mode, model_used: result.model_used });
+    let text = result.content || script;
+    let validation = validateScript(text);
+    let modelUsed = result.model_used;
+
+    if (!validation.ok && validation.score <= currentValidation.score) {
+      const retryResult = await callOpenRouter({
+        taskType: TASK_TYPES.SCRIPT_WRITING,
+        systemPrompt: SYSTEM_PROMPT,
+        userMessage: `${buildPolishPrompt({ script: text, topic, tone, duration, validation, mode })}\n\n${buildRetryHint(validation)}`,
+        maxTokensOverride: maxTokens,
+        temperatureOverride: 0.36,
+        appTitle: "NeuroCine Script Polish v2.5 retry",
+        apiKeyOverride: accessGuard.apiKey,
+      });
+
+      if (retryResult.ok) {
+        const retryText = retryResult.content || text;
+        const retryValidation = validateScript(retryText);
+        if (retryValidation.score > validation.score) {
+          text = retryText;
+          validation = retryValidation;
+          modelUsed = retryResult.model_used;
+        }
+      }
+    }
+
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/script-polish", success: true, modelUsed, metadata: usageMeta(body, { mode, duration, tone, validation_score: validation?.score }) });
+    return Response.json({ text, validation, mode, model_used: modelUsed });
   } catch (e) {
     return Response.json({ error: e.message || "Script polish error" }, { status: 500 });
   }
