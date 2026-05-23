@@ -333,7 +333,9 @@ IMAGE PROMPT:
 
 VIDEO PROMPT:
 - starts with "ANIMATE CURRENT FRAME:"
-- ${normalizedTarget === "grok" ? "40-80 words, compact, visual hook first, no Audio block" : "60-120 words, includes Audio and SFX block"}
+- ${normalizedTarget === "grok"
+    ? "⚠ GROK HARD LIMIT: MAXIMUM 80 WORDS. Count every word. If you exceed 80 — truncate. No Audio block. No ALLOWED AUDIO block. No FORBIDDEN lines. One action sentence only. SFX: max 5 words."
+    : "60-120 words, includes Audio and SFX block"}
 - audio/SFX must obey WORLD / ERA / AUDIO LOGIC above
 - MUST include this exact sentence at the end or near end:
 "${EXACT_CONTINUITY}"
@@ -451,6 +453,11 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       negative_prompt: [worldScene.negative_prompt, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects].filter(Boolean).join(", "),
     };
 
+    // Жёсткий физический лимит для Grok — после всех обработчиков обрезаем до 115 слов
+    if (target === "grok" && finalScene.video_prompt_en) {
+      finalScene.video_prompt_en = trimWords(finalScene.video_prompt_en, 115);
+    }
+
     if (target === "grok") {
       finalScene.image_prompt_grok_en = finalScene.image_prompt_en;
       finalScene.video_prompt_grok_en = finalScene.video_prompt_en;
@@ -514,7 +521,8 @@ export function validateStoryboard(data = {}, requestedMode = "safe", requestedT
       if (target === "veo3" && !vid.toLowerCase().includes("audio:")) errors.push(`${expectedId}: Veo 3 video prompt missing Audio block`);
       if (target === "grok") {
         const wc = wordCount(vid);
-        if (wc > 130) errors.push(`${expectedId}: Grok video prompt too long (${wc} words, max ~120)`);
+        if (wc > 115) errors.push(`${expectedId}: Grok video prompt too long (${wc} words, max ~115)`);
+      }
       }
 
       if (!s.world_profile && !/WORLD LOGIC|ALLOWED AUDIO|FORBIDDEN AUDIO/i.test(vid)) errors.push(`${expectedId}: world/audio brain metadata missing`);

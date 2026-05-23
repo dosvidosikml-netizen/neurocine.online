@@ -175,7 +175,8 @@ export function applyWorldBrainToFrame(frame = {}, storyboard = {}) {
     next.image_prompt_en = cleanText(`${next.image_prompt_en} ${buildReferenceVisibilityRule(frame, storyboard)} WORLD OBJECT RULE: ${profile.forbiddenObjects ? `Do not show ${profile.forbiddenObjects}.` : "Do not add unrelated objects."}`);
   }
   if (next.video_prompt_en) {
-    next.video_prompt_en = applyWorldBrainToVideoPrompt(next.video_prompt_en, next, storyboard);
+    const isGrok = String(next.target || frame.target || "").toLowerCase() === "grok";
+    next.video_prompt_en = applyWorldBrainToVideoPrompt(next.video_prompt_en, next, storyboard, { compact: isGrok });
   }
   return next;
 }
