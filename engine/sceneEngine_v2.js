@@ -36,6 +36,11 @@ export const STORYBOARD_MODES = {
     engineTarget: "grok_raw",
     instruction: "Increase camera intensity and atmosphere while keeping non-erotic, non-fetishized, non-instructional framing.",
   },
+  script_strict: {
+    label: "СТРОГО ПО СЦЕНАРИЮ",
+    engineTarget: "gpt_safe",
+    instruction: "STRICT SCRIPT MODE: Each scene visual description MUST directly and literally illustrate the exact voiceover line assigned to that scene. Do NOT invent settings, characters, objects, or actions not explicitly mentioned in that scene's script line. If the script says 'шахтёр поднимает фонарь' — show exactly that, nothing else. Visual imagination is forbidden; literal translation of text to image only.",
+  },
 };
 
 export const STORYBOARD_TARGETS = {
@@ -280,6 +285,7 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
   const normalizedMode = normalizeMode(mode);
   const normalizedTarget = normalizeTarget(target);
   const isObserverMode = detectObserverMode(script);
+  const isScriptStrict = normalizedMode === "script_strict";
 
   return `Generate production storyboard JSON for NeuroCine.
 Output ONLY valid JSON. No markdown.
@@ -288,7 +294,14 @@ CONTENT MODE: ${normalizedMode}. ${STORYBOARD_MODES[normalizedMode].instruction}
 VIDEO TARGET: ${normalizedTarget}. ${STORYBOARD_TARGETS[normalizedTarget].description}
 DURATION: ${effectiveDuration}s. Generate EXACTLY ${preset.targetScenes} scenes. Every scene duration must be 2, 3, or 4 seconds. total_duration must equal ${effectiveDuration}.${durationMismatch ? `\nNOTE: script word count (~${scriptWords} words ≈ ${scriptEstSec}s) exceeds selected duration (${d}s). Scene count was scaled up to cover the full script.` : ""}
 ASPECT RATIO: ${aspectRatio}.
-
+${isScriptStrict ? `
+STRICT SCRIPT DISTRIBUTION — MANDATORY:
+Split the script text into EXACTLY ${preset.targetScenes} sequential segments (one per scene).
+Each scene's vo_ru = its assigned script segment verbatim.
+Each scene's visual description = a LITERAL camera shot of exactly what that text line describes.
+No invented locations, characters, objects or actions beyond what the text explicitly names.
+Sequence must cover 100% of the script from first word to last — no skipping, no repeating.
+` : ""}
 WORLD / ERA / AUDIO LOGIC — MANDATORY:
 Before writing scenes, infer the physical world, era, location, technology level and allowed sound sources from the script.
 Audio must come from objects, bodies, weather, animals, water, fire, rooms or machines that physically exist in that world and in the visible frame.

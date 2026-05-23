@@ -294,6 +294,12 @@ export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, cha
   const visual = sceneText(scene);
   const motion = sceneMotion(scene);
   const style = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
+
+  // VO блок: если VO включён — даём смысловой якорь; если выключен — жёсткий запрет
+  const voBlock = includeVo && scene.vo_ru
+    ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}`
+    : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient SFX and environmental sound only.";
+
   return `ANIMATE CURRENT FRAME: ${label}
 
 SOURCE OF TRUTH:
@@ -314,12 +320,12 @@ Subtle cinematic motion, realistic handheld micro-movement, physical lens behavi
 
 CINEMATOGRAPHY:
 camera-photographed live-action cinematic realism, documentary physical reality, natural imperfections, 35mm anamorphic, Kodak Vision3 500T grain. ${style}
-${includeVo && scene.vo_ru ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}` : ""}
+${voBlock}
 SFX:
 ${cleanText(scene.sfx || "subtle environmental ambience")}
 
 RESTRICTIONS:
-No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.`;
+No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.${!includeVo ? " No spoken words, no voiceover, no dialogue audio of any kind." : ""}`;
 }
 
 export function buildAutoVideoPack({ storyboard, styleProfile, partScenes = [], chainMode = "worldHero", includeVo = true } = {}) {

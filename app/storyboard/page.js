@@ -368,8 +368,9 @@ function ProjectSetupPanelV40({
   const durationOptions = [30, 45, 60, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
   const modeOptions = [
-    { id: "safe", label: "Safe", hint: "документально, без жёстких кадров" },
-    { id: "raw", label: "Raw", hint: "меньше смягчения, больше фактуры" },
+    { id: "safe",          label: "Safe",          hint: "документально, без жёстких кадров" },
+    { id: "raw",           label: "Raw",           hint: "меньше смягчения, больше фактуры" },
+    { id: "script_strict", label: "📜 По сценарию", hint: "строго по тексту — AI не выдумывает действия" },
   ];
   const targetOptions = [
     { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
@@ -1209,7 +1210,8 @@ ${lines.join("\n")}` : "";
             if (actualScenes > expectedScenes + 1) {
               const scriptWords  = String(script || "").trim().split(/\s+/).filter(Boolean).length;
               const scriptEstSec = Math.round(scriptWords / 2.2);
-              scaledWarn = ` · ⚠ Скрипт ~${scriptEstSec}с (${scriptWords} сл) > ${duration}с — кадры масштабированы. Сократи сценарий или выбери ${Math.ceil(scriptEstSec / 30) * 30}с.`;
+              const targetWords  = Math.round(Number(duration) * 2.2);
+              scaledWarn = ` · ⚠ Скрипт ~${scriptEstSec}с (${scriptWords} сл) — длиннее выбранных ${duration}с. Нажми «Создать сценарий» заново — для ${duration}с нужно ~${targetWords} слов.`;
             }
 
             setSbStat(`ok|${actualScenes} кадров · ${modeLabel}${fallbackWarn}${valInfo}${scaledWarn}`);
