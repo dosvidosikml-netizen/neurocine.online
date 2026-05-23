@@ -338,6 +338,19 @@ VIDEO PROMPT:
 - MUST include this exact sentence at the end or near end:
 "${EXACT_CONTINUITY}"
 
+SFX FIELD RULES — ASMR PRECISION:
+The sfx field must describe 2-3 SPECIFIC physical sounds visible/implied by this exact scene.
+FORBIDDEN in sfx: "ambient hum", "background noise", "subtle ambience", "generic sound", "white noise", "electrical hum", "ventilation hum".
+REQUIRED: concrete physical source + physical mechanism + texture.
+Examples of CORRECT sfx:
+  - "slow labored breathing — each inhale pulls cotton pillowcase with micro-rustle"
+  - "individual keycap click — sharp plastic-on-membrane contact between typing bursts"
+  - "ceramic mug set on wood table — hollow thud with thermal tick from hot liquid"
+  - "condensation droplet tracking down glass — near-silent friction squeak"
+  - "floorboard creak at exact pressure point — isolated, not continuous"
+  - "mattress spring flex under shifting body weight — low-frequency creak"
+WRONG: "ambient room tone", "quiet hum", "soft background noise"
+
 REQUIRED root fields:
 project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock, character_lock, postprocess, scenes, export_meta.
 

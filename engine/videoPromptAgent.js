@@ -105,57 +105,132 @@ function hasAny(text = "", words = []) {
 
 function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
   const frameAudioContext = cleanText([
-    frame.sfx,
-    frame.audio,
-    frame.sound,
+    frame.sfx, frame.audio, frame.sound,
   ].filter(Boolean).join(" "));
 
-  const context = cleanText([
+  const ctx = cleanText([
     frameAudioContext,
-    frame.description_ru,
-    frame.description_en,
-    frame.image_prompt_en,
+    frame.description_ru, frame.description_en,
+    frame.image_prompt_en, frame.vo_ru,
     action,
-  ].filter(Boolean).join(" "));
+  ].filter(Boolean).join(" ")).toLowerCase();
 
-  const extracted = [
-    frame.sfx,
-    frame.audio,
-    frame.sound,
-  ].flatMap(splitCues);
+  // Извлекаем готовые кью из sfx-поля сцены (приоритет)
+  const extracted = [frame.sfx, frame.audio, frame.sound].flatMap(splitCues);
 
   const cues = [];
 
-  if (hasAny(frameAudioContext, ["alarm", "siren", "alert", "warning", "beacon", "red alarm", "тревог", "сирен", "маяк"])) {
-    cues.push("loud rotating alarm siren synchronized with the flashing red beacon");
-  }
-  if (hasAny(context, ["ventilation", "ventilator", "air duct", "вентиляц", "вытяж"])) {
-    cues.push("ventilation hum");
-  }
-  if (hasAny(context, ["screen", "экран"])) {
-    cues.push("electric screen hum");
-  }
-  if (hasAny(context, ["console", "control panel", "control panels", "пульт", "панель управления"])) {
-    cues.push("low electrical hum from monitors and control panels");
-  }
-  if (hasAny(context, ["bed", "blanket", "mattress", "кровать", "одеял", "матрас"])) {
-    cues.push("bed fabric creak");
-  }
-  if (hasAny(context, ["hand", "breath", "breathing", "рука", "дых"])) {
-    cues.push("shallow breathing");
-  }
-  if (hasAny(context, ["cable", "hanging cables", "кабел", "провод"])) {
-    cues.push("faint cable vibration");
-  }
-  if (hasAny(context, ["dust", "smoke", "пыль", "дым"])) {
-    cues.push("soft dust movement in stale air");
+  // ── ТРЕВОГА / СИРЕНА (P0) ─────────────────────────────────────────────────
+  if (hasAny(ctx, ["alarm", "siren", "alert", "warning", "beacon", "тревог", "сирен", "маяк"])) {
+    cues.push("loud rotating alarm siren synchronized with flashing red beacon");
   }
 
+  // ── СПАЛЬНЯ / СОН / ПОСТЕЛЬ ───────────────────────────────────────────────
+  if (hasAny(ctx, ["bed", "pillow", "blanket", "mattress", "lying", "кровать", "подушк", "одеял", "матрас", "лежит", "лежать"])) {
+    cues.push("slow labored breathing — each inhale pulls the cotton pillowcase with a micro-rustle");
+    cues.push("mattress spring creak under shifting body weight");
+    if (hasAny(ctx, ["eye", "глаз", "взгляд"])) {
+      cues.push("eyelid dry friction against pillow surface");
+    }
+  }
+
+  // ── РУКИ / ТРЕМОР / ДРОЖАНИЕ ──────────────────────────────────────────────
+  if (hasAny(ctx, ["trembl", "shak", "дрож", "трясётся", "трясутся", "трясти"])) {
+    cues.push("fine hand tremor tapping ceramic rim — ceramic-on-ceramic micro-click");
+    cues.push("liquid surface ripple sound — water or coffee disturbed by trembling");
+  }
+
+  // ── КРУЖКА / СТАКАН / ЧАШКА ───────────────────────────────────────────────
+  if (hasAny(ctx, ["cup", "mug", "coffee", "tea", "drink", "кружк", "чашк", "кофе", "чай", "напит"])) {
+    cues.push("ceramic cup set down on wood — soft thud with hollow resonance");
+    cues.push("hot liquid thermal tick — cup material expanding from heat");
+    if (!hasAny(ctx, ["дрож", "trembl", "shak"])) {
+      cues.push("swallow — dry throat contraction");
+    }
+  }
+
+  // ── НОУТБУК / КЛАВИАТУРА / ЭКРАН ─────────────────────────────────────────
+  if (hasAny(ctx, ["laptop", "keyboard", "typing", "keys", "ноутбук", "клавиатур", "печатает", "набирает"])) {
+    cues.push("individual keycap click — sharp plastic-on-membrane contact, 42g actuation");
+    cues.push("fingertip skin dragging across keycap surface between keystrokes");
+    cues.push("laptop chassis resonance — low-frequency body vibration during typing burst");
+    // убираем гул экрана — заменяем на конкретный звук
+    if (hasAny(ctx, ["screen", "monitor", "экран", "монитор", "дисплей"])) {
+      cues.push("LCD backlight faint electrical tick on brightness cycle");
+    }
+  }
+
+  // ── ОКНО / СТЕКЛО / ОТРАЖЕНИЕ ────────────────────────────────────────────
+  if (hasAny(ctx, ["window", "glass", "reflection", "окно", "стекл", "отражени", "смотрит.*окно", "у окна"])) {
+    cues.push("double-pane window pressure flex — low-frequency hum only when wind gusts");
+    cues.push("condensation droplet tracking down glass — near-silent friction squeak");
+    if (hasAny(ctx, ["rain", "дождь", "капли"])) {
+      cues.push("individual raindrops striking glass at irregular intervals — not continuous rain sheet");
+    } else {
+      cues.push("distant city bleed through glass — muffled low-end only, no identifiable source");
+    }
+  }
+
+  // ── КОРИДОР / ХОДЬБА / ШАГИ ──────────────────────────────────────────────
+  if (hasAny(ctx, ["corridor", "hallway", "walk", "footstep", "коридор", "шаги", "идёт", "ходит", "паркет", "пол"])) {
+    if (hasAny(ctx, ["sock", "bare", "носк", "босиком"])) {
+      cues.push("socked foot pressure on hardwood — fabric compression creak, no heel impact");
+    } else {
+      cues.push("slow deliberate footstep — heel-to-toe weight transfer on wooden floor");
+    }
+    cues.push("floorboard micro-creak at specific pressure point — isolated, not continuous");
+  }
+
+  // ── КУХНЯ / ХОЛОДИЛЬНИК ───────────────────────────────────────────────────
+  if (hasAny(ctx, ["kitchen", "fridge", "refrigerator", "кухня", "холодильник", "кухне"])) {
+    cues.push("refrigerator compressor start — low-frequency thump then constant 60Hz vibration in floor");
+    cues.push("kitchen silence — absence of sound except compressor and distant traffic seeping through wall");
+  }
+
+  // ── ДЫХАНИЕ / УСТАЛОСТЬ / ИЗНЕМОЖЕНИЕ ───────────────────────────────────
+  if (hasAny(ctx, ["breath", "exhaust", "fatigue", "дых", "усталост", "изнеможен", "не спит", "бессонниц"])) {
+    if (!cues.some(c => c.includes("breath"))) {
+      cues.push("shallow irregular breathing — chest barely moves, inhale twice as long as exhale");
+    }
+    cues.push("dry swallow — throat clicks from dehydration");
+  }
+
+  // ── ГАЛЛЮЦИНАЦИИ / ДВИЖЕНИЕ / ТЕНИ ──────────────────────────────────────
+  if (hasAny(ctx, ["hallucin", "shadow", "movement", "мерещ", "тень", "движение", "никого"])) {
+    cues.push("absolute room silence — held breath makes ears ring");
+    cues.push("micro-creak from thermal expansion of wall material — not footstep");
+  }
+
+  // ── МОЗГ / НЕЙРОНЫ / МЕДИЦИНА / ЭЭГ ─────────────────────────────────────
+  if (hasAny(ctx, ["brain", "neuron", "eeg", "monitor", "medical", "мозг", "нейрон", "ээг", "врач", "кнопк"])) {
+    cues.push("EEG electrode contact crackle — brief static pop as lead shifts");
+    cues.push("medical monitor tone — single clean sine wave, not alarm");
+    cues.push("doctor glove latex stretch — quiet snap as hand grips device");
+  }
+
+  // ── НОЧЬ / ТИШИНА / ПУСТОТА ──────────────────────────────────────────────
+  if (hasAny(ctx, ["night", "dark", "silence", "empty", "ночь", "темнота", "тишина", "пустой", "пусто"])) {
+    if (!cues.length) {
+      cues.push("room tone — high-frequency silence ringing, barely perceptible HVAC absence");
+      cues.push("distant single car passing on wet asphalt — 2-second doppler fade");
+    }
+  }
+
+  // Если ничего не совпало — используем конкретный физический минимализм
   const finalCues = dedupeList([...extracted, ...cues]);
-  if (!finalCues.length) finalCues.push("subtle realistic ambience");
+  if (!finalCues.length) {
+    finalCues.push("room tone — physical silence with micro-texture: air pressure, distant low-end through walls");
+    finalCues.push("involuntary body sound — clothes fabric shift, slow breath cycle");
+  }
 
-  const primary = finalCues.find((x) => /alarm|siren|alert|warning|тревог|сирен/i.test(x)) || finalCues[0];
-  const background = finalCues.filter((x) => x !== primary).slice(0, 4);
+  // Убираем generic заглушки которые могли просочиться из sfx-поля
+  const cleaned = finalCues.filter(c =>
+    !/^(subtle.*ambience|generic.*ambient|environmental.*ambience|low.*hum|background.*hum|white.*noise)$/i.test(c.trim())
+  );
+  if (!cleaned.length) cleaned.push(...finalCues); // fallback если отфильтровали всё
+
+  const primary = cleaned.find((x) => /alarm|siren|alert|warning|тревог|сирен/i.test(x)) || cleaned[0];
+  const background = cleaned.filter((x) => x !== primary).slice(0, 4);
 
   return {
     primary,
