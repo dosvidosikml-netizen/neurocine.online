@@ -426,9 +426,14 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
     ? "Keep the exact uploaded composition, lighting, clothing, grime and object layout."
     : "Keep visual continuity with the uploaded frame.";
 
+  const scriptAnchor = frame.vo_ru
+    ? `Script line: "${String(frame.vo_ru).slice(0, 120)}". Animate ONLY what this line describes.`
+    : "";
+
   return limitWords(dedupeFinalPrompt([
     `${duration}-second I2V shot.`,
     continuity,
+    scriptAnchor,
     `Camera: ${camera}.`,
     `Action: ${beat}.`,
     `Motion: ${motion}.`,

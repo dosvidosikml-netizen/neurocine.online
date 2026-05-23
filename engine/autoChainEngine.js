@@ -295,15 +295,24 @@ export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, cha
   const motion = sceneMotion(scene);
   const style = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
 
+  // Script line используется как визуальный якорь в любом режиме (не для аудио)
+  const scriptAnchor = scene.vo_ru
+    ? `\nSCRIPT LINE (visual anchor): "${cleanText(scene.vo_ru)}"`
+    : "";
+
   // VO блок: если VO включён — даём смысловой якорь; если выключен — жёсткий запрет
   const voBlock = includeVo && scene.vo_ru
     ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}`
     : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient SFX and environmental sound only.";
 
   return `ANIMATE CURRENT FRAME: ${label}
+${scriptAnchor}
 
-SOURCE OF TRUTH:
-Animate ONLY what is present in this frame and its storyboard description. Do not invent new plot events.
+SOURCE OF TRUTH — STRICT:
+Animate ONLY what is explicitly present in this frame's storyboard description AND directly stated in the SCRIPT LINE above.
+FORBIDDEN: inventing new locations, characters, objects or actions not in the script line.
+Example: if script says "руки дрожат над кружкой" — animate HANDS and CUP only. NOT feet, NOT corridor, NOT POV walk.
+If you cannot find an element in the script line → do NOT animate it.
 
 VISUAL CONTEXT:
 ${visual}

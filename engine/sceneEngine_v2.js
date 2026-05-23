@@ -302,6 +302,12 @@ Each scene's visual description = a LITERAL camera shot of exactly what that tex
 No invented locations, characters, objects or actions beyond what the text explicitly names.
 Sequence must cover 100% of the script from first word to last — no skipping, no repeating.
 ` : ""}
+VISUAL FIDELITY — MANDATORY FOR ALL MODES:
+Every scene's visual description, objects, characters, locations and actions MUST have DIRECT textual support in that scene's vo_ru line.
+If the script line says "руки дрожат над кружкой" — the scene shows HANDS and a CUP. NOT feet. NOT a corridor. NOT POV walking.
+If an object, location or action is NOT in the script line → it MUST NOT appear in the visual description.
+Creative cinematic interpretation is FORBIDDEN if it adds elements absent from the script.
+
 WORLD / ERA / AUDIO LOGIC — MANDATORY:
 Before writing scenes, infer the physical world, era, location, technology level and allowed sound sources from the script.
 Audio must come from objects, bodies, weather, animals, water, fire, rooms or machines that physically exist in that world and in the visible frame.
