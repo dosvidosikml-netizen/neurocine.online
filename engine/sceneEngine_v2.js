@@ -523,7 +523,6 @@ export function validateStoryboard(data = {}, requestedMode = "safe", requestedT
         const wc = wordCount(vid);
         if (wc > 115) errors.push(`${expectedId}: Grok video prompt too long (${wc} words, max ~115)`);
       }
-      }
 
       if (!s.world_profile && !/WORLD LOGIC|ALLOWED AUDIO|FORBIDDEN AUDIO/i.test(vid)) errors.push(`${expectedId}: world/audio brain metadata missing`);
 
