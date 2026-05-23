@@ -1201,7 +1201,18 @@ ${lines.join("\n")}` : "";
             const isFallback = modeLabel.includes("fallback");
             const fallbackReason = data.error ? ` — ${data.error}` : " — API не ответил или вернул невалидный JSON";
             const fallbackWarn = isFallback ? ` · ⚠ FALLBACK${fallbackReason}` : "";
-            setSbStat(`ok|${sb.scenes?.length || 0} кадров · ${modeLabel}${fallbackWarn}${valInfo}`);
+
+            // Предупреждение если storyboard масштабирован из-за длинного скрипта
+            const actualScenes   = sb.scenes?.length || 0;
+            const expectedScenes = Math.round(Number(duration) / 3);
+            let scaledWarn = "";
+            if (actualScenes > expectedScenes + 1) {
+              const scriptWords  = String(script || "").trim().split(/\s+/).filter(Boolean).length;
+              const scriptEstSec = Math.round(scriptWords / 2.2);
+              scaledWarn = ` · ⚠ Скрипт ~${scriptEstSec}с (${scriptWords} сл) > ${duration}с — кадры масштабированы. Сократи сценарий или выбери ${Math.ceil(scriptEstSec / 30) * 30}с.`;
+            }
+
+            setSbStat(`ok|${actualScenes} кадров · ${modeLabel}${fallbackWarn}${valInfo}${scaledWarn}`);
           } else {
             setSbStat("err|" + (data.error || "Пустой ответ от сервера"));
           }
