@@ -562,27 +562,38 @@ function getShotProgression(frame = {}) {
   return { n, phase, rhythm };
 }
 
+// Для Grok — укороченные SFX теги без ASMR-нарратива (ограничение токенов)
+function buildGrokSfxLine(audio) {
+  const simplify = (cue) => String(cue || "").split(" — ")[0].split("; ")[0].slice(0, 50);
+  return dedupeList([audio.primary, ...audio.background].map(simplify)).slice(0, 3).join(", ");
+}
+
 function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
   const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "the subject holds position with subtle movement";
   const firstSentence = action.split(/(?<=[.!?])\s+/)[0] || action;
   const audio = buildAudioPlan({ frame, storyboard, action });
   const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
+  const duration = Math.min(8, Math.max(3, Number(frame.duration || 5)));
   const continuity = isFirstFrame(frame)
     ? "Maintain the exact appearance from the uploaded frame."
     : "Maintain exact character appearance, clothing, lighting and historical setting; do not clone previous composition.";
   const ultra = consistency === "ultra"
     ? "Do not change face, age, clothing, dirt level, lighting, or period."
     : "Keep visual continuity.";
+  const scriptAnchor = frame.vo_ru
+    ? `Script: "${String(frame.vo_ru).slice(0, 90)}". Animate ONLY what this line shows.`
+    : "";
 
   return limitWords(dedupeFinalPrompt([
     noVoice,
     "Animate only the uploaded frame. Do not recompose, add characters, change framing, add subtitles, UI or watermark.",
-    "6-second subtle image-to-video shot:",
+    `${duration}-second subtle image-to-video shot:`,
+    scriptAnchor,
     firstSentence,
     audio.hasDominantAlarm ? "Audio priority: make the alarm siren clearly audible and dominant from the first frame." : "",
     "Use only micro-motion: handheld drift, breathing, fabric movement, smoke or wind if visible.",
-    `SFX: ${audio.sfxLine}.`,
+    `SFX: ${buildGrokSfxLine(audio)}.`,
     continuity,
     ultra,
     minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
@@ -603,16 +614,25 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
   const ultra = consistency === "ultra"
     ? "Ultra consistency: keep face structure, age, clothing, dirt level, lighting style, color grade and historical period stable."
     : "Keep continuity stable.";
+  const scriptAnchor = frame.vo_ru
+    ? `Script line: "${String(frame.vo_ru).slice(0, 100)}". Animate ONLY what this line describes.`
+    : "";
+  // Берём стиль из storyboard, не хардкодим "damp historical realism"
+  const styleHint = cleanText(
+    storyboard?.global_style_lock?.split(".")[0] ||
+    "natural light, documentary realism, grounded physical weight"
+  ).slice(0, 80);
 
   return limitWords(dedupeFinalPrompt([
     noVoice,
     "ANIMATE ONLY THE UPLOADED FRAME. Do not recompose or add characters.",
+    scriptAnchor,
     `${camera}.`,
     action,
     `Shot progression: ${shot.phase} — ${shot.rhythm}.`,
     audio.hasDominantAlarm ? "Audio priority: loud alarm siren must dominate over background room tone." : "",
-    "Natural overcast light, damp historical realism, subtle 35mm grain, real weight and inertia.",
-    `SFX: ${audio.sfxLine}.`,
+    `${styleHint}, subtle 35mm grain, real weight and inertia.`,
+    `SFX: ${buildGrokSfxLine(audio)}.`,
     continuity,
     ultra,
     minorSafe ? "No violence shown, no injury shown, no graphic content." : "",

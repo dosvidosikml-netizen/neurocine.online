@@ -2797,6 +2797,14 @@ ${lines.join("\n")}` : "";
                             <div className="img-viewer"><img src={finalImg} alt="Final 2K frame" /></div>
                             <div className="frame-card" style={{ marginTop: 10, marginBottom: 10 }}>
                               <div className="frame-card-lbl" style={{ marginBottom: 8 }}>🎬 VIDEO PROMPT ENGINE V2.8</div>
+                              <div className="field-label">TARGET MODEL</div>
+                              <div className="brow" style={{ marginTop: 6, marginBottom: 10 }}>
+                                <button className={`btn btn-sm ${target === "veo3" ? "btn-red" : ""}`} onClick={() => { setTarget("veo3"); setVideoP(""); }}>🎬 Veo 3</button>
+                                <button className={`btn btn-sm ${target === "grok" ? "btn-red" : ""}`} onClick={() => { setTarget("grok"); setVideoP(""); }}>🚀 Grok</button>
+                              </div>
+                              <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+                                {target === "veo3" ? "Veo 3 — длинный промт, native audio, тайминг камеры" : "Grok — компактный промт, visual hook, 3-8с клип"}
+                              </div>
                               <div className="field-label">PROMPT MODE</div>
                               <div className="brow" style={{ marginTop: 6, marginBottom: 10 }}>
                                 <button className={`btn btn-sm ${videoPromptMode === "cheap" ? "btn-red" : ""}`} onClick={() => { setVideoPromptMode("cheap"); setVideoP(""); }}>Cheap</button>
