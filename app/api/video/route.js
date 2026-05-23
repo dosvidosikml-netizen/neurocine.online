@@ -86,7 +86,7 @@ export async function POST(req) {
 
     const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
     const cleanedVideo = finalizePromptCleaners(rawVideo, { frame, storyboard, includeVo, target });
-    const worldSafeVideo = applyWorldBrainToVideoPrompt(cleanedVideo, frame, storyboard);
+    const worldSafeVideo = applyWorldBrainToVideoPrompt(cleanedVideo, frame, storyboard, { compact: true });
     const finalVideo = normalizePromptPrefix(worldSafeVideo, "ANIMATE CURRENT FRAME:");
     const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx || worldAudio.profile.allowedAudio);
 

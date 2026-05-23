@@ -50,6 +50,15 @@ export function hasMinorContext(frame = {}, storyboard = {}) {
 
 function cleanAudioCue(text = "") {
   return cleanText(text)
+    .replace(/электрический гул экрана/gi, "electric screen hum")
+    .replace(/гул экрана/gi, "screen hum")
+    .replace(/скрип кровати/gi, "bed creak")
+    .replace(/скрип матраса/gi, "mattress creak")
+    .replace(/ткань/gi, "fabric rustle")
+    .replace(/дыхание/gi, "shallow breathing")
+    .replace(/пыль/gi, "dust in still air")
+    .replace(/вентиляционный гул|гул вентиляции/gi, "ventilation hum")
+    .replace(/щелчок сканера/gi, "scanner click")
     .replace(/crowd murmur/gi, "distant non-verbal crowd ambience")
     .replace(/human voices/gi, "non-verbal human ambience")
     .replace(/\bvoices\b/gi, "non-verbal ambience")
@@ -99,8 +108,6 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
     frame.sfx,
     frame.audio,
     frame.sound,
-    extractSection(frame.video_prompt_en, "Audio"),
-    extractSection(frame.video_prompt_en, "SFX"),
   ].filter(Boolean).join(" "));
 
   const context = cleanText([
@@ -108,7 +115,6 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
     frame.description_ru,
     frame.description_en,
     frame.image_prompt_en,
-    frame.video_prompt_en,
     action,
   ].filter(Boolean).join(" "));
 
@@ -126,8 +132,17 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
   if (hasAny(context, ["ventilation", "ventilator", "air duct", "вентиляц", "вытяж"])) {
     cues.push("ventilation hum");
   }
-  if (hasAny(context, ["electrical hum", "electric hum", "monitor", "console", "control panel", "электр", "гул", "монитор", "пульт"])) {
+  if (hasAny(context, ["screen", "экран"])) {
+    cues.push("electric screen hum");
+  }
+  if (hasAny(context, ["console", "control panel", "control panels", "пульт", "панель управления"])) {
     cues.push("low electrical hum from monitors and control panels");
+  }
+  if (hasAny(context, ["bed", "blanket", "mattress", "кровать", "одеял", "матрас"])) {
+    cues.push("bed fabric creak");
+  }
+  if (hasAny(context, ["hand", "breath", "breathing", "рука", "дых"])) {
+    cues.push("shallow breathing");
   }
   if (hasAny(context, ["cable", "hanging cables", "кабел", "провод"])) {
     cues.push("faint cable vibration");
@@ -218,12 +233,12 @@ function stripNoVoiceGarbage(text = "", includeVo = false) {
   if (!includeVo) {
     out = out
       .replace(/\bVoice\/no dialogue allowed by user only if needed\.?/gi, "")
-      .replace(/\bVoice\/dialogue allowed by user only if needed\.?/gi, "")
-      .replace(/\bvoiceover\b(?!; ambient sound)[^.]*\./gi, "")
-      .replace(/\bVO\b[^.]*\./gi, "")
-      .replace(/\bnarration\b[^.]*\./gi, "")
-      .replace(/\bspoken line\b[^.]*\./gi, "")
-      .replace(/\bspeech\b[^.]*\./gi, "");
+      .replace(/\bVoice\/dialogue allowed by user only if needed\.?/gi, "");
+    out = out.split(/(?<=[.!?])\s+/).filter((sentence) => {
+      const s = cleanText(sentence);
+      if (!/\b(voiceover|narration|speech|spoken line|VO)\b/i.test(s)) return true;
+      return /\b(no speech|no voiceover|no narration|no dialogue|NO SPEECH|NO VOICEOVER)\b/i.test(s);
+    }).join(" ");
   }
 
   return cleanText(out);
@@ -344,19 +359,84 @@ function getRelevantCharacterLock(characterLock = [], frame = {}) {
 
 function getFrameAction(frame = {}) {
   const preferred = [
+    frame.motion,
     frame.story_action_en,
     frame.action_en,
-    frame.motion,
     frame.action,
     frame.description_en,
-    frame.image_prompt_en,
     frame.description_ru,
+    frame.vo_ru,
+    frame.image_prompt_en,
   ];
   for (const value of preferred) {
     const cleaned = stripGeneratedPromptSections(value || "");
     if (cleaned && cleaned.length > 12) return cleaned;
   }
   return "";
+}
+
+function compactVideoBeat(text = "", maxWords = 34) {
+  let out = stripGeneratedPromptSections(text)
+    .replace(/\bARRI Alexa[^.]*\.?/gi, "")
+    .replace(/\bZeiss Master Prime[^.]*\.?/gi, "")
+    .replace(/\bKodak Portra 400[^.]*\.?/gi, "")
+    .replace(/\banamorphic 35mm[^.]*\.?/gi, "")
+    .replace(/\bVisible skin pores[^.]*\.?/gi, "")
+    .replace(/\bForeground\s*:[^.]*\.?/gi, "")
+    .replace(/\bMidground\s*:[^.]*\.?/gi, "")
+    .replace(/\bBackground\s*:[^.]*\.?/gi, "")
+    .replace(/\bExtreme low-angle close-up[^.]*\.?/gi, "")
+    .replace(/\bMedium long lens shot[^.]*\.?/gi, "")
+    .replace(/\bClose-up shot[^.]*\.?/gi, "");
+  out = cleanText(out).split(/(?<=[.!?])\s+/)[0] || cleanText(out);
+  return limitWords(out, maxWords).replace(/\.$/, "");
+}
+
+function compactCameraMove(text = "", maxWords = 14) {
+  const out = cleanText(text || "subtle slow push-in")
+    .replace(/\bARRI Alexa[^,.;]*[,.;]?/gi, "")
+    .replace(/\bZeiss Master Prime[^,.;]*[,.;]?/gi, "")
+    .replace(/\bKodak[^,.;]*[,.;]?/gi, "");
+  return limitWords(out, maxWords).replace(/\.$/, "");
+}
+
+function inferMicroMotion(action = "", frame = {}) {
+  const text = cleanText([action, frame.description_ru, frame.description_en, frame.image_prompt_en, frame.sfx].filter(Boolean).join(" ")).toLowerCase();
+  const moves = [];
+  if (/(hand|finger|palm|рук|палец|ладон)/i.test(text)) moves.push("the raised hand trembles slightly, fingers tense");
+  if (/(bed|blanket|mattress|кровать|одеял|матрас)/i.test(text)) moves.push("the blanket shifts with shallow breathing");
+  if (/(screen|monitor|экран)/i.test(text)) moves.push("the white screen flickers almost imperceptibly");
+  if (/(dust|smoke|пыль|дым)/i.test(text)) moves.push("dust drifts through the light");
+  if (/(projector|проектор|film|пл[её]нк)/i.test(text)) moves.push("the projector vibrates softly, tiny mechanical jitter in the frame");
+  if (/(walk|ид[её]т|шага|corridor|коридор)/i.test(text)) moves.push("subtle body movement and small handheld camera drift");
+  return dedupeList(moves).slice(0, 3).join("; ") || "only subtle natural motion, no new action";
+}
+
+function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
+  const minorSafe = hasMinorContext(frame, storyboard);
+  const aspectRatio = storyboard.aspect_ratio || "9:16";
+  const duration = Math.min(6, Math.max(3, Number(frame.duration || 3) || 3));
+  const rawAction = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe);
+  const beat = compactVideoBeat(rawAction, 34) || "hold the visible scene in tense stillness";
+  const camera = compactCameraMove(frame.camera || "subtle slow push-in", 14);
+  const motion = inferMicroMotion(rawAction, frame);
+  const audio = buildAudioPlan({ frame, storyboard, action: rawAction });
+  const noVoice = includeVo && frame.vo_ru ? "Voiceover may be added separately; keep this clip non-verbal." : "No speech, no voiceover, no music.";
+  const continuity = consistency === "ultra"
+    ? "Keep the exact uploaded composition, lighting, clothing, grime and object layout."
+    : "Keep visual continuity with the uploaded frame.";
+
+  return limitWords(dedupeFinalPrompt([
+    `${duration}-second I2V shot.`,
+    continuity,
+    `Camera: ${camera}.`,
+    `Action: ${beat}.`,
+    `Motion: ${motion}.`,
+    "Harsh practical light, dirty concrete shadows, gritty documentary realism.",
+    `SFX: ${dedupeList([audio.primary, ...audio.background]).slice(0, 4).join(", ")}.`,
+    `${noVoice} No subtitles, no UI, no watermark, no new objects, no new characters, no reframe.`,
+    `Format: ${aspectRatio}, live-action.`
+  ].filter(Boolean).join(" ")), 115);
 }
 
 export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" } = {}) {
@@ -476,41 +556,7 @@ export function buildVideoPromptFor({
     return cleanText(prompt.replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, ""));
   }
 
-  const minorSafe = hasMinorContext(frame, storyboard);
-  const aspectRatio = storyboard.aspect_ratio || "9:16";
-  const duration = Number(frame.duration || 3);
-  const shot = getShotProgression(frame);
-  const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "subtle movement only";
-  const camera = cleanText(frame.camera || "static documentary shot with subtle handheld drift");
-  const audio = buildAudioPlan({ frame, storyboard, action });
-  const relevantCharacters = getRelevantCharacterLock(storyboard.character_lock, frame);
-  const characterBlock = buildCharacterBlock(relevantCharacters, { compact: false, omitNames: false });
-  const audioBlock = includeVo && frame.vo_ru
-    ? `Audio: primary ${audio.primary}; background ${audio.background.join(", ") || "subtle realistic ambience"}. Voice/dialogue allowed by user only if needed.`
-    : `Audio: PRIMARY SFX — ${audio.primary}. Background: ${audio.background.join(", ") || "subtle realistic ambience"}. No dialogue, no voiceover; ambient sound and SFX only.`;
-  const continuity = isFirstFrame(frame)
-    ? "Maintain exact character appearance, clothing and condition from the uploaded frame."
-    : "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
-
-  const pro = dedupeFinalPrompt([
-    `${camera}, ${duration}-second shot.`,
-    characterBlock ? `Subject: ${characterBlock}.` : "",
-    `Action: ${action}.`,
-    `Shot progression: ${shot.phase} — ${shot.rhythm}.`,
-    "Camera behavior: organic handheld micro-shake, slight focus breathing, natural exposure shifts; motion must support the current story beat, not decorate it.",
-    "Lighting: natural available light, soft bounce fill, realistic shadow penumbra.",
-    "Color grade: lifted blacks, desaturated shadows, natural skin tones, subtle 35mm film grain.",
-    "Physics: realistic inertia, grounded contact with surfaces, fabric reacting to movement.",
-    audioBlock,
-    `SFX: ${audio.sfxLine}.`,
-    `Format: ${aspectRatio}, 24fps, live-action photographic realism.`,
-    continuity,
-    consistency === "ultra" ? "Ultra consistency: do not change face structure, age, clothing, dirt level, lighting style, color grade, or historical period; do not clone the previous composition. Maintain story rhythm from previous frame while varying the camera angle naturally." : "",
-    minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
-  ].filter(Boolean).join(" "));
-
-  if (promptMode === "cheap") return limitWords(pro, 105);
-  return pro;
+  return buildCompactVideoPrompt({ frame, storyboard, includeVo, consistency });
 }
 
 const BANNED_REPLACEMENTS = {
@@ -553,7 +599,7 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
   if (!includeVo) {
     const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
     if (String(target).toLowerCase() === "grok" && !out.startsWith("NO SPEECH")) out = `${hardNoVoice} ${out}`;
-    if (!/No dialogue, no voiceover/i.test(out) && String(target).toLowerCase() !== "grok") {
+    if (!/(No dialogue,\s*no voiceover|No speech,\s*no voiceover|NO SPEECH)/i.test(out) && String(target).toLowerCase() !== "grok") {
       out = `${out} No dialogue, no voiceover; ambient sound and SFX only.`;
     }
   }
@@ -600,7 +646,7 @@ export function validateFramePrompts({ frame, storyboard, target = "veo3" }) {
   if (/Action:\s*Action:|No Maintain|Shot progression:[\s\S]*Shot progression:|Audio:[\s\S]*Audio:|SFX:[\s\S]*SFX:/i.test(frame.video_prompt_en || "")) {
     errors.push("video prompt contains duplicated generated sections");
   }
-  if (/alarm|siren|alert|warning/i.test(`${frame.sfx || ""} ${frame.video_prompt_en || ""}`) && !/PRIMARY SFX\s*—\s*[^.]*alarm|PRIMARY SFX\s*—\s*[^.]*siren|Audio priority/i.test(frame.video_prompt_en || "")) {
+  if (/alarm|siren|alert|warning/i.test(`${frame.sfx || ""}`) && !/PRIMARY SFX\s*—\s*[^.]*alarm|PRIMARY SFX\s*—\s*[^.]*siren|Audio priority/i.test(frame.video_prompt_en || "")) {
     errors.push("alarm/siren cue is not promoted as primary audio event");
   }
   if (target === "grok") {

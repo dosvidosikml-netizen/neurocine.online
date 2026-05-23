@@ -180,10 +180,16 @@ export function applyWorldBrainToFrame(frame = {}, storyboard = {}) {
   return next;
 }
 
-export function applyWorldBrainToVideoPrompt(prompt = "", frame = {}, storyboard = {}) {
+export function applyWorldBrainToVideoPrompt(prompt = "", frame = {}, storyboard = {}, options = {}) {
   const { profile, allowModernEmergency, block } = buildWorldAudioBlock(frame, storyboard);
   const cleaned = removeForbiddenAudio(prompt, profile, allowModernEmergency);
   const sfx = removeForbiddenAudio(frame.sfx || profile.allowedAudio, profile, allowModernEmergency) || profile.allowedAudio;
+  if (options.compact) {
+    const guard = allowModernEmergency
+      ? "Emergency sounds only if visible in the uploaded frame."
+      : "No random sirens, alarms, emergency tones, vehicles or unrelated props.";
+    return cleanText(`${cleaned} ${guard}`);
+  }
   const noModern = allowModernEmergency ? "" : ` HARD NEGATIVE AUDIO: ${profile.forbiddenAudio}.`;
   return cleanText(`${cleaned} ${block} PRIMARY SFX MUST BE: ${sfx}.${noModern}`);
 }
