@@ -382,6 +382,7 @@ function ProjectSetupPanelV40({
     "vhsRetro", "analogFilm",
     "mysticHorror", "scifiAtmospheric", "fantasyEpic",
     "westernGritty", "apocalyptic", "filmNoir", "brutalistMinimal",
+    "hyperreal_8k",
     "animation2d", "animation25d", "animation3d", "stopmotion", "cutoutPaper",
     "animeDark", "animeShonenAction", "animeSliceOfLife", "ghibliInspired",
     "graphicNovel", "comicHalftone", "musicVideo"

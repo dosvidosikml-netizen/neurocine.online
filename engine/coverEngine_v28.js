@@ -523,6 +523,12 @@ const STYLE_PRESETS = {
     layout: "rough paper or concrete wall texture background, oversized bold angular title with slight rotation or off-alignment, fact labels as torn paper strips or marker scrawl, raw hand-made feel",
     palette: "aged paper cream or raw concrete gray, bold black text with rough edges, one aggressive accent color red or yellow, ink bleed and texture artifacts",
   },
+
+  hyperreal_8k: {
+    desc: "ultra-hyperrealistic 8K+ photography thumbnail, razor-sharp microscopic detail, zero motion blur, zero film grain, maximum color volume and contrast, forensically clear like watching 8K reference display",
+    layout: "full-bleed hyperrealistic photograph, subject in perfect critical focus with microscopic surface detail, dramatic high-contrast studio-calibrated lighting, deep rich background, bold sharp text with clean modern sans-serif",
+    palette: "maximum color volume — Rec.2020 wide gamut, rich deep blacks fully detailed, brilliant clean whites without clipping, vibrant accurate hues, zero desaturation, zero grain, zero vintage treatment",
+  },
 };
 
 function getStyleConfig(style = "viral", theme = "general") {

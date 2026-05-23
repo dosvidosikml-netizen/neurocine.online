@@ -497,6 +497,9 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
                 <option value="gradient_pop">🌈 Gradient Pop</option>
                 <option value="clean_infographic">📊 Clean Infographic</option>
               </optgroup>
+              <optgroup label="── Гиперреализм ──">
+                <option value="hyperreal_8k">🔬 Hyperreal 8K+</option>
+              </optgroup>
               <optgroup label="── Ретро / Артхаус ──">
                 <option value="vintage_film">🎞 Vintage Film</option>
                 <option value="street_poster">🖌 Street Art Poster</option>

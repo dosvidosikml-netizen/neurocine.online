@@ -137,6 +137,13 @@ export const STYLE_PRESETS = {
     accent: "#a39a8a",
     tagline: "Бетон, объёмы, минимализм"
   },
+  hyperreal_8k: {
+    label: "Hyperreal 8K",
+    family: "film",
+    lock: STYLE_LOCKS.hyperreal_8k,
+    accent: "#00e5ff",
+    tagline: "Максимальная чёткость · без мыла · 8K"
+  },
   // === ANIMATION FAMILY ===
   animation2d: {
     label: "2D animation",
