@@ -678,6 +678,8 @@ export default function StudioPage() {
     return s;
   })();
   const [autoPrevPartAnchor, setAutoPrevPartAnchor] = useState(null);
+  const [autoPrevPartBrief, setAutoPrevPartBrief] = useState("");
+  const [autoPrevPartBriefStatus, setAutoPrevPartBriefStatus] = useState("");
   const [autoPartPrompt, setAutoPartPrompt] = useState("");
   const [autoVideoPack, setAutoVideoPack] = useState("");
   const [autoAllPromptText, setAutoAllPromptText] = useState("");
@@ -787,10 +789,18 @@ ${lines.join("\n")}` : "";
     return `\n\n${lines.join("\n")}`;
   }, [storyboard, autoPartScenes.length, autoReferenceMode, autoPartIndex, autoHeroAnchor, autoPrevPartAnchor]);
 
+  const autoPrevPartVisualDnaBlock = useMemo(() => {
+    if (!storyboard || !autoPartScenes.length) return "";
+    if (autoPartIndex === 0 || autoReferenceMode === "heroOnly" || !autoPrevPartAnchor) return "";
+    const brief = String(autoPrevPartBrief || "").trim();
+    const body = brief || "Previous PART image is uploaded and must be attached to the generator request. Read the uploaded grid as the continuity source for palette, lighting, world texture, object materials and character/body silhouette. Do not copy exact compositions.";
+    return `\n\nPREVIOUS PART VISUAL DNA:\n${body}\nUse this uploaded grid only as continuity/style DNA for PART ${autoPartIndex + 1}. Keep the same world, lighting family, palette, material grime and tactile realism, but create new compositions for the new frames.`;
+  }, [storyboard, autoPartScenes.length, autoPartIndex, autoReferenceMode, autoPrevPartAnchor, autoPrevPartBrief]);
+
   const frameGridPromptWithDirectives = useMemo(() => {
     if (!frameGridPrompt) return "";
-    return `${frameGridPrompt}${charOverrideBlock}${autoAnchorPromptNote}`;
-  }, [frameGridPrompt, charOverrideBlock, autoAnchorPromptNote]);
+    return `${frameGridPrompt}${autoPrevPartVisualDnaBlock}${charOverrideBlock}${autoAnchorPromptNote}`;
+  }, [frameGridPrompt, autoPrevPartVisualDnaBlock, charOverrideBlock, autoAnchorPromptNote]);
 
   const scriptJson = script
     ? JSON.stringify({ project_name: projectName, script, topic, duration, aspect_ratio: aspectRatio, style: stylePreset, project_type: projectType, tone }, null, 2)
@@ -805,7 +815,7 @@ ${lines.join("\n")}` : "";
       videoP, videoPromptMode, videoConsistency, analysis,
       autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
       autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-      autoPartPrompt, autoVideoPack, autoAllPromptText,
+      autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText,
       production_cache_tick: productionCacheTick,
       production_pack_cache: collectProductionCache(storageOwnerId || "guest"),
       image_state: {
@@ -820,7 +830,7 @@ ${lines.join("\n")}` : "";
     videoP, videoPromptMode, videoConsistency, analysis,
     autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
     autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-    autoPartPrompt, autoVideoPack, autoAllPromptText, productionCacheTick,
+    autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText, productionCacheTick,
     gridImg, croppedFrame, variantImg, croppedVariant, finalImg
   ]);
 
@@ -878,6 +888,15 @@ ${lines.join("\n")}` : "";
       if (text.videoConsistency) setVideoConsistency(text.videoConsistency);
       if (typeof text.devMode === "boolean") setDevMode(liveAllowed ? text.devMode : true);
       if (text.analysis)    setAnalysis(text.analysis);
+      if (text.autoPartSize) setAutoPartSize(text.autoPartSize);
+      if (text.autoPartIndex !== undefined && text.autoPartIndex !== null) setAutoPartIndex(text.autoPartIndex);
+      if (text.autoChainMode) setAutoChainMode(text.autoChainMode);
+      if (text.autoStrictLevel) setAutoStrictLevel(text.autoStrictLevel);
+      if (text.autoReferenceMode) setAutoReferenceMode(text.autoReferenceMode);
+      if (text.autoAppearanceMode) setAutoAppearanceMode(text.autoAppearanceMode);
+      if (text.autoIncludeVo !== undefined) setAutoIncludeVo(Boolean(text.autoIncludeVo));
+      if (text.autoPrevPartBrief) setAutoPrevPartBrief(text.autoPrevPartBrief);
+      if (text.autoPrevPartBriefStatus && text.autoPrevPartBriefStatus !== "analyzing") setAutoPrevPartBriefStatus(text.autoPrevPartBriefStatus);
     }
 
     if (imgs) {
@@ -885,6 +904,8 @@ ${lines.join("\n")}` : "";
       if (imgs.variantImg) setVariantImg(imgs.variantImg);
       if (imgs.croppedVariant) setCropped(imgs.croppedVariant);
       if (imgs.finalImg)   setFinalImg(imgs.finalImg);
+      if (imgs.autoHeroAnchor) setAutoHeroAnchor(imgs.autoHeroAnchor);
+      if (imgs.autoPrevPartAnchor) setAutoPrevPartAnchor(imgs.autoPrevPartAnchor);
     }
 
     setSnapshotStatus(text ? "✓ Локальный черновик этого аккаунта загружен" : "");
@@ -897,10 +918,13 @@ ${lines.join("\n")}` : "";
     tryLsSave(KEY_TEXT, {
       projectName, topic, projectType, stylePreset, duration,
       aspectRatio, tone, script, storyboard, jsonIn, sbMode, target, validation,
-      frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode
+      frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
+      autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
+      autoAppearanceMode, autoIncludeVo, autoPrevPartBrief, autoPrevPartBriefStatus
     });
   }, [hydrated, KEY_TEXT, projectName, topic, projectType, stylePreset, duration, aspectRatio,
-      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode]);
+      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
+      autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, autoIncludeVo, autoPrevPartBrief, autoPrevPartBriefStatus]);
 
   /* ── AUTOSAVE WRITE (images — separate key, с защитой от quota) ── */
   useEffect(() => {
@@ -912,9 +936,11 @@ ${lines.join("\n")}` : "";
       gridImg: safe(gridImg),
       variantImg: safe(variantImg),
       croppedVariant: safe(croppedVariant),
-      finalImg: safe(finalImg)
+      finalImg: safe(finalImg),
+      autoHeroAnchor: safe(autoHeroAnchor),
+      autoPrevPartAnchor: safe(autoPrevPartAnchor)
     });
-  }, [hydrated, KEY_IMGS, gridImg, variantImg, croppedVariant, finalImg]);
+  }, [hydrated, KEY_IMGS, gridImg, variantImg, croppedVariant, finalImg, autoHeroAnchor, autoPrevPartAnchor]);
 
   /* Re-crop if cols override changes while frame is selected */
   useEffect(() => {
@@ -932,7 +958,12 @@ ${lines.join("\n")}` : "";
     setP2k(""); setFinalImg(null); setVideoP(""); setAnalysis(null);
     setActiveChunk(0); setContAnchor([]); setContAnchorGrid(null); setContPrompt(""); setShowCont(false);
     setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText("");
-    if (!keepAnchors) { setAutoHeroAnchor(null); setAutoPrevPartAnchor(null); }
+    if (!keepAnchors) {
+      setAutoHeroAnchor(null);
+      setAutoPrevPartAnchor(null);
+      setAutoPrevPartBrief("");
+      setAutoPrevPartBriefStatus("");
+    }
   }
 
   function clearTopicOnly() {
@@ -1312,13 +1343,48 @@ ${lines.join("\n")}` : "";
     }
   }
 
+  async function analyzePreviousPartAnchor(url) {
+    if (!url) return;
+    setAutoPrevPartBrief("");
+    setAutoPrevPartBriefStatus("analyzing");
+    try {
+      const r = await fetch("/api/analyze-anchor", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ image: url, task: "grid_style" })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) {
+        throw new Error(data.error || "Previous PART analysis failed");
+      }
+      setAutoPrevPartBrief(String(data.description || "").trim());
+      setAutoPrevPartBriefStatus("ready");
+    } catch (e) {
+      setAutoPrevPartBriefStatus(`error: ${e.message || "analysis failed"}`);
+    }
+  }
+
+  function setPreviousPartAnchor(url, { clearGrid = false } = {}) {
+    if (!url) return;
+    setAutoPrevPartAnchor(url);
+    clearAutoChainOutputs({ clearGrid, clearVideo: true });
+    analyzePreviousPartAnchor(url);
+  }
+
+  function clearPreviousPartAnchor({ clearGrid = false } = {}) {
+    setAutoPrevPartAnchor(null);
+    setAutoPrevPartBrief("");
+    setAutoPrevPartBriefStatus("");
+    clearAutoChainOutputs({ clearGrid, clearVideo: true });
+  }
+
   function switchAutoPart(nextIndex) {
     if (!autoParts.length) return;
     const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, autoParts.length - 1));
     if (safeIndex === autoPartIndex) return;
 
     if (gridImg && safeIndex === autoPartIndex + 1) {
-      setAutoPrevPartAnchor(gridImg);
+      setPreviousPartAnchor(gridImg);
     }
 
     setAutoPartIndex(safeIndex);
@@ -1353,7 +1419,7 @@ ${lines.join("\n")}` : "";
       : "";
 
     const video = buildAutoVideoPack({ storyboard, styleProfile, partScenes: autoPartScenes, chainMode: autoChainMode, includeVo: autoIncludeVo });
-    setAutoPartPrompt(prompt + charOverrideBlock + anchorNote);
+    setAutoPartPrompt(prompt + autoPrevPartVisualDnaBlock + charOverrideBlock + anchorNote);
     setAutoVideoPack(video);
   }
 
@@ -1435,7 +1501,7 @@ ${lines.join("\n")}` : "";
         videoPromptMode, videoConsistency, analysis,
         autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
         autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-        autoPartPrompt, autoVideoPack, autoAllPromptText
+        autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText
       },
       images: { gridImg, croppedFrame, variantImg, croppedVariant, finalImg },
       production_pack_cache: collectProductionCache(storageOwnerId || "guest")
@@ -1486,6 +1552,8 @@ ${lines.join("\n")}` : "";
     setCharOverrideEnabled(Boolean(pipe.charOverrideEnabled));
     setCharFaceLock(pipe.charFaceLock || "");
     setCharModifiers(pipe.charModifiers || { beard:false, scar:false, dirt:false, bruises:false, sweat:false, exhaustion:false, pale:false, blood:false });
+    setAutoPrevPartBrief(pipe.autoPrevPartBrief || "");
+    setAutoPrevPartBriefStatus(pipe.autoPrevPartBriefStatus || "");
     setAutoPartPrompt(pipe.autoPartPrompt || "");
     setAutoVideoPack(pipe.autoVideoPack || "");
     setAutoAllPromptText(pipe.autoAllPromptText || "");
@@ -2042,10 +2110,19 @@ ${lines.join("\n")}` : "";
                     {autoPrevPartAnchor ? (
                       <>
                         <div className="img-viewer"><img src={autoPrevPartAnchor} alt="Previous PART" /></div>
-                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoPrevPartAnchor(null); clearAutoChainOutputs({ clearGrid: true }); }}>Заменить previous PART</button>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.45 }}>
+                          {autoPrevPartBriefStatus === "analyzing"
+                            ? "Анализирую визуальную ДНК сетки..."
+                            : autoPrevPartBriefStatus === "ready"
+                              ? "✓ Visual DNA добавлена в PART prompt"
+                              : autoPrevPartBriefStatus
+                                ? "Анализ не прошёл, но сетка будет работать как ручной reference в Flow/VEO"
+                                : "Сетка будет использоваться как Previous PART reference"}
+                        </div>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => clearPreviousPartAnchor({ clearGrid: true })}>Заменить previous PART</button>
                       </>
                     ) : (
-                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => { setAutoPrevPartAnchor(url); clearAutoChainOutputs({ clearGrid: true }); }} />
+                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => setPreviousPartAnchor(url, { clearGrid: true })} />
                     )}
                   </div>
                 </div>
@@ -2519,7 +2596,7 @@ ${lines.join("\n")}` : "";
                         <button
                           type="button"
                           className="btn btn-sm"
-                          onClick={() => setAutoPrevPartAnchor(gridImg)}
+                          onClick={() => setPreviousPartAnchor(gridImg)}
                         >
                           Использовать как Previous PART
                         </button>
