@@ -17,6 +17,7 @@ import { downloadTextFile, downloadJsonFile, safeFileName } from "../../lib/down
 import { validateScript } from "../../lib/scriptValidator";
 import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
+import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import StudioFlowPanel from "../../components/StudioFlowPanel";
 import TopActionBar from "../../components/TopActionBar";
 import MobileBottomNav from "../../components/MobileBottomNav";
@@ -161,6 +162,12 @@ function safeJson(v) { try { return JSON.parse(v); } catch { return null; } }
 function tryLsSave(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); return true; }
   catch { return false; }
+}
+
+function imageDraftSig(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  return `${text.length}:${text.slice(0, 80)}:${text.slice(-80)}`;
 }
 
 function collectProductionCache(ownerId = "guest") {
@@ -358,11 +365,12 @@ function ProjectSetupPanelV40({
   clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
   authLocked = false,
 }) {
-  const durationOptions = [30, 60, 90, 120, 180, 300, 600];
+  const durationOptions = [30, 45, 60, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
   const modeOptions = [
-    { id: "safe", label: "Safe", hint: "документально, без жёстких кадров" },
-    { id: "raw", label: "Raw", hint: "меньше смягчения, больше фактуры" },
+    { id: "safe",          label: "Safe",          hint: "документально, без жёстких кадров" },
+    { id: "raw",           label: "Raw",           hint: "меньше смягчения, больше фактуры" },
+    { id: "script_strict", label: "📜 По сценарию", hint: "строго по тексту — AI не выдумывает действия" },
   ];
   const targetOptions = [
     { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
@@ -374,6 +382,7 @@ function ProjectSetupPanelV40({
     "vhsRetro", "analogFilm",
     "mysticHorror", "scifiAtmospheric", "fantasyEpic",
     "westernGritty", "apocalyptic", "filmNoir", "brutalistMinimal",
+    "hyperreal_8k",
     "animation2d", "animation25d", "animation3d", "stopmotion", "cutoutPaper",
     "animeDark", "animeShonenAction", "animeSliceOfLife", "ghibliInspired",
     "graphicNovel", "comicHalftone", "musicVideo"
@@ -678,6 +687,8 @@ export default function StudioPage() {
     return s;
   })();
   const [autoPrevPartAnchor, setAutoPrevPartAnchor] = useState(null);
+  const [autoPrevPartBrief, setAutoPrevPartBrief] = useState("");
+  const [autoPrevPartBriefStatus, setAutoPrevPartBriefStatus] = useState("");
   const [autoPartPrompt, setAutoPartPrompt] = useState("");
   const [autoVideoPack, setAutoVideoPack] = useState("");
   const [autoAllPromptText, setAutoAllPromptText] = useState("");
@@ -787,10 +798,18 @@ ${lines.join("\n")}` : "";
     return `\n\n${lines.join("\n")}`;
   }, [storyboard, autoPartScenes.length, autoReferenceMode, autoPartIndex, autoHeroAnchor, autoPrevPartAnchor]);
 
+  const autoPrevPartVisualDnaBlock = useMemo(() => {
+    if (!storyboard || !autoPartScenes.length) return "";
+    if (autoPartIndex === 0 || autoReferenceMode === "heroOnly" || !autoPrevPartAnchor) return "";
+    const brief = String(autoPrevPartBrief || "").trim();
+    const body = brief || "Previous PART image is uploaded and must be attached to the generator request. Read the uploaded grid as the continuity source for palette, lighting, world texture, object materials and character/body silhouette. Do not copy exact compositions.";
+    return `\n\nPREVIOUS PART VISUAL DNA:\n${body}\nUse this uploaded grid only as continuity/style DNA for PART ${autoPartIndex + 1}. Keep the same world, lighting family, palette, material grime and tactile realism, but create new compositions for the new frames.`;
+  }, [storyboard, autoPartScenes.length, autoPartIndex, autoReferenceMode, autoPrevPartAnchor, autoPrevPartBrief]);
+
   const frameGridPromptWithDirectives = useMemo(() => {
     if (!frameGridPrompt) return "";
-    return `${frameGridPrompt}${charOverrideBlock}${autoAnchorPromptNote}`;
-  }, [frameGridPrompt, charOverrideBlock, autoAnchorPromptNote]);
+    return `${frameGridPrompt}${autoPrevPartVisualDnaBlock}${charOverrideBlock}${autoAnchorPromptNote}`;
+  }, [frameGridPrompt, autoPrevPartVisualDnaBlock, charOverrideBlock, autoAnchorPromptNote]);
 
   const scriptJson = script
     ? JSON.stringify({ project_name: projectName, script, topic, duration, aspect_ratio: aspectRatio, style: stylePreset, project_type: projectType, tone }, null, 2)
@@ -805,12 +824,17 @@ ${lines.join("\n")}` : "";
       videoP, videoPromptMode, videoConsistency, analysis,
       autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
       autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-      autoPartPrompt, autoVideoPack, autoAllPromptText,
+      autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText,
       production_cache_tick: productionCacheTick,
       production_pack_cache: collectProductionCache(storageOwnerId || "guest"),
       image_state: {
-        gridImg: Boolean(gridImg), croppedFrame: Boolean(croppedFrame),
-        variantImg: Boolean(variantImg), croppedVariant: Boolean(croppedVariant), finalImg: Boolean(finalImg),
+        gridImg: imageDraftSig(gridImg),
+        croppedFrame: imageDraftSig(croppedFrame),
+        variantImg: imageDraftSig(variantImg),
+        croppedVariant: imageDraftSig(croppedVariant),
+        finalImg: imageDraftSig(finalImg),
+        autoHeroAnchor: imageDraftSig(autoHeroAnchor),
+        autoPrevPartAnchor: imageDraftSig(autoPrevPartAnchor),
       }
     });
   }, [
@@ -820,8 +844,8 @@ ${lines.join("\n")}` : "";
     videoP, videoPromptMode, videoConsistency, analysis,
     autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
     autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-    autoPartPrompt, autoVideoPack, autoAllPromptText, productionCacheTick,
-    gridImg, croppedFrame, variantImg, croppedVariant, finalImg
+    autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText, productionCacheTick,
+    gridImg, croppedFrame, variantImg, croppedVariant, finalImg, autoHeroAnchor, autoPrevPartAnchor
   ]);
 
   /* ── LOCAL DRAFT LOAD — v49 user-scoped ── */
@@ -864,12 +888,15 @@ ${lines.join("\n")}` : "";
       if (text.aspectRatio) setAspect(text.aspectRatio);
       if (text.tone)        setTone(text.tone);
       if (text.script)      setScript(text.script);
+      if (text.scriptValidation) setScriptValidation(text.scriptValidation);
       if (text.storyboard)  setSB(text.storyboard);
       if (text.jsonIn)      setJsonIn(text.jsonIn);
       if (text.sbMode)      setSbMode(text.sbMode);
       if (text.target)      setTarget(text.target);
       if (text.validation)  setValidation(text.validation);
       if (text.frameIdx !== undefined && text.frameIdx !== null) setFrameIdx(text.frameIdx);
+      if (text.gridColsOverride !== undefined) setGridColsOverride(text.gridColsOverride);
+      if (text.gridManualFrames !== undefined) setGridManualFrames(text.gridManualFrames);
       if (text.exploreP)    setExploreP(text.exploreP);
       if (text.selVariant)  setSelVariant(text.selVariant);
       if (text.p2k)         setP2k(text.p2k);
@@ -878,29 +905,62 @@ ${lines.join("\n")}` : "";
       if (text.videoConsistency) setVideoConsistency(text.videoConsistency);
       if (typeof text.devMode === "boolean") setDevMode(liveAllowed ? text.devMode : true);
       if (text.analysis)    setAnalysis(text.analysis);
+      if (text.autoPartSize) setAutoPartSize(text.autoPartSize);
+      if (text.autoPartIndex !== undefined && text.autoPartIndex !== null) setAutoPartIndex(text.autoPartIndex);
+      if (text.autoChainMode) setAutoChainMode(text.autoChainMode);
+      if (text.autoStrictLevel) setAutoStrictLevel(text.autoStrictLevel);
+      if (text.autoReferenceMode) setAutoReferenceMode(text.autoReferenceMode);
+      if (text.autoAppearanceMode) setAutoAppearanceMode(text.autoAppearanceMode);
+      if (text.autoIncludeVo !== undefined) setAutoIncludeVo(Boolean(text.autoIncludeVo));
+      if (text.charOverrideEnabled !== undefined) setCharOverrideEnabled(Boolean(text.charOverrideEnabled));
+      if (text.charFaceLock) setCharFaceLock(text.charFaceLock);
+      if (text.charModifiers) setCharModifiers(text.charModifiers);
+      if (text.autoPrevPartBrief) setAutoPrevPartBrief(text.autoPrevPartBrief);
+      if (text.autoPrevPartBriefStatus && text.autoPrevPartBriefStatus !== "analyzing") setAutoPrevPartBriefStatus(text.autoPrevPartBriefStatus);
+      if (text.autoPartPrompt) setAutoPartPrompt(text.autoPartPrompt);
+      if (text.autoVideoPack) setAutoVideoPack(text.autoVideoPack);
+      if (text.autoAllPromptText) setAutoAllPromptText(text.autoAllPromptText);
     }
 
     if (imgs) {
       if (imgs.gridImg)    setGridImg(imgs.gridImg);
+      if (imgs.croppedFrame) setCroppedFrame(imgs.croppedFrame);
       if (imgs.variantImg) setVariantImg(imgs.variantImg);
       if (imgs.croppedVariant) setCropped(imgs.croppedVariant);
       if (imgs.finalImg)   setFinalImg(imgs.finalImg);
+      if (imgs.autoHeroAnchor) setAutoHeroAnchor(imgs.autoHeroAnchor);
+      if (imgs.autoPrevPartAnchor) setAutoPrevPartAnchor(imgs.autoPrevPartAnchor);
     }
 
-    setSnapshotStatus(text ? "✓ Локальный черновик этого аккаунта загружен" : "");
+    setSnapshotStatus(text?.local_save_warning ? "⚠ Локальный черновик загружен без тяжёлых prompt packs. Для полного сохранения используй Cloud Projects." : text ? "✓ Локальный черновик этого аккаунта загружен" : "");
     setHydrated(true);
   }, [storageOwnerId, KEY_TEXT, KEY_IMGS]);
 
   /* ── AUTOSAVE WRITE (text) ── */
   useEffect(() => {
     if (!hydrated || !KEY_TEXT) return;
-    tryLsSave(KEY_TEXT, {
+    const textDraft = {
       projectName, topic, projectType, stylePreset, duration,
-      aspectRatio, tone, script, storyboard, jsonIn, sbMode, target, validation,
-      frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode
-    });
+      aspectRatio, tone, script, scriptValidation, storyboard, jsonIn, sbMode, target, validation,
+      frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
+      gridColsOverride, gridManualFrames,
+      autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
+      autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
+      autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText
+    };
+    if (!tryLsSave(KEY_TEXT, textDraft)) {
+      tryLsSave(KEY_TEXT, {
+        ...textDraft,
+        autoPartPrompt: "",
+        autoVideoPack: "",
+        autoAllPromptText: "",
+        local_save_warning: "Prompt packs were too large for browser localStorage and were omitted from the local draft. Use Cloud Projects or Snapshot for full persistence."
+      });
+    }
   }, [hydrated, KEY_TEXT, projectName, topic, projectType, stylePreset, duration, aspectRatio,
-      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode]);
+      tone, script, scriptValidation, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
+      gridColsOverride, gridManualFrames, autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, autoIncludeVo,
+      charOverrideEnabled, charFaceLock, charModifiers, autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText]);
 
   /* ── AUTOSAVE WRITE (images — separate key, с защитой от quota) ── */
   useEffect(() => {
@@ -908,13 +968,23 @@ ${lines.join("\n")}` : "";
     // limit: skip images > 2MB to avoid localStorage quota
     const maxSize = 2_000_000;
     const safe = (v) => (v && v.length <= maxSize ? v : null);
-    tryLsSave(KEY_IMGS, {
+    const imageDraft = {
       gridImg: safe(gridImg),
+      croppedFrame: safe(croppedFrame),
       variantImg: safe(variantImg),
       croppedVariant: safe(croppedVariant),
-      finalImg: safe(finalImg)
-    });
-  }, [hydrated, KEY_IMGS, gridImg, variantImg, croppedVariant, finalImg]);
+      finalImg: safe(finalImg),
+      autoHeroAnchor: safe(autoHeroAnchor),
+      autoPrevPartAnchor: safe(autoPrevPartAnchor)
+    };
+    if (!tryLsSave(KEY_IMGS, imageDraft)) {
+      tryLsSave(KEY_IMGS, {
+        gridImg: imageDraft.gridImg,
+        autoHeroAnchor: imageDraft.autoHeroAnchor,
+        autoPrevPartAnchor: imageDraft.autoPrevPartAnchor,
+      });
+    }
+  }, [hydrated, KEY_IMGS, gridImg, croppedFrame, variantImg, croppedVariant, finalImg, autoHeroAnchor, autoPrevPartAnchor]);
 
   /* Re-crop if cols override changes while frame is selected */
   useEffect(() => {
@@ -932,7 +1002,12 @@ ${lines.join("\n")}` : "";
     setP2k(""); setFinalImg(null); setVideoP(""); setAnalysis(null);
     setActiveChunk(0); setContAnchor([]); setContAnchorGrid(null); setContPrompt(""); setShowCont(false);
     setAutoPartIndex(0); setAutoPartPrompt(""); setAutoVideoPack(""); setAutoAllPromptText("");
-    if (!keepAnchors) { setAutoHeroAnchor(null); setAutoPrevPartAnchor(null); }
+    if (!keepAnchors) {
+      setAutoHeroAnchor(null);
+      setAutoPrevPartAnchor(null);
+      setAutoPrevPartBrief("");
+      setAutoPrevPartBriefStatus("");
+    }
   }
 
   function clearTopicOnly() {
@@ -1128,7 +1203,19 @@ ${lines.join("\n")}` : "";
             const isFallback = modeLabel.includes("fallback");
             const fallbackReason = data.error ? ` — ${data.error}` : " — API не ответил или вернул невалидный JSON";
             const fallbackWarn = isFallback ? ` · ⚠ FALLBACK${fallbackReason}` : "";
-            setSbStat(`ok|${sb.scenes?.length || 0} кадров · ${modeLabel}${fallbackWarn}${valInfo}`);
+
+            // Предупреждение если storyboard масштабирован из-за длинного скрипта
+            const actualScenes   = sb.scenes?.length || 0;
+            const expectedScenes = Math.round(Number(duration) / 3);
+            let scaledWarn = "";
+            if (actualScenes > expectedScenes + 1) {
+              const scriptWords  = String(script || "").trim().split(/\s+/).filter(Boolean).length;
+              const scriptEstSec = Math.round(scriptWords / 2.2);
+              const targetWords  = Math.round(Number(duration) * 2.2);
+              scaledWarn = ` · ⚠ Скрипт ~${scriptEstSec}с (${scriptWords} сл) — длиннее выбранных ${duration}с. Нажми «Создать сценарий» заново — для ${duration}с нужно ~${targetWords} слов.`;
+            }
+
+            setSbStat(`ok|${actualScenes} кадров · ${modeLabel}${fallbackWarn}${valInfo}${scaledWarn}`);
           } else {
             setSbStat("err|" + (data.error || "Пустой ответ от сервера"));
           }
@@ -1312,6 +1399,54 @@ ${lines.join("\n")}` : "";
     }
   }
 
+  async function analyzePreviousPartAnchor(url) {
+    if (!url) return;
+    setAutoPrevPartBrief("");
+    setAutoPrevPartBriefStatus("analyzing");
+    try {
+      const r = await fetch("/api/analyze-anchor", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ image: url, task: "grid_style" })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) {
+        throw new Error(data.error || "Previous PART analysis failed");
+      }
+      setAutoPrevPartBrief(String(data.description || "").trim());
+      setAutoPrevPartBriefStatus("ready");
+    } catch (e) {
+      setAutoPrevPartBriefStatus(`error: ${e.message || "analysis failed"}`);
+    }
+  }
+
+  function setPreviousPartAnchor(url, { clearGrid = false } = {}) {
+    if (!url) return;
+    setAutoPrevPartAnchor(url);
+    clearAutoChainOutputs({ clearGrid, clearVideo: true });
+    analyzePreviousPartAnchor(url);
+  }
+
+  function clearPreviousPartAnchor({ clearGrid = false } = {}) {
+    setAutoPrevPartAnchor(null);
+    setAutoPrevPartBrief("");
+    setAutoPrevPartBriefStatus("");
+    clearAutoChainOutputs({ clearGrid, clearVideo: true });
+  }
+
+  function switchAutoPart(nextIndex) {
+    if (!autoParts.length) return;
+    const safeIndex = Math.max(0, Math.min(Number(nextIndex) || 0, autoParts.length - 1));
+    if (safeIndex === autoPartIndex) return;
+
+    if (gridImg && safeIndex === autoPartIndex + 1) {
+      setPreviousPartAnchor(gridImg);
+    }
+
+    setAutoPartIndex(safeIndex);
+    clearAutoChainOutputs({ clearGrid: true, clearVideo: true });
+  }
+
   function generateAutoChainPart() {
     if (!storyboard || !autoPartScenes.length) return;
     const prompt = buildAutoChainPartPrompt({
@@ -1340,7 +1475,7 @@ ${lines.join("\n")}` : "";
       : "";
 
     const video = buildAutoVideoPack({ storyboard, styleProfile, partScenes: autoPartScenes, chainMode: autoChainMode, includeVo: autoIncludeVo });
-    setAutoPartPrompt(prompt + charOverrideBlock + anchorNote);
+    setAutoPartPrompt(prompt + autoPrevPartVisualDnaBlock + charOverrideBlock + anchorNote);
     setAutoVideoPack(video);
   }
 
@@ -1358,10 +1493,7 @@ ${lines.join("\n")}` : "";
 
   function nextAutoPart() {
     if (!autoParts.length) return;
-    const next = Math.min(autoPartIndex + 1, autoParts.length - 1);
-    setAutoPartIndex(next);
-    setAutoPartPrompt("");
-    setAutoVideoPack("");
+    switchAutoPart(autoPartIndex + 1);
   }
 
   function exportAutoChainJson() {
@@ -1425,7 +1557,7 @@ ${lines.join("\n")}` : "";
         videoPromptMode, videoConsistency, analysis,
         autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
         autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
-        autoPartPrompt, autoVideoPack, autoAllPromptText
+        autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText
       },
       images: { gridImg, croppedFrame, variantImg, croppedVariant, finalImg },
       production_pack_cache: collectProductionCache(storageOwnerId || "guest")
@@ -1476,6 +1608,8 @@ ${lines.join("\n")}` : "";
     setCharOverrideEnabled(Boolean(pipe.charOverrideEnabled));
     setCharFaceLock(pipe.charFaceLock || "");
     setCharModifiers(pipe.charModifiers || { beard:false, scar:false, dirt:false, bruises:false, sweat:false, exhaustion:false, pale:false, blood:false });
+    setAutoPrevPartBrief(pipe.autoPrevPartBrief || "");
+    setAutoPrevPartBriefStatus(pipe.autoPrevPartBriefStatus || "");
     setAutoPartPrompt(pipe.autoPartPrompt || "");
     setAutoVideoPack(pipe.autoVideoPack || "");
     setAutoAllPromptText(pipe.autoAllPromptText || "");
@@ -1623,6 +1757,19 @@ ${lines.join("\n")}` : "";
           access={accountAccess}
           devMode={effectiveDevMode}
           liveAllowed={liveAllowed}
+        />
+      )}
+
+      {isSignedIn && (
+        <CloudProjectsPanel
+          account={account}
+          projectName={projectName}
+          buildSnapshot={buildProjectSnapshot}
+          applySnapshot={applyProjectSnapshot}
+          onStatus={setSnapshotStatus}
+          autoSaveKey={cloudAutoSaveKey}
+          autoSaveEnabled={true}
+          allowInStudio={true}
         />
       )}
 
@@ -1810,6 +1957,8 @@ ${lines.join("\n")}` : "";
                         { key: "outro_strong", okText: "Концовка сильная", failText: "Банальная концовка" },
                         { key: "no_filler_words", okText: "Нет слов-паразитов", failText: "Есть слова-паразиты (вообще/типа/как бы)" },
                         { key: "no_long_lists", okText: "Нет сухих перечислений", failText: "Сухой список через запятую — заменить на 1 яркий образ" },
+                        { key: "storyboard_spine", okText: "Storyboard spine есть", failText: "Мало опор для раскадровки" },
+                        { key: "final_frame_grounded", okText: "Финальный кадр есть", failText: "Нет финального кадра перед вопросом" },
                       ].map(({ key, okText, failText }) => {
                         const ok = scriptValidation.checks?.[key];
                         return (
@@ -1856,11 +2005,13 @@ ${lines.join("\n")}` : "";
                         <span>Ср. слов: {scriptValidation.stats.avg_words_per_sentence}</span>
                         <span>Коротких фраз: {scriptValidation.stats.short_sentences}</span>
                         <span>«ты»-обращений: {scriptValidation.stats.you_address_count}</span>
+                        <span>Кадровых действий: {scriptValidation.stats.storyboard_actions ?? 0}</span>
+                        <span>Предметных деталей: {scriptValidation.stats.storyboard_anchors ?? 0}</span>
                       </div>
                     )}
 
                     {/* Подсказка регенерировать если плохо */}
-                    {scriptValidation.score < 70 && topic.trim() && (
+                    {!scriptValidation.ok && topic.trim() && (
                       <div style={{
                         marginTop: 12, padding: "10px 12px",
                         background: "rgba(229,53,53,0.08)",
@@ -1868,7 +2019,7 @@ ${lines.join("\n")}` : "";
                         borderRadius: 10,
                         fontSize: 11, color: "#fca5a5",
                       }}>
-                        💡 Низкий score — нажми «Создать сценарий» ещё раз: AI попробует переписать с учётом проблем.
+                        💡 Сценарий не прошёл проверку ({scriptValidation.score}/100) — нажми «Создать сценарий» ещё раз: AI попробует переписать с учётом проблем.
                       </div>
                     )}
                   </div>
@@ -2028,10 +2179,19 @@ ${lines.join("\n")}` : "";
                     {autoPrevPartAnchor ? (
                       <>
                         <div className="img-viewer"><img src={autoPrevPartAnchor} alt="Previous PART" /></div>
-                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setAutoPrevPartAnchor(null); clearAutoChainOutputs({ clearGrid: true }); }}>Заменить previous PART</button>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.45 }}>
+                          {autoPrevPartBriefStatus === "analyzing"
+                            ? "Анализирую визуальную ДНК сетки..."
+                            : autoPrevPartBriefStatus === "ready"
+                              ? "✓ Visual DNA добавлена в PART prompt"
+                              : autoPrevPartBriefStatus
+                                ? "Анализ не прошёл, но сетка будет работать как ручной reference в Flow/VEO"
+                                : "Сетка будет использоваться как Previous PART reference"}
+                        </div>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => clearPreviousPartAnchor({ clearGrid: true })}>Заменить previous PART</button>
                       </>
                     ) : (
-                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => { setAutoPrevPartAnchor(url); clearAutoChainOutputs({ clearGrid: true }); }} />
+                      <UploadZone label="Previous PART" hint="Для PART 2+ загрузи последнюю готовую сетку" onFile={(url) => setPreviousPartAnchor(url, { clearGrid: true })} />
                     )}
                   </div>
                 </div>
@@ -2130,7 +2290,7 @@ ${lines.join("\n")}` : "";
               </div>
 
               {/* Warning если scriptValidation плохой */}
-              {scriptValidation && scriptValidation.score < 70 && script.trim() && !sbBusy && (
+              {scriptValidation && !scriptValidation.ok && script.trim() && !sbBusy && (
                 <div style={{
                   marginTop: 10, padding: "10px 12px",
                   background: "rgba(245,158,11,0.10)",
@@ -2138,7 +2298,7 @@ ${lines.join("\n")}` : "";
                   borderRadius: 10,
                   fontSize: 11, color: "#f59e0b", lineHeight: 1.5,
                 }}>
-                  ⚠ Качество сценария низкое ({scriptValidation.score}/100). Storyboard унаследует слабые места.
+                  ⚠ Сценарий не прошёл проверку ({scriptValidation.score}/100). Storyboard унаследует слабые места.
                   Рекомендуем сначала улучшить сценарий: вернись к шагу 01 и нажми «СОЗДАТЬ СЦЕНАРИЙ» снова.
                 </div>
               )}
@@ -2328,7 +2488,7 @@ ${lines.join("\n")}` : "";
                   <div className="pipe-dot act">A</div>
                   <div>
                     <div className="pipe-title">FRAME GRID PROMPT · выбери PART</div>
-                    <div className="pipe-sub">Скопируй этот prompt в Flow / Nano Banana / VEO, получи PART-сетку {autoPartGridLabel} и загрузи её ниже.</div>
+                    <div className="pipe-sub">Prompt пересобирается автоматически под выбранный PART, anchors и reference mode. Скопируй его в Flow / Nano Banana / VEO, получи PART-сетку {autoPartGridLabel} и загрузи её ниже.</div>
                   </div>
                 </div>
                 <div className="pipe-body">
@@ -2343,16 +2503,7 @@ ${lines.join("\n")}` : "";
                           <button
                             type="button"
                             key={i}
-                            onClick={() => {
-                              setAutoPartIndex(i);
-                              setFrameIdx(null);
-                              setGridImg(null);
-                              setCroppedFrame(null);
-                              setFinalImg(null);
-                              setVideoP("");
-                              setAnalysis(null);
-                              setShowFrameRu(false);
-                            }}
+                            onClick={() => switchAutoPart(i)}
                             style={{
                               width: "100%",
                               border: active ? "1px solid var(--red)" : "1px solid var(--border)",
@@ -2495,21 +2646,39 @@ ${lines.join("\n")}` : "";
                         })}
                       </div>
 
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => {
-                          setGridImg(null);
-                          setFrameIdx(null);
-                          setCroppedFrame(null);
-                          setFinalImg(null);
-                          setVideoP("");
-                          setAnalysis(null);
-                          setShowFrameRu(false);
-                        }}
-                      >
-                        Заменить PART-сетку
-                      </button>
+                      <div className="brow">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => {
+                            setGridImg(null);
+                            setFrameIdx(null);
+                            setCroppedFrame(null);
+                            setFinalImg(null);
+                            setVideoP("");
+                            setAnalysis(null);
+                            setShowFrameRu(false);
+                          }}
+                        >
+                          Заменить PART-сетку
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => setPreviousPartAnchor(gridImg)}
+                        >
+                          Использовать как Previous PART
+                        </button>
+                        {autoPartIndex < autoParts.length - 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-red btn-sm"
+                            onClick={nextAutoPart}
+                          >
+                            → PART {autoPartIndex + 2} prompt
+                          </button>
+                        )}
+                      </div>
                     </>
                   ) : (
                     <UploadZone
@@ -2628,6 +2797,14 @@ ${lines.join("\n")}` : "";
                             <div className="img-viewer"><img src={finalImg} alt="Final 2K frame" /></div>
                             <div className="frame-card" style={{ marginTop: 10, marginBottom: 10 }}>
                               <div className="frame-card-lbl" style={{ marginBottom: 8 }}>🎬 VIDEO PROMPT ENGINE V2.8</div>
+                              <div className="field-label">TARGET MODEL</div>
+                              <div className="brow" style={{ marginTop: 6, marginBottom: 10 }}>
+                                <button className={`btn btn-sm ${target === "veo3" ? "btn-red" : ""}`} onClick={() => { setTarget("veo3"); setVideoP(""); }}>🎬 Veo 3</button>
+                                <button className={`btn btn-sm ${target === "grok" ? "btn-red" : ""}`} onClick={() => { setTarget("grok"); setVideoP(""); }}>🚀 Grok</button>
+                              </div>
+                              <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+                                {target === "veo3" ? "Veo 3 — длинный промт, native audio, тайминг камеры" : "Grok — компактный промт, visual hook, 3-8с клип"}
+                              </div>
                               <div className="field-label">PROMPT MODE</div>
                               <div className="brow" style={{ marginTop: 6, marginBottom: 10 }}>
                                 <button className={`btn btn-sm ${videoPromptMode === "cheap" ? "btn-red" : ""}`} onClick={() => { setVideoPromptMode("cheap"); setVideoP(""); }}>Cheap</button>
@@ -2701,8 +2878,8 @@ ${lines.join("\n")}` : "";
       </section>
 
           <div className="floating-dock-v33" aria-label="Studio quick actions">
-            <button onClick={exportProjectSnapshot}>💾 {uiLang === "en" ? "Save" : "Сохранить"}</button>
-            <button onClick={() => snapshotInputRef.current?.click()}>⬆ {uiLang === "en" ? "Load" : "Загрузить"}</button>
+            <button onClick={exportProjectSnapshot}>⬇ {uiLang === "en" ? "Snapshot" : "Снапшот"}</button>
+            <button onClick={() => snapshotInputRef.current?.click()}>⬆ {uiLang === "en" ? "Load snapshot" : "Загрузить снапшот"}</button>
             {storyboard && <button onClick={exportFlow}>⬇ Flow</button>}
             {storyboard && <button onClick={exportJson}>JSON</button>}
           </div>

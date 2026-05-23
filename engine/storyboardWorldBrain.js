@@ -24,13 +24,13 @@ function lowerContext(frame = {}, storyboard = {}) {
 
 function scriptAllowsModernEmergency(frame = {}, storyboard = {}) {
   const scriptText = cleanText([
-    storyboard?.script,
-    storyboard?.topic,
     frame?.vo_ru,
     frame?.description_ru,
     frame?.description_en,
+    frame?.sfx,
+    frame?.camera,
   ].filter(Boolean).join(" ")).toLowerCase();
-  return /(сирен|тревог|скорая|полици|машин|автомоб|город|мотор|двигател|ambulance|siren|alarm|police|car\b|cars\b|engine|city|modern emergency)/i.test(scriptText);
+  return /(сирен|тревог|скорая|полици|аварийн|маяк|alarm|siren|alert|warning|beacon|ambulance|police|modern emergency)/i.test(scriptText);
 }
 
 function inferWorldProfile(frame = {}, storyboard = {}) {
@@ -102,7 +102,10 @@ function hasFaceVisible(frame = {}) {
     frame?.image_prompt_en,
     frame?.video_prompt_en,
     frame?.camera,
-  ].filter(Boolean).join(" ")).toLowerCase();
+  ].filter(Boolean).join(" "))
+    .replace(/\bREFERENCE VISIBILITY RULE\s*:[\s\S]*$/i, "")
+    .toLowerCase();
+  if (/(tense face|reflected eye|three-quarter profile|face tilted|visible face|close-up|portrait|profile|лицо|крупный план)/i.test(text)) return true;
   if (/(ног|сандал|стоп|feet|foot|sandals|legs|low close-up|низкий план ног)/i.test(text)) return false;
   if (/(со спины|спина|затылок|back view|from behind|rear view|back of head)/i.test(text)) return false;
   if (/(close-up|portrait|3\/4|three-quarter|face|лицо|портрет|крупный план)/i.test(text)) return true;
@@ -177,10 +180,16 @@ export function applyWorldBrainToFrame(frame = {}, storyboard = {}) {
   return next;
 }
 
-export function applyWorldBrainToVideoPrompt(prompt = "", frame = {}, storyboard = {}) {
+export function applyWorldBrainToVideoPrompt(prompt = "", frame = {}, storyboard = {}, options = {}) {
   const { profile, allowModernEmergency, block } = buildWorldAudioBlock(frame, storyboard);
   const cleaned = removeForbiddenAudio(prompt, profile, allowModernEmergency);
   const sfx = removeForbiddenAudio(frame.sfx || profile.allowedAudio, profile, allowModernEmergency) || profile.allowedAudio;
+  if (options.compact) {
+    const guard = allowModernEmergency
+      ? "Emergency sounds only if visible in the uploaded frame."
+      : "No random sirens, alarms, emergency tones, vehicles or unrelated props.";
+    return cleanText(`${cleaned} ${guard}`);
+  }
   const noModern = allowModernEmergency ? "" : ` HARD NEGATIVE AUDIO: ${profile.forbiddenAudio}.`;
   return cleanText(`${cleaned} ${block} PRIMARY SFX MUST BE: ${sfx}.${noModern}`);
 }

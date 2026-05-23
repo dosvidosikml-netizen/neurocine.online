@@ -16,6 +16,10 @@ function uniq(arr = []) {
 }
 
 function textSource({ topic = "", script = "", storyboard = null } = {}) {
+  // NOTE: exclude global_style_lock, image_prompt_en, video_prompt_en, sfx, continuity_note —
+  // these are STYLE/TECHNICAL fields, not narrative content.
+  // Including them causes false-positive theme detection (e.g. "true crime documentary" in style_lock
+  // triggers crime theme for unrelated scripts).
   const scenes = storyboard?.scenes || storyboard?.frames || [];
   return [
     topic,
@@ -23,10 +27,8 @@ function textSource({ topic = "", script = "", storyboard = null } = {}) {
     storyboard?.title,
     storyboard?.topic,
     storyboard?.hook,
-    storyboard?.global_style_lock,
     ...(scenes || []).flatMap((f) => [
-      f.description_ru, f.visual, f.voice, f.vo, f.vo_ru, f.text_on_screen,
-      f.sfx, f.image_prompt_en, f.video_prompt_en, f.continuity_note
+      f.description_ru, f.visual, f.voice, f.vo, f.vo_ru, f.text_on_screen
     ])
   ].filter(Boolean).join("\n");
 }
@@ -41,15 +43,15 @@ export function detectCoverTheme(input = {}) {
   // Must run before generic crime / conspiracy / war.
   // Petrov-style Cold War false alert is NOT true crime and NOT detective evidence.
   if (hasAny(source, [
-    "петров", "ссср", "советск", "бункер", "сирен", "тревог", "ложная тревога", "ложн",
-    "спутник", "солнечный блик", "блик", "не нажал", "кнопк", "конца мира", "до конца мира",
-    "компьютеры показали", "один человек", "система"
+    "петров", "ссср", "советск", "бункер", "сирен", "ложная тревога", "ложн",
+    "спутник", "солнечный блик", "не нажал", "конца мира", "до конца мира",
+    "компьютеры показали"
   ])) return "cold_war_alert";
 
   if (hasAny(source, ["мерзлот", "mammoth", "мамонт", "мамонтёнок", "мамонтенок", "permafrost", "сибирской язвы", "anthrax", "щенк", "голов", "волк", "лед начал таять", "лёд начал таять", "древние могильники"])) return "permafrost";
   if (hasAny(source, ["тунгус", "тайга", "сибир", "метеорит", "осколк", "воронк"])) return "tunguska";
   if (hasAny(source, ["нло", "ufo", "alien", "иноплан", "не земн", "внезем", "аппарат", "розуэл", "roswell"])) return "alien";
-  if (hasAny(source, ["убий", "маньяк", "crime", "преступ", "детектив", "полици", "фбр", "fbi", "след"])) return "crime";
+  if (hasAny(source, ["убий", "маньяк", "crime", "преступ", "детектив", "полици", "фбр", "fbi", "следователь", "следствие", "расследован"])) return "crime";
   if (hasAny(source, ["заговор", "секрет", "секретн", "classified", "redacted", "архив", "документ", "правительство", "гриф", "скрывал"])) return "conspiracy";
   if (hasAny(source, ["тюрьм", "остров дьявола", "каторг", "побег", "заключ", "камера", "лагерь", "гулат", "гулаг"])) return "prison";
   if (hasAny(source, ["чум", "болезн", "эпидем", "лихорад", "москит", "зараж", "карантин"])) return "plague";

@@ -83,7 +83,21 @@ export const STYLE_LOCKS = {
   filmNoir:
     `${ULTRA_REALISM} Classic film noir — black-and-white high-contrast Venetian blind shadows across faces, hard side key light at 45 degrees, cigarette smoke volumetric in shaft of light, fedora-shadowed eyes, wet street with reflective puddles, 1940s wardrobe texture, no subtitles, no UI, no watermark`,
   brutalistMinimal:
-    `${ULTRA_REALISM} Brutalist minimal architectural drama — raw concrete texture with form-tie holes, oversized geometric voids, single hard sunlight beam through architectural cutout, monochromatic gray-beige palette with single accent color, human figure dwarfed by structure, no subtitles, no UI, no watermark`
+    `${ULTRA_REALISM} Brutalist minimal architectural drama — raw concrete texture with form-tie holes, oversized geometric voids, single hard sunlight beam through architectural cutout, monochromatic gray-beige palette with single accent color, human figure dwarfed by structure, no subtitles, no UI, no watermark`,
+
+  hyperreal_8k:
+    `RAW unretouched photograph, NOT CGI, NOT film — shot on RED Monstro 8K VV, Canon CN-E 50mm T1.3 prime lens, ISO 100 base. ` +
+    `MAXIMUM DIGITAL SHARPNESS: razor-crisp edge definition at pixel level, zero motion blur (1/1000s shutter), ` +
+    `zero sensor noise, zero film grain, zero lens vignette, zero chromatic aberration, zero soft focus. ` +
+    `Hyperrealistic micro-detail: skin pores individually sharp, every fabric thread in weave visible, ` +
+    `dust particles in air, surface scratches and material wear fully resolved at 8K density. ` +
+    `Lighting: HDR precision — rich deep blacks with full shadow detail, brilliant peak whites without clipping, ` +
+    `vibrant accurate color at maximum color volume. ` +
+    `Color science: Rec.2020 wide gamut, DCI-P3 precision, maximum saturation without tonemapping crush, ` +
+    `ultra-high contrast ratio as seen on OLED 8K reference display. ` +
+    `FORBIDDEN: no film grain, no soft glow, no bokeh haze, no vintage treatment, no noise, no blur, ` +
+    `no artistic degradation of any kind. Result: forensically sharp hyperrealistic image — ` +
+    `like watching live 8K broadcast on reference display, every detail commercially perfect and crystal clear.`
 };
 
 export const VIDEO_LOCK =

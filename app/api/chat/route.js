@@ -277,9 +277,10 @@ export async function POST(req) {
     const duration = Number(body.duration || 60);
 
     const wordsTarget = Math.round(duration * 2.2);
-    // Для коротких роликов не держим лишние токены — модель получает пространство только под нужный объём.
-    // wordsTarget * ~1.5 токена/слово * 1.3 запас — минимум 800 для нормального ответа.
-    const maxTokensForScript = Math.max(800, Math.ceil(wordsTarget * 1.5 * 1.3));
+    // Русский текст ≈ 2.0–2.2 токена/слово (кириллица менее эффективна).
+    // Жёстко ограничиваем токены чтобы модель физически не смогла написать лишнее.
+    // Минимум 220 токенов — чтобы хватило даже для очень коротких роликов (30с = ~66 слов).
+    const maxTokensForScript = Math.max(220, Math.ceil(wordsTarget * 1.2 * 2.2));
 
     // ── Попытка #1 ──
     let attempt = 1;

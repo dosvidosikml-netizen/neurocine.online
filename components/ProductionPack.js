@@ -27,32 +27,58 @@ function hashString(input = "") {
   return (h >>> 0).toString(36);
 }
 
+function productionSourceText({ topic = "", script = "", storyboard = null } = {}) {
+  const scenes = storyboard?.scenes || storyboard?.frames || [];
+  const narrative = [
+    script,
+    storyboard?.script,
+    storyboard?.title,
+    storyboard?.topic,
+    storyboard?.hook,
+    ...(scenes || []).flatMap((frame) => [
+      frame.description_ru,
+      frame.description_en,
+      frame.visual,
+      frame.voice,
+      frame.vo,
+      frame.vo_ru,
+      frame.text_on_screen,
+    ]),
+  ].filter(Boolean).join("\n").replace(/\s+/g, " ").trim();
+  if (narrative.length > 80) return narrative;
+  return [topic, narrative].filter(Boolean).join("\n").replace(/\s+/g, " ").trim();
+}
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(initialValue);
+  const [loadedKey, setLoadedKey] = useState("");
   useEffect(() => {
     if (!key) return;
-    try { setValue(safeJsonParse(localStorage.getItem(key), initialValue)); } catch {}
+    try { setValue(safeJsonParse(localStorage.getItem(key), initialValue)); } catch { setValue(initialValue); }
+    setLoadedKey(key);
   }, [key]);
   useEffect(() => {
-    if (!key) return;
+    if (!key || loadedKey !== key) return;
     try { localStorage.setItem(key, JSON.stringify(value)); window.dispatchEvent(new CustomEvent("neurocine-production-cache-change", { detail: { key } })); } catch {}
-  }, [key, value]);
+  }, [key, loadedKey, value]);
   return [value, setValue];
 }
 
 function useStoredString(key, initialValue) {
   const [value, setValue] = useState(initialValue);
+  const [loadedKey, setLoadedKey] = useState("");
   useEffect(() => {
     if (!key) return;
     try {
       const saved = localStorage.getItem(key);
-      if (saved != null) setValue(saved);
-    } catch {}
+      setValue(saved != null ? saved : initialValue);
+    } catch { setValue(initialValue); }
+    setLoadedKey(key);
   }, [key]);
   useEffect(() => {
-    if (!key) return;
+    if (!key || loadedKey !== key) return;
     try { localStorage.setItem(key, String(value ?? "")); window.dispatchEvent(new CustomEvent("neurocine-production-cache-change", { detail: { key } })); } catch {}
-  }, [key, value]);
+  }, [key, loadedKey, value]);
   return [value, setValue];
 }
 
@@ -380,16 +406,33 @@ function TtsStudioTab({ topic, script, genre, cacheKey, devMode, liveAllowed = f
 }
 
 // ─────── 🖼 COVER DIRECTOR TAB ───────────────────────────────────
-function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = false, accessToken = "" }) {
+function sourceHasAltHistoryWords(source = "") {
+  return /гитлер|hitler|наци|nazi|рейх|reich|план восток|generalplan ost|генеральный план ост|победил в войне|выиграл войну|проигравшем человечестве|сосед исчезал/i.test(String(source || ""));
+}
+
+function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, devMode, liveAllowed = false, accessToken = "" }) {
   const [data, setData] = useStoredState(`${cacheKey}:cover:data`, null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [mode, setMode] = useStoredString(`${cacheKey}:cover:mode`, "viral");
   const [style, setStyle] = useStoredString(`${cacheKey}:cover:style`, "viral");
   const [activeVariant, setActiveVariant] = useStoredString(`${cacheKey}:cover:variant`, "poster");
+  const sourceReady = Boolean(topic?.trim() || script?.trim() || storyboard?.scenes?.length);
+  const staleData = Boolean(
+    data && (
+      (data.__sourceKey ? data.__sourceKey !== sourceKey : data.source_hash && data.source_hash !== sourceKey) ||
+      (data.theme === "nazi_alt_history" && !sourceHasAltHistoryWords(sourceText))
+    )
+  );
+
+  useEffect(() => {
+    if (!staleData) return;
+    setData(null);
+    setErr("Старый Cover Director очищен: он был создан под другой сценарий.");
+  }, [staleData, setData]);
 
   async function run() {
-    if (devMode) { setErr(""); setData(buildMockCoverPack({ topic, script, storyboard })); return; }
+    if (devMode) { setErr(""); setData({ ...buildMockCoverPack({ topic, script, storyboard }), __sourceKey: sourceKey }); return; }
     if (!liveAllowed) { setErr("LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
@@ -399,13 +442,11 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
         body: JSON.stringify({ topic, script, storyboard, mode, style, platform: "shorts", generationMode: devMode ? "demo" : "live" })
       });
       const d = await r.json();
-      if (d.error) setErr(d.error); else setData(d.cover || d);
+      if (d.error) setErr(d.error); else setData({ ...(d.cover || d), __sourceKey: sourceKey });
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
-  const sourceReady = Boolean(topic?.trim() || script?.trim() || storyboard?.scenes?.length);
-
-  if (!data) {
+  if (!data || staleData) {
     return (
       <div className="col">
         <p className="step-desc" style={{ marginBottom: 14 }}>
@@ -425,11 +466,44 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
           <div className="field">
             <label>Стиль превью</label>
             <select value={style} onChange={(e) => setStyle(e.target.value)}>
-              <option value="viral">Viral Documentary</option>
-              <option value="netflix">Netflix Documentary</option>
-              <option value="conspiracy">Conspiracy / Classified</option>
-              <option value="truecrime">True Crime Evidence</option>
-              <option value="mrbeast">MrBeast Energy</option>
+              <optgroup label="── Классика ──">
+                <option value="viral">🔴 Viral Documentary</option>
+                <option value="netflix">🎬 Netflix / HBO</option>
+                <option value="truecrime">🔍 True Crime Evidence</option>
+                <option value="conspiracy">📁 Conspiracy / Classified</option>
+              </optgroup>
+              <optgroup label="── Энергетика ──">
+                <option value="mrbeast">⚡ MrBeast Energy</option>
+                <option value="bold_yellow">💛 Bold Yellow (YouTube)</option>
+                <option value="inferno">🔥 Inferno / Danger</option>
+                <option value="neon_hype">🌐 Neon Hype / Cyberpunk</option>
+                <option value="retro_vhs">📼 Retro VHS 80s</option>
+              </optgroup>
+              <optgroup label="── Премиум ──">
+                <option value="gold_luxury">✨ Gold Luxury</option>
+                <option value="magazine">📰 Editorial Magazine</option>
+                <option value="minimalist">◼ Minimalist Impact</option>
+                <option value="arctic">🧊 Arctic / Cold Mystery</option>
+                <option value="dark_academia">📚 Dark Academia</option>
+              </optgroup>
+              <optgroup label="── Медиа / ТВ ──">
+                <option value="newspaper">🗞 Breaking Newspaper</option>
+                <option value="breaking_tv">📺 Breaking TV News</option>
+                <option value="glitch_dark">💀 Glitch / Hacker</option>
+                <option value="horror_poster">🎃 Horror Poster</option>
+              </optgroup>
+              <optgroup label="── Canva / Соцсети ──">
+                <option value="bold_caption">📌 Bold Caption Overlay</option>
+                <option value="gradient_pop">🌈 Gradient Pop</option>
+                <option value="clean_infographic">📊 Clean Infographic</option>
+              </optgroup>
+              <optgroup label="── Гиперреализм ──">
+                <option value="hyperreal_8k">🔬 Hyperreal 8K+</option>
+              </optgroup>
+              <optgroup label="── Ретро / Артхаус ──">
+                <option value="vintage_film">🎞 Vintage Film</option>
+                <option value="street_poster">🖌 Street Art Poster</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -438,6 +512,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
           {busy ? "Режиссура превью…" : "Сгенерировать вирусную обложку V2"}
         </button>
         {err && <StatusLine type="err" text={`✗ ${err}`} />}
+        {sourceReady && <StatusLine text={`Source lock: ${sourceKey}`} />}
         {!sourceReady && <StatusLine text="Нужна тема, сценарий или storyboard" />}
       </div>
     );
@@ -453,16 +528,17 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
   return (
     <div className="col">
       <StatusLine text={`Cover Director: ${data.theme} · ${data.mode} · ${data.style} · ${data.format}`} />
+      <StatusLine text={`Source lock: ${sourceKey}`} />
 
       <div className="frow frow2">
-        <OutBox label="Текстовая иерархия" copy={layoutText}>
+        <OutBox label="Текстовая иерархия" copy={layoutText} defaultOpen={true}>
           <div className="frame-card-row">
             <div className="frame-card-lbl">TOP TITLE</div>
             <div className="frame-card-val" style={{ fontWeight: 900, color: "#fca5a5", whiteSpace: "pre-wrap" }}>{data.main_title}</div>
           </div>
           <div className="frame-card-row">
             <div className="frame-card-lbl">SIDE FACTS</div>
-            <div className="frame-card-val">{data.side_facts?.join(" · ")}</div>
+            <div className="frame-card-val" style={{ whiteSpace: "pre-wrap" }}>{(data.side_facts || []).join("\n")}</div>
           </div>
           <div className="frame-card-row">
             <div className="frame-card-lbl">BOTTOM HOOK</div>
@@ -470,7 +546,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
           </div>
         </OutBox>
 
-        <OutBox label="Психология клика" copy={(data.psychology || []).join("\n")}>
+        <OutBox label="Психология клика" copy={(data.psychology || []).join("\n")} defaultOpen={true}>
           <div className="out-pre compact">{(data.psychology || []).map(x => `• ${x}`).join("\n")}</div>
           <div className="out-pre compact" style={{ marginTop: 8, color: "var(--muted)" }}>{data.angle}</div>
         </OutBox>
@@ -486,13 +562,13 @@ function CoverTab({ topic, script, storyboard, cacheKey, devMode, liveAllowed = 
 
       {variant && (
         <OutBox label={`IMAGE PROMPT · ${variant.title}`} copy={variant.prompt_EN}>
-          <div className="out-pre mono compact">{variant.prompt_EN}</div>
+          <div className="out-pre mono" style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 'none' }}>{variant.prompt_EN}</div>
         </OutBox>
       )}
 
       {data.negative_prompt_EN && (
         <OutBox label="NEGATIVE PROMPT" copy={data.negative_prompt_EN}>
-          <div className="out-pre mono compact">{data.negative_prompt_EN}</div>
+          <div className="out-pre mono" style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 'none' }}>{data.negative_prompt_EN}</div>
         </OutBox>
       )}
 
@@ -931,7 +1007,8 @@ const PACK_I18N = {
 };
 
 export default function ProductionPack({ topic = "", script = "", genre = "ИСТОРИЯ", storyboard = null, lang = "ru", devMode = false, liveAllowed = false, userId = "guest", accessToken = "", onCacheChange = null }) {
-  const sourceKey = useMemo(() => hashString(`${topic}|${script?.slice(0, 1200)}|${storyboard?.scenes?.length || 0}`), [topic, script, storyboard]);
+  const sourceText = useMemo(() => productionSourceText({ topic, script, storyboard }), [topic, script, storyboard]);
+  const sourceKey = useMemo(() => hashString(sourceText), [sourceText]);
   const ownerKey = String(userId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
   const cacheKey = `neurocine:production:v49:${ownerKey}:${devMode ? "demo" : "pro"}:${sourceKey}`;
   const [activeTab, setActiveTab] = useStoredString(`neurocine:production:v49:${ownerKey}:activeTab`, "cover");
@@ -950,7 +1027,7 @@ export default function ProductionPack({ topic = "", script = "", genre = "ИС�
 
   const tabs = [
     { id: "tts", icon: "🎙️", label: t.tabs.tts[0], sub: t.tabs.tts[1], status: t.tabs.tts[2], comp: <TtsStudioTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
-    { id: "cover", icon: "🧲", label: t.tabs.cover[0], sub: t.tabs.cover[1], status: t.tabs.cover[2], comp: <CoverTab topic={topic} script={script} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
+    { id: "cover", icon: "🧲", label: t.tabs.cover[0], sub: t.tabs.cover[1], status: t.tabs.cover[2], comp: <CoverTab topic={topic} script={script} storyboard={storyboard} cacheKey={cacheKey} sourceKey={sourceKey} sourceText={sourceText} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
     { id: "music", icon: "🎧", label: t.tabs.music[0], sub: t.tabs.music[1], status: t.tabs.music[2], comp: <MusicSeoTab topic={topic} script={script} genre={genre} storyboard={storyboard} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
     { id: "social", icon: "📲", label: t.tabs.social[0], sub: t.tabs.social[1], status: t.tabs.social[2], comp: <SocialPackTab topic={topic} script={script} genre={genre} cacheKey={cacheKey} devMode={devMode} liveAllowed={liveAllowed} accessToken={accessToken} /> },
     { id: "explainer", icon: "🗺️", label: t.tabs.explainer[0], sub: t.tabs.explainer[1], status: t.tabs.explainer[2], comp: <VisualExplainerTab topic={topic} script={script} cacheKey={cacheKey} /> },

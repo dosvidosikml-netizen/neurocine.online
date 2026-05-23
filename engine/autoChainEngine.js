@@ -11,6 +11,10 @@ function stripPromptPrefix(value = "") {
   return cleanText(value)
     .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
     .replace(/^ANIMATE CURRENT FRAME[:\s—-]*/i, "")
+    .replace(/\bASPECT RATIO\s*:\s*[\d:]+\.?[\s\S]*$/i, "")
+    .replace(/\bSubject\s*:\s*[\s\S]*$/i, "")
+    .replace(/\bREFERENCE VISIBILITY RULE\s*:\s*[\s\S]*$/i, "")
+    .replace(/\bWORLD OBJECT RULE\s*:\s*[\s\S]*$/i, "")
     .replace(/\bShot progression\s*:[\s\S]*?(?=\bCamera behavior\s*:|\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|$)/gi, "")
     .replace(/\bCamera behavior\s*:[\s\S]*?(?=\bLighting\s*:|\bColor grade\s*:|\bPhysics\s*:|\bAudio\s*:|\bSFX\s*:|$)/gi, "")
     .replace(/\bAudio\s*:[\s\S]*?(?=\bSFX\s*:|$)/gi, "")
@@ -69,6 +73,26 @@ function removeKnownCharacterAppearance(text = "", characterLock = []) {
     }
   }
   return cleanText(out);
+}
+
+function getRelevantCharacterLock(characterLock = [], partScenes = [], appearanceMode = "full") {
+  const haystack = cleanText(partScenes.map((s) => [
+    sceneText(s, { characterLock, appearanceMode }),
+    s.description_ru,
+    s.description_en,
+    s.vo_ru,
+  ].filter(Boolean).join(" ")).join(" ")).toLowerCase();
+
+  const relevant = (characterLock || []).filter((c) => {
+    const aliases = [
+      c.name,
+    ]
+      .map((x) => cleanText(x).toLowerCase())
+      .filter((x) => x.length >= 3);
+    return aliases.some((alias) => haystack.includes(alias));
+  });
+
+  return relevant.length ? relevant : [];
 }
 
 function getContinuityLink(partScenes = [], localIdx = 0, partIndex = 0, partSize = 4) {
@@ -270,10 +294,25 @@ export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, cha
   const visual = sceneText(scene);
   const motion = sceneMotion(scene);
   const style = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
-  return `ANIMATE CURRENT FRAME: ${label}
 
-SOURCE OF TRUTH:
-Animate ONLY what is present in this frame and its storyboard description. Do not invent new plot events.
+  // Script line используется как визуальный якорь в любом режиме (не для аудио)
+  const scriptAnchor = scene.vo_ru
+    ? `\nSCRIPT LINE (visual anchor): "${cleanText(scene.vo_ru)}"`
+    : "";
+
+  // VO блок: если VO включён — даём смысловой якорь; если выключен — жёсткий запрет
+  const voBlock = includeVo && scene.vo_ru
+    ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}`
+    : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient SFX and environmental sound only.";
+
+  return `ANIMATE CURRENT FRAME: ${label}
+${scriptAnchor}
+
+SOURCE OF TRUTH — STRICT:
+Animate ONLY what is explicitly present in this frame's storyboard description AND directly stated in the SCRIPT LINE above.
+FORBIDDEN: inventing new locations, characters, objects or actions not in the script line.
+Example: if script says "руки дрожат над кружкой" — animate HANDS and CUP only. NOT feet, NOT corridor, NOT POV walk.
+If you cannot find an element in the script line → do NOT animate it.
 
 VISUAL CONTEXT:
 ${visual}
@@ -290,12 +329,12 @@ Subtle cinematic motion, realistic handheld micro-movement, physical lens behavi
 
 CINEMATOGRAPHY:
 camera-photographed live-action cinematic realism, documentary physical reality, natural imperfections, 35mm anamorphic, Kodak Vision3 500T grain. ${style}
-${includeVo && scene.vo_ru ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}` : ""}
+${voBlock}
 SFX:
 ${cleanText(scene.sfx || "subtle environmental ambience")}
 
 RESTRICTIONS:
-No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.`;
+No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.${!includeVo ? " No spoken words, no voiceover, no dialogue audio of any kind." : ""}`;
 }
 
 export function buildAutoVideoPack({ storyboard, styleProfile, partScenes = [], chainMode = "worldHero", includeVo = true } = {}) {
@@ -361,7 +400,8 @@ export function buildFlowCompactPartPrompt({
         ? "Use Hero Anchor only for recurring identity. Do not force the hero into frames where the scenario does not include them."
         : "Use Previous PART only for world/style DNA. Do not copy compositions.";
 
-  const chars = characterLock.slice(0, 4).map((c, i) => {
+  const relevantCharacterLock = getRelevantCharacterLock(characterLock, partScenes, appearanceMode);
+  const chars = relevantCharacterLock.slice(0, 4).map((c, i) => {
     const name = cleanText(c.name || `Character ${i + 1}`);
     const desc = cleanText(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "));
     return desc ? `${name} — ${desc}` : "";
@@ -406,9 +446,9 @@ ${refLine}
 Smart continuity: preserve atmosphere, lighting family, color grade and historical world texture, but every frame must be a new shot with a different composition, camera angle and focal point.
 If adjacent frames describe the same reveal or subject, keep it as the same exact entity and same event while only changing the shot design.
 
-${chars ? `CHARACTER LOCK:\n${chars}\n\n` : ""}FRAMES:
+${chars ? `CHARACTER LOCK:\n${chars}\nUse this only as identity reference when a frame explicitly includes that character. Do NOT insert every locked character into every cell.\n\n` : ""}FRAMES:
 ${frames}
 
 FINAL CHECK:
-Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Same cinematic world, different composition in every cell.`;
+Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
 }
