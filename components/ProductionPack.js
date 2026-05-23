@@ -474,6 +474,8 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
               </optgroup>
               <optgroup label="── Энергетика ──">
                 <option value="mrbeast">⚡ MrBeast Energy</option>
+                <option value="bold_yellow">💛 Bold Yellow (YouTube)</option>
+                <option value="inferno">🔥 Inferno / Danger</option>
                 <option value="neon_hype">🌐 Neon Hype / Cyberpunk</option>
                 <option value="retro_vhs">📼 Retro VHS 80s</option>
               </optgroup>
@@ -481,16 +483,23 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
                 <option value="gold_luxury">✨ Gold Luxury</option>
                 <option value="magazine">📰 Editorial Magazine</option>
                 <option value="minimalist">◼ Minimalist Impact</option>
+                <option value="arctic">🧊 Arctic / Cold Mystery</option>
+                <option value="dark_academia">📚 Dark Academia</option>
+              </optgroup>
+              <optgroup label="── Медиа / ТВ ──">
+                <option value="newspaper">🗞 Breaking Newspaper</option>
+                <option value="breaking_tv">📺 Breaking TV News</option>
+                <option value="glitch_dark">💀 Glitch / Hacker</option>
+                <option value="horror_poster">🎃 Horror Poster</option>
               </optgroup>
               <optgroup label="── Canva / Соцсети ──">
                 <option value="bold_caption">📌 Bold Caption Overlay</option>
                 <option value="gradient_pop">🌈 Gradient Pop</option>
                 <option value="clean_infographic">📊 Clean Infographic</option>
               </optgroup>
-              <optgroup label="── Спецэффекты ──">
-                <option value="newspaper">🗞 Breaking Newspaper</option>
-                <option value="glitch_dark">💀 Glitch / Hacker</option>
-                <option value="horror_poster">🎃 Horror Poster</option>
+              <optgroup label="── Ретро / Артхаус ──">
+                <option value="vintage_film">🎞 Vintage Film</option>
+                <option value="street_poster">🖌 Street Art Poster</option>
               </optgroup>
             </select>
           </div>
@@ -519,14 +528,14 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
       <StatusLine text={`Source lock: ${sourceKey}`} />
 
       <div className="frow frow2">
-        <OutBox label="Текстовая иерархия" copy={layoutText}>
+        <OutBox label="Текстовая иерархия" copy={layoutText} defaultOpen={true}>
           <div className="frame-card-row">
             <div className="frame-card-lbl">TOP TITLE</div>
             <div className="frame-card-val" style={{ fontWeight: 900, color: "#fca5a5", whiteSpace: "pre-wrap" }}>{data.main_title}</div>
           </div>
           <div className="frame-card-row">
             <div className="frame-card-lbl">SIDE FACTS</div>
-            <div className="frame-card-val">{data.side_facts?.join(" · ")}</div>
+            <div className="frame-card-val" style={{ whiteSpace: "pre-wrap" }}>{(data.side_facts || []).join("\n")}</div>
           </div>
           <div className="frame-card-row">
             <div className="frame-card-lbl">BOTTOM HOOK</div>
@@ -534,7 +543,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
           </div>
         </OutBox>
 
-        <OutBox label="Психология клика" copy={(data.psychology || []).join("\n")}>
+        <OutBox label="Психология клика" copy={(data.psychology || []).join("\n")} defaultOpen={true}>
           <div className="out-pre compact">{(data.psychology || []).map(x => `• ${x}`).join("\n")}</div>
           <div className="out-pre compact" style={{ marginTop: 8, color: "var(--muted)" }}>{data.angle}</div>
         </OutBox>

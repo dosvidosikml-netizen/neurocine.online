@@ -48,22 +48,32 @@ function hasAny(source = "", words = []) {
   return words.some((w) => source.includes(w));
 }
 
-// Берёт topic и формирует 2-строчный заголовок обложки.
+// Берёт topic и формирует до 3 строк заголовка обложки — без обрезки "…".
 function extractTitleFromTopic(topic = "") {
   const t = upper(str(topic));
   if (!t || t.length < 3) return null;
   if (t.length <= 22) return t;
   const words = t.split(" ");
-  let split = Math.ceil(words.length * 0.45);
-  let line1 = words.slice(0, split).join(" ");
-  let line2 = words.slice(split).join(" ");
-  while (line1.length > 19 && split > 1) {
-    split--;
-    line1 = words.slice(0, split).join(" ");
-    line2 = words.slice(split).join(" ");
-  }
-  if (line2.length > 22) line2 = line2.slice(0, 20) + "\u2026";
-  return line1 + (line2 ? "\n" + line2 : "");
+
+  // Строка 1: первые ~40–45% слов, не длиннее 20 символов
+  let s1 = Math.ceil(words.length * 0.45);
+  let line1 = words.slice(0, s1).join(" ");
+  while (line1.length > 20 && s1 > 1) { s1--; line1 = words.slice(0, s1).join(" "); }
+
+  const rest = words.slice(s1);
+  if (!rest.length) return line1;
+
+  // Строка 2: следующие слова, не длиннее 22 символов
+  let s2 = Math.ceil(rest.length * 0.55);
+  let line2 = rest.slice(0, s2).join(" ");
+  while (line2.length > 22 && s2 > 1) { s2--; line2 = rest.slice(0, s2).join(" "); }
+
+  const rest2 = rest.slice(s2);
+  if (!rest2.length) return line1 + "\n" + line2;
+
+  // Строка 3: всё оставшееся (без обрезки)
+  const line3 = rest2.join(" ");
+  return line1 + "\n" + line2 + "\n" + line3;
 }
 
 // Извлекает факты прямо из скрипта — для любой темы, без зависимости от preset.
@@ -471,6 +481,47 @@ const STYLE_PRESETS = {
     desc: "clean Canva infographic poster, white or very light background, colorful headline with bold accent word in different color, minimal flat icons, organized readable sections, professional modern presentation feel",
     layout: "clean white or very light gray background, large headline with one accent word in bold color, 2-3 clean fact badges as colored pills or cards arranged below, simple flat icon at top",
     palette: "white or #F8FAFC background, deep gray #1E293B for main text, electric blue #3B82F6 or orange #F97316 accent, clean modern sans-serif throughout",
+  },
+
+  // ── Энергетика / Агрессия ──────────────────────────────────────────────────
+  bold_yellow: {
+    desc: "classic YouTube viral bold yellow-black thumbnail, giant oversized yellow headline with thick black outline and aggressive drop shadow, high energy reaction energy, maximally readable in 2 seconds on mobile",
+    layout: "pure black or very dark background, single enormous yellow bold headline filling 55% of height, optional secondary white line below, bottom red or white accent stamp",
+    palette: "pure black background, electric yellow #FFE600 headline with thick black stroke, white secondary text, small red #FF0000 accent for numbers or key word",
+  },
+  inferno: {
+    desc: "fire and danger aggressive thumbnail, deep red and orange flame-lit atmosphere, bold warning typography, high-adrenaline threat energy, danger and risk visual language",
+    layout: "near-black background with deep red-orange fire gradient at bottom and edges, bold white or orange headline at top, facts as orange warning labels, bottom red stamp",
+    palette: "deep black to red-orange gradient, white headline with orange glow outline, amber #FF8C00 facts, urgent red #FF2400 stamp",
+  },
+  arctic: {
+    desc: "cold arctic mysterious thumbnail, deep ice-blue and white palette, frozen crystalline atmosphere, isolation and mystery energy, cold science or deep ocean feel",
+    layout: "deep cold blue-black background, frozen ice crystal or deep water visual, white headline with cold blue tint, fact labels in ice-blue glass-like pills",
+    palette: "deep navy #0A1628 to ice blue #B8E0FF gradient, pure white headline, ice blue #64B5F6 facts, subtle frost texture",
+  },
+
+  // ── Ретро / Артхаус ────────────────────────────────────────────────────────
+  vintage_film: {
+    desc: "1960-70s vintage film documentary poster, aged celluloid grain and faded colors, typewriter or classic editorial serif typography, analog photography feeling, timeless journalistic authenticity",
+    layout: "full-frame aged film-grain photo, centered title in classic vintage typography with film-era tracking, bottom single stripe with faded facts in typewriter font, visible scratches and grain",
+    palette: "faded warm tones — sepia #8B7355, faded yellow #D4A843, off-white #F5F0DC, dark brown #2D1B00, vintage film color cast",
+  },
+  dark_academia: {
+    desc: "dark academia scholarly mysterious poster, leather and aged paper atmosphere, candlelight and library aesthetics, intellectual mystery, old books and forbidden knowledge energy",
+    layout: "deep warm brown and green academic atmosphere, ornate serif title in gold or cream, aged parchment-style fact labels, subtle candlelight glow from below",
+    palette: "deep forest green #1C3A2A and dark brown #2C1810, aged gold #C9A84C headline, cream #F5EDD6 facts, candlelight amber accent",
+  },
+
+  // ── Медиа / Спецэффекты ─────────────────────────────────────────────────────
+  breaking_tv: {
+    desc: "live TV breaking news broadcast thumbnail, news channel lower-third graphics, urgent broadcast urgency, red BREAKING NEWS banner, authoritative newscast energy",
+    layout: "news footage or dramatic scene behind, thick red СРОЧНО or BREAKING banner at very bottom, bold white news headline above banner, network-style left stripe accent, ticker-feel elements",
+    palette: "dark scene background, red #CC0000 breaking banner, white headline text, light blue #4FC3F7 accent stripe, clean broadcast typography",
+  },
+  street_poster: {
+    desc: "hand-pasted street art poster thumbnail, torn paper edges, rough paste-up texture, urban guerrilla design aesthetic, bold propaganda-style typography, raw activist energy",
+    layout: "rough paper or concrete wall texture background, oversized bold angular title with slight rotation or off-alignment, fact labels as torn paper strips or marker scrawl, raw hand-made feel",
+    palette: "aged paper cream or raw concrete gray, bold black text with rough edges, one aggressive accent color red or yellow, ink bleed and texture artifacts",
   },
 };
 
