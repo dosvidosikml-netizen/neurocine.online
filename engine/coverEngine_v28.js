@@ -27,16 +27,21 @@ function textSource({ topic = "", script = "", storyboard = null } = {}) {
   // Only narrative content — exclude global_style_lock, image_prompt_en, video_prompt_en,
   // sfx, continuity_note (style/technical fields that caused false theme detection).
   const scenes = storyboard?.scenes || storyboard?.frames || [];
-  return [
-    topic,
+  const narrative = [
     script,
+    storyboard?.script,
     storyboard?.title,
     storyboard?.topic,
     storyboard?.hook,
     ...(scenes || []).flatMap((f) => [
-      f.description_ru, f.visual, f.voice, f.vo, f.vo_ru, f.text_on_screen
+      f.description_ru, f.description_en, f.visual, f.voice, f.vo, f.vo_ru, f.text_on_screen
     ])
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).join("\n").replace(/\s+/g, " ").trim();
+
+  // If a real script/storyboard exists, treat it as the source of truth.
+  // A stale topic field from a previous project must not override the current story.
+  if (narrative.length > 80) return narrative;
+  return [topic, narrative].filter(Boolean).join("\n").replace(/\s+/g, " ").trim();
 }
 
 function hasAny(source = "", words = []) {
@@ -44,12 +49,15 @@ function hasAny(source = "", words = []) {
 }
 
 export function detectCoverTheme(input = {}) {
-  // IMPORTANT: theme detection uses ONLY topic + script — NOT storyboard scene fields.
-  // Scene descriptions (visual, description_ru, etc.) contain atmospheric language
-  // ("луна освещает", "следующий кадр") that causes false theme matches.
-  const source = low([input.topic, input.script].filter(Boolean).join("\n"));
+  const source = low(textSource(input));
 
   // ── P0: highest priority overrides ────────────────────────────────────────
+  if (hasAny(source, [
+    "запрещено видеть сны", "запрещены сны", "видеть сны", "чужие сны", "сновид",
+    "экран над кроватью", "белым светом", "стирает ночь", "старый проектор",
+    "показывает чужие сны", "площад", "плачет весь город", "город плачет"
+  ])) return "dream_control_dystopia";
+
   if (hasAny(source, [
     "гитлер", "hitler", "наци", "nazi", "рейх", "reich", "третьего рейха", "third reich",
     "план восток", "generalplan ost", "генеральный план ост", "победил в войне", "выиграл войну",
@@ -103,6 +111,16 @@ export function detectCoverTheme(input = {}) {
 // THEME PRESETS
 // ─────────────────────────────────────────────────────────────────────────────
 const THEME_PRESETS = {
+
+  dream_control_dystopia: {
+    title: "ТЕБЕ ЗАПРЕТИЛИ\nВИДЕТЬ СНЫ",
+    facts: ["ЭКРАН СТИРАЕТ НОЧЬ", "ГОРОД СПИТ ПУСТО", "ПРОЕКТОР ПОКАЗАЛ ЧУЖИЕ СНЫ", "ПЛОЩАДЬ ЗАПЛАКАЛА"],
+    hook: "ТЫ БЫ ВЕРНУЛ ИМ СНЫ?",
+    visual: "dystopian concrete sleeping cell with a harsh white rectangular screen above a narrow bed, a tired hand shielding the eyes, old film projector discovered under dusty cloth, city square watching impossible dream images on a giant facade, oppressive dream-control society, raw cinematic documentary realism",
+    angle: "dream-control dystopia / stolen humanity / forbidden memory machine",
+    forbiddenVisuals: "alternate-history classroom, authoritarian portrait, wartime propaganda, war poster, police case board, paranormal monster, fantasy dream clouds, glossy cyberpunk city",
+    variantLabels: { poster: "DREAM CONTROL POSTER", evidence: "SCREEN + PROJECTOR", human: "THE CITY WAKES" },
+  },
 
   nazi_alt_history: {
     title: "МИР БЫЛ БЫ\nСЛИШКОМ ТИХИМ",
@@ -391,6 +409,13 @@ const STYLE_PRESETS = {
 
 function getStyleConfig(style = "viral", theme = "general") {
   // Special overrides for specific theme+style combos
+  if (theme === "dream_control_dystopia") {
+    return {
+      desc: "raw dystopian documentary poster, oppressive concrete cells, harsh white screen light, dusty analog projector, restrained red warning typography, non-glossy cinematic realism",
+      layout: "blinding white rectangle and shielding hand as main hook, old projector as forbidden evidence object, concrete city/square as secondary layer",
+      palette: "dirty concrete gray, harsh white screen glow, muted graphite, small red warning accent",
+    };
+  }
   if (theme === "nazi_alt_history") {
     return {
       desc: "dystopian alternate-history documentary poster, oppressive institutional silence, cold gray palette, red warning typography, school corridor / state office atmosphere, serious anti-totalitarian tone, no glorification",
@@ -412,6 +437,12 @@ function deriveFromScript(input = {}, preset, theme = "general") {
   const compact = textSource(input).replace(/\s+/g, " ");
   const extractedFacts = [];
   const rules = [
+    [/запрещен[оы][^.?!]{0,60}сн|запретили[^.?!]{0,60}сн/i, "ТЕБЕ ЗАПРЕТИЛИ ВИДЕТЬ СНЫ"],
+    [/экран[^.?!]{0,80}(кровать|бел[а-яё\s-]{0,20}свет|стирает)/i, "ЭКРАН СТИРАЕТ НОЧЬ"],
+    [/стар[а-яё\s-]{0,20}проектор|проектор[^.?!]{0,60}(наш|показ)/i, "СТАРЫЙ ПРОЕКТОР ПОКАЗАЛ СНЫ"],
+    [/чуж[иех]{0,3}\s+сны|сны[^.?!]{0,50}чуж/i, "ОН ПОКАЗЫВАЛ ЧУЖИЕ СНЫ"],
+    [/площад[^.?!]{0,80}плач|плач[^.?!]{0,80}город/i, "НА ПЛОЩАДИ ПЛАКАЛ ВЕСЬ ГОРОД"],
+    [/уничтожить|сжечь/i, "ПРИКАЗ: УНИЧТОЖИТЬ"],
     [/гитлер|hitler/i, "ЕСЛИ БЫ ГИТЛЕР ВЫИГРАЛ"],
     [/школьн[^.?!]{0,60}портрет|портрет[^.?!]{0,40}стен/i, "ОДИН ПОРТРЕТ НА СТЕНЕ"],
     [/сосед[^.?!]{0,50}исчез/i, "СОСЕД ИСЧЕЗАЛ НОЧЬЮ"],
@@ -439,6 +470,10 @@ function deriveFromScript(input = {}, preset, theme = "general") {
 
 function buildTitle({ topic = "", script = "", mode = "", preset, theme = "general" }) {
   const t = upper(`${topic} ${script}`).replace(/\s+/g, " ");
+  if (theme === "dream_control_dystopia") {
+    if (t.includes("УНИЧТОЖИТЬ") || t.includes("СЖЕЧЬ")) return "СЖЕЧЬ ПРОЕКТОР\nИЛИ РАЗБУДИТЬ ГОРОД?";
+    return preset.title;
+  }
   if (theme === "nazi_alt_history") {
     if (t.includes("ВЫИГРАЛ") || t.includes("ГИТЛЕР")) return "ЕСЛИ БЫ ГИТЛЕР\nВЫИГРАЛ ВОЙНУ";
     return preset.title;
@@ -459,11 +494,16 @@ function composePrompt(brief, variant = "poster") {
   const sc = getStyleConfig(brief.style, brief.theme);
   const isAltHistory = brief.theme === "nazi_alt_history";
   const isColdWar = brief.theme === "cold_war_alert";
+  const isDreamControl = brief.theme === "dream_control_dystopia";
   const titleOneLine = brief.main_title.replace(/\n/g, " / ");
   const factsText = (brief.side_facts || []).map((f) => `"${f}"`).join(", ");
 
   // Variant-specific composition instruction
-  const variantComposition = isAltHistory ? ({
+  const variantComposition = isDreamControl ? ({
+    poster: "Dream-control poster: harsh white screen over a narrow bed and a shielding hand dominate the upper/center; old projector appears as the forbidden object.",
+    evidence: "Screen-and-projector poster: split attention between the blinding bed screen and dusty old projector, with concrete city texture behind.",
+    human: "City-wakes poster: silhouettes at a square or windows watching dream images on a huge facade, one hand or projector in foreground.",
+  }[variant]) : isAltHistory ? ({
     poster: "Alternative-history warning poster: school corridor and wall portrait dominate upper/center; oppressive silence is the threat.",
     evidence: "Classroom-order poster: history book opened to a command page, institutional wall, empty desk, closed apartment door.",
     human: "Silent-neighbor poster: empty doorway, half-seen neighbor silhouette vanishing into darkness, classroom portrait visible.",
@@ -504,6 +544,7 @@ function composePrompt(brief, variant = "poster") {
     `TEXT TREATMENT — ${textTreatment}`,
     `RUSSIAN TEXT TO EMBED: TOP TITLE = "${titleOneLine}". SIDE FACTS = ${factsText}. BOTTOM HOOK = "${brief.bottom_hook}".`,
     `STYLE: ${sc.desc}. Professional poster design, mobile readability first.`,
+    isDreamControl ? "DREAM-CONTROL LOCK: white bed screen, dusty old projector, concrete sleeping cells, city square/facade dream projection. No alternate-history classroom, no wartime propaganda, no police case board." : "",
     isAltHistory ? "ALT-HISTORY LOCK: no paranormal horror, no monster. School portrait, history book, silent apartment door, anti-totalitarian documentary tone." : "",
     isColdWar ? "COLD WAR LOCK: Soviet bunker, red siren, CRT screens, analog panels, officer decision. No crime board, no police tape." : "",
     brief.forbidden_visuals ? `FORBIDDEN VISUALS: ${brief.forbidden_visuals}.` : "",
@@ -526,6 +567,7 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
   }[mode] || "viral curiosity gap";
 
   const psychologyByTheme = {
+    dream_control_dystopia: ["сон = последняя свобода", "белый экран как насилие системы", "старый проектор = запретная память", "весь город просыпается одновременно", "выбор зрителя становится моральным приговором"],
     psychology_mind: ["решения принимаются без осознания", "потеря контроля над собой", "манипуляция незаметна", "страх = инструмент управления", "заголовок вызывает немедленную тревогу"],
     money_power: ["система работает против тебя", "они всегда знали заранее", "правила написаны для себя", "ты не в том клубе", "заголовок вызывает злость"],
     space_cosmos: ["человек ничтожно мал", "там может быть что угодно", "одиночество на уровне вселенной", "неизвестность страшнее известного", "заголовок открывает бездну"],
