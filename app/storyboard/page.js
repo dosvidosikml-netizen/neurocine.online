@@ -365,7 +365,7 @@ function ProjectSetupPanelV40({
   clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
   authLocked = false,
 }) {
-  const durationOptions = [30, 60, 90, 120, 180, 300, 600];
+  const durationOptions = [30, 45, 60, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
   const modeOptions = [
     { id: "safe", label: "Safe", hint: "документально, без жёстких кадров" },

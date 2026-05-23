@@ -11,6 +11,7 @@ import { applyWorldBrainToFrame, buildWorldAudioBlock } from "./storyboardWorldB
 
 export const DURATION_PRESETS = {
   30:  { targetScenes: 10,  wordsMin: 65,   wordsMax: 85,   longForm: false },
+  45:  { targetScenes: 15,  wordsMin: 95,   wordsMax: 120,  longForm: false },
   60:  { targetScenes: 20,  wordsMin: 130,  wordsMax: 160,  longForm: false },
   90:  { targetScenes: 30,  wordsMin: 200,  wordsMax: 240,  longForm: false },
   120: { targetScenes: 40,  wordsMin: 270,  wordsMax: 320,  longForm: false },
@@ -54,7 +55,14 @@ const DEFAULT_STYLE_LOCK = "RAW unretouched photograph, NOT CGI, NOT rendered, s
 
 export function getDurationPreset(duration = 60) {
   const d = Number(duration);
-  return DURATION_PRESETS[d] || DURATION_PRESETS[60];
+  if (DURATION_PRESETS[d]) return DURATION_PRESETS[d];
+  // Интерполяция для нестандартных длительностей (45с, 75с, 150с и т.д.)
+  // Базовая логика: 1 кадр на каждые 3 секунды, ~2.2 слова/с
+  const targetScenes = Math.max(3, Math.round(d / 3));
+  const wordsMin = Math.round(d * 2.2 * 0.9);
+  const wordsMax = Math.round(d * 2.5 * 1.05);
+  const longForm = d > 180;
+  return { targetScenes, wordsMin, wordsMax, longForm, ...(longForm ? { chunkSize: 90 } : {}) };
 }
 
 export function isLongForm(duration) {
@@ -257,7 +265,18 @@ function getCutEnergy(scene = {}, index = 0) {
 
 export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16" } = {}) {
   const d = Number(duration) || 60;
-  const preset = getDurationPreset(d);
+
+  // Детектируем реальную длину скрипта по словам (~2.2 сл/с для русского диктора).
+  // Если скрипт длиннее выбранной длительности на >20% — адаптируем количество кадров
+  // чтобы не обрезать контент. Итоговая длительность раундится до кратного 3с.
+  const scriptWords = script.trim().split(/\s+/).filter(Boolean).length;
+  const scriptEstSec = scriptWords > 0 ? Math.round(scriptWords / 2.2) : d;
+  const effectiveDuration = scriptEstSec > d * 1.20
+    ? Math.max(d, Math.round(scriptEstSec / 3) * 3)
+    : d;
+  const durationMismatch = effectiveDuration > d;
+
+  const preset = getDurationPreset(effectiveDuration);
   const normalizedMode = normalizeMode(mode);
   const normalizedTarget = normalizeTarget(target);
   const isObserverMode = detectObserverMode(script);
@@ -267,7 +286,7 @@ Output ONLY valid JSON. No markdown.
 
 CONTENT MODE: ${normalizedMode}. ${STORYBOARD_MODES[normalizedMode].instruction}
 VIDEO TARGET: ${normalizedTarget}. ${STORYBOARD_TARGETS[normalizedTarget].description}
-DURATION: ${d}s. Generate EXACTLY ${preset.targetScenes} scenes. Every scene duration must be 2, 3, or 4 seconds. total_duration must equal ${d}.
+DURATION: ${effectiveDuration}s. Generate EXACTLY ${preset.targetScenes} scenes. Every scene duration must be 2, 3, or 4 seconds. total_duration must equal ${effectiveDuration}.${durationMismatch ? `\nNOTE: script word count (~${scriptWords} words ≈ ${scriptEstSec}s) exceeds selected duration (${d}s). Scene count was scaled up to cover the full script.` : ""}
 ASPECT RATIO: ${aspectRatio}.
 
 WORLD / ERA / AUDIO LOGIC — MANDATORY:
