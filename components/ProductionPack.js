@@ -482,6 +482,11 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
                 <option value="magazine">📰 Editorial Magazine</option>
                 <option value="minimalist">◼ Minimalist Impact</option>
               </optgroup>
+              <optgroup label="── Canva / Соцсети ──">
+                <option value="bold_caption">📌 Bold Caption Overlay</option>
+                <option value="gradient_pop">🌈 Gradient Pop</option>
+                <option value="clean_infographic">📊 Clean Infographic</option>
+              </optgroup>
               <optgroup label="── Спецэффекты ──">
                 <option value="newspaper">🗞 Breaking Newspaper</option>
                 <option value="glitch_dark">💀 Glitch / Hacker</option>
@@ -545,13 +550,13 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
 
       {variant && (
         <OutBox label={`IMAGE PROMPT · ${variant.title}`} copy={variant.prompt_EN}>
-          <div className="out-pre mono compact">{variant.prompt_EN}</div>
+          <div className="out-pre mono" style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 'none' }}>{variant.prompt_EN}</div>
         </OutBox>
       )}
 
       {data.negative_prompt_EN && (
         <OutBox label="NEGATIVE PROMPT" copy={data.negative_prompt_EN}>
-          <div className="out-pre mono compact">{data.negative_prompt_EN}</div>
+          <div className="out-pre mono" style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 'none' }}>{data.negative_prompt_EN}</div>
         </OutBox>
       )}
 

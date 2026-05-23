@@ -48,14 +48,64 @@ function hasAny(source = "", words = []) {
   return words.some((w) => source.includes(w));
 }
 
+// Берёт topic и формирует 2-строчный заголовок обложки.
+function extractTitleFromTopic(topic = "") {
+  const t = upper(str(topic));
+  if (!t || t.length < 3) return null;
+  if (t.length <= 22) return t;
+  const words = t.split(" ");
+  let split = Math.ceil(words.length * 0.45);
+  let line1 = words.slice(0, split).join(" ");
+  let line2 = words.slice(split).join(" ");
+  while (line1.length > 19 && split > 1) {
+    split--;
+    line1 = words.slice(0, split).join(" ");
+    line2 = words.slice(split).join(" ");
+  }
+  if (line2.length > 22) line2 = line2.slice(0, 20) + "\u2026";
+  return line1 + (line2 ? "\n" + line2 : "");
+}
+
+// Извлекает факты прямо из скрипта — для любой темы, без зависимости от preset.
+function extractFactsFromScript(script = "", count = 4) {
+  const s = str(script).replace(/\s+/g, " ");
+  if (!s) return [];
+  const results = [];
+  const sentences = s.split(/[.!?]+/).map(x => x.trim()).filter(x => x.length > 8);
+  for (const sent of sentences) {
+    const words = sent.split(/\s+/);
+    if (words.length >= 2 && words.length <= 7) {
+      results.push(upper(sent));
+    } else if (/\d/.test(sent)) {
+      const m = sent.match(/[^,;:—–]{0,20}\d+[^,;:—–]{0,25}/);
+      if (m) results.push(upper(m[0].trim()));
+    }
+    if (results.length >= count) break;
+  }
+  if (results.length < count) {
+    for (const sent of sentences) {
+      const words = sent.split(/\s+/);
+      if (words.length >= 3 && words.length <= 14) {
+        const fragment = upper(words.slice(0, Math.min(7, words.length)).join(" "));
+        if (!results.some(r => r.startsWith(fragment.slice(0, 12)))) {
+          results.push(fragment);
+        }
+      }
+      if (results.length >= count) break;
+    }
+  }
+  return uniq(results).slice(0, count);
+}
+
 export function detectCoverTheme(input = {}) {
   const source = low(textSource(input));
 
   // ── P0: highest priority overrides ────────────────────────────────────────
   if (hasAny(source, [
     "запрещено видеть сны", "запрещены сны", "видеть сны", "чужие сны", "сновид",
-    "экран над кроватью", "белым светом", "стирает ночь", "старый проектор",
-    "показывает чужие сны", "площад", "плачет весь город", "город плачет"
+    "экран над кроватью", "экран стирает ночь", "стирает ночь над",
+    "старый проектор показ", "проектор показывал сны",
+    "показывает чужие сны", "площадь заплакала", "плачет весь город", "город плачет"
   ])) return "dream_control_dystopia";
 
   if (hasAny(source, [
@@ -405,6 +455,23 @@ const STYLE_PRESETS = {
     layout: "one massive typographic element OR one isolated object against pure background, extreme negative space, single accent color, nothing else",
     palette: "pure white or pure black background, one single accent color for emphasis, clean modern sans-serif, no decoration",
   },
+
+  // ── Canva-inspired styles ──────────────────────────────────────────────────
+  bold_caption: {
+    desc: "Canva-style bold caption overlay thumbnail, large semi-transparent text band across center or bottom, clean geometric shapes as background accents, high contrast accessible design, modern social media energy",
+    layout: "full-bleed photo/scene behind, bold caption band in center or lower third with semi-transparent dark fill, clean white text hierarchy, simple geometric accent shape at corner",
+    palette: "vibrant photo background, clean white or black text band, one bold accent color #FF4757 or #2ED573 or #1E90FF, no gradients",
+  },
+  gradient_pop: {
+    desc: "vibrant Canva gradient poster, bold smooth multi-color gradient background, clean modern sans-serif headline, minimal geometric shapes, youthful high-energy social media feel, Gen Z aesthetic",
+    layout: "large gradient field as background, centered bold white headline taking 50% of frame height, small geometric icons or shapes as decoration, bottom tagline in contrasting color",
+    palette: "bold gradient: purple-to-coral #7C3AED→#F59E0B or teal-to-pink #0EA5E9→#EC4899, pure white headline text, one small accent emoji or icon",
+  },
+  clean_infographic: {
+    desc: "clean Canva infographic poster, white or very light background, colorful headline with bold accent word in different color, minimal flat icons, organized readable sections, professional modern presentation feel",
+    layout: "clean white or very light gray background, large headline with one accent word in bold color, 2-3 clean fact badges as colored pills or cards arranged below, simple flat icon at top",
+    palette: "white or #F8FAFC background, deep gray #1E293B for main text, electric blue #3B82F6 or orange #F97316 accent, clean modern sans-serif throughout",
+  },
 };
 
 function getStyleConfig(style = "viral", theme = "general") {
@@ -465,25 +532,57 @@ function deriveFromScript(input = {}, preset, theme = "general") {
     [/чёрн[аую][^.?!]{0,20}дыр|черн[аую][^.?!]{0,20}дыр/i, "ЧЁРНАЯ ДЫРА В 4 МЛН СОЛНЦ"],
   ];
   for (const [rx, label] of rules) if (rx.test(compact)) extractedFacts.push(label);
+
+  // Если тематические regex ничего не нашли — извлекаем факты прямо из скрипта
+  if (extractedFacts.length === 0 && input.script) {
+    const scriptFacts = extractFactsFromScript(input.script, 4);
+    if (scriptFacts.length > 0) {
+      return { facts: uniq([...scriptFacts, ...(preset.facts || [])]).slice(0, 4) };
+    }
+  }
+
   return { facts: uniq([...extractedFacts, ...(preset.facts || [])]).slice(0, 4) };
 }
 
 function buildTitle({ topic = "", script = "", mode = "", preset, theme = "general" }) {
   const t = upper(`${topic} ${script}`).replace(/\s+/g, " ");
+
+  // ── Специфичные темы с узкими ключевыми совпадениями ──────────────────────
+  // Только если topic ДЕЙСТВИТЕЛЬНО соответствует теме — иначе используем topic.
   if (theme === "dream_control_dystopia") {
+    const topicUp = upper(topic);
+    const isDreamTopic = /СНЫ|ПРОЕКТОР|ЭКРАН НАД|ЗАПРЕТ.*СН/i.test(topicUp);
+    if (!isDreamTopic) {
+      // topic не про сны — извлекаем заголовок из реального topic
+      const derived = extractTitleFromTopic(topic);
+      if (derived) return derived;
+    }
     if (t.includes("УНИЧТОЖИТЬ") || t.includes("СЖЕЧЬ")) return "СЖЕЧЬ ПРОЕКТОР\nИЛИ РАЗБУДИТЬ ГОРОД?";
     return preset.title;
   }
   if (theme === "nazi_alt_history") {
     if (t.includes("ВЫИГРАЛ") || t.includes("ГИТЛЕР")) return "ЕСЛИ БЫ ГИТЛЕР\nВЫИГРАЛ ВОЙНУ";
+    const derived = extractTitleFromTopic(topic);
+    if (derived) return derived;
     return preset.title;
   }
   if (theme === "cold_war_alert") {
     if (t.includes("НЕ НАЖАЛ") || t.includes("КНОПК")) return "ОН НЕ НАЖАЛ\nКНОПКУ";
     if (t.includes("КОНЦА МИРА")) return "ДО КОНЦА МИРА\nБЫЛИ МИНУТЫ";
+    const derived = extractTitleFromTopic(topic);
+    if (derived) return derived;
     return preset.title;
   }
+
+  // ── Универсальная логика для всех тем ─────────────────────────────────────
+  // Приоритет 1: topic — основной источник заголовка для любой темы
+  if (topic && topic.length >= 4 && topic.length <= 80) {
+    const derived = extractTitleFromTopic(topic);
+    if (derived) return derived;
+  }
+  // Приоритет 2: режим safe + короткий topic
   if (topic && topic.length <= 42 && mode === "safe") return `${upper(topic)}\nЧТО СКРЫЛИ?`;
+  // Фоллбэк: хардкод пресета
   return preset.title;
 }
 
