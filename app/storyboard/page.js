@@ -17,6 +17,7 @@ import { downloadTextFile, downloadJsonFile, safeFileName } from "../../lib/down
 import { validateScript } from "../../lib/scriptValidator";
 import ProductionPack from "../../components/ProductionPack";
 import AuthPanel from "../../components/AuthPanel";
+import CloudProjectsPanel from "../../components/CloudProjectsPanel";
 import StudioFlowPanel from "../../components/StudioFlowPanel";
 import TopActionBar from "../../components/TopActionBar";
 import MobileBottomNav from "../../components/MobileBottomNav";
@@ -161,6 +162,12 @@ function safeJson(v) { try { return JSON.parse(v); } catch { return null; } }
 function tryLsSave(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); return true; }
   catch { return false; }
+}
+
+function imageDraftSig(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  return `${text.length}:${text.slice(0, 80)}:${text.slice(-80)}`;
 }
 
 function collectProductionCache(ownerId = "guest") {
@@ -819,8 +826,13 @@ ${lines.join("\n")}` : "";
       production_cache_tick: productionCacheTick,
       production_pack_cache: collectProductionCache(storageOwnerId || "guest"),
       image_state: {
-        gridImg: Boolean(gridImg), croppedFrame: Boolean(croppedFrame),
-        variantImg: Boolean(variantImg), croppedVariant: Boolean(croppedVariant), finalImg: Boolean(finalImg),
+        gridImg: imageDraftSig(gridImg),
+        croppedFrame: imageDraftSig(croppedFrame),
+        variantImg: imageDraftSig(variantImg),
+        croppedVariant: imageDraftSig(croppedVariant),
+        finalImg: imageDraftSig(finalImg),
+        autoHeroAnchor: imageDraftSig(autoHeroAnchor),
+        autoPrevPartAnchor: imageDraftSig(autoPrevPartAnchor),
       }
     });
   }, [
@@ -831,7 +843,7 @@ ${lines.join("\n")}` : "";
     autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
     autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
     autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText, productionCacheTick,
-    gridImg, croppedFrame, variantImg, croppedVariant, finalImg
+    gridImg, croppedFrame, variantImg, croppedVariant, finalImg, autoHeroAnchor, autoPrevPartAnchor
   ]);
 
   /* ── LOCAL DRAFT LOAD — v49 user-scoped ── */
@@ -874,12 +886,15 @@ ${lines.join("\n")}` : "";
       if (text.aspectRatio) setAspect(text.aspectRatio);
       if (text.tone)        setTone(text.tone);
       if (text.script)      setScript(text.script);
+      if (text.scriptValidation) setScriptValidation(text.scriptValidation);
       if (text.storyboard)  setSB(text.storyboard);
       if (text.jsonIn)      setJsonIn(text.jsonIn);
       if (text.sbMode)      setSbMode(text.sbMode);
       if (text.target)      setTarget(text.target);
       if (text.validation)  setValidation(text.validation);
       if (text.frameIdx !== undefined && text.frameIdx !== null) setFrameIdx(text.frameIdx);
+      if (text.gridColsOverride !== undefined) setGridColsOverride(text.gridColsOverride);
+      if (text.gridManualFrames !== undefined) setGridManualFrames(text.gridManualFrames);
       if (text.exploreP)    setExploreP(text.exploreP);
       if (text.selVariant)  setSelVariant(text.selVariant);
       if (text.p2k)         setP2k(text.p2k);
@@ -895,12 +910,19 @@ ${lines.join("\n")}` : "";
       if (text.autoReferenceMode) setAutoReferenceMode(text.autoReferenceMode);
       if (text.autoAppearanceMode) setAutoAppearanceMode(text.autoAppearanceMode);
       if (text.autoIncludeVo !== undefined) setAutoIncludeVo(Boolean(text.autoIncludeVo));
+      if (text.charOverrideEnabled !== undefined) setCharOverrideEnabled(Boolean(text.charOverrideEnabled));
+      if (text.charFaceLock) setCharFaceLock(text.charFaceLock);
+      if (text.charModifiers) setCharModifiers(text.charModifiers);
       if (text.autoPrevPartBrief) setAutoPrevPartBrief(text.autoPrevPartBrief);
       if (text.autoPrevPartBriefStatus && text.autoPrevPartBriefStatus !== "analyzing") setAutoPrevPartBriefStatus(text.autoPrevPartBriefStatus);
+      if (text.autoPartPrompt) setAutoPartPrompt(text.autoPartPrompt);
+      if (text.autoVideoPack) setAutoVideoPack(text.autoVideoPack);
+      if (text.autoAllPromptText) setAutoAllPromptText(text.autoAllPromptText);
     }
 
     if (imgs) {
       if (imgs.gridImg)    setGridImg(imgs.gridImg);
+      if (imgs.croppedFrame) setCroppedFrame(imgs.croppedFrame);
       if (imgs.variantImg) setVariantImg(imgs.variantImg);
       if (imgs.croppedVariant) setCropped(imgs.croppedVariant);
       if (imgs.finalImg)   setFinalImg(imgs.finalImg);
@@ -908,23 +930,35 @@ ${lines.join("\n")}` : "";
       if (imgs.autoPrevPartAnchor) setAutoPrevPartAnchor(imgs.autoPrevPartAnchor);
     }
 
-    setSnapshotStatus(text ? "✓ Локальный черновик этого аккаунта загружен" : "");
+    setSnapshotStatus(text?.local_save_warning ? "⚠ Локальный черновик загружен без тяжёлых prompt packs. Для полного сохранения используй Cloud Projects." : text ? "✓ Локальный черновик этого аккаунта загружен" : "");
     setHydrated(true);
   }, [storageOwnerId, KEY_TEXT, KEY_IMGS]);
 
   /* ── AUTOSAVE WRITE (text) ── */
   useEffect(() => {
     if (!hydrated || !KEY_TEXT) return;
-    tryLsSave(KEY_TEXT, {
+    const textDraft = {
       projectName, topic, projectType, stylePreset, duration,
-      aspectRatio, tone, script, storyboard, jsonIn, sbMode, target, validation,
+      aspectRatio, tone, script, scriptValidation, storyboard, jsonIn, sbMode, target, validation,
       frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
+      gridColsOverride, gridManualFrames,
       autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode,
-      autoAppearanceMode, autoIncludeVo, autoPrevPartBrief, autoPrevPartBriefStatus
-    });
+      autoAppearanceMode, autoIncludeVo, charOverrideEnabled, charFaceLock, charModifiers,
+      autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText
+    };
+    if (!tryLsSave(KEY_TEXT, textDraft)) {
+      tryLsSave(KEY_TEXT, {
+        ...textDraft,
+        autoPartPrompt: "",
+        autoVideoPack: "",
+        autoAllPromptText: "",
+        local_save_warning: "Prompt packs were too large for browser localStorage and were omitted from the local draft. Use Cloud Projects or Snapshot for full persistence."
+      });
+    }
   }, [hydrated, KEY_TEXT, projectName, topic, projectType, stylePreset, duration, aspectRatio,
-      tone, script, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
-      autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, autoIncludeVo, autoPrevPartBrief, autoPrevPartBriefStatus]);
+      tone, script, scriptValidation, storyboard, jsonIn, sbMode, target, validation, frameIdx, exploreP, selVariant, p2k, videoP, videoPromptMode, videoConsistency, analysis, devMode,
+      gridColsOverride, gridManualFrames, autoPartSize, autoPartIndex, autoChainMode, autoStrictLevel, autoReferenceMode, autoAppearanceMode, autoIncludeVo,
+      charOverrideEnabled, charFaceLock, charModifiers, autoPrevPartBrief, autoPrevPartBriefStatus, autoPartPrompt, autoVideoPack, autoAllPromptText]);
 
   /* ── AUTOSAVE WRITE (images — separate key, с защитой от quota) ── */
   useEffect(() => {
@@ -932,15 +966,23 @@ ${lines.join("\n")}` : "";
     // limit: skip images > 2MB to avoid localStorage quota
     const maxSize = 2_000_000;
     const safe = (v) => (v && v.length <= maxSize ? v : null);
-    tryLsSave(KEY_IMGS, {
+    const imageDraft = {
       gridImg: safe(gridImg),
+      croppedFrame: safe(croppedFrame),
       variantImg: safe(variantImg),
       croppedVariant: safe(croppedVariant),
       finalImg: safe(finalImg),
       autoHeroAnchor: safe(autoHeroAnchor),
       autoPrevPartAnchor: safe(autoPrevPartAnchor)
-    });
-  }, [hydrated, KEY_IMGS, gridImg, variantImg, croppedVariant, finalImg, autoHeroAnchor, autoPrevPartAnchor]);
+    };
+    if (!tryLsSave(KEY_IMGS, imageDraft)) {
+      tryLsSave(KEY_IMGS, {
+        gridImg: imageDraft.gridImg,
+        autoHeroAnchor: imageDraft.autoHeroAnchor,
+        autoPrevPartAnchor: imageDraft.autoPrevPartAnchor,
+      });
+    }
+  }, [hydrated, KEY_IMGS, gridImg, croppedFrame, variantImg, croppedVariant, finalImg, autoHeroAnchor, autoPrevPartAnchor]);
 
   /* Re-crop if cols override changes while frame is selected */
   useEffect(() => {
@@ -1701,6 +1743,19 @@ ${lines.join("\n")}` : "";
           access={accountAccess}
           devMode={effectiveDevMode}
           liveAllowed={liveAllowed}
+        />
+      )}
+
+      {isSignedIn && (
+        <CloudProjectsPanel
+          account={account}
+          projectName={projectName}
+          buildSnapshot={buildProjectSnapshot}
+          applySnapshot={applyProjectSnapshot}
+          onStatus={setSnapshotStatus}
+          autoSaveKey={cloudAutoSaveKey}
+          autoSaveEnabled={true}
+          allowInStudio={true}
         />
       )}
 
@@ -2801,8 +2856,8 @@ ${lines.join("\n")}` : "";
       </section>
 
           <div className="floating-dock-v33" aria-label="Studio quick actions">
-            <button onClick={exportProjectSnapshot}>💾 {uiLang === "en" ? "Save" : "Сохранить"}</button>
-            <button onClick={() => snapshotInputRef.current?.click()}>⬆ {uiLang === "en" ? "Load" : "Загрузить"}</button>
+            <button onClick={exportProjectSnapshot}>⬇ {uiLang === "en" ? "Snapshot" : "Снапшот"}</button>
+            <button onClick={() => snapshotInputRef.current?.click()}>⬆ {uiLang === "en" ? "Load snapshot" : "Загрузить снапшот"}</button>
             {storyboard && <button onClick={exportFlow}>⬇ Flow</button>}
             {storyboard && <button onClick={exportJson}>JSON</button>}
           </div>
