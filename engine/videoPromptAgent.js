@@ -521,6 +521,8 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
 
 export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" } = {}) {
   const aspectRatio = storyboard.aspect_ratio || "9:16";
+  const totalScenes = Array.isArray(storyboard.scenes) ? storyboard.scenes.length : 0;
+  const frameNum = Number(String(frame.id || "").replace(/\D/g, "")) || 1;
   const relevantCharacters = getRelevantCharacterLock(storyboard.character_lock, frame);
   const characterBlock = buildCharacterBlock(relevantCharacters, { compact: target === "grok", omitNames: target === "grok" });
   const sceneVisual = cleanText(stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || ""));
@@ -528,14 +530,45 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
   const anchors = [REALISM_ANCHORS_SKIN[0], REALISM_ANCHORS_HAIR_FABRIC[0], REALISM_ANCHORS_OPTICS[0]].join(", ");
 
   if (target === "grok") {
+    // Структурированный формат: Storyboard panel X of Y
+    const panelLabel = `Storyboard panel ${frameNum} of ${totalScenes || "?"}:`;
+    const arFlag = aspectRatio === "9:16" ? "--ar 9:16" : aspectRatio === "16:9" ? "--ar 16:9" : "--ar 1:1";
+
+    // Subject блок — из character_lock если есть, иначе из описания сцены
+    const subjectBlock = characterBlock
+      ? `Subject: ${characterBlock}`
+      : `Subject: ${cleanText(sceneVisual).split(".")[0]}`;
+
+    // Action & Emotion из описания сцены
+    const actionBlock = cleanText(frame.description_ru || frame.description_en || sceneVisual).split(".")[1]?.trim() || "";
+
+    // Environment из первой части visual описания
+    const envBlock = cleanText(sceneVisual).split(",").slice(0, 3).join(",").trim();
+
+    // Style — из global_style_lock или master_style
+    const styleRef = storyboard.master_style
+      ? storyboard.master_style.replace("Overall visual style:", "").trim()
+      : cleanText((storyboard.global_style_lock || "").split(".")[0] || "cinematic documentary realism");
+
+    // Lighting из camera или style
+    const lightBlock = cleanText(frame.camera || "").includes("light")
+      ? cleanText(frame.camera)
+      : "cinematic lighting, natural available light, soft shadows";
+
+    // Stylize — берём от 250 до 450 зависимости от beat_type
+    const stylize = frame.beat_type === "hook" ? "450" : frame.beat_type === "ending" ? "400" : "300";
+
     return cleanText([
-      sceneVisual,
-      characterBlock ? `Subject: ${characterBlock}` : "",
-      `Camera: ${camera}`,
-      "natural overcast light, documentary realism, damp historical texture",
-      anchors,
-      `${aspectRatio}, live-action photographic frame`,
-    ].filter(Boolean).join(". "));
+      panelLabel,
+      subjectBlock + ".",
+      actionBlock ? actionBlock + "." : "",
+      envBlock + ".",
+      lightBlock + ".",
+      `Camera: ${camera}.`,
+      `Style: ${styleRef}.`,
+      "highly detailed, intricate details, sharp focus, cinematic lighting, volumetric lighting, photorealistic, 8k, masterpiece, best quality",
+      `${arFlag} --stylize ${stylize} --v 6`,
+    ].filter(Boolean).join(" "));
   }
 
   return cleanText([
@@ -573,70 +606,54 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
   const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "the subject holds position with subtle movement";
   const firstSentence = action.split(/(?<=[.!?])\s+/)[0] || action;
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
+  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES.";
   const duration = Math.min(8, Math.max(3, Number(frame.duration || 5)));
-  const continuity = isFirstFrame(frame)
-    ? "Maintain the exact appearance from the uploaded frame."
-    : "Maintain exact character appearance, clothing, lighting and historical setting; do not clone previous composition.";
-  const ultra = consistency === "ultra"
-    ? "Do not change face, age, clothing, dirt level, lighting, or period."
-    : "Keep visual continuity.";
-  const scriptAnchor = frame.vo_ru
-    ? `Script: "${String(frame.vo_ru).slice(0, 90)}". Animate ONLY what this line shows.`
-    : "";
+  const camera = cleanText(frame.camera || "static handheld").split(",")[0].trim();
+  const scriptLine = frame.vo_ru ? String(frame.vo_ru).slice(0, 70) : "";
+  const sfxShort = buildGrokSfxLine(audio);
 
+  // Структура: Scene, Initial state, Movement, Camera, Pace, Mood, Specs
   return limitWords(dedupeFinalPrompt([
     noVoice,
-    "Animate only the uploaded frame. Do not recompose, add characters, change framing, add subtitles, UI or watermark.",
-    `${duration}-second subtle image-to-video shot:`,
-    scriptAnchor,
-    firstSentence,
-    audio.hasDominantAlarm ? "Audio priority: make the alarm siren clearly audible and dominant from the first frame." : "",
-    "Use only micro-motion: handheld drift, breathing, fabric movement, smoke or wind if visible.",
-    `SFX: ${buildGrokSfxLine(audio)}.`,
-    continuity,
-    ultra,
-    minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
-  ].filter(Boolean).join(" ")), 105);
+    scriptLine ? `Script: "${scriptLine}".` : "",
+    firstSentence + ".",
+    `Camera: ${camera}, subtle micro-movement.`,
+    `SFX: ${sfxShort}.`,
+    "Cinematic, photorealistic, 24fps, smooth motion, shot on Arri Alexa.",
+    `${duration} seconds --motion 4`,
+  ].filter(Boolean).join(" ")), 80);
 }
 
 function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
   let action = removeGeneratedNames(getFrameAction(frame), storyboard);
   action = sanitizeSensitiveMinorTerms(action, minorSafe) || "the visible scene holds tension with subtle physical motion";
-  const camera = cleanText(frame.camera || "subtle handheld documentary camera movement");
+  const duration = Math.min(10, Math.max(4, Number(frame.duration || 5)));
+  const camera = cleanText(frame.camera || "subtle handheld documentary movement");
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
+  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO VOICEOVER.";
   const shot = getShotProgression(frame);
-  const continuity = isFirstFrame(frame)
-    ? "Maintain exact appearance from the uploaded frame."
-    : "Maintain exact character appearance, face, clothing and condition as previous frame without copying composition.";
-  const ultra = consistency === "ultra"
-    ? "Ultra consistency: keep face structure, age, clothing, dirt level, lighting style, color grade and historical period stable."
-    : "Keep continuity stable.";
-  const scriptAnchor = frame.vo_ru
-    ? `Script line: "${String(frame.vo_ru).slice(0, 100)}". Animate ONLY what this line describes.`
-    : "";
-  // Берём стиль из storyboard, не хардкодим "damp historical realism"
-  const styleHint = cleanText(
-    storyboard?.global_style_lock?.split(".")[0] ||
-    "natural light, documentary realism, grounded physical weight"
-  ).slice(0, 80);
+  const scriptLine = frame.vo_ru ? String(frame.vo_ru).slice(0, 80) : "";
+  const sfxShort = buildGrokSfxLine(audio);
+
+  // Берём стиль из master_style или global_style_lock
+  const styleRef = storyboard.master_style
+    ? storyboard.master_style.replace("Overall visual style:", "").trim().split(",")[0]
+    : cleanText((storyboard.global_style_lock || "").split(".")[0] || "natural light, documentary realism");
+
+  // Структура: Scene description, Initial state, Character movement, Camera, Pace, Mood, Technical specs
+  const motionVal = shot.phase === "HOOK" ? 3 : shot.phase === "ESCALATION" ? 6 : shot.phase === "PAYOFF" ? 7 : 4;
 
   return limitWords(dedupeFinalPrompt([
     noVoice,
-    "ANIMATE ONLY THE UPLOADED FRAME. Do not recompose or add characters.",
-    scriptAnchor,
-    `${camera}.`,
-    action,
-    `Shot progression: ${shot.phase} — ${shot.rhythm}.`,
-    audio.hasDominantAlarm ? "Audio priority: loud alarm siren must dominate over background room tone." : "",
-    `${styleHint}, subtle 35mm grain, real weight and inertia.`,
-    `SFX: ${buildGrokSfxLine(audio)}.`,
-    continuity,
-    ultra,
-    minorSafe ? "No violence shown, no injury shown, no graphic content." : "",
-  ].filter(Boolean).join(" ")), 135);
+    scriptLine ? `Script: "${scriptLine}".` : "",
+    action + ".",
+    `Camera: ${camera}.`,
+    `${shot.rhythm}.`,
+    `SFX: ${sfxShort}.`,
+    `${styleRef}, cinematic, photorealistic, 24fps, smooth motion, shot on Arri Alexa.`,
+    `${duration} seconds --motion ${motionVal}`,
+  ].filter(Boolean).join(" ")), 115);
 }
 
 export function buildVideoPromptFor({

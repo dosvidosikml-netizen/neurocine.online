@@ -197,9 +197,12 @@ function appendContinuity(body = "", maxTotalWords = 118) {
 function compactGrokVideo(scene = {}, baseVideo = "") {
   const visual = getSceneVisual(scene);
   const motion = getMotion(scene);
-  const camera = trimWords(cleanPrompt(scene.camera || "handheld documentary fragment"), 14);
-  const body = `ANIMATE CURRENT FRAME: ${trimWords(visual, 18)}. Single action only: ${trimWords(motion, 18)}. Shot like a grounded documentary fragment; ${camera}; tactile atmosphere, real inertia, fabric and particles react naturally.`;
-  return appendContinuity(body, 118);
+  const camera = trimWords(cleanPrompt(scene.camera || "handheld"), 8);
+  const duration = Math.min(10, Math.max(3, Number(scene.duration || 5)));
+  const sfxShort = scene.sfx ? String(scene.sfx).split(" — ")[0].slice(0, 40) : "ambient room tone";
+  // Структура: Scene + Initial state, Movement, Camera, SFX, Technical specs
+  const body = `${trimWords(visual, 16)}. ${trimWords(motion, 14)}. Camera: ${camera}, subtle motion. SFX: ${sfxShort}. Cinematic, photorealistic, 24fps, shot on Arri Alexa.`;
+  return appendContinuity(`ANIMATE CURRENT FRAME: ${body} ${duration}s --motion 4`, 115);
 }
 
 function extractAudioBlock(text = "") {
@@ -324,7 +327,17 @@ ${isObserverMode ? `OBSERVER MODE: The script speaks to the viewer as "you". Do 
 
 MANDATORY scene fields:
 id, start, duration, description_ru, image_prompt_en, video_prompt_en, vo_ru, sfx, camera, transition, cut_energy, continuity_note, safety_note.
+${normalizedTarget === "grok" ? `
+MASTER STYLE DESCRIPTION (add as root field "master_style"):
+"Overall visual style: [genre], consistent character design, [color palette], [dominant lighting type], in the style of [2 film references], cinematic color grading, [realism level: photorealistic / stylized]"
 
+IMAGE PROMPT (Grok — строго эту структуру):
+"Storyboard panel {frame_number} of ${preset.targetScenes}: [Subject: main character + age + key appearance + clothing + key details], [Action & Emotion: action + pose + emotion + facial expression], [Environment: location + time of day + weather + atmosphere], [Lighting: type + color temperature + light effects], [Camera: shot type + angle + composition], [Style: artistic style + 2 film/art references], highly detailed, intricate details, sharp focus, cinematic lighting, volumetric lighting, photorealistic, 8k, masterpiece, best quality --ar ${aspectRatio === "9:16" ? "9:16" : aspectRatio === "16:9" ? "16:9" : "1:1"} --stylize 350 --v 6"
+
+VIDEO PROMPT (Grok — строго эту структуру, MAX 80 WORDS):
+"[Scene description + who is present + what is happening], [initial state at frame start], [character movement: specific action], [camera: tracking/dolly/static/push-in + direction], [pace: slow/medium/fast], [mood + atmosphere keyword], cinematic, photorealistic, 24fps, smooth motion, shot on Arri Alexa, [duration]s --motion [3-6]"
+⚠ GROK VIDEO HARD LIMIT: MAXIMUM 80 WORDS. Count every word. No ALLOWED/FORBIDDEN AUDIO blocks. No world_audio_rule. One camera sentence. End with duration and --motion.
+` : `
 IMAGE PROMPT:
 - starts with "SCENE PRIMARY FOCUS:"
 - one clear visual focus
@@ -333,12 +346,11 @@ IMAGE PROMPT:
 
 VIDEO PROMPT:
 - starts with "ANIMATE CURRENT FRAME:"
-- ${normalizedTarget === "grok"
-    ? "⚠ GROK HARD LIMIT: MAXIMUM 80 WORDS. Count every word. If you exceed 80 — truncate. No Audio block. No ALLOWED AUDIO block. No FORBIDDEN lines. One action sentence only. SFX: max 5 words."
-    : "60-120 words, includes Audio and SFX block"}
+- 60-120 words, includes Audio and SFX block
 - audio/SFX must obey WORLD / ERA / AUDIO LOGIC above
 - MUST include this exact sentence at the end or near end:
 "${EXACT_CONTINUITY}"
+`}
 
 SFX FIELD RULES — ASMR PRECISION:
 The sfx field must describe 2-3 SPECIFIC physical sounds visible/implied by this exact scene.
@@ -354,7 +366,7 @@ Examples of CORRECT sfx:
 WRONG: "ambient room tone", "quiet hum", "soft background noise"
 
 REQUIRED root fields:
-project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock, character_lock, postprocess, scenes, export_meta.
+project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock, character_lock, postprocess, scenes, export_meta${normalizedTarget === "grok" ? ", master_style" : ""}.
 
 SCRIPT:
 ${script}
@@ -399,6 +411,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     aspect_ratio: raw.aspect_ratio || "9:16",
     global_style_lock: raw.global_style_lock || DEFAULT_STYLE_LOCK,
     character_lock: characterLockSafe,
+    ...(target === "grok" && raw.master_style ? { master_style: raw.master_style } : {}),
   };
 
   let start = 0;
