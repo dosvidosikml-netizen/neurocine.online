@@ -167,7 +167,7 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
     if (hasAny(ctx, ["rain", "дождь", "капли"])) {
       cues.push("individual raindrops striking glass at irregular intervals — not continuous rain sheet");
     } else {
-      cues.push("distant city bleed through glass — muffled low-end only, no identifiable source");
+      cues.push("muted exterior air pressure through glass — low-end texture without identifiable traffic");
     }
   }
 
@@ -211,8 +211,8 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
   // ── НОЧЬ / ТИШИНА / ПУСТОТА ──────────────────────────────────────────────
   if (hasAny(ctx, ["night", "dark", "silence", "empty", "ночь", "темнота", "тишина", "пустой", "пусто"])) {
     if (!cues.length) {
-      cues.push("room tone — high-frequency silence ringing, barely perceptible HVAC absence");
-      cues.push("distant single car passing on wet asphalt — 2-second doppler fade");
+      cues.push("held interior silence — high-frequency air pressure with no identifiable source");
+      cues.push("fabric micro-rustle from small body movement in the dark");
     }
   }
 
@@ -450,6 +450,20 @@ function getFrameAction(frame = {}) {
   return "";
 }
 
+function getScriptLine(frame = {}) {
+  return cleanText(frame.vo_ru || frame.script_line_ru || frame.script_line || "");
+}
+
+function getSourceTruthAction(frame = {}) {
+  const scriptLine = getScriptLine(frame);
+  return scriptLine || getFrameAction(frame);
+}
+
+function getSourceTruthVisual(frame = {}) {
+  const scriptLine = getScriptLine(frame);
+  return scriptLine || stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || "");
+}
+
 function compactVideoBeat(text = "", maxWords = 34) {
   let out = stripGeneratedPromptSections(text)
     .replace(/\bARRI Alexa[^.]*\.?/gi, "")
@@ -491,7 +505,7 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
   const minorSafe = hasMinorContext(frame, storyboard);
   const aspectRatio = storyboard.aspect_ratio || "9:16";
   const duration = Math.min(6, Math.max(3, Number(frame.duration || 3) || 3));
-  const rawAction = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe);
+  const rawAction = sanitizeSensitiveMinorTerms(removeGeneratedNames(getSourceTruthAction(frame), storyboard), minorSafe);
   const beat = compactVideoBeat(rawAction, 34) || "hold the visible scene in tense stillness";
   const camera = compactCameraMove(frame.camera || "subtle slow push-in", 14);
   const motion = inferMicroMotion(rawAction, frame);
@@ -526,6 +540,7 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
   const relevantCharacters = getRelevantCharacterLock(storyboard.character_lock, frame);
   const characterBlock = buildCharacterBlock(relevantCharacters, { compact: target === "grok", omitNames: target === "grok" });
   const sceneVisual = cleanText(stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || ""));
+  const sourceTruthVisual = getSourceTruthVisual(frame) || sceneVisual;
   const camera = cleanText(frame.camera || "static documentary frame, natural lens perspective");
   const anchors = [REALISM_ANCHORS_SKIN[0], REALISM_ANCHORS_HAIR_FABRIC[0], REALISM_ANCHORS_OPTICS[0]].join(", ");
 
@@ -534,16 +549,18 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
     const panelLabel = `Storyboard panel ${frameNum} of ${totalScenes || "?"}:`;
     const arFlag = aspectRatio === "9:16" ? "--ar 9:16" : aspectRatio === "16:9" ? "--ar 16:9" : "--ar 1:1";
 
-    // Subject блок — из character_lock если есть, иначе из описания сцены
+    const sourceLine = getScriptLine(frame);
+
+    // Subject блок — character_lock фиксирует идентичность, но не добавляет героя в кадр без поддержки script line.
     const subjectBlock = characterBlock
-      ? `Subject: ${characterBlock}`
-      : `Subject: ${cleanText(sceneVisual).split(".")[0]}`;
+      ? `Subject: ${characterBlock} only if present in the source line`
+      : `Subject: ${limitWords(sourceTruthVisual, 18)}`;
 
-    // Action & Emotion из описания сцены
-    const actionBlock = cleanText(frame.description_ru || frame.description_en || sceneVisual).split(".")[1]?.trim() || "";
+    // Action & Emotion строго из source line / vo_ru.
+    const actionBlock = limitWords(sourceTruthVisual, 24);
 
-    // Environment из первой части visual описания
-    const envBlock = cleanText(sceneVisual).split(",").slice(0, 3).join(",").trim();
+    // Environment не имеет права расширять сценарий.
+    const envBlock = "Environment: only location, time, weather and props stated or directly implied by the source line";
 
     // Style — из global_style_lock или master_style
     const styleRef = storyboard.master_style
@@ -560,13 +577,14 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
 
     return cleanText([
       panelLabel,
+      sourceLine ? `Source line: "${limitWords(sourceLine, 24)}".` : "Source line: storyboard frame description.",
       subjectBlock + ".",
-      actionBlock ? actionBlock + "." : "",
+      `Action & Emotion: ${actionBlock}.`,
       envBlock + ".",
       lightBlock + ".",
       `Camera: ${camera}.`,
       `Style: ${styleRef}.`,
-      "highly detailed, intricate details, sharp focus, cinematic lighting, volumetric lighting, photorealistic, 8k, masterpiece, best quality",
+      "no extra objects, no extra locations, no extra characters, sharp focus, cinematic lighting, photorealistic",
       `${arFlag} --stylize ${stylize} --v 6`,
     ].filter(Boolean).join(" "));
   }
@@ -603,37 +621,37 @@ function buildGrokSfxLine(audio) {
 
 function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
-  const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getFrameAction(frame), storyboard), minorSafe) || "the subject holds position with subtle movement";
-  const firstSentence = action.split(/(?<=[.!?])\s+/)[0] || action;
+  const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getSourceTruthAction(frame), storyboard), minorSafe) || "the visible subject holds position with subtle movement";
+  const sourceLine = getScriptLine(frame) || action;
   const audio = buildAudioPlan({ frame, storyboard, action });
   const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES.";
   const duration = Math.min(8, Math.max(3, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "static handheld").split(",")[0].trim();
-  const scriptLine = frame.vo_ru ? String(frame.vo_ru).slice(0, 70) : "";
   const sfxShort = buildGrokSfxLine(audio);
 
-  // Структура: Scene, Initial state, Movement, Camera, Pace, Mood, Specs
+  // Grok compact structure: source line, locked uploaded frame, one movement, one camera, short SFX.
   return limitWords(dedupeFinalPrompt([
     noVoice,
-    scriptLine ? `Script: "${scriptLine}".` : "",
-    firstSentence + ".",
-    `Camera: ${camera}, subtle micro-movement.`,
+    "SOURCE OF TRUTH: script line.",
+    `Script: "${limitWords(sourceLine, 16)}".`,
+    "Preserve uploaded frame; animate only this described action.",
+    "No new objects, locations, characters, or scene change.",
+    `Camera: ${limitWords(camera, 8)}.`,
     `SFX: ${sfxShort}.`,
-    "Cinematic, photorealistic, 24fps, smooth motion, shot on Arri Alexa.",
-    `${duration} seconds --motion 4`,
-  ].filter(Boolean).join(" ")), 80);
+    `Photorealistic 24fps. ${duration}s --motion 4`,
+  ].filter(Boolean).join(" ")), 77);
 }
 
 function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
-  let action = removeGeneratedNames(getFrameAction(frame), storyboard);
+  let action = removeGeneratedNames(getSourceTruthAction(frame), storyboard);
   action = sanitizeSensitiveMinorTerms(action, minorSafe) || "the visible scene holds tension with subtle physical motion";
   const duration = Math.min(10, Math.max(4, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "subtle handheld documentary movement");
   const audio = buildAudioPlan({ frame, storyboard, action });
   const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO VOICEOVER.";
   const shot = getShotProgression(frame);
-  const scriptLine = frame.vo_ru ? String(frame.vo_ru).slice(0, 80) : "";
+  const sourceLine = getScriptLine(frame) || action;
   const sfxShort = buildGrokSfxLine(audio);
 
   // Берём стиль из master_style или global_style_lock
@@ -641,19 +659,20 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
     ? storyboard.master_style.replace("Overall visual style:", "").trim().split(",")[0]
     : cleanText((storyboard.global_style_lock || "").split(".")[0] || "natural light, documentary realism");
 
-  // Структура: Scene description, Initial state, Character movement, Camera, Pace, Mood, Technical specs
+  // Структура: source line, locked frame, one visible action, one camera sentence, compact SFX.
   const motionVal = shot.phase === "HOOK" ? 3 : shot.phase === "ESCALATION" ? 6 : shot.phase === "PAYOFF" ? 7 : 4;
 
   return limitWords(dedupeFinalPrompt([
     noVoice,
-    scriptLine ? `Script: "${scriptLine}".` : "",
-    action + ".",
-    `Camera: ${camera}.`,
-    `${shot.rhythm}.`,
+    "SOURCE OF TRUTH: script line.",
+    `Script: "${limitWords(sourceLine, 18)}".`,
+    "Preserve uploaded frame; animate only this described action.",
+    "No new objects, locations, characters, weather, or scene change.",
+    `Camera: ${limitWords(camera, 10)}.`,
+    `Pace: ${shot.phase.toLowerCase()}, ${limitWords(shot.rhythm, 8)}.`,
     `SFX: ${sfxShort}.`,
-    `${styleRef}, cinematic, photorealistic, 24fps, smooth motion, shot on Arri Alexa.`,
-    `${duration} seconds --motion ${motionVal}`,
-  ].filter(Boolean).join(" ")), 115);
+    `${limitWords(styleRef, 5)}, photorealistic 24fps. ${duration}s --motion ${motionVal}`,
+  ].filter(Boolean).join(" ")), 77);
 }
 
 export function buildVideoPromptFor({
@@ -768,7 +787,7 @@ export function validateFramePrompts({ frame, storyboard, target = "veo3" }) {
   }
   if (target === "grok") {
     const wordCount = cleanText(frame.video_prompt_en || "").split(/\s+/).length;
-    if (wordCount > 150) errors.push(`Grok video prompt too long: ${wordCount} words (max ~150)`);
+    if (wordCount > 80) errors.push(`Grok video prompt too long: ${wordCount} words (max 80)`);
     if (/human voices|voiceover|dialogue|narration/i.test(frame.video_prompt_en || "")) {
       if (!/^ANIMATE CURRENT FRAME:\s*NO SPEECH/i.test(frame.video_prompt_en || "")) errors.push("Grok prompt may allow voices/dialogue");
     }

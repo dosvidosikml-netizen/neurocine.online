@@ -54,6 +54,10 @@ function sceneMotion(scene = {}) {
   );
 }
 
+function sceneScriptLine(scene = {}) {
+  return cleanText(scene.vo_ru || scene.script_line_ru || scene.script_line || "");
+}
+
 function getShotType(scene = {}, i = 0) {
   const shots = ["wide establishing shot", "handheld medium shot", "close-up", "over-the-shoulder shot"];
   return cleanText(scene.shot_type || scene.camera || shots[i % shots.length]);
@@ -139,6 +143,7 @@ export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHer
 
 SOURCE OF TRUTH:
 Use ONLY the provided storyboard scenes from the existing Scenario/Storyboard.
+For each frame, the SCRIPT LINE / vo_ru is the highest authority for visible content.
 Do NOT invent new plot events, new locations, new actions, new animals, new important objects or new characters.
 If a detail is not present in a frame description, keep it neutral and minimal.
 Camera choice and composition may be cinematic, but story content must stay literal.
@@ -167,6 +172,7 @@ World-only frames may show other people, but they must belong to the same world 
 
 REFERENCE RULE:
 Use uploaded reference images only as VISUAL DNA: style, lighting, texture, world continuity and recurring hero identity.
+Reference images must not introduce new story objects, locations, wardrobe, era details or actions.
 Do NOT copy the same composition into every new frame.
 Do NOT make every cell a portrait of the reference hero.
 New frames must follow their own scenario descriptions.
@@ -217,14 +223,16 @@ export function buildAutoChainPartPrompt({
     const globalIdx = partIndex * partSize + localIdx;
     const label = frameLabel(s, globalIdx);
     const sceneTxt = sceneText(s, { characterLock, appearanceMode });
+    const scriptLine = sceneScriptLine(s);
     return `${label}:
 ${frameRoleHint(localIdx, chainMode)}
 ${getContinuityLink(partScenes, localIdx, partIndex, partSize)}
 MANDATORY VISUAL PREFIX: camera-photographed live-action image, NOT illustration, NOT 2D art, NOT painting, NOT concept art.
+SCRIPT LINE (SOURCE OF TRUTH): ${scriptLine || "use SCENARIO INPUT only; do not invent missing details"}
 SCENARIO INPUT (STRICT): ${sceneTxt}
 VO MEANING: ${cleanText(s.vo_ru || "")}
 SHOT TYPE: ${getShotType(s, localIdx)}
-COMPOSITION RULE: visualize only the described action/subject/environment; keep cinematic composition but do not add new story events.
+COMPOSITION RULE: visualize only the described action/subject/environment from SCRIPT LINE + SCENARIO INPUT; keep cinematic composition but do not add new story events, props, locations, weather or characters.
 SFX NOTE: ${cleanText(s.sfx || "")}`;
   }).join("\n\n");
 
@@ -310,6 +318,7 @@ ${scriptAnchor}
 
 SOURCE OF TRUTH — STRICT:
 Animate ONLY what is explicitly present in this frame's storyboard description AND directly stated in the SCRIPT LINE above.
+The uploaded/current frame is the visual anchor; the SCRIPT LINE is the content authority.
 FORBIDDEN: inventing new locations, characters, objects or actions not in the script line.
 Example: if script says "руки дрожат над кружкой" — animate HANDS and CUP only. NOT feet, NOT corridor, NOT POV walk.
 If you cannot find an element in the script line → do NOT animate it.
@@ -371,6 +380,7 @@ export function buildAutoChainJson({
         label: frameLabel(s, i * partSize + localIdx),
         scenario_input: sceneText(s, { characterLock, appearanceMode }),
         vo_ru: s.vo_ru || "",
+        script_line_ru: sceneScriptLine(s),
         sfx: s.sfx || "",
         image_prompt_en: s.image_prompt_en || "",
         video_prompt_en: s.video_prompt_en || ""

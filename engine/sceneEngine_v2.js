@@ -55,6 +55,7 @@ export const STORYBOARD_TARGETS = {
 };
 
 const EXACT_CONTINUITY = "Maintain EXACT same character appearance, face, clothing, and condition as previous frame.";
+const GROK_VIDEO_WORD_LIMIT = 80;
 const DEFAULT_VIDEO_LOCK = "grounded physical realism, realistic inertia, organic handheld camera drift, visible environmental reaction, fabric responding to motion, audio must be physically possible for the script era, location and visible objects";
 const DEFAULT_STYLE_LOCK = "RAW unretouched photograph, NOT CGI, NOT rendered, shot on ARRI Alexa 35, Zeiss Master Prime, natural available light, Kodak Portra 400, 35mm film grain, no subtitles, no UI, no watermark";
 
@@ -92,7 +93,10 @@ export function getChunkPlan(duration) {
 }
 
 export function normalizeMode(mode = "safe") {
-  return mode === "raw" || mode === "grok_raw" ? "raw" : "safe";
+  const value = String(mode || "safe").toLowerCase();
+  if (value === "raw" || value === "grok_raw") return "raw";
+  if (value === "script_strict" || value === "strict" || value === "source_of_truth") return "script_strict";
+  return "safe";
 }
 
 export function normalizeTarget(target = "veo3") {
@@ -171,6 +175,10 @@ function getSceneVisual(scene = {}) {
   ).replace(/^SCENE PRIMARY FOCUS:\s*/i, "").replace(/ASPECT RATIO:.*$/i, "").trim();
 }
 
+function getScriptLine(scene = {}) {
+  return cleanPrompt(scene.vo_ru || scene.script_line_ru || scene.script_line || "");
+}
+
 function getMotion(scene = {}) {
   return cleanPrompt(
     scene.story_action_en ||
@@ -194,15 +202,32 @@ function appendContinuity(body = "", maxTotalWords = 118) {
   return `${trimmed} ${EXACT_CONTINUITY}`.replace(/\s+/g, " ").trim();
 }
 
+function enforceGrokVideoWordLimit(text = "", maxTotalWords = GROK_VIDEO_WORD_LIMIT) {
+  let cleaned = cleanPrompt(text);
+  const hasContinuity = cleaned.includes(EXACT_CONTINUITY);
+  let body = hasContinuity ? cleaned.replace(EXACT_CONTINUITY, "").trim() : cleaned;
+  body = body.replace(/\s*Maintain EXACT[\s\S]*$/i, "").trim();
+  const continuityBudget = hasContinuity ? wordCount(EXACT_CONTINUITY) + 1 : 0;
+  const bodyBudget = Math.max(20, maxTotalWords - continuityBudget);
+  return cleanPrompt(`${trimWords(body, bodyBudget)}${hasContinuity ? ` ${EXACT_CONTINUITY}` : ""}`);
+}
+
 function compactGrokVideo(scene = {}, baseVideo = "") {
-  const visual = getSceneVisual(scene);
-  const motion = getMotion(scene);
+  const scriptLine = getScriptLine(scene);
+  const sourceTruth = scriptLine || getSceneVisual(scene);
   const camera = trimWords(cleanPrompt(scene.camera || "handheld"), 8);
   const duration = Math.min(10, Math.max(3, Number(scene.duration || 5)));
-  const sfxShort = scene.sfx ? String(scene.sfx).split(" — ")[0].slice(0, 40) : "ambient room tone";
-  // Структура: Scene + Initial state, Movement, Camera, SFX, Technical specs
-  const body = `${trimWords(visual, 16)}. ${trimWords(motion, 14)}. Camera: ${camera}, subtle motion. SFX: ${sfxShort}. Cinematic, photorealistic, 24fps, shot on Arri Alexa.`;
-  return appendContinuity(`ANIMATE CURRENT FRAME: ${body} ${duration}s --motion 4`, 115);
+  const sfxShort = scene.sfx ? trimWords(String(scene.sfx).split(" — ")[0], 7) : "scene-matched ambience";
+  const body = [
+    "ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line.",
+    `Script: "${trimWords(sourceTruth, 18)}".`,
+    "Preserve uploaded frame; animate only this described action.",
+    "No new objects, locations, characters, or scene change.",
+    `Camera: ${camera}.`,
+    `SFX: ${sfxShort}.`,
+    `Photorealistic 24fps. ${duration}s --motion 4`,
+  ].join(" ");
+  return enforceGrokVideoWordLimit(appendContinuity(body, GROK_VIDEO_WORD_LIMIT), GROK_VIDEO_WORD_LIMIT);
 }
 
 function extractAudioBlock(text = "") {
@@ -306,6 +331,9 @@ No invented locations, characters, objects or actions beyond what the text expli
 Sequence must cover 100% of the script from first word to last — no skipping, no repeating.
 ` : ""}
 VISUAL FIDELITY — MANDATORY FOR ALL MODES:
+SOURCE OF TRUTH = each scene's vo_ru script line.
+Image prompts, video prompts, objects, locations, characters, actions, weather and time of day must be derived from that exact vo_ru line.
+Reference images can lock identity/composition/style, but they MUST NOT introduce story objects, locations, wardrobe, actions or era details absent from vo_ru.
 Every scene's visual description, objects, characters, locations and actions MUST have DIRECT textual support in that scene's vo_ru line.
 If the script line says "руки дрожат над кружкой" — the scene shows HANDS and a CUP. NOT feet. NOT a corridor. NOT POV walking.
 If an object, location or action is NOT in the script line → it MUST NOT appear in the visual description.
@@ -332,11 +360,11 @@ MASTER STYLE DESCRIPTION (add as root field "master_style"):
 "Overall visual style: [genre], consistent character design, [color palette], [dominant lighting type], in the style of [2 film references], cinematic color grading, [realism level: photorealistic / stylized]"
 
 IMAGE PROMPT (Grok — строго эту структуру):
-"Storyboard panel {frame_number} of ${preset.targetScenes}: [Subject: main character + age + key appearance + clothing + key details], [Action & Emotion: action + pose + emotion + facial expression], [Environment: location + time of day + weather + atmosphere], [Lighting: type + color temperature + light effects], [Camera: shot type + angle + composition], [Style: artistic style + 2 film/art references], highly detailed, intricate details, sharp focus, cinematic lighting, volumetric lighting, photorealistic, 8k, masterpiece, best quality --ar ${aspectRatio === "9:16" ? "9:16" : aspectRatio === "16:9" ? "16:9" : "1:1"} --stylize 350 --v 6"
+"Storyboard panel {frame_number} of ${preset.targetScenes}: SOURCE OF TRUTH: script line. [Subject: only characters/objects named or directly implied by vo_ru], [Action & Emotion: only the action/emotion in vo_ru], [Environment: only location/time/weather supported by vo_ru; otherwise neutral minimal background], [Lighting: plausible for that exact scene], [Camera: shot type + angle + composition], [Style: artistic style + 2 film/art references], no extra objects, no extra locations, highly detailed, sharp focus, cinematic lighting, photorealistic --ar ${aspectRatio === "9:16" ? "9:16" : aspectRatio === "16:9" ? "16:9" : "1:1"} --stylize 350 --v 6"
 
 VIDEO PROMPT (Grok — строго эту структуру, MAX 80 WORDS):
-"[Scene description + who is present + what is happening], [initial state at frame start], [character movement: specific action], [camera: tracking/dolly/static/push-in + direction], [pace: slow/medium/fast], [mood + atmosphere keyword], cinematic, photorealistic, 24fps, smooth motion, shot on Arri Alexa, [duration]s --motion [3-6]"
-⚠ GROK VIDEO HARD LIMIT: MAXIMUM 80 WORDS. Count every word. No ALLOWED/FORBIDDEN AUDIO blocks. No world_audio_rule. One camera sentence. End with duration and --motion.
+"SOURCE OF TRUTH: script line. Script: [short vo_ru quote]. Preserve uploaded frame. Animate ONLY the action described by this script line. No new objects, locations, characters, weather or scene change. Camera: [one movement]. SFX: [2-3 physical cues]. Photorealistic 24fps. [duration]s --motion [3-6]"
+GROK VIDEO HARD LIMIT: MAXIMUM 80 WORDS including prefix, SFX and continuity. Count every word. No ALLOWED/FORBIDDEN AUDIO blocks. No world_audio_rule. One camera sentence. End with duration and --motion.
 ` : `
 IMAGE PROMPT:
 - starts with "SCENE PRIMARY FOCUS:"
@@ -434,7 +462,9 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       transition: s.transition || "cut",
       cut_energy: getCutEnergy(s, i),
       continuity_note: s.continuity_note || EXACT_CONTINUITY,
-      safety_note: s.safety_note || (mode === "safe" ? "GPT SAFE: documentary framing" : "GROK RAW: intense but safe framing"),
+      safety_note: s.safety_note || (mode === "raw" ? "GROK RAW: intense but safe framing" : "GPT SAFE: documentary framing"),
+      source_of_truth: "script_line",
+      script_line_ru: s.vo_ru || s.voice || s.vo || "",
     };
 
     let imagePrompt = sourceScene.image_prompt_en;
@@ -442,7 +472,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     let negativePrompt = NEGATIVE_PROMPT_BASE;
 
     try {
-      const agentPrompts = buildFramePromptsForTarget({ frame: { ...sourceScene, video_prompt_en: "", motion: getMotion(sourceScene) }, storyboard: storyboardMeta, target });
+      const agentPrompts = buildFramePromptsForTarget({ frame: { ...sourceScene, video_prompt_en: "", motion: getScriptLine(sourceScene) || getMotion(sourceScene) }, storyboard: storyboardMeta, target });
       imagePrompt = agentPrompts.image_prompt_en || imagePrompt;
       videoPrompt = agentPrompts.video_prompt_en || videoPrompt;
       negativePrompt = agentPrompts.negative_prompt || negativePrompt;
@@ -466,9 +496,9 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       negative_prompt: [worldScene.negative_prompt, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects].filter(Boolean).join(", "),
     };
 
-    // Жёсткий физический лимит для Grok — после всех обработчиков обрезаем до 115 слов
+    // Жёсткий лимит для Grok — после всех обработчиков сохраняем continuity и держим prompt компактным.
     if (target === "grok" && finalScene.video_prompt_en) {
-      finalScene.video_prompt_en = trimWords(finalScene.video_prompt_en, 115);
+      finalScene.video_prompt_en = enforceGrokVideoWordLimit(finalScene.video_prompt_en, GROK_VIDEO_WORD_LIMIT);
     }
 
     if (target === "grok") {
@@ -502,7 +532,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       target,
       model: modelUsed,
       version: "neurocine_storyboard_v2_4_world_audio_brain",
-      auto_safe_to_grok: mode === "safe",
+      auto_safe_to_grok: mode !== "raw",
       world_audio_brain: true,
       postprocess: { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     },
@@ -534,14 +564,14 @@ export function validateStoryboard(data = {}, requestedMode = "safe", requestedT
       if (target === "veo3" && !vid.toLowerCase().includes("audio:")) errors.push(`${expectedId}: Veo 3 video prompt missing Audio block`);
       if (target === "grok") {
         const wc = wordCount(vid);
-        if (wc > 115) errors.push(`${expectedId}: Grok video prompt too long (${wc} words, max ~115)`);
+        if (wc > GROK_VIDEO_WORD_LIMIT) errors.push(`${expectedId}: Grok video prompt too long (${wc} words, max ${GROK_VIDEO_WORD_LIMIT})`);
       }
 
       if (!s.world_profile && !/WORLD LOGIC|ALLOWED AUDIO|FORBIDDEN AUDIO/i.test(vid)) errors.push(`${expectedId}: world/audio brain metadata missing`);
 
       if (!["low", "medium", "high"].includes(String(s.cut_energy || "").toLowerCase())) errors.push(`${expectedId}: cut_energy must be low, medium, or high`);
 
-      if (mode === "safe") {
+      if (mode !== "raw") {
         const risky = `${img} ${vid}`.toLowerCase();
         ["naked", "nude", "bare torso", "exposed body", "explicit gore"].forEach((word) => {
           if (risky.includes(word)) errors.push(`${expectedId}: safe mode risky wording: ${word}`);
