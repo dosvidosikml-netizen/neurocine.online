@@ -510,13 +510,14 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
   const camera = compactCameraMove(frame.camera || "subtle slow push-in", 14);
   const motion = inferMicroMotion(rawAction, frame);
   const audio = buildAudioPlan({ frame, storyboard, action: rawAction });
-  const noVoice = includeVo && frame.vo_ru ? "Voiceover may be added separately; keep this clip non-verbal." : "No speech, no voiceover, no music.";
+  const noVoice = includeVo && frame.vo_ru ? "Voiceover may be added separately; keep this clip non-verbal." : "ABSOLUTE AUDIO LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music.";
   const continuity = consistency === "ultra"
     ? "Keep the exact uploaded composition, lighting, clothing, grime and object layout."
     : "Keep visual continuity with the uploaded frame.";
 
-  const scriptAnchor = frame.vo_ru
-    ? `Script line: "${String(frame.vo_ru).slice(0, 120)}". Animate ONLY what this line describes.`
+  const scriptAnchorLine = includeVo ? frame.vo_ru : String(frame.vo_ru||"").replace(/\bголос(ом|а|у|е)?\b/gi,"звук").replace(/\bvoice(over)?\b/gi,"sound");
+  const scriptAnchor = scriptAnchorLine
+    ? `Script line: "${String(frame.vo_ru).replace(/\bголос(ом|а|у|е)?\b/gi,"звук").replace(/\bvoice(over)?\b/gi,"sound").slice(0,120)}". Animate ONLY what this line describes.`
     : "";
 
   return limitWords(dedupeFinalPrompt([
