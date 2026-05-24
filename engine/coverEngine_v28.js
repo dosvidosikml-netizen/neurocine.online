@@ -703,6 +703,7 @@ function composePrompt(brief, variant = "poster") {
     isDreamControl ? "DREAM-CONTROL LOCK: white bed screen, dusty old projector, concrete sleeping cells, city square/facade dream projection. No alternate-history classroom, no wartime propaganda, no police case board." : "",
     isAltHistory ? "ALT-HISTORY LOCK: no paranormal horror, no monster. School portrait, history book, silent apartment door, anti-totalitarian documentary tone." : "",
     isColdWar ? "COLD WAR LOCK: Soviet bunker, red siren, CRT screens, analog panels, officer decision. No crime board, no police tape." : "",
+    brief.theme === "submarine_warfare" ? "SUBMARINE REALITY LOCK: use only WWII submarines, U-864, HMS Venturer, torpedo track geometry, sonar/depth calculations, red submarine control room, dark North Sea water near Norway. Absolutely no reptiles, no animal eyes, no predators, no monsters, no fantasy creatures." : "",
     brief.forbidden_visuals ? `FORBIDDEN VISUALS: ${brief.forbidden_visuals}.` : "",
     "TYPOGRAPHY RULE: strict 3-level hierarchy — 1) giant headline, 2) compact facts, 3) bottom hook. No extra captions, no channel names, no UI.",
     "CTR RULE: one dominant impossible visual symbol; clean space behind headline; bottom hook reads as forbidden stamp.",
@@ -712,10 +713,32 @@ function composePrompt(brief, variant = "poster") {
 
 function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral", style = "viral", platform = "shorts" } = {}) {
   const source = textSource({ topic, script, storyboard });
-  const theme = detectCoverTheme({ topic, script, storyboard });
-  const preset = THEME_PRESETS[theme] || THEME_PRESETS.general;
-  const derived = deriveFromScript({ topic, script, storyboard }, preset, theme);
-  const title = buildTitle({ topic, script, mode, preset, theme });
+  const sourceLow = source.toLowerCase();
+  const isSubmarineStory =
+    sourceLow.includes("u-864") ||
+    sourceLow.includes("venturer") ||
+    sourceLow.includes("торпед") ||
+    (sourceLow.includes("подвод") && sourceLow.includes("лод")) ||
+    (sourceLow.includes("норв") && sourceLow.includes("1945"));
+
+  const theme = isSubmarineStory ? "submarine_warfare" : detectCoverTheme({ topic, script, storyboard });
+  const preset = isSubmarineStory ? {
+    title: "U-864 ПРОТИВ\nHMS VENTURER",
+    facts: [
+      "1945 • БЕРЕГА НОРВЕГИИ",
+      "ПОДЛОДКА ПРОТИВ ПОДЛОДКИ",
+      "СТРЕЛЬБА ПО РАСЧЁТУ",
+      "ТОРПЕДНЫЙ ЗАЛП"
+    ],
+    hook: "ТЫ БЫ НАЖАЛ ПУСК?",
+    visual: "World War II underwater submarine duel near Norway, German U-864 and British HMS Venturer as steel submarine silhouettes in black water, sonar map geometry, torpedo path lines, red submarine control-room light, commander hand near torpedo launch control, pressure, metal hull, bubbles, documentary realism, no animals, no reptile eye",
+    angle: "historic submarine duel / blind underwater targeting / U-864 vs HMS Venturer",
+    forbiddenVisuals: "reptile, crocodile, snake, animal eye, predator eye, monster, creature, dinosaur, shark, dragon, fantasy beast, wildlife hunt, jungle, claws, scales as animal skin",
+    variantLabels: { poster: "SUBMARINE DUEL", evidence: "TORPEDO GEOMETRY", human: "COMMANDER DECISION" }
+  } : (THEME_PRESETS[theme] || THEME_PRESETS.general);
+
+  const derived = isSubmarineStory ? { facts: preset.facts } : deriveFromScript({ topic, script, storyboard }, preset, theme);
+  const title = isSubmarineStory ? preset.title : buildTitle({ topic, script, mode, preset, theme });
   const modeLine = {
     safe: "credible documentary, no cheap clickbait, still high curiosity",
     viral: "viral curiosity gap, strong fear/mystery hook, bold but believable",
