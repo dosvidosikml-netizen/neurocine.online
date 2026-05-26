@@ -3,6 +3,7 @@
 // Uses scenario-aware coverEngine_v28.
 
 import { buildCoverDirectorPack } from "../../../engine/coverEngine_v28";
+import { sanitizeCoverDirectorPack } from "../../../engine/coverDirectorSanitizer";
 import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageEvent, usageMeta } from "../../../lib/usageLogger";
 
@@ -26,7 +27,8 @@ export async function POST(req) {
       return Response.json({ error: "Нужны topic, script или storyboard со сценами" }, { status: 400 });
     }
 
-    const cover = buildCoverDirectorPack({ topic, script, storyboard, mode, style, platform });
+    const rawCover = buildCoverDirectorPack({ topic, script, storyboard, mode, style, platform });
+    const cover = sanitizeCoverDirectorPack(rawCover);
     await logUsageEvent({
       req,
       account: guard.account,
@@ -37,7 +39,12 @@ export async function POST(req) {
       metadata: usageMeta(body, { mode, style, platform, theme: cover.theme, source_hash: cover.source_hash }),
     });
 
-    return Response.json({ cover, mode: "cover-director-v2.8", access_source: guard.access?.apiSource || "local_signed_in" });
+    return Response.json({
+      cover,
+      mode: "cover-director-v2.8",
+      cache_control: "fresh-source",
+      access_source: guard.access?.apiSource || "local_signed_in",
+    });
   } catch (e) {
     return Response.json({ error: e.message || "Cover Director error" }, { status: 500 });
   }
