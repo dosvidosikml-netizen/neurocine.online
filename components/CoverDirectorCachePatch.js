@@ -5,11 +5,9 @@ import { useEffect } from "react";
 function looksLikeRawCoverSceneFact(value = "") {
   const text = String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
   if (!text) return false;
-  return (
-    text.length > 32 ||
-    (/\b(он|она|они|ты|доктор|человек|герой|камера)\b/i.test(text) &&
-      /(ид[её]т|выходит|останавливается|смотрит|подходит|проходит|говорит|видит|держит|стоит|сидит|лежит|поворачивается|открывает|закрывает|бер[её]т|подпустил|между|у стены|в переулок)/i.test(text))
-  );
+  const hasActor = /\b(он|она|они|ты|доктор|человек|герой|камера)\b/i.test(text);
+  const hasAction = /(ид[её]т|выходит|останавливается|смотрит|подходит|проходит|говорит|видит|держит|стоит|сидит|лежит|поворачивается|открывает|закрывает|бер[её]т|подпустил|между|у стены|в переулок)/i.test(text);
+  return text.length > 32 || (hasActor && hasAction);
 }
 
 function hasBadCoverPayload(raw = "") {
@@ -42,19 +40,10 @@ export default function CoverDirectorCachePatch() {
   useEffect(() => {
     const removed = purgeBadCoverCache();
     if (!removed.length) return;
-
     try {
       window.dispatchEvent(new CustomEvent("neurocine-production-cache-change", {
         detail: { reason: "stale-cover-director-cache-purged", removed },
       }));
-    } catch {}
-
-    try {
-      const reloadKey = "neurocine.coverDirectorCachePatch.reloaded";
-      if (!sessionStorage.getItem(reloadKey)) {
-        sessionStorage.setItem(reloadKey, "1");
-        window.location.reload();
-      }
     } catch {}
   }, []);
 
