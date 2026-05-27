@@ -29,6 +29,33 @@ function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function sanitizeNoVoVideoPrompt(text = "", includeVo = false) {
+  let out = String(text || "");
+
+  if (!includeVo) {
+    // No-VO mode means no quoted script/VO line in the video prompt at all.
+    // The clip should animate the already uploaded frame, not treat the script as spoken text.
+    out = out
+      .replace(/\bScript\s*:\s*"[^"]*"\.?/gi, "")
+      .replace(/\bScript line\s*:\s*"[^"]*"\.?/gi, "")
+      .replace(/\bSCRIPT LINE\s*\([^)]*\)\s*:\s*"[^"]*"\.?/gi, "")
+      .replace(/\bVO MEANING LOCK\s*:[\s\S]*?(?=\bSOURCE OF TRUTH\b|\bVISUAL CONTEXT\b|\bACTION\b|\bCONTINUITY\b|\bCAMERA\b|\bSFX\b|$)/gi, "")
+      .replace(/\bVoiceover may be added separately;?\s*/gi, "")
+      .replace(/\bspoken line\b/gi, "visual action")
+      .replace(/\bvoiceover\b(?!\.)/gi, "no voiceover");
+  }
+
+  // Remove cleaner artifacts like: RAW photograph, NOT photographed, NOT.
+  out = out
+    .replace(/\bRAW photograph,\s*NOT photographed,\s*NOT\.?/gi, "RAW documentary photograph")
+    .replace(/\bNOT photographed,\s*NOT\.?/gi, "")
+    .replace(/,\s*,+/g, ",")
+    .replace(/\s+\./g, ".")
+    .replace(/\.\s*\./g, ".");
+
+  return cleanText(out);
+}
+
 function buildSegmentPlan(frame = {}) {
   const duration = Number(frame.duration || 3);
   if (!Number.isFinite(duration) || duration <= 8) return null;
@@ -86,8 +113,9 @@ export async function POST(req) {
 
     const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });
     const cleanedVideo = finalizePromptCleaners(rawVideo, { frame, storyboard, includeVo, target });
-    const worldSafeVideo = applyWorldBrainToVideoPrompt(cleanedVideo, frame, storyboard, { compact: true });
-    const finalVideo = normalizePromptPrefix(worldSafeVideo, "ANIMATE CURRENT FRAME:");
+    const noVoSafeVideo = sanitizeNoVoVideoPrompt(cleanedVideo, includeVo);
+    const worldSafeVideo = applyWorldBrainToVideoPrompt(noVoSafeVideo, frame, storyboard, { compact: true });
+    const finalVideo = normalizePromptPrefix(sanitizeNoVoVideoPrompt(worldSafeVideo, includeVo), "ANIMATE CURRENT FRAME:");
     const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx || worldAudio.profile.allowedAudio);
 
     const finalNegative = [NEGATIVE_PROMPT_BASE, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects]
