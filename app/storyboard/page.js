@@ -1065,6 +1065,14 @@ ${lines.join("\n")}` : "";
     if (storyboard || autoPartPrompt || autoAllPromptText) resetStoryboardOutputs({ keepAnchors: true });
   }
 
+  function handleStylePresetChange(value) {
+    setStylePreset(value);
+    if (storyboard || gridImg || frameGridPrompt || autoPartPrompt || autoVideoPack || autoAllPromptText || videoP) {
+      resetStoryboardOutputs({ keepAnchors: true });
+      setSnapshotStatus("✓ Стиль изменён — старые storyboard/prompt outputs очищены");
+    }
+  }
+
   function handleManualJsonChange(value) {
     setJsonIn(value);
     if (storyboard || autoPartPrompt || autoAllPromptText) resetStoryboardOutputs({ keepAnchors: true });
@@ -1552,7 +1560,7 @@ ${lines.join("\n")}` : "";
       version: "v62_63_studio_ui_production_pack_polish",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
-      project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
+      project: { projectName, topic, projectType, stylePreset, selected_style: stylePreset, duration, aspectRatio, tone },
       script_pack: { script, scriptValidation },
       storyboard_pack: { storyboard, jsonIn, sbMode, target, validation },
       production_pipeline: {
@@ -1577,7 +1585,7 @@ ${lines.join("\n")}` : "";
     setProjectName(p.projectName || data?.projectName || "Imported NeuroCine Project");
     setTopic(p.topic || data?.topic || "");
     setProjectType(p.projectType || data?.projectType || "film");
-    setStylePreset(p.stylePreset || data?.stylePreset || "cinematic");
+    setStylePreset(p.stylePreset || data?.stylePreset || sbp.storyboard?.style || sbp.storyboard?.style_preset || data?.storyboard?.style || "cinematic");
     setDuration(Number(p.duration || data?.duration || 60));
     setAspect(p.aspectRatio || data?.aspectRatio || "9:16");
     setTone(p.tone || data?.tone || "cinematic documentary thriller");
@@ -1793,7 +1801,7 @@ ${lines.join("\n")}` : "";
         projectType={projectType}
         setProjectType={setProjectType}
         stylePreset={stylePreset}
-        setStylePreset={setStylePreset}
+        setStylePreset={handleStylePresetChange}
         duration={duration}
         setDuration={setDuration}
         aspectRatio={aspectRatio}
@@ -1837,7 +1845,7 @@ ${lines.join("\n")}` : "";
           setScript={setScript}
           setDuration={setDuration}
           setAspect={setAspect}
-          setStylePreset={setStylePreset}
+          setStylePreset={handleStylePresetChange}
           setTone={setTone}
           setProjectType={setProjectType}
           setSbMode={setSbMode}
