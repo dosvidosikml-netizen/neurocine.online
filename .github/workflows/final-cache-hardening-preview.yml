@@ -1,0 +1,78 @@
+name: Final Cache Hardening Preview
+
+on:
+  push:
+    branches: [preview]
+    paths:
+      - '.github/workflows/final-cache-hardening-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: preview
+
+      - name: Patch production cache filtering
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'app/storyboard/page.js';
+          let s = fs.readFileSync(path, 'utf8');
+
+          if (!s.includes('function isUnsafeProductionCacheKey')) {
+            s = s.replace(
+              `function imageDraftSig(value) {\n  const text = String(value || "");\n  if (!text) return "";\n  return \`${'${text.length}:${text.slice(0, 80)}:${text.slice(-80)}'}\`;\n}\n`,
+              `function imageDraftSig(value) {\n  const text = String(value || "");\n  if (!text) return "";\n  return \`${'${text.length}:${text.slice(0, 80)}:${text.slice(-80)}'}\`;\n}\n\nfunction isUnsafeProductionCacheKey(key = "") {\n  const lower = String(key || "").toLowerCase();\n  return lower.includes(":cover:") || lower.includes(":poster") || lower.includes(":thumbnail") || lower.includes("coverdirector");\n}\n`
+            );
+          }
+
+          s = s.replace(
+            `      if (key.startsWith(prefix)) out[key] = localStorage.getItem(key);`,
+            `      if (key.startsWith(prefix) && !isUnsafeProductionCacheKey(key)) out[key] = localStorage.getItem(key);`
+          );
+
+          s = s.replace(
+            `      if (key.startsWith(prefix) && value != null) {\n        localStorage.setItem(key, String(value));\n      }`,
+            `      if (key.startsWith(prefix) && value != null && !isUnsafeProductionCacheKey(key)) {\n        localStorage.setItem(key, String(value));\n      }`
+          );
+
+          if (!s.includes('purgeUnsafeProductionCache(storageOwnerId || "guest")')) {
+            s = s.replace(
+              `  useEffect(() => {\n    if (!storageOwnerId || !KEY_TEXT || !KEY_IMGS) return;`,
+              `  useEffect(() => {\n    if (!storageOwnerId || !KEY_TEXT || !KEY_IMGS) return;\n    purgeUnsafeProductionCache(storageOwnerId || "guest");`
+            );
+          }
+
+          if (!s.includes('function purgeUnsafeProductionCache(ownerId = "guest")')) {
+            s = s.replace(
+              `function restoreProductionCache(cache = {}, ownerId = "guest") {\n  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");\n  const prefix = \`neurocine:production:v49:${'${ownerKey}'}:\`;\n  try {\n    Object.entries(cache || {}).forEach(([key, value]) => {\n      if (key.startsWith(prefix) && value != null && !isUnsafeProductionCacheKey(key)) {\n        localStorage.setItem(key, String(value));\n      }\n    });\n  } catch {}\n}\n`,
+              `function restoreProductionCache(cache = {}, ownerId = "guest") {\n  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");\n  const prefix = \`neurocine:production:v49:${'${ownerKey}'}:\`;\n  try {\n    Object.entries(cache || {}).forEach(([key, value]) => {\n      if (key.startsWith(prefix) && value != null && !isUnsafeProductionCacheKey(key)) {\n        localStorage.setItem(key, String(value));\n      }\n    });\n  } catch {}\n}\n\nfunction purgeUnsafeProductionCache(ownerId = "guest") {\n  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");\n  const prefix = \`neurocine:production:v49:${'${ownerKey}'}:\`;\n  try {\n    for (let i = localStorage.length - 1; i >= 0; i--) {\n      const key = localStorage.key(i);\n      if (key && key.startsWith(prefix) && isUnsafeProductionCacheKey(key)) localStorage.removeItem(key);\n    }\n  } catch {}\n}\n`
+            );
+          }
+
+          fs.writeFileSync(path, s);
+          NODE
+
+      - name: Check cache hardening patch
+        run: |
+          grep -q 'isUnsafeProductionCacheKey' app/storyboard/page.js
+          grep -q 'purgeUnsafeProductionCache' app/storyboard/page.js
+          grep -q '!isUnsafeProductionCacheKey(key)' app/storyboard/page.js
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/storyboard/page.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Prevent stale production pack cache restore"
+            git push origin preview
+          fi
