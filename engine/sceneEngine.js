@@ -72,6 +72,18 @@ export const STYLE_LOCKS = {
     `${ULTRA_REALISM} Analog Kodak Portra 400 film grain — warm highlights, desaturated shadows, natural skin tones, soft halation on light sources, slight gate weave, organic imperfection, golden-hour key light, no subtitles, no UI, no watermark`,
   mysticHorror:
     `${ULTRA_REALISM} Atmospheric horror documentary — fog dense enough to obscure mid-ground, candle and oil-lamp practical key lights flickering, deep cold blue ambient shadow fill, faces partially obscured, breath visible, damp stone and mossy wood texture, restrained framing avoiding direct shock, no subtitles, no UI, no watermark`,
+  ghostSupernatural:
+    `${ULTRA_REALISM} Nocturnal supernatural ghost horror — cold teal-and-black grade, moonlit fog layers, pale breath in freezing air, wet stone and rotting wood, candle flicker exposing only fragments of faces, long empty corridors, translucent motion implied by disturbed dust and fabric, no jump-scare gore, restrained dread, no subtitles, no UI, no watermark`,
+  foundFootage:
+    `${ULTRA_REALISM} Found footage horror realism — handheld consumer camera instability, imperfect autofocus hunting, on-camera LED falloff, crushed hallway corners but visible noise texture, accidental framing, documentary panic without stylization, timestamp-free raw footage feel, dirty lens smears, no subtitles, no UI, no watermark`,
+  psychologicalDread:
+    `${ULTRA_REALISM} Psychological dread thriller — oppressive stillness, uncanny domestic realism, muted sickly beige-green palette, subtle asymmetry in rooms, claustrophobic lens compression, faces half-lit by practical lamps, long pauses, invisible threat implied through body language and negative space, no subtitles, no UI, no watermark`,
+  folkHorror:
+    `${ULTRA_REALISM} Folk horror ritual realism — isolated rural landscape, damp soil, old wooden icons, handmade masks, candlelit procession, overcast sky, moss-covered stone, animal-bone charms, linen and wool texture, ancient village dread without fantasy glow, no subtitles, no UI, no watermark`,
+  grimeSlasher:
+    `${ULTRA_REALISM} Grime slasher realism — filthy industrial corridors, sodium vapor light, wet concrete, scratched metal doors, bloodless threat through silhouettes and sharp objects kept mostly off-frame, sweaty skin pores, dirty fabric, harsh handheld proximity, no glamour, no gore focus, no subtitles, no UI, no watermark`,
+  liminalUncanny:
+    `${ULTRA_REALISM} Liminal uncanny backrooms realism — empty fluorescent interiors, yellowed walls, damp carpet texture, buzzing practical ceiling lights, impossible depth created by repeated corridors, no monsters shown, scale disorientation, sterile office decay, subtle perspective wrongness, no subtitles, no UI, no watermark`,
   scifiAtmospheric:
     `${ULTRA_REALISM} Hard sci-fi atmospheric realism — practical lab and spacecraft lighting with cool teal LED accents, volumetric haze in beam paths, brushed metal and matte composite surface texture, condensation on cold surfaces, slightly desaturated palette, anamorphic flare on bright sources, no subtitles, no UI, no watermark`,
   fantasyEpic:
@@ -199,205 +211,168 @@ function cameraMove(index) {
     "handheld tracking through the environment",
     "fast cut into a tense close-up",
     "low tracking shot with parallax",
-    "slow dolly around the primary subject",
-    "sharp whip-pan into reaction",
-    "macro push toward the key detail",
-    "slow pullback revealing scale"
+    "static locked frame with tension in background",
+    "over-shoulder reveal",
+    "macro lens rack focus",
+    "slow orbit with natural operator drift"
   ];
   return list[index % list.length];
 }
 
-function sfxFromText(text, index) {
-  const t = String(text).toLowerCase();
-  if (/вода|пить|гряз/i.test(t)) return "flies buzzing, dirty water dripping, low drone";
-  if (/врач|леч|зуб|операц|кровопуск/i.test(t)) return "metal tools clinking, tense breathing, candle crackle";
-  if (/чума|кры|паразит|болез/i.test(t)) return "rats squeaking, straw rustle, distant plague bell";
-  if (/толп|казн|площад/i.test(t)) return "crowd murmur, wooden platform creak, cold wind";
-  if (index === 0) return "deep impact hit, heartbeat, low rumble";
-  return "cold wind, distant bell, low cinematic tension";
+export function inferSceneCount(script = "", totalDuration = 60) {
+  const beats = splitScript(script);
+  const plan = getDurationPlan(totalDuration);
+  return Math.max(3, Math.min(plan.targetScenes, beats.length || plan.targetScenes));
 }
 
-function visualFromText(vo, index, style) {
-  const base = String(vo).replace(/[«»"]/g, "").trim();
-  const templates = [
-    `SCENE PRIMARY FOCUS: terrified medieval survivor waking in a dark filthy room, rotten wood, cold breath, oppressive atmosphere. Visual meaning: "${base}".`,
-    `SCENE PRIMARY FOCUS: narrow medieval street packed with mud, waste, smoke, rats and sick townspeople. Visual meaning: "${base}".`,
-    `SCENE PRIMARY FOCUS: dirty hands holding a rough wooden cup near questionable water, flies crossing the frame. Visual meaning: "${base}".`,
-    `SCENE PRIMARY FOCUS: medieval barber-surgeon preparing primitive tools beside a frightened patient, non-graphic medical dread. Visual meaning: "${base}".`,
-    `SCENE PRIMARY FOCUS: crowded public square, rough wooden barriers, tense faces watching a dangerous spectacle, documentary framing. Visual meaning: "${base}".`,
-    `SCENE PRIMARY FOCUS: lonely figure walking through fog near city walls, bells in the distance, mortality and pressure. Visual meaning: "${base}".`
-  ];
-  return `${templates[index % templates.length]} STYLE LOCK: ${style}.`;
+function frameDuration(totalDuration, count) {
+  const seconds = Number(totalDuration) || 60;
+  const base = Math.max(2, Math.round(seconds / Math.max(1, count)));
+  return Math.min(seconds <= 180 ? 6 : 10, base);
 }
 
-export function buildLocalStoryboard({
-  script,
+function fallbackStoryboard({
+  topic = "",
+  script = "",
   duration = 60,
   aspectRatio = "9:16",
   style = "cinematic",
-  projectName = "NeuroCine Project"
+  genre = "history"
 } = {}) {
-  const plan = getDurationPlan(duration);
-  let beats = splitScript(script);
-  if (!beats.length) beats = ["Вставьте сценарий, чтобы создать storyboard."];
+  const beats = splitScript(script);
+  const count = Math.max(3, Math.min(getDurationPlan(duration).targetScenes, beats.length || 8));
+  const sourceBeats = beats.length ? beats : [topic || "Opening mystery", "Evidence appears", "Final twist"];
+  const lock = STYLE_LOCKS[style] || STYLE_LOCKS.cinematic;
+  const d = frameDuration(duration, count);
 
-  const styleLock = STYLE_LOCKS[style] || STYLE_LOCKS.cinematic;
-  const count = beats.length;
-  let rest = plan.seconds;
-  let cursor = 0;
+  const scenes = Array.from({ length: count }).map((_, i) => {
+    const beat = sourceBeats[i % sourceBeats.length];
+    const bt = beatType(i, count);
+    const shot = shotType(i);
+    const camera = cameraMove(i);
+    const emotion = emotionTag(beat, i);
+    const imagePrompt = cleanText([
+      `SCENE PRIMARY FOCUS: ${beat}`,
+      `Shot: ${shot}`,
+      `STYLE LOCK: ${lock}`,
+      `Composition: documentary realism, ${aspectRatio}, subject in natural environment, no text overlay`,
+      `NEGATIVE: ${NEGATIVE_LOCK}`
+    ].join("\n"));
+    const videoPrompt = ensureCharacterContinuityLine(cleanText([
+      `ANIMATE CURRENT FRAME: ${beat}`,
+      `Camera: ${camera}`,
+      `Motion: subtle physical movement only, no scene change, no new characters` ,
+      `VIDEO LOCK: ${VIDEO_LOCK}`,
+      `SFX: natural room tone, cloth movement, environmental ambience, no music, no voiceover`
+    ].join("\n")));
 
-  const scenes = beats.map((vo, index) => {
-    const remaining = count - index;
-    let dur = index === count - 1 ? rest : Math.max(2, Math.min(6, Math.round(rest / remaining)));
-    rest -= dur;
-
-    const sfx = sfxFromText(vo, index);
-    const visual = visualFromText(vo, index, styleLock);
-    const imagePrompt =
-      `SCENE PRIMARY FOCUS: ${visual}\n` +
-      `SHOT TYPE: ${shotType(index)}. COMPOSITION: foreground — key survival detail; midground — primary subject; background — atmospheric historical environment. ` +
-      `ASPECT RATIO: ${aspectRatio}. NEGATIVE: ${NEGATIVE_LOCK}.`;
-
-    const continuity = "Preserve the same subject identity, costume logic, lighting, historical texture and continuity across the full sequence.";
-    const videoPrompt = ensureCharacterContinuityLine(
-      `ANIMATE CURRENT FRAME: ${cameraMove(index)}. Preserve the same subject, costume logic, lighting, historical texture and continuity. ` +
-      `${VIDEO_LOCK}. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`,
-      continuity
-    );
-
-    const item = {
-      id: pad(index),
-      start: cursor,
-      duration: dur,
-      end: cursor + dur,
-      beat_type: beatType(index, count),
-      emotion: emotionTag(vo, index),
-      description_ru: visual,
+    return {
+      id: pad(i),
+      index: i + 1,
+      beat_type: bt,
+      duration: d,
+      vo_ru: beat,
+      description_ru: beat,
+      description_en: beat,
+      shot_type: shot,
+      camera,
+      emotion,
+      sfx: "natural ambience, cloth rustle, footsteps, room tone",
       image_prompt_en: imagePrompt,
       video_prompt_en: videoPrompt,
-      vo_ru: vo,
-      sfx,
-      camera: cameraMove(index),
-      transition: index === 0 ? "smash cut" : index % 4 === 0 ? "archival flicker" : "cut",
-      continuity_note: continuity,
-      safety_note: "Non-graphic documentary framing; intensity through camera, atmosphere, sound and reactions."
+      negative_prompt: NEGATIVE_LOCK,
+      style_lock: lock,
+      video_lock: VIDEO_LOCK,
+      continuity: "same character identity, costume, lighting and environment across frames"
     };
-    cursor += dur;
-    return item;
   });
 
   return {
-    project_name: projectName,
-    language: "ru",
-    format: "shorts_reels_tiktok",
+    title: topic || "NeuroCine Storyboard",
+    topic,
+    genre,
     aspect_ratio: aspectRatio,
-    total_duration: plan.seconds,
-    global_style_lock: styleLock,
-    global_video_lock: VIDEO_LOCK,
-    character_lock: [],
+    style,
+    style_lock: lock,
+    negative_lock: NEGATIVE_LOCK,
+    video_lock: VIDEO_LOCK,
     scenes,
-    export_meta: {
-      engine_target: "neurocine_local_fallback",
-      version: "neurocine_full_site_v2",
-      created_by: "NeuroCine Studio"
-    }
+    frames: scenes,
+    duration_plan: getDurationPlan(duration),
+    export_meta: { target: "veo3", aspect_ratio: aspectRatio }
   };
 }
 
-export function normalizeStoryboard(input = {}, fallback = {}) {
-  const source = input.storyboard || input;
-  if (!source || !Array.isArray(source.scenes)) {
-    return buildLocalStoryboard(fallback);
-  }
+export function normalizeStoryboard(raw = {}, options = {}) {
+  const storyboard = raw?.storyboard || raw;
+  const scenesRaw = storyboard?.scenes || storyboard?.frames || [];
+  if (!Array.isArray(scenesRaw) || scenesRaw.length === 0) return fallbackStoryboard(options);
+  const style = options.style || storyboard.style || "cinematic";
+  const lock = STYLE_LOCKS[style] || storyboard.style_lock || STYLE_LOCKS.cinematic;
 
-  const aspectRatio = source.aspect_ratio || fallback.aspectRatio || "9:16";
-  const arLabel = {
-    "9:16": "9:16 vertical portrait — tall framing, subject centered vertically",
-    "16:9": "16:9 wide horizontal — cinematic widescreen framing",
-    "1:1":  "1:1 square — centered balanced framing",
-    "4:5":  "4:5 portrait — near-portrait framing",
-  }[aspectRatio] || "9:16 vertical portrait";
-
-  let cursor = 0;
-  const scenes = source.scenes.map((s, i) => {
-    const duration = Math.max(2, Math.min(10, Number(s.duration || 3)));
-    const vo = s.vo_ru || s.vo || s.voice || "";
-    const image = s.image_prompt_en || s.image?.prompt || s.image || "";
-    const video = s.video_prompt_en || s.video?.prompt || s.video || "";
-    const continuity = s.continuity_note || "Preserve the same character identity, costume, lighting, historical texture and scene-to-scene continuity.";
-    const out = {
-      id: s.id || pad(i),
-      start: Number.isFinite(Number(s.start)) ? Number(s.start) : cursor,
-      duration,
-      end: Number.isFinite(Number(s.end)) ? Number(s.end) : cursor + duration,
-      beat_type: s.beat_type || beatType(i, source.scenes.length),
-      emotion: s.emotion || emotionTag(vo, i),
-      description_ru: s.description_ru || s.visual || "",
-      image_prompt_en: (() => {
-        const base = image.startsWith("SCENE PRIMARY FOCUS:") ? image : `SCENE PRIMARY FOCUS: ${image}`;
-        return base.includes("ASPECT RATIO:") ? base : `${base}. ASPECT RATIO: ${arLabel}`;
-      })(),
-      video_prompt_en: (() => {
-        const sfxLine = s.sfx ? `\n\nSFX: ${s.sfx}` : "";
-        const baseVideo = video.startsWith("ANIMATE CURRENT FRAME:")
-          ? (video.includes("SFX:") ? video : video + sfxLine)
-          : `ANIMATE CURRENT FRAME: ${video}${sfxLine}`;
-        return ensureCharacterContinuityLine(baseVideo, continuity);
-      })(),
-      vo_ru: vo,
-      sfx: s.sfx || s.sound || "",
-      camera: s.camera || cameraMove(i),
-      transition: s.transition || "cut",
-      continuity_note: continuity,
-      safety_note: s.safety_note || "Non-graphic documentary framing."
+  const scenes = scenesRaw.map((scene, index) => {
+    const beat = scene.vo_ru || scene.description_ru || scene.description_en || scene.action || scene.text || `Scene ${index + 1}`;
+    const img = scene.image_prompt_en || scene.image_prompt || cleanText([
+      `SCENE PRIMARY FOCUS: ${beat}`,
+      `STYLE LOCK: ${lock}`,
+      `NEGATIVE: ${NEGATIVE_LOCK}`
+    ].join("\n"));
+    const vid = ensureCharacterContinuityLine(scene.video_prompt_en || scene.video_prompt || cleanText([
+      `ANIMATE CURRENT FRAME: ${beat}`,
+      `Camera: ${scene.camera || cameraMove(index)}`,
+      `Motion: subtle physical movement only, preserve uploaded frame`,
+      `VIDEO LOCK: ${VIDEO_LOCK}`,
+      `SFX: ${scene.sfx || "natural ambience, cloth rustle, footsteps"}`
+    ].join("\n")));
+    return {
+      ...scene,
+      id: scene.id || pad(index),
+      index: scene.index || index + 1,
+      duration: scene.duration || frameDuration(options.duration || storyboard.duration || 60, scenesRaw.length),
+      beat_type: scene.beat_type || beatType(index, scenesRaw.length),
+      vo_ru: beat,
+      description_ru: scene.description_ru || beat,
+      description_en: scene.description_en || beat,
+      shot_type: scene.shot_type || shotType(index),
+      camera: scene.camera || cameraMove(index),
+      emotion: scene.emotion || emotionTag(beat, index),
+      sfx: scene.sfx || "natural ambience, cloth rustle, footsteps",
+      image_prompt_en: img,
+      video_prompt_en: vid,
+      negative_prompt: scene.negative_prompt || NEGATIVE_LOCK,
+      style_lock: scene.style_lock || lock,
+      video_lock: scene.video_lock || VIDEO_LOCK,
+      continuity: scene.continuity || "same character identity, costume, lighting and environment across frames"
     };
-    cursor = out.end;
-    return out;
   });
 
   return {
-    project_name: source.project_name || fallback.projectName || "NeuroCine Project",
-    language: source.language || "ru",
-    format: source.format || "shorts_reels_tiktok",
-    aspect_ratio: source.aspect_ratio || fallback.aspectRatio || "9:16",
-    total_duration: Number(source.total_duration || cursor || fallback.duration || 60),
-    global_style_lock: source.global_style_lock || STYLE_LOCKS.cinematic,
-    global_video_lock: source.global_video_lock || VIDEO_LOCK,
-    character_lock: source.character_lock || [],
+    ...storyboard,
+    title: storyboard.title || options.topic || "NeuroCine Storyboard",
+    topic: storyboard.topic || options.topic || "",
+    aspect_ratio: storyboard.aspect_ratio || options.aspectRatio || "9:16",
+    style,
+    style_lock: lock,
+    negative_lock: NEGATIVE_LOCK,
+    video_lock: VIDEO_LOCK,
     scenes,
-    export_meta: source.export_meta || {
-      engine_target: "normalized",
-      version: "neurocine_full_site_v2",
-      created_by: "NeuroCine Studio"
-    }
+    frames: scenes,
+    duration_plan: storyboard.duration_plan || getDurationPlan(options.duration || storyboard.duration || 60),
+    export_meta: storyboard.export_meta || { target: "veo3", aspect_ratio: options.aspectRatio || "9:16" }
   };
 }
 
-export function storyboardToProjectJson(storyboard, extra = {}) {
-  return {
-    name: storyboard.project_name || "NeuroCine Project",
-    lang: "ru",
-    script: extra.script || "",
-    storyboard,
-    scenes: storyboard.scenes || [],
-    prompts: (storyboard.scenes || []).map((s) => ({
-      id: s.id,
-      image_prompt: s.image_prompt_en,
-      video_prompt: s.video_prompt_en,
-      vo: s.vo_ru,
-      sfx: s.sfx
-    })),
-    reference: extra.reference || null,
-    refImage: extra.refImage || { dataUrl: "", fileName: "", mimeType: "", useAsAnchor: true },
-    cover: extra.cover || null,
-    seo: extra.seo || null,
-    tts: extra.tts || {
-      voice: "Russian cinematic documentary narrator",
-      pace: "medium-fast",
-      emotion: "dark, tense, controlled",
-      audio: "clean voice, no hum, no background noise"
-    },
-    characters: storyboard.character_lock || [],
-    created_at: new Date().toISOString()
-  };
+export function buildLocalStoryboard(options = {}) {
+  return fallbackStoryboard(options);
 }
+
+export default {
+  STYLE_LOCKS,
+  VIDEO_LOCK,
+  NEGATIVE_LOCK,
+  splitScript,
+  getDurationPlan,
+  inferSceneCount,
+  normalizeStoryboard,
+  buildLocalStoryboard
+};
