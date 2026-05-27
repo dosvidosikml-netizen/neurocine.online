@@ -103,6 +103,49 @@ export const STYLE_PRESETS = {
     accent: "#5cffd3",
     tagline: "Туман, свечи, сдержанный ужас"
   },
+  // === HORROR SUBGENRES ===
+  ghostSupernatural: {
+    label: "Ghost / привидения",
+    family: "film",
+    lock: STYLE_LOCKS.ghostSupernatural,
+    accent: "#6cd9ff",
+    tagline: "Ночь, холодный свет, присутствие в темноте"
+  },
+  foundFootage: {
+    label: "Found footage",
+    family: "film",
+    lock: STYLE_LOCKS.foundFootage,
+    accent: "#7dff8a",
+    tagline: "Найденная плёнка · IR · VHS-артефакты"
+  },
+  psychologicalDread: {
+    label: "Psychological dread",
+    family: "film",
+    lock: STYLE_LOCKS.psychologicalDread,
+    accent: "#9affd6",
+    tagline: "Двойники, безумие, стерильная тревога"
+  },
+  folkHorror: {
+    label: "Folk horror",
+    family: "film",
+    lock: STYLE_LOCKS.folkHorror,
+    accent: "#a8c46a",
+    tagline: "Деревня, ритуал, страх при свете дня"
+  },
+  grimeSlasher: {
+    label: "Grime / slasher",
+    family: "film",
+    lock: STYLE_LOCKS.grimeSlasher,
+    accent: "#ff7a4a",
+    tagline: "Грязный реализм, подвал, погоня"
+  },
+  liminalUncanny: {
+    label: "Liminal / backrooms",
+    family: "film",
+    lock: STYLE_LOCKS.liminalUncanny,
+    accent: "#e8e06a",
+    tagline: "Пустые коридоры, люминесцент, тишина"
+  },
   scifiAtmospheric: {
     label: "Sci-Fi atmospheric",
     family: "film",
