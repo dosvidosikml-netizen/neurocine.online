@@ -1,5 +1,5 @@
 // app/api/video/route.js
-// NeuroCine Video Prompt API v3.1 — clean I2V prompt layer + world/style brain.
+// NeuroCine Video Prompt API v3.2 — clean I2V prompt layer + world/style brain.
 
 import {
   buildVideoPromptFor,
@@ -29,16 +29,26 @@ function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function hasNoVoLeak(text = "") {
+  return /\bScript\s*:|\bScript line\s*:|\bSCRIPT LINE\b|\bVO MEANING LOCK\b|\bvoiceover may be added|SOURCE OF TRUTH\s*:\s*script line/i.test(String(text || ""));
+}
+
 function sanitizeNoVoVideoPrompt(text = "", includeVo = false) {
   let out = String(text || "");
 
   if (!includeVo) {
-    // No-VO mode means no quoted script/VO line in the video prompt at all.
-    // The clip should animate the already uploaded frame, not treat the script as spoken text.
+    // No-VO mode means no quoted script/VO line and no script-line marker in the video prompt.
+    // The clip should animate the uploaded/current frame only, not treat script text as speech, subtitle or narration.
     out = out
+      .replace(/\bSOURCE OF TRUTH\s*:\s*script line\.?/gi, "SOURCE OF TRUTH: current visual frame only.")
+      .replace(/\bSOURCE OF TRUTH\s*:\s*script line only\.?/gi, "SOURCE OF TRUTH: current visual frame only.")
       .replace(/\bScript\s*:\s*"[^"]*"\.?/gi, "")
+      .replace(/\bScript\s*:\s*'[^']*'\.?/gi, "")
+      .replace(/\bScript\s*:\s*[^.]+\./gi, "")
       .replace(/\bScript line\s*:\s*"[^"]*"\.?/gi, "")
+      .replace(/\bScript line\s*:\s*'[^']*'\.?/gi, "")
       .replace(/\bSCRIPT LINE\s*\([^)]*\)\s*:\s*"[^"]*"\.?/gi, "")
+      .replace(/\bSCRIPT LINE\s*\([^)]*\)\s*:\s*'[^']*'\.?/gi, "")
       .replace(/\bVO MEANING LOCK\s*:[\s\S]*?(?=\bSOURCE OF TRUTH\b|\bVISUAL CONTEXT\b|\bACTION\b|\bCONTINUITY\b|\bCAMERA\b|\bSFX\b|$)/gi, "")
       .replace(/\bVoiceover may be added separately;?\s*/gi, "")
       .replace(/\bspoken line\b/gi, "visual action")
@@ -116,6 +126,7 @@ export async function POST(req) {
     const noVoSafeVideo = sanitizeNoVoVideoPrompt(cleanedVideo, includeVo);
     const worldSafeVideo = applyWorldBrainToVideoPrompt(noVoSafeVideo, frame, storyboard, { compact: true });
     const finalVideo = normalizePromptPrefix(sanitizeNoVoVideoPrompt(worldSafeVideo, includeVo), "ANIMATE CURRENT FRAME:");
+    const noVoLeakDetected = !includeVo && hasNoVoLeak(finalVideo);
     const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx || worldAudio.profile.allowedAudio);
 
     const finalNegative = [NEGATIVE_PROMPT_BASE, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects]
@@ -133,8 +144,8 @@ export async function POST(req) {
       endpoint: "/api/video",
       success: true,
       apiSource: "local_signed_in",
-      modelUsed: "local_v3.1_world_style_brain",
-      metadata: usageMeta(body, { target, promptMode, consistency, world: worldAudio.profile.id, style: storyboard.selected_style || storyboard.selected_style_label }),
+      modelUsed: "local_v3.2_world_style_brain_no_vo_hardened",
+      metadata: usageMeta(body, { target, promptMode, consistency, world: worldAudio.profile.id, style: storyboard.selected_style || storyboard.selected_style_label, no_vo_leak_detected: noVoLeakDetected }),
     });
 
     return Response.json({
@@ -144,9 +155,10 @@ export async function POST(req) {
       world_audio: worldAudio,
       negative_prompt: finalNegative,
       validation,
+      no_vo_clean: !noVoLeakDetected,
       segment_plan: buildSegmentPlan(frame),
       target,
-      model_used: "local_v3.1_world_style_brain",
+      model_used: "local_v3.2_world_style_brain_no_vo_hardened",
       access_source: guard.access?.apiSource || "local_signed_in",
       pipeline_contract: {
         image_prefix: "SCENE PRIMARY FOCUS:",
@@ -159,6 +171,7 @@ export async function POST(req) {
         world_profile: worldAudio.profile.id,
         sfx_embedded_in_video_prompt: true,
         vo_dialogue_enabled: includeVo,
+        no_vo_clean: !noVoLeakDetected,
         analysis_disabled: true,
         continuity_lock: true,
         no_subtitles_ui_watermark: true,
