@@ -170,6 +170,11 @@ function imageDraftSig(value) {
   return `${text.length}:${text.slice(0, 80)}:${text.slice(-80)}`;
 }
 
+function isUnsafeProductionCacheKey(key = "") {
+  const lower = String(key || "").toLowerCase();
+  return lower.includes(":cover:") || lower.includes(":poster") || lower.includes(":thumbnail") || lower.includes("coverdirector");
+}
+
 function collectProductionCache(ownerId = "guest") {
   const out = {};
   const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -178,7 +183,7 @@ function collectProductionCache(ownerId = "guest") {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (key.startsWith(prefix)) out[key] = localStorage.getItem(key);
+      if (key.startsWith(prefix) && !isUnsafeProductionCacheKey(key)) out[key] = localStorage.getItem(key);
     }
   } catch {}
   return out;
@@ -189,10 +194,21 @@ function restoreProductionCache(cache = {}, ownerId = "guest") {
   const prefix = `neurocine:production:v49:${ownerKey}:`;
   try {
     Object.entries(cache || {}).forEach(([key, value]) => {
-      if (key.startsWith(prefix) && value != null) {
+      if (key.startsWith(prefix) && value != null && !isUnsafeProductionCacheKey(key)) {
         localStorage.setItem(key, String(value));
       }
     });
+  } catch {}
+}
+
+function purgeUnsafeProductionCache(ownerId = "guest") {
+  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const prefix = `neurocine:production:v49:${ownerKey}:`;
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix) && isUnsafeProductionCacheKey(key)) localStorage.removeItem(key);
+    }
   } catch {}
 }
 
@@ -854,6 +870,7 @@ ${lines.join("\n")}` : "";
   /* ── LOCAL DRAFT LOAD — v49 user-scoped ── */
   useEffect(() => {
     if (!storageOwnerId || !KEY_TEXT || !KEY_IMGS) return;
+    purgeUnsafeProductionCache(storageOwnerId || "guest");
 
     setHydrated(false);
 
