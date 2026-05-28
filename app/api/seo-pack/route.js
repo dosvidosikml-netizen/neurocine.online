@@ -4,6 +4,7 @@
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
+import { buildScenarioContext } from "../../../lib/scenarioContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,9 +45,12 @@ export async function POST(req) {
     const script = String(body.script || "").trim();
     const genre = String(body.genre || "").trim();
     const platform = String(body.platform || "youtube_shorts").trim();
+    const storyboard = body.storyboard || null;
+    const styleProfile = body.styleProfile || body.style_profile || null;
+    const scenarioCtx = buildScenarioContext({ topic, script, genre, storyboard, styleProfile });
     if (!topic && !script) return Response.json({ error: "Нужна тема или сценарий" }, { status: 400 });
 
-    const userMsg = `Платформа: ${platform}\nТема: ${topic}\nЖанр: ${genre}\nСценарий:\n${script.slice(0, 6000) || "(не задан)"}\n\nСгенерируй 4 SEO варианта под выбранную платформу.`;
+    const userMsg = `Платформа: ${platform}\n${scenarioCtx.contextBlock}\n\nСценарий:\n${script.slice(0, 6000) || "(не задан)"}\n\nСгенерируй 4 SEO варианта под выбранную платформу, в тон выбранного стиля и хука.`;
 
     const r = await callOpenRouter({
       taskType: TASK_TYPES.LIGHT_TASK,

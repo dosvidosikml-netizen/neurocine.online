@@ -2884,6 +2884,7 @@ ${lines.join("\n")}` : "";
             script={script}
             genre={projectType}
             storyboard={storyboard}
+            styleProfile={styleProfile}
             lang={uiLang}
             devMode={effectiveDevMode}
             isSignedIn={isSignedIn}

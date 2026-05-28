@@ -510,7 +510,7 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
   const camera = compactCameraMove(frame.camera || "subtle slow push-in", 14);
   const motion = inferMicroMotion(rawAction, frame);
   const audio = buildAudioPlan({ frame, storyboard, action: rawAction });
-  const noVoice = includeVo && frame.vo_ru ? "Voiceover may be added separately; keep this clip non-verbal." : "ABSOLUTE AUDIO LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music.";
+  const noVoice = includeVo && frame.vo_ru ? "Voiceover may be added separately; keep this clip non-verbal but keep diegetic ambient and SFX audible." : "VOICE LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music — BUT diegetic ambient sound and the SFX above MUST be present and audible.";
   const continuity = consistency === "ultra"
     ? "Keep the exact uploaded composition, lighting, clothing, grime and object layout."
     : "Keep visual continuity with the uploaded frame.";
@@ -625,7 +625,7 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
   const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getSourceTruthAction(frame), storyboard), minorSafe) || "the visible subject holds position with subtle movement";
   const sourceLine = getScriptLine(frame) || action;
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES.";
+  const noVoice = includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
   const duration = Math.min(8, Math.max(3, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "static handheld").split(",")[0].trim();
   const sfxShort = buildGrokSfxLine(audio);
@@ -636,11 +636,11 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
     "SOURCE OF TRUTH: script line.",
     `Script: "${limitWords(sourceLine, 16)}".`,
     "Preserve uploaded frame; animate only this described action.",
-    "No new objects, locations, characters, or scene change.",
+    "No new objects or scene change.",
     `Camera: ${limitWords(camera, 8)}.`,
     `SFX: ${sfxShort}.`,
     `Photorealistic 24fps. ${duration}s --motion 4`,
-  ].filter(Boolean).join(" ")), 77);
+  ].filter(Boolean).join(" ")), 80);
 }
 
 function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, consistency = "ultra" } = {}) {
@@ -650,7 +650,7 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
   const duration = Math.min(10, Math.max(4, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "subtle handheld documentary movement");
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const noVoice = includeVo ? "" : "NO SPEECH. NO HUMAN VOICES. NO VOICEOVER.";
+  const noVoice = includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
   const shot = getShotProgression(frame);
   const sourceLine = getScriptLine(frame) || action;
   const sfxShort = buildGrokSfxLine(audio);
@@ -668,12 +668,12 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
     "SOURCE OF TRUTH: script line.",
     `Script: "${limitWords(sourceLine, 18)}".`,
     "Preserve uploaded frame; animate only this described action.",
-    "No new objects, locations, characters, weather, or scene change.",
+    "No new objects or scene change.",
     `Camera: ${limitWords(camera, 10)}.`,
     `Pace: ${shot.phase.toLowerCase()}, ${limitWords(shot.rhythm, 8)}.`,
     `SFX: ${sfxShort}.`,
     `${limitWords(styleRef, 5)}, photorealistic 24fps. ${duration}s --motion ${motionVal}`,
-  ].filter(Boolean).join(" ")), 77);
+  ].filter(Boolean).join(" ")), 80);
 }
 
 export function buildVideoPromptFor({
@@ -734,10 +734,10 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
   out = dedupeFinalPrompt(out);
 
   if (!includeVo) {
-    const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. AMBIENT SFX ONLY.";
+    const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient diegetic SFX MUST be present and audible.";
     if (String(target).toLowerCase() === "grok" && !out.startsWith("NO SPEECH")) out = `${hardNoVoice} ${out}`;
     if (!/(No dialogue,\s*no voiceover|No speech,\s*no voiceover|NO SPEECH)/i.test(out) && String(target).toLowerCase() !== "grok") {
-      out = `${out} No dialogue, no voiceover; ambient sound and SFX only.`;
+      out = `${out} No dialogue, no voiceover; ambient sound and SFX must stay audible.`;
     }
   }
   return dedupeFinalPrompt(out);
