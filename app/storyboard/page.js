@@ -170,6 +170,11 @@ function imageDraftSig(value) {
   return `${text.length}:${text.slice(0, 80)}:${text.slice(-80)}`;
 }
 
+function isUnsafeProductionCacheKey(key = "") {
+  const lower = String(key || "").toLowerCase();
+  return lower.includes(":cover:") || lower.includes(":poster") || lower.includes(":thumbnail") || lower.includes("coverdirector");
+}
+
 function collectProductionCache(ownerId = "guest") {
   const out = {};
   const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -178,7 +183,7 @@ function collectProductionCache(ownerId = "guest") {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (key.startsWith(prefix)) out[key] = localStorage.getItem(key);
+      if (key.startsWith(prefix) && !isUnsafeProductionCacheKey(key)) out[key] = localStorage.getItem(key);
     }
   } catch {}
   return out;
@@ -189,10 +194,21 @@ function restoreProductionCache(cache = {}, ownerId = "guest") {
   const prefix = `neurocine:production:v49:${ownerKey}:`;
   try {
     Object.entries(cache || {}).forEach(([key, value]) => {
-      if (key.startsWith(prefix) && value != null) {
+      if (key.startsWith(prefix) && value != null && !isUnsafeProductionCacheKey(key)) {
         localStorage.setItem(key, String(value));
       }
     });
+  } catch {}
+}
+
+function purgeUnsafeProductionCache(ownerId = "guest") {
+  const ownerKey = String(ownerId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const prefix = `neurocine:production:v49:${ownerKey}:`;
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix) && isUnsafeProductionCacheKey(key)) localStorage.removeItem(key);
+    }
   } catch {}
 }
 
@@ -380,7 +396,10 @@ function ProjectSetupPanelV40({
     "cinematic", "dark", "truecrime", "war",
     "neonNoir", "synthwave80s", "cyberpunk",
     "vhsRetro", "analogFilm",
-    "mysticHorror", "scifiAtmospheric", "fantasyEpic",
+    "mysticHorror",
+    "ghostSupernatural", "foundFootage", "psychologicalDread",
+    "folkHorror", "grimeSlasher", "liminalUncanny",
+    "scifiAtmospheric", "fantasyEpic",
     "westernGritty", "apocalyptic", "filmNoir", "brutalistMinimal",
     "hyperreal_8k",
     "animation2d", "animation25d", "animation3d", "stopmotion", "cutoutPaper",
@@ -851,6 +870,7 @@ ${lines.join("\n")}` : "";
   /* ── LOCAL DRAFT LOAD — v49 user-scoped ── */
   useEffect(() => {
     if (!storageOwnerId || !KEY_TEXT || !KEY_IMGS) return;
+    purgeUnsafeProductionCache(storageOwnerId || "guest");
 
     setHydrated(false);
 
@@ -1060,6 +1080,14 @@ ${lines.join("\n")}` : "";
   function handleTopicChange(value) {
     setTopic(value);
     if (storyboard || autoPartPrompt || autoAllPromptText) resetStoryboardOutputs({ keepAnchors: true });
+  }
+
+  function handleStylePresetChange(value) {
+    setStylePreset(value);
+    if (storyboard || gridImg || frameGridPrompt || autoPartPrompt || autoVideoPack || autoAllPromptText || videoP) {
+      resetStoryboardOutputs({ keepAnchors: true });
+      setSnapshotStatus("✓ Стиль изменён — старые storyboard/prompt outputs очищены");
+    }
   }
 
   function handleManualJsonChange(value) {
@@ -1549,7 +1577,7 @@ ${lines.join("\n")}` : "";
       version: "v62_63_studio_ui_production_pack_polish",
       exported_at: new Date().toISOString(),
       app: "NeuroCine Studio",
-      project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },
+      project: { projectName, topic, projectType, stylePreset, selected_style: stylePreset, duration, aspectRatio, tone },
       script_pack: { script, scriptValidation },
       storyboard_pack: { storyboard, jsonIn, sbMode, target, validation },
       production_pipeline: {
@@ -1574,7 +1602,7 @@ ${lines.join("\n")}` : "";
     setProjectName(p.projectName || data?.projectName || "Imported NeuroCine Project");
     setTopic(p.topic || data?.topic || "");
     setProjectType(p.projectType || data?.projectType || "film");
-    setStylePreset(p.stylePreset || data?.stylePreset || "cinematic");
+    setStylePreset(p.stylePreset || data?.stylePreset || sbp.storyboard?.style || sbp.storyboard?.style_preset || data?.storyboard?.style || "cinematic");
     setDuration(Number(p.duration || data?.duration || 60));
     setAspect(p.aspectRatio || data?.aspectRatio || "9:16");
     setTone(p.tone || data?.tone || "cinematic documentary thriller");
@@ -1790,7 +1818,7 @@ ${lines.join("\n")}` : "";
         projectType={projectType}
         setProjectType={setProjectType}
         stylePreset={stylePreset}
-        setStylePreset={setStylePreset}
+        setStylePreset={handleStylePresetChange}
         duration={duration}
         setDuration={setDuration}
         aspectRatio={aspectRatio}
@@ -1834,7 +1862,7 @@ ${lines.join("\n")}` : "";
           setScript={setScript}
           setDuration={setDuration}
           setAspect={setAspect}
-          setStylePreset={setStylePreset}
+          setStylePreset={handleStylePresetChange}
           setTone={setTone}
           setProjectType={setProjectType}
           setSbMode={setSbMode}

@@ -1,0 +1,85 @@
+name: Apply Horror Styles Preview
+
+on:
+  push:
+    branches: [preview]
+    paths:
+      - '.github/workflows/apply-horror-styles-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: preview
+
+      - name: Apply horror styles patch
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const keys = [
+            'ghostSupernatural',
+            'foundFootage',
+            'psychologicalDread',
+            'folkHorror',
+            'grimeSlasher',
+            'liminalUncanny',
+          ];
+
+          const scenePath = 'engine/sceneEngine.js';
+          let scene = fs.readFileSync(scenePath, 'utf8');
+          if (!scene.includes('ghostSupernatural:')) {
+            scene = scene.replace(/(  mysticHorror:\n    `\$\{ULTRA_REALISM\}[^`]+`,\n)/, `$1  ghostSupernatural:\n    \`\${ULTRA_REALISM} Nocturnal supernatural ghost horror — cold teal-and-black grade, moonlit fog layers, pale breath in freezing air, wet stone and rotting wood, candle flicker exposing only fragments of faces, long empty corridors, translucent motion implied by disturbed dust and fabric, restrained dread, no subtitles, no UI, no watermark\`,\n  foundFootage:\n    \`\${ULTRA_REALISM} Found footage horror realism — handheld consumer camera instability, imperfect autofocus hunting, on-camera LED falloff, crushed hallway corners but visible noise texture, accidental framing, documentary panic without stylization, dirty lens smears, no subtitles, no UI, no watermark\`,\n  psychologicalDread:\n    \`\${ULTRA_REALISM} Psychological dread thriller — oppressive stillness, uncanny domestic realism, muted sickly beige-green palette, subtle asymmetry in rooms, claustrophobic lens compression, faces half-lit by practical lamps, invisible threat implied through body language and negative space, no subtitles, no UI, no watermark\`,\n  folkHorror:\n    \`\${ULTRA_REALISM} Folk horror ritual realism — isolated rural landscape, damp soil, old wooden icons, handmade masks, candlelit procession, overcast sky, moss-covered stone, animal-bone charms, linen and wool texture, ancient village dread without fantasy glow, no subtitles, no UI, no watermark\`,\n  grimeSlasher:\n    \`\${ULTRA_REALISM} Grime slasher realism — filthy industrial corridors, sodium vapor light, wet concrete, scratched metal doors, bloodless threat through silhouettes and sharp objects kept mostly off-frame, sweaty skin pores, dirty fabric, harsh handheld proximity, no glamour, no gore focus, no subtitles, no UI, no watermark\`,\n  liminalUncanny:\n    \`\${ULTRA_REALISM} Liminal uncanny backrooms realism — empty fluorescent interiors, yellowed walls, damp carpet texture, buzzing practical ceiling lights, impossible depth created by repeated corridors, no monsters shown, scale disorientation, sterile office decay, subtle perspective wrongness, no subtitles, no UI, no watermark\`,\n`);
+            fs.writeFileSync(scenePath, scene);
+          }
+
+          const directorPath = 'engine/directorEngine_v4.js';
+          let director = fs.readFileSync(directorPath, 'utf8');
+          if (!director.includes('ghostSupernatural: {')) {
+            const presets = `  // === HORROR SUBGENRES ===\n  ghostSupernatural: {\n    label: "Ghost / привидения",\n    family: "film",\n    lock: STYLE_LOCKS.ghostSupernatural,\n    accent: "#6cd9ff",\n    tagline: "Ночь, холодный свет, присутствие в темноте"\n  },\n  foundFootage: {\n    label: "Found footage",\n    family: "film",\n    lock: STYLE_LOCKS.foundFootage,\n    accent: "#7dff8a",\n    tagline: "Найденная плёнка · IR · VHS-артефакты"\n  },\n  psychologicalDread: {\n    label: "Psychological dread",\n    family: "film",\n    lock: STYLE_LOCKS.psychologicalDread,\n    accent: "#9affd6",\n    tagline: "Двойники, безумие, стерильная тревога"\n  },\n  folkHorror: {\n    label: "Folk horror",\n    family: "film",\n    lock: STYLE_LOCKS.folkHorror,\n    accent: "#a8c46a",\n    tagline: "Деревня, ритуал, страх при свете дня"\n  },\n  grimeSlasher: {\n    label: "Grime / slasher",\n    family: "film",\n    lock: STYLE_LOCKS.grimeSlasher,\n    accent: "#ff7a4a",\n    tagline: "Грязный реализм, подвал, погоня"\n  },\n  liminalUncanny: {\n    label: "Liminal / backrooms",\n    family: "film",\n    lock: STYLE_LOCKS.liminalUncanny,\n    accent: "#e8e06a",\n    tagline: "Пустые коридоры, люминесцент, тишина"\n  },\n`;
+            director = director.replace(/(  mysticHorror:\s*{[\s\S]*?tagline:\s*"[^"]*"\n  },\n)/, `$1${presets}`);
+            fs.writeFileSync(directorPath, director);
+          }
+
+          const pagePath = 'app/storyboard/page.js';
+          let page = fs.readFileSync(pagePath, 'utf8');
+          if (!page.includes('"ghostSupernatural"')) {
+            page = page.replace(
+              '    "mysticHorror", "scifiAtmospheric", "fantasyEpic",',
+              '    "mysticHorror",\n    "ghostSupernatural", "foundFootage", "psychologicalDread",\n    "folkHorror", "grimeSlasher", "liminalUncanny",\n    "scifiAtmospheric", "fantasyEpic",'
+            );
+            fs.writeFileSync(pagePath, page);
+          }
+
+          for (const file of [scenePath, directorPath, pagePath]) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const key of keys) {
+              if (!text.includes(key)) throw new Error(`${file} missing ${key}`);
+            }
+          }
+          NODE
+
+      - name: Check syntax
+        run: |
+          cp engine/sceneEngine.js /tmp/scene.mjs
+          cp engine/directorEngine_v4.js /tmp/director.mjs
+          node --check /tmp/scene.mjs
+          node --check /tmp/director.mjs
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add engine/sceneEngine.js engine/directorEngine_v4.js app/storyboard/page.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Apply horror storyboard style pack"
+            git push origin preview
+          fi

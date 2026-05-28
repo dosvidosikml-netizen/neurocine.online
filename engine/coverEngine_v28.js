@@ -146,8 +146,24 @@ export function detectCoverTheme(input = {}) {
     "мозг решает", "поведени человека", "инстинкт", "страх смерти"])) return "psychology_mind";
   if (hasAny(source, ["хищник", "акул", "крокодил", "змея", "охота", "выживани в", "джунгл",
     "природ убивает", "дикая природ", "сафари", "паразит"])) return "nature_wild";
-  if (hasAny(source, ["похорон", "плакальщиц", "гроб", "траур", "некролог", "погребен",
-    "кладбищ", "скорб", "прощани", "покойник", "отпевани"])) return "mourning_ritual";
+  // Medieval leprosy exile — must fire BEFORE generic mourning detection.
+  // "покойник" and "похороны" can appear in leprosy scripts ("живой покойник", "похороны при жизни").
+  if (hasAny(source, [
+    "прокажённ", "прокаженн", "лепра", "leprosy",
+    "звонишь сам", "болезн убивала тело",
+    "хоронили при жизни", "заупокойн",
+    "колокольчик", "живой покойник"
+  ])) return "leper_exile";
+
+  // Professional mourning as a BUSINESS — only fires when paid/commercial context is explicit.
+  // Do NOT use generic words like "покойник", "похороны", "гроб" — they appear in countless scripts.
+  if (hasAny(source, [
+    "плакальщиц", "наёмн",
+    "за плач платили", "платили за слёзы", "платили за плач",
+    "горе напоказ", "горе как бизнес", "горе стоило",
+    "траурный бизнес", "ритуал стоил", "горе можно купить",
+    "нанятые плакали", "заказные слёзы"
+  ])) return "mourning_ritual";
   if (hasAny(source, ["тренд", "тикток", "инстаграм", "блогер", "подписчик", "вирусн",
     "соцсет", "инфлюенсер", "хайп", "отмен", "cancel"])) return "social_modern";
   if (hasAny(source, ["еда", "кухн", "рецепт", "яд в", "отравлен едой", "пищев",
@@ -280,6 +296,16 @@ const THEME_PRESETS = {
     visual: "extreme close-up of apex predator eye in absolute darkness with one pinpoint reflection of light, scales or fur texture impossibly detailed at macro level, patient stillness before an attack, zero motion blur, alive and dangerous, National Geographic ultra-realism",
     angle: "apex predator patience / nature's cold calculation / survival is not guaranteed",
     variantLabels: { poster: "PREDATOR POSTER", evidence: "HUNT MECHANICS", human: "APEX EYE" },
+  },
+
+  leper_exile: {
+    title: "ТЫ БЫЛ\nЖИВОЙ МЕРТВЕЦ",
+    facts: ["КОЛОКОЛЬЧИК — ПРИГОВОР", "ХОРОНИЛИ ПРИ ЖИЗНИ", "НЕЛЬЗЯ КАСАТЬСЯ ВОДЫ", "ТЫ УМЕР ДЛЯ ГОРОДА"],
+    hook: "ТЫ БЫ ВЫНЕС ЭТО?",
+    visual: "medieval street at dusk, solitary cloaked figure walking alone holding a small bronze bell, fog-covered cobblestones, townspeople pressing against damp stone walls in silent horror, priest silhouette in a church archway reading from a book over a living man, single torch throwing long shadows, cold mist, cinematic historical documentary realism, no gore",
+    angle: "medieval leprosy exile / social death while alive / funeral held for the living",
+    forbiddenVisuals: "plague doctor beaked mask, bubonic buboes, gore, skeleton imagery, fantasy creature, modern objects",
+    variantLabels: { poster: "THE BELL POSTER", evidence: "SOCIAL DEATH", human: "LIVING DEAD" },
   },
 
   mourning_ritual: {
@@ -579,6 +605,18 @@ function deriveFromScript(input = {}, preset, theme = "general") {
     [/окна[^.?!]{0,60}(выбил|выбило)/i, "ОКНА ВЫБИЛО ЗА СОТНИ КМ"],
     [/ни\s+воронк|ни\s+осколк/i, "НИ ВОРОНКИ. НИ ОСКОЛКОВ."],
     [/тайга[^.?!]{0,80}(легла|скошенн|повален)/i, "ТАЙГА ЛЕГЛА ЗА СЕКУНДЫ"],
+    // ── Leprosy / medieval exile ─────────────────────────────────────────────
+    [/прокажённ|прокаженн|лепра/i, "ТАК ВСТРЕЧАЛИ ПРОКАЖЁННЫХ"],
+    [/колокольчик[^.?!]{0,80}(стучит|звонит|предупрежд|звук|дрожит|руке)/i, "ЭТОТ ЗВУК — ТВОЙ ПРИГОВОР"],
+    [/заупокойну[ю][^.?!]{0,40}(служб|молитв)/i, "ЧИТАЛИ ЗАУПОКОЙНУЮ ПРИ ЖИЗНИ"],
+    [/похорон[^.?!]{0,60}(при жизни|живой|стоял рядом|слушал)/i, "ХОРОНИЛИ ПОКА ТЫ СТОЯЛ РЯДОМ"],
+    [/горсть[^.?!]{0,40}земл/i, "ГОРСТЬ ЗЕМЛИ К НОГАМ ЖИВОГО"],
+    [/живой[^.?!]{0,20}покойник|покойник[^.?!]{0,20}живой/i, "ТЫ ЖИВ — НО ДЛЯ НИХ УЖЕ НЕТ"],
+    [/пальцы[^.?!]{0,60}(теряли|потеряли|чувств)/i, "ПАЛЬЦЫ ТЕРЯЛИ ЧУВСТВИТЕЛЬНОСТЬ"],
+    [/превращ[^.?!]{0,40}(тень|мертв|покойник)/i, "ТЫ СТАЛ ТЕНЬЮ ЕЩЁ ЖИВЫМ"],
+    [/болезн[^.?!]{0,20}убивала[^.?!]{0,20}(тело|раньше)/i, "БОЛЕЗНЬ УБИВАЛА ТЕЛО ПОСЛЕДНЕЙ"],
+    [/запрет[^.?!]{0,40}(касаться|колодц|рынк|двери)/i, "НЕЛЬЗЯ КАСАТЬСЯ КОЛОДЦА И ДВЕРИ"],
+    // ── Professional mourning (business context) ────────────────────────────
     [/плакальщиц|наёмн[^.?!]{0,20}плак/i, "ЗА СЛЁЗЫ ПЛАТИЛИ ОТДЕЛЬНО"],
     [/за\s+плач\s+платил|платили\s+за\s+плач/i, "ГОРЕ МОЖНО БЫЛО КУПИТЬ"],
     [/миллиард[^.?!]{0,60}оффшор|оффшор[^.?!]{0,60}налог/i, "ДЕНЬГИ СПРЯТАНЫ В ОФФШОРАХ"],
@@ -626,6 +664,15 @@ function buildTitle({ topic = "", script = "", mode = "", preset, theme = "gener
   if (theme === "cold_war_alert") {
     if (t.includes("НЕ НАЖАЛ") || t.includes("КНОПК")) return "ОН НЕ НАЖАЛ\nКНОПКУ";
     if (t.includes("КОНЦА МИРА")) return "ДО КОНЦА МИРА\nБЫЛИ МИНУТЫ";
+    const derived = extractTitleFromTopic(topic);
+    if (derived) return derived;
+    return preset.title;
+  }
+  if (theme === "leper_exile") {
+    if (t.includes("ЖИВОЙ ПОКОЙНИК") || t.includes("ЖИВОЙ МЕРТВЕЦ")) return "ТЫ БЫЛ\nЖИВОЙ МЕРТВЕЦ";
+    if (t.includes("КОЛОКОЛЬЧИК") && (t.includes("ПРИГОВОР") || t.includes("БОЛЕЗН"))) return "ЭТОТ ЗВУК —\nТВОЙ ПРИГОВОР";
+    if (t.includes("ПРОКАЖЁНН") || t.includes("ЛЕПРА")) return "ПОХОРОНЫ\nПРИ ЖИЗНИ";
+    if (t.includes("ХОРОНИЛИ") && t.includes("ЖИЗНИ")) return "ХОРОНИЛИ\nПРИ ЖИЗНИ";
     const derived = extractTitleFromTopic(topic);
     if (derived) return derived;
     return preset.title;
@@ -703,6 +750,7 @@ function composePrompt(brief, variant = "poster") {
     isDreamControl ? "DREAM-CONTROL LOCK: white bed screen, dusty old projector, concrete sleeping cells, city square/facade dream projection. No alternate-history classroom, no wartime propaganda, no police case board." : "",
     isAltHistory ? "ALT-HISTORY LOCK: no paranormal horror, no monster. School portrait, history book, silent apartment door, anti-totalitarian documentary tone." : "",
     isColdWar ? "COLD WAR LOCK: Soviet bunker, red siren, CRT screens, analog panels, officer decision. No crime board, no police tape." : "",
+    brief.theme === "submarine_warfare" ? "SUBMARINE REALITY LOCK: use only WWII submarines, U-864, HMS Venturer, torpedo track geometry, sonar/depth calculations, red submarine control room, dark North Sea water near Norway. Absolutely no reptiles, no animal eyes, no predators, no monsters, no fantasy creatures." : "",
     brief.forbidden_visuals ? `FORBIDDEN VISUALS: ${brief.forbidden_visuals}.` : "",
     "TYPOGRAPHY RULE: strict 3-level hierarchy — 1) giant headline, 2) compact facts, 3) bottom hook. No extra captions, no channel names, no UI.",
     "CTR RULE: one dominant impossible visual symbol; clean space behind headline; bottom hook reads as forbidden stamp.",
@@ -712,10 +760,32 @@ function composePrompt(brief, variant = "poster") {
 
 function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral", style = "viral", platform = "shorts" } = {}) {
   const source = textSource({ topic, script, storyboard });
-  const theme = detectCoverTheme({ topic, script, storyboard });
-  const preset = THEME_PRESETS[theme] || THEME_PRESETS.general;
-  const derived = deriveFromScript({ topic, script, storyboard }, preset, theme);
-  const title = buildTitle({ topic, script, mode, preset, theme });
+  const sourceLow = source.toLowerCase();
+  const isSubmarineStory =
+    sourceLow.includes("u-864") ||
+    sourceLow.includes("venturer") ||
+    sourceLow.includes("торпед") ||
+    (sourceLow.includes("подвод") && sourceLow.includes("лод")) ||
+    (sourceLow.includes("норв") && sourceLow.includes("1945"));
+
+  const theme = isSubmarineStory ? "submarine_warfare" : detectCoverTheme({ topic, script, storyboard });
+  const preset = isSubmarineStory ? {
+    title: "U-864 ПРОТИВ\nHMS VENTURER",
+    facts: [
+      "1945 • БЕРЕГА НОРВЕГИИ",
+      "ПОДЛОДКА ПРОТИВ ПОДЛОДКИ",
+      "СТРЕЛЬБА ПО РАСЧЁТУ",
+      "ТОРПЕДНЫЙ ЗАЛП"
+    ],
+    hook: "ТЫ БЫ НАЖАЛ ПУСК?",
+    visual: "World War II underwater submarine duel near Norway, German U-864 and British HMS Venturer as steel submarine silhouettes in black water, sonar map geometry, torpedo path lines, red submarine control-room light, commander hand near torpedo launch control, pressure, metal hull, bubbles, documentary realism, no animals, no reptile eye",
+    angle: "historic submarine duel / blind underwater targeting / U-864 vs HMS Venturer",
+    forbiddenVisuals: "reptile, crocodile, snake, animal eye, predator eye, monster, creature, dinosaur, shark, dragon, fantasy beast, wildlife hunt, jungle, claws, scales as animal skin",
+    variantLabels: { poster: "SUBMARINE DUEL", evidence: "TORPEDO GEOMETRY", human: "COMMANDER DECISION" }
+  } : (THEME_PRESETS[theme] || THEME_PRESETS.general);
+
+  const derived = isSubmarineStory ? { facts: preset.facts } : deriveFromScript({ topic, script, storyboard }, preset, theme);
+  const title = isSubmarineStory ? preset.title : buildTitle({ topic, script, mode, preset, theme });
   const modeLine = {
     safe: "credible documentary, no cheap clickbait, still high curiosity",
     viral: "viral curiosity gap, strong fear/mystery hook, bold but believable",
@@ -727,6 +797,7 @@ function buildBrief({ topic = "", script = "", storyboard = null, mode = "viral"
     psychology_mind: ["решения принимаются без осознания", "потеря контроля над собой", "манипуляция незаметна", "страх = инструмент управления", "заголовок вызывает немедленную тревогу"],
     money_power: ["система работает против тебя", "они всегда знали заранее", "правила написаны для себя", "ты не в том клубе", "заголовок вызывает злость"],
     space_cosmos: ["человек ничтожно мал", "там может быть что угодно", "одиночество на уровне вселенной", "неизвестность страшнее известного", "заголовок открывает бездну"],
+    leper_exile: ["уже мёртв, но ещё дышит", "болезнь убивает медленнее, чем общество", "звук колокольчика = приговор", "похороны при живом человеке", "заголовок озвучивает главный страх зрителя"],
     mourning_ritual: ["горе можно купить", "настоящее vs. показное", "ты не знаешь людей вокруг тебя", "деньги решают даже смерть", "заголовок разрушает иллюзию"],
     nazi_alt_history: ["альтернативная история без прославления", "тишина = страх", "обычное стало нормой диктатуры", "сосед исчезает без следов", "заголовок читается первым"],
   };

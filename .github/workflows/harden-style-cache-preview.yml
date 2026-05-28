@@ -1,0 +1,69 @@
+name: Harden Style Cache Preview
+
+on:
+  push:
+    branches: [preview]
+    paths:
+      - '.github/workflows/harden-style-cache-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: preview
+
+      - name: Patch style cache and snapshot restore
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'app/storyboard/page.js';
+          let s = fs.readFileSync(path, 'utf8');
+
+          if (!s.includes('function handleStylePresetChange(value)')) {
+            s = s.replace(
+              `  function handleTopicChange(value) {\n    setTopic(value);\n    if (storyboard || autoPartPrompt || autoAllPromptText) resetStoryboardOutputs({ keepAnchors: true });\n  }`,
+              `  function handleTopicChange(value) {\n    setTopic(value);\n    if (storyboard || autoPartPrompt || autoAllPromptText) resetStoryboardOutputs({ keepAnchors: true });\n  }\n\n  function handleStylePresetChange(value) {\n    setStylePreset(value);\n    if (storyboard || gridImg || frameGridPrompt || autoPartPrompt || autoVideoPack || autoAllPromptText || videoP) {\n      resetStoryboardOutputs({ keepAnchors: true });\n      setSnapshotStatus(\"✓ Стиль изменён — старые storyboard/prompt outputs очищены\");\n    }\n  }`
+            );
+          }
+
+          s = s.replace(
+            `    setStylePreset(p.stylePreset || data?.stylePreset || "cinematic");`,
+            `    setStylePreset(p.stylePreset || data?.stylePreset || sbp.storyboard?.style || sbp.storyboard?.style_preset || data?.storyboard?.style || "cinematic");`
+          );
+
+          s = s.replace(`        setStylePreset={setStylePreset}`, `        setStylePreset={handleStylePresetChange}`);
+          s = s.replace(`          setStylePreset={setStylePreset}`, `          setStylePreset={handleStylePresetChange}`);
+
+          if (!s.includes('stylePreset, selected_style: stylePreset')) {
+            s = s.replace(
+              `      project: { projectName, topic, projectType, stylePreset, duration, aspectRatio, tone },`,
+              `      project: { projectName, topic, projectType, stylePreset, selected_style: stylePreset, duration, aspectRatio, tone },`
+            );
+          }
+
+          fs.writeFileSync(path, s);
+          NODE
+
+      - name: Check patch landed
+        run: |
+          grep -q 'function handleStylePresetChange' app/storyboard/page.js
+          grep -q 'selected_style: stylePreset' app/storyboard/page.js
+          grep -q 'sbp.storyboard?.style' app/storyboard/page.js
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/storyboard/page.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Harden style restore and clear stale outputs"
+            git push origin preview
+          fi

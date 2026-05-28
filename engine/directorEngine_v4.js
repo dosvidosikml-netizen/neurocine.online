@@ -1,5 +1,13 @@
 import { STYLE_LOCKS, VIDEO_LOCK, NEGATIVE_LOCK } from "./sceneEngine";
 
+function cleanText(value = "") {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function scriptLineFor(frame = {}) {
+  return cleanText(frame.vo_ru || frame.script_line_ru || frame.script_line || "");
+}
+
 export const PROJECT_TYPES = {
   film: {
     label: "Фильм / реализм",
@@ -94,6 +102,49 @@ export const STYLE_PRESETS = {
     lock: STYLE_LOCKS.mysticHorror,
     accent: "#5cffd3",
     tagline: "Туман, свечи, сдержанный ужас"
+  },
+  // === HORROR SUBGENRES ===
+  ghostSupernatural: {
+    label: "Ghost / привидения",
+    family: "film",
+    lock: STYLE_LOCKS.ghostSupernatural,
+    accent: "#6cd9ff",
+    tagline: "Ночь, холодный свет, присутствие в темноте"
+  },
+  foundFootage: {
+    label: "Found footage",
+    family: "film",
+    lock: STYLE_LOCKS.foundFootage,
+    accent: "#7dff8a",
+    tagline: "Найденная плёнка · IR · VHS-артефакты"
+  },
+  psychologicalDread: {
+    label: "Psychological dread",
+    family: "film",
+    lock: STYLE_LOCKS.psychologicalDread,
+    accent: "#9affd6",
+    tagline: "Двойники, безумие, стерильная тревога"
+  },
+  folkHorror: {
+    label: "Folk horror",
+    family: "film",
+    lock: STYLE_LOCKS.folkHorror,
+    accent: "#a8c46a",
+    tagline: "Деревня, ритуал, страх при свете дня"
+  },
+  grimeSlasher: {
+    label: "Grime / slasher",
+    family: "film",
+    lock: STYLE_LOCKS.grimeSlasher,
+    accent: "#ff7a4a",
+    tagline: "Грязный реализм, подвал, погоня"
+  },
+  liminalUncanny: {
+    label: "Liminal / backrooms",
+    family: "film",
+    lock: STYLE_LOCKS.liminalUncanny,
+    accent: "#e8e06a",
+    tagline: "Пустые коридоры, люминесцент, тишина"
   },
   scifiAtmospheric: {
     label: "Sci-Fi atmospheric",
@@ -259,8 +310,10 @@ export function buildScenarioLock(storyboard = {}, script = "", styleProfile = {
     character_lock: storyboard?.character_lock || [],
     rules: [
       "Сценарий является законом: нельзя менять событие кадра, порядок истории или смысл VO.",
+      "SOURCE OF TRUTH = script line / vo_ru: объекты, локации, действия, погода и эпоха должны иметь опору в строке сценария.",
       "Нельзя добавлять новых персонажей, новую эпоху, новую локацию или новый сюжетный поворот.",
       "Можно менять только операторский язык: ракурс, крупность, линзу, перспективу, композицию, глубину резкости.",
+      "Reference/anchor images фиксируют визуальную непрерывность, но не добавляют новые сюжетные детали.",
       "Image prompts всегда на английском и начинаются с SCENE PRIMARY FOCUS:",
       "Video prompts всегда на английском и начинаются с ANIMATE CURRENT FRAME:",
       "SFX должен быть внутри video prompt и отдельно в поле sfx.",
@@ -272,6 +325,7 @@ export function buildScenarioLock(storyboard = {}, script = "", styleProfile = {
       duration: s.duration,
       action: s.description_ru,
       vo_ru: s.vo_ru,
+      script_line_ru: scriptLineFor(s),
       sfx: s.sfx,
       image_prompt_en: s.image_prompt_en,
       video_prompt_en: s.video_prompt_en,
@@ -318,9 +372,10 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
     const en = (s.image_prompt_en || "")
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
+    const sourceLine = scriptLineFor(s);
     // Inject anti-2D style into every frame description
     const styleEnforce = "camera-photographed live-action image, shot on ARRI Alexa 65 Zeiss Master Prime T2.8, NOT CGI, NOT rendered, NOT illustrated, NOT cartoon, NOT anime, NOT painting — real camera, real location, real physics —";
-    return `${i + 1}. [F${String(i + 1).padStart(2, "0")}] ${styleEnforce} ${en || s.vo_ru || ""}`;
+    return `${i + 1}. [F${String(i + 1).padStart(2, "0")}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
   }).join("\n");
 
   // Frame label instruction
@@ -363,6 +418,7 @@ ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinemat
 
 ${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK)\nIDENTITY CONSISTENCY: EXACT MATCH REQUIRED — not approximated, not averaged.\nThe uploaded reference is a mandatory identity template, NOT a style suggestion.\n${charLock}\n` : ""}SCENARIO LOCK:
 Do not change story order. Preserve same characters, locations, chronology, emotional logic and visual continuity across all ${n} cells.
+Each cell content must follow its SOURCE LINE first. Do not add objects, locations, weather, era details or actions absent from that line.
 
 FRAMES (in order, left-to-right, top-to-bottom):
 ${framesEN}`;
@@ -372,6 +428,7 @@ export function buildExplorePrompt(frame = {}, storyboard = {}, styleProfile = {
   const base = (frame.image_prompt_en || "")
     .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
     .trim() || frame.description_ru || frame.vo_ru || "selected storyboard frame";
+  const sourceLine = scriptLineFor(frame);
 
   const charLock = (storyboard?.character_lock || [])
     .map(c => `${c.name}: ${c.description}`)
@@ -383,6 +440,8 @@ Create a single vertical 9:16 image arranged as a strict 2x2 grid containing 4 c
 
 LOCKED FRAME ID: ${frame.id || "frame"}
 TIME: ${frame.start ?? "?"}–${frame.end ?? "?"}s
+SOURCE OF TRUTH SCRIPT LINE:
+${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}
 
 BASE SCENE (reproduce this exact visual in all 4 cells — only camera changes):
 ${base}
@@ -396,6 +455,7 @@ SCENARIO LOCK — NON-NEGOTIABLE:
 - same emotional meaning
 - same historical / genre logic
 - no new characters, no new plot, no new objects that change the story
+- no objects, weather, locations, actions or era details absent from SOURCE OF TRUTH SCRIPT LINE
 
 ALLOWED VARIATION AXES ONLY:
 - camera angle, camera height, lens feeling, framing, composition, camera distance, depth of field
@@ -412,7 +472,8 @@ NEGATIVE: ${NEGATIVE_LOCK}`;
 }
 
 export function build2KPrompt(frame = {}, variant = "A", storyboard = {}, styleProfile = {}) {
-  return `SCENE PRIMARY FOCUS: recreate the selected Variant ${variant} as ONE final high-quality 2K frame.\n\nLOCKED FRAME ID: ${frame.id || "frame"}\nLOCKED STORY ACTION: ${frame.description_ru || "Preserve selected storyboard action."}\nLOCKED VO MEANING: ${frame.vo_ru || "Preserve the original meaning."}\n\nUSE THE UPLOADED SELECTED VARIANT AS THE VISUAL REFERENCE. Preserve its camera angle, composition, lens feeling, lighting direction, atmosphere, character pose and emotional tone.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nSTRICT CONTINUITY:\n- do not change the character identity\n- do not change costume / character model\n- do not change location, time, story event or emotion\n- do not add text, subtitles, UI or watermark\n- keep the frame ready for image-to-video animation\n\nQUALITY:\n2K clean cinematic frame, sharp subject focus where appropriate, realistic material textures, natural imperfections, film-level detail, controlled grain.\n\nNEGATIVE:\n${NEGATIVE_LOCK}`;
+  const sourceLine = scriptLineFor(frame);
+  return `SCENE PRIMARY FOCUS: recreate the selected Variant ${variant} as ONE final high-quality 2K frame.\n\nLOCKED FRAME ID: ${frame.id || "frame"}\nLOCKED STORY ACTION: ${frame.description_ru || "Preserve selected storyboard action."}\nLOCKED VO MEANING: ${frame.vo_ru || "Preserve the original meaning."}\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nUSE THE UPLOADED SELECTED VARIANT AS THE VISUAL REFERENCE. Preserve its camera angle, composition, lens feeling, lighting direction, atmosphere, character pose and emotional tone.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nSTRICT CONTINUITY:\n- do not change the character identity\n- do not change costume / character model\n- do not change location, time, story event or emotion\n- do not add objects, locations, weather, era details or actions absent from the script line\n- do not add text, subtitles, UI or watermark\n- keep the frame ready for image-to-video animation\n\nQUALITY:\n2K clean cinematic frame, sharp subject focus where appropriate, realistic material textures, natural imperfections, film-level detail, controlled grain.\n\nNEGATIVE:\n${NEGATIVE_LOCK}`;
 }
 
 export function buildLocalImageAnalysis(frame = {}, variant = "A", styleProfile = {}) {
@@ -432,7 +493,8 @@ export function buildLocalImageAnalysis(frame = {}, variant = "A", styleProfile 
 
 export function buildVideoPrompt(frame = {}, analysis = {}, storyboard = {}, styleProfile = {}) {
   const sfx = analysis.sfx || frame.sfx || "subtle realistic ambience";
-  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked action."}\n${analysis.environment_motion || "Add subtle environmental motion: air, cloth, particles, smoke, weather or light shift where relevant."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`;
+  const sourceLine = scriptLineFor(frame);
+  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`;
 }
 
 /**
@@ -473,8 +535,9 @@ export function buildChunkGridPrompt(scenes = [], storyboard = {}, styleProfile 
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
     const globalNum = globalOffset + i + 1;
+    const sourceLine = scriptLineFor(s);
     const styleEnforce = "camera-photographed live-action image, NOT illustration, NOT 2D art, NOT cartoon —";
-    return `${globalNum}. [F${String(globalNum).padStart(2, "0")}] ${styleEnforce} ${en || s.vo_ru || ""}`;
+    return `${globalNum}. [F${String(globalNum).padStart(2, "0")}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
   }).join("\n");
 
   return `STORYBOARD GRID PART ${chunkIndex + 1} — ${storyboard.project_name || "NeuroCine Project"}
@@ -508,6 +571,7 @@ ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinemat
 
 ${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK) — IDENTICAL IN ALL PARTS\nIDENTITY CONSISTENCY: EXACT MATCH REQUIRED — same face bone structure skin tone distinguishing features in every part.\n${charLock}\n` : ""}SCENARIO LOCK:
 Continuous story — preserve character identity, location logic, emotional arc and visual continuity across ALL grid parts.
+SOURCE LINE is the highest authority for each cell. Do not add objects, locations, weather, era details or actions absent from that frame's source line.
 
 FRAMES IN THIS PART (in order, left-to-right, top-to-bottom):
 ${framesEN}`;
@@ -551,7 +615,8 @@ export function buildContinuationPrompt(anchorFrames = [], nextScenes = [], stor
     const en = (s.image_prompt_en || "")
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
-    return `${i + 1}. [${s.id}] ${en || s.vo_ru || ""}`;
+    const sourceLine = scriptLineFor(s);
+    return `${i + 1}. [${s.id}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${en || sourceLine || ""}`;
   }).join("\n");
 
   return `CHAIN CONTINUATION — STORYBOARD GRID PART ${chunkIndex + 1}
@@ -574,6 +639,7 @@ CONTINUATION RULES — NON-NEGOTIABLE:
 - This is frame ${Math.round(globalOffset) + 1} onward — the story continues from where the anchor left off
 - No new characters unless logically introduced in the script
 - No style reset, no new world, no new visual language
+- Next-frame content must follow each SOURCE LINE; anchor images preserve continuity only
 
 STYLE LOCK (must be identical to previous grid):
 ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}
@@ -590,6 +656,7 @@ FORBIDDEN:
 - New visual style or new color grade
 - New character design or face
 - Scene that contradicts the attached anchor images
+- Scene content absent from the current frame SOURCE LINE
 - Any reset of lighting, environment or mood`;
 }
 
@@ -604,6 +671,7 @@ export function compactFrameForModel(frame = {}) {
     image_prompt_en: frame.image_prompt_en,
     video_prompt_en: frame.video_prompt_en,
     vo_ru: frame.vo_ru,
+    script_line_ru: scriptLineFor(frame),
     sfx: frame.sfx,
     camera: frame.camera,
     continuity_note: frame.continuity_note,

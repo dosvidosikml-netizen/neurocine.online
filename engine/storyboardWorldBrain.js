@@ -25,10 +25,8 @@ function lowerContext(frame = {}, storyboard = {}) {
 function scriptAllowsModernEmergency(frame = {}, storyboard = {}) {
   const scriptText = cleanText([
     frame?.vo_ru,
-    frame?.description_ru,
-    frame?.description_en,
-    frame?.sfx,
-    frame?.camera,
+    frame?.script_line_ru,
+    frame?.script_line,
   ].filter(Boolean).join(" ")).toLowerCase();
   return /(сирен|тревог|скорая|полици|аварийн|маяк|alarm|siren|alert|warning|beacon|ambulance|police|modern emergency)/i.test(scriptText);
 }
@@ -166,16 +164,33 @@ export function buildWorldAudioBlock(frame = {}, storyboard = {}) {
   };
 }
 
+function scriptLineFor(frame = {}) {
+  return cleanText(frame?.vo_ru || frame?.script_line_ru || frame?.script_line || "");
+}
+
+function buildSourceTruthRule(frame = {}, { compact = false } = {}) {
+  const line = scriptLineFor(frame).slice(0, 180);
+  if (compact) {
+    return line
+      ? `SOURCE OF TRUTH: script line only. Preserve uploaded frame; animate only what this script line describes.`
+      : "SOURCE OF TRUTH: storyboard frame only. Preserve uploaded frame; animate only described visible action.";
+  }
+  return line
+    ? `SOURCE OF TRUTH OBJECT RULE: SCRIPT LINE is law: "${line}". Do not add any object, location, character, weather, era detail or action that is not supported by this line.`
+    : "SOURCE OF TRUTH OBJECT RULE: storyboard frame is law. Do not add objects, locations, characters, weather, era details or actions not supported by the frame.";
+}
+
 export function applyWorldBrainToFrame(frame = {}, storyboard = {}) {
   const { profile, allowModernEmergency, block } = buildWorldAudioBlock(frame, storyboard);
   const cleanSfx = removeForbiddenAudio(frame.sfx || "scene-matched ambience", profile, allowModernEmergency);
   const next = { ...frame, sfx: cleanSfx || profile.allowedAudio };
 
   if (next.image_prompt_en) {
-    next.image_prompt_en = cleanText(`${next.image_prompt_en} ${buildReferenceVisibilityRule(frame, storyboard)} WORLD OBJECT RULE: ${profile.forbiddenObjects ? `Do not show ${profile.forbiddenObjects}.` : "Do not add unrelated objects."}`);
+    next.image_prompt_en = cleanText(`${next.image_prompt_en} ${buildSourceTruthRule(frame)} ${buildReferenceVisibilityRule(frame, storyboard)} WORLD OBJECT RULE: ${profile.forbiddenObjects ? `Do not show ${profile.forbiddenObjects}.` : "Do not add unrelated objects."}`);
   }
   if (next.video_prompt_en) {
-    next.video_prompt_en = applyWorldBrainToVideoPrompt(next.video_prompt_en, next, storyboard);
+    const isGrok = String(next.target || frame.target || "").toLowerCase() === "grok";
+    next.video_prompt_en = applyWorldBrainToVideoPrompt(next.video_prompt_en, next, storyboard, { compact: isGrok });
   }
   return next;
 }
@@ -188,10 +203,10 @@ export function applyWorldBrainToVideoPrompt(prompt = "", frame = {}, storyboard
     const guard = allowModernEmergency
       ? "Emergency sounds only if visible in the uploaded frame."
       : "No random sirens, alarms, emergency tones, vehicles or unrelated props.";
-    return cleanText(`${cleaned} ${guard}`);
+    return cleanText(`${cleaned} ${buildSourceTruthRule(frame, { compact: true })} ${guard}`);
   }
   const noModern = allowModernEmergency ? "" : ` HARD NEGATIVE AUDIO: ${profile.forbiddenAudio}.`;
-  return cleanText(`${cleaned} ${block} PRIMARY SFX MUST BE: ${sfx}.${noModern}`);
+  return cleanText(`${cleaned} ${buildSourceTruthRule(frame)} ${block} PRIMARY SFX MUST BE: ${sfx}.${noModern}`);
 }
 
 export function applyWorldBrainToStoryboard(storyboard = {}) {

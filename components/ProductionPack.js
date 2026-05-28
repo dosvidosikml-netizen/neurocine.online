@@ -1,5 +1,8 @@
+"use client";
 // components/ProductionPack.js
 // NeuroCine Production Pack v3.3 — RU/EN Studio UX + premium compact workflow
+// Cover Director engine version — bump this when theme detection logic changes to auto-invalidate old cached results.
+const COVER_ENGINE_VERSION = "v2.9.1-leper-fix";
 // Использует родные классы сайта: .step-section, .step-header, .step-body,
 // .out-box, .out-head, .out-body, .out-pre, .field, .frow, .btn, .fb, .frame-card
 // Никакого inline-CSS — только токены globals.css.
@@ -8,7 +11,6 @@
 //   import ProductionPack from "@/components/ProductionPack";
 //   <ProductionPack topic={topic} script={script} genre={projectType} storyboard={storyboard} />
 
-"use client";
 import { useEffect, useMemo, useState } from "react";
 import { buildMockTtsPack, buildMockCoverPack, buildMockMusicPack, buildMockSeoPack, buildMockSocialPack } from "../lib/mockData";
 
@@ -418,10 +420,18 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
   const [style, setStyle] = useStoredString(`${cacheKey}:cover:style`, "viral");
   const [activeVariant, setActiveVariant] = useStoredString(`${cacheKey}:cover:variant`, "poster");
   const sourceReady = Boolean(topic?.trim() || script?.trim() || storyboard?.scenes?.length);
+  // AI-generated covers must never be cached — user pays for fresh results each call.
+  // Local-only results (no api key) may be cached normally.
   const staleData = Boolean(
     data && (
+      // AI result → always regenerate (paid call, should vary each time)
+      data.ai_generated === true ||
+      // Engine version mismatch → invalidate (theme detection changed)
+      (data.__engineVersion && data.__engineVersion !== COVER_ENGINE_VERSION) ||
       (data.__sourceKey ? data.__sourceKey !== sourceKey : data.source_hash && data.source_hash !== sourceKey) ||
-      (data.theme === "nazi_alt_history" && !sourceHasAltHistoryWords(sourceText))
+      (data.theme === "nazi_alt_history" && !sourceHasAltHistoryWords(sourceText)) ||
+      // Legacy: wrong theme cached → force refresh
+      (data.theme === "mourning_ritual" && /прокажённ|прокаженн|лепра|leprosy|колокольчик|живой покойник/i.test(sourceText))
     )
   );
 
@@ -432,7 +442,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
   }, [staleData, setData]);
 
   async function run() {
-    if (devMode) { setErr(""); setData({ ...buildMockCoverPack({ topic, script, storyboard }), __sourceKey: sourceKey }); return; }
+    if (devMode) { setErr(""); setData({ ...buildMockCoverPack({ topic, script, storyboard }), __sourceKey: sourceKey, __engineVersion: COVER_ENGINE_VERSION }); return; }
     if (!liveAllowed) { setErr("LIVE-генерация доступна в PRO после подключения AI-ключа."); return; }
     setBusy(true); setErr(""); setData(null);
     try {
@@ -442,7 +452,7 @@ function CoverTab({ topic, script, storyboard, cacheKey, sourceKey, sourceText, 
         body: JSON.stringify({ topic, script, storyboard, mode, style, platform: "shorts", generationMode: devMode ? "demo" : "live" })
       });
       const d = await r.json();
-      if (d.error) setErr(d.error); else setData({ ...(d.cover || d), __sourceKey: sourceKey });
+      if (d.error) setErr(d.error); else setData({ ...(d.cover || d), __sourceKey: sourceKey, __engineVersion: COVER_ENGINE_VERSION });
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
