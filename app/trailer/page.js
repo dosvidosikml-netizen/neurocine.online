@@ -148,6 +148,33 @@ function locationLockLine(lock = {}) {
   return Object.entries(lock).map(([key, value]) => value ? `${key}: ${cleanText(value)}` : "").filter(Boolean).join("; ");
 }
 
+function promptList(value = "") {
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join("; ");
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, val]) => val ? `${key}: ${cleanText(val)}` : "")
+      .filter(Boolean)
+      .join("; ");
+  }
+  return cleanText(value || "");
+}
+
+function trimWords(text = "", max = 30) {
+  const words = cleanText(text).split(/\s+/).filter(Boolean);
+  return words.length > max ? `${words.slice(0, max).join(" ")}...` : words.join(" ");
+}
+
+function compactStyleLine(style = "") {
+  return trimWords(
+    cleanText(style)
+      .replace(/STYLE FORMULA:[\s\S]*$/i, "")
+      .replace(/\bRAW photograph[^.]*\.?/gi, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    34
+  ) || "same locked cinematic realism, same lighting and color grade";
+}
+
 function buildFlowGrokContinuityFixPrompt({ storyboard, styleProfile, partScenes, partIndex, partSize, gridLayout }) {
   if (!storyboard || !partScenes?.length) return "";
   const labels = partScenes.map((scene, i) => frameLabel(scene, partIndex * partSize + i)).join(", ");
@@ -197,51 +224,47 @@ function buildLockedFrameVideoPrompt({ scene, storyboard, styleProfile, frameLab
   if (!scene) return "";
   const scriptLine = cleanText(scene.script_line_ru || scene.vo_ru || scene.description_ru || "");
   const visualBeat = cleanText(scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "");
-  const castLock = (storyboard?.cast_lock || []).map((item, i) => lockLine(item, `Cast ${i + 1}`)).filter(Boolean).join("\n");
-  const characterLock = (storyboard?.character_lock || []).map((item, i) => lockLine(item, `Character ${i + 1}`)).filter(Boolean).join("\n");
-  const locationLock = locationLockLine(storyboard?.location_lock || {});
   const style = cleanText(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "");
-  const allowed = [
-    scene.allowed_characters ? `characters: ${Array.isArray(scene.allowed_characters) ? scene.allowed_characters.join("; ") : scene.allowed_characters}` : "",
-    scene.allowed_objects ? `objects: ${Array.isArray(scene.allowed_objects) ? scene.allowed_objects.join("; ") : scene.allowed_objects}` : "",
-    scene.allowed_location ? `location: ${scene.allowed_location}` : "",
-  ].filter(Boolean).join(" | ");
+  const allowedCharacters = promptList(scene.allowed_characters);
+  const allowedObjects = promptList(scene.allowed_objects);
+  const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
   const forbidden = cleanText(scene.forbidden_visuals || "");
   const dialogue = Array.isArray(scene.dialogue) && scene.dialogue.length
     ? scene.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
     : "";
+  const hasCharacters = Boolean(allowedCharacters);
+  const characterLine = hasCharacters
+    ? `${allowedCharacters}. Preserve exact identity/wardrobe from the cropped frame or hero anchor; no actor replacement.`
+    : "none in this frame. Keep the frame empty of people.";
+  const sourceLine = hasCrop
+    ? "Use the uploaded 9:16 crop as the visual source."
+    : "Use the selected storyboard frame/crop as the visual source when available.";
 
   return `LOCKED FRAME VIDEO PROMPT — ${frameLabelText}
 
-USE THE UPLOADED CROPPED FRAME AS THE VISUAL SOURCE${hasCrop ? "" : " WHEN AVAILABLE"}.
-Preserve exact faces, bodies, wardrobe, lighting direction, camera angle, composition and location from that crop.
+VISUAL SOURCE:
+${sourceLine} Preserve composition, lighting direction, camera angle, location and object layout.
 
-SOURCE OF TRUTH SCRIPT LINE:
+SOURCE LINE:
 ${scriptLine}
 
-VISUAL BEAT TO ANIMATE:
+VISUAL BEAT:
 ${visualBeat}
 
-ALLOWED IN THIS FRAME:
-${allowed || "Only what is visible in the uploaded crop and directly supported by the source line."}
+CHARACTERS:
+${characterLine}
 
-FORBIDDEN IN THIS FRAME:
-${forbidden || "No new actors, props, rooms, costumes, era, weather or story events."}
+ALLOWED OBJECTS:
+${allowedObjects || "only objects visible in the crop and directly supported by the source line"}
 
-CAST LOCK — DO NOT CHANGE PEOPLE:
-${castLock || characterLock || "Use the same recurring characters already established in the storyboard/grid. Do not replace actors."}
-
-LOCATION LOCK — DO NOT CHANGE PLACE:
-${locationLock || "Continue the same locked location from the uploaded grid and storyboard."}
+LOCATION:
+${allowedLocation || "same locked location from the crop"}
 
 ACTION:
-Animate only the action/emotion described by the source script line. Keep the same people from the crop and previous frames. If the frame shows the same employee group, they remain the same employees, not new actors.
+Animate only this visual beat. ${hasCharacters ? "Keep listed characters identical." : "Do not add a person, face, silhouette, hand, reflection or passerby."}
 
-${dialogue ? `DIALOGUE LOCK:\n${dialogue}\nNo extra speech.\n` : ""}STYLE LOCK:
-${style}
-
-STYLE COMPATIBILITY:
-Style is only lens/color/lighting language. It must not introduce candles, oil lamps, stone, moss, medieval props, new rooms, new eras, new costumes, weather, extra people or objects unless the script line explicitly contains them.
+${dialogue ? `DIALOGUE:\n${dialogue}\nNo extra speech.\n` : ""}STYLE:
+${compactStyleLine(style)}
 
 CAMERA:
 ${cleanText(scene.camera || "restrained handheld micro-drift")}. No scene change, no cutaway to another location.
@@ -250,7 +273,7 @@ SFX:
 ${cleanText(scene.sfx || "physical sounds already visible or implied by the frame")}.
 
 FORBIDDEN:
-Do not change face identity, age, ethnicity, hairstyle, wardrobe, body type, number of people, office/elevator design, time period, supernatural rules, props or location. Do not add subtitles, UI, watermark, captions, frame numbers, borders, black gutters, title bars or unrelated objects.`;
+${forbidden || "No new actors, props, rooms, costumes, era, weather or story events."} No subtitles, UI, watermark, captions, frame numbers, borders, black gutters or unrelated objects.`;
 }
 
 function extractOnScreenText(source = "") {
@@ -646,6 +669,51 @@ function parseSseBlock(block) {
   }
 }
 
+function renderGridCrop({ upload, frameIndex, frameCount, inset = 0, onDone }) {
+  if (!upload || !frameCount || typeof window === "undefined") return () => {};
+  let cancelled = false;
+  const img = new Image();
+  img.onload = () => {
+    if (cancelled) return;
+    const { cols, rows } = gridLayoutFor(frameCount);
+    const col = frameIndex % cols;
+    const row = Math.floor(frameIndex / cols);
+    const cellW = Math.floor(img.naturalWidth / cols);
+    const cellH = Math.floor(img.naturalHeight / rows);
+    const insetRatio = Math.max(0, Math.min(12, Number(inset) || 0)) / 100;
+    const insetX = Math.floor(cellW * insetRatio);
+    const insetY = Math.floor(cellH * insetRatio);
+    const sourceX = col * cellW + insetX;
+    const sourceY = row * cellH + insetY;
+    const sourceW = Math.max(1, cellW - insetX * 2);
+    const sourceH = Math.max(1, cellH - insetY * 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const targetAspect = canvas.width / canvas.height;
+    const sourceAspect = sourceW / sourceH;
+    let drawW = sourceW;
+    let drawH = sourceH;
+    let drawX = sourceX;
+    let drawY = sourceY;
+    if (sourceAspect > targetAspect) {
+      drawW = Math.floor(sourceH * targetAspect);
+      drawX = sourceX + Math.floor((sourceW - drawW) / 2);
+    } else {
+      drawH = Math.floor(sourceW / targetAspect);
+      drawY = sourceY + Math.floor((sourceH - drawH) / 2);
+    }
+    ctx.drawImage(img, drawX, drawY, drawW, drawH, 0, 0, canvas.width, canvas.height);
+    if (!cancelled) onDone?.(canvas.toDataURL("image/png"));
+  };
+  img.src = upload;
+  return () => { cancelled = true; };
+}
+
 export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("Лифт на минус первый");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
@@ -667,6 +735,7 @@ export default function TrailerStoryboardPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [draftReady, setDraftReady] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState("");
 
   const styleProfile = useMemo(() => getStyleProfile("film", stylePreset), [stylePreset]);
   const scenes = useMemo(() => (Array.isArray(storyboard?.scenes) ? storyboard.scenes : []), [storyboard]);
@@ -751,26 +820,136 @@ export default function TrailerStoryboardPage() {
       if (draft.target) setTarget(draft.target);
       if (draft.stylePreset) setStylePreset(draft.stylePreset);
       if (draft.partSize) setPartSize(Number(draft.partSize));
+      if (draft.storyboard?.scenes) setStoryboard(draft.storyboard);
+      if (draft.gridUploads && typeof draft.gridUploads === "object") setGridUploads(draft.gridUploads);
+      if (Number.isFinite(Number(draft.activePart))) setActivePart(Number(draft.activePart));
+      if (Number.isFinite(Number(draft.selectedFrameIndex))) setSelectedFrameIndex(Number(draft.selectedFrameIndex));
       if (Number.isFinite(Number(draft.cropInset))) setCropInset(Number(draft.cropInset));
+      if (draft.lastSavedAt) setLastSavedAt(draft.lastSavedAt);
     } catch {}
     setDraftReady(true);
   }, []);
 
   useEffect(() => {
     if (!draftReady) return;
+    const savedAt = new Date().toISOString();
+    const payload = {
+      projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
+      aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart,
+      selectedFrameIndex, gridUploads, lastSavedAt: savedAt,
+    };
     try {
-      window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({
-        projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
-        aspectRatio, target, stylePreset, partSize, cropInset,
-      }));
+      window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
+      setLastSavedAt(savedAt);
+    } catch {
+      try {
+        window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({ ...payload, gridUploads: {}, croppedFrame: "" }));
+        setLastSavedAt(savedAt);
+      } catch {}
+    }
+  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart, selectedFrameIndex, gridUploads]);
+
+  useEffect(() => {
+    if (!currentGridUpload || !partScenes.length) {
+      setCroppedFrame("");
+      return undefined;
+    }
+    return renderGridCrop({
+      upload: currentGridUpload,
+      frameIndex: safeFrameIndex,
+      frameCount: partScenes.length,
+      inset: cropInset,
+      onDone: setCroppedFrame,
+    });
+  }, [currentGridUpload, safeFrameIndex, partScenes.length, cropInset]);
+
+  function restoreSavedDraft() {
+    try {
+      const raw = window.localStorage.getItem(TRAILER_DRAFT_KEY);
+      if (!raw) {
+        setStatus("No saved trailer storyboard found");
+        return;
+      }
+      const draft = JSON.parse(raw);
+      if (draft.projectName !== undefined) setProjectName(draft.projectName);
+      if (draft.script !== undefined) setScript(draft.script);
+      if (draft.duration) setDuration(Number(draft.duration));
+      if (draft.frameSeconds) setFrameSeconds(Number(draft.frameSeconds));
+      if (typeof draft.autoTiming === "boolean") setAutoTiming(draft.autoTiming);
+      if (draft.customFrameCount) setCustomFrameCount(Number(draft.customFrameCount));
+      if (draft.aspectRatio) setAspectRatio(draft.aspectRatio);
+      if (draft.target) setTarget(draft.target);
+      if (draft.stylePreset) setStylePreset(draft.stylePreset);
+      if (draft.partSize) setPartSize(Number(draft.partSize));
+      setStoryboard(draft.storyboard?.scenes ? draft.storyboard : null);
+      setGridUploads(draft.gridUploads && typeof draft.gridUploads === "object" ? draft.gridUploads : {});
+      setActivePart(Number.isFinite(Number(draft.activePart)) ? Number(draft.activePart) : 0);
+      setSelectedFrameIndex(Number.isFinite(Number(draft.selectedFrameIndex)) ? Number(draft.selectedFrameIndex) : 0);
+      setCropInset(Number.isFinite(Number(draft.cropInset)) ? Number(draft.cropInset) : 0);
+      setCroppedFrame("");
+      setError("");
+      setLastSavedAt(draft.lastSavedAt || "");
+      setStatus(draft.storyboard?.scenes ? `Loaded saved storyboard: ${draft.storyboard.scenes.length} frames` : "Loaded saved setup");
     } catch {}
-  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize, cropInset]);
+  }
+
+  function saveDraftNow() {
+    const savedAt = new Date().toISOString();
+    const payload = {
+      projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
+      aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart,
+      selectedFrameIndex, gridUploads, lastSavedAt: savedAt,
+    };
+    try {
+      window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
+      setLastSavedAt(savedAt);
+      setStatus(storyboard?.scenes ? `Saved locally: ${storyboard.scenes.length} frames` : "Setup saved locally");
+    } catch {
+      try {
+        window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({ ...payload, gridUploads: {} }));
+        setLastSavedAt(savedAt);
+        setStatus("Saved locally without grid images because browser storage is full");
+      } catch {
+        setError("Could not save locally: browser storage is full");
+      }
+    }
+  }
+
+  function clearSavedDraft() {
+    if (!window.confirm("Удалить сохранённый trailer storyboard из браузера?")) return;
+    window.localStorage.removeItem(TRAILER_DRAFT_KEY);
+    setLastSavedAt("");
+    setStatus("Saved trailer storyboard cleared");
+  }
+
+  function resetAll() {
+    if (!window.confirm("Очистить текущий trailer project и начать новый?")) return;
+    window.localStorage.removeItem(TRAILER_DRAFT_KEY);
+    setProjectName("");
+    setScript("");
+    setDuration(87);
+    setFrameSeconds(3);
+    setAutoTiming(true);
+    setCustomFrameCount(27);
+    setAspectRatio("9:16");
+    setTarget("grok");
+    setStylePreset("psychologicalDread");
+    setPartSize(4);
+    setActivePart(0);
+    setSelectedFrameIndex(0);
+    setGridUploads({});
+    setCroppedFrame("");
+    setCropInset(0);
+    setStoryboard(null);
+    setError("");
+    setLastSavedAt("");
+    setStatus("New trailer project ready");
+  }
 
   async function generateTrailer() {
     setBusy(true);
     setError("");
     setStatus("Preparing trailer storyboard request...");
-    setStoryboard(null);
     setActivePart(0);
     setSelectedFrameIndex(0);
     setCroppedFrame("");
@@ -809,7 +988,7 @@ export default function TrailerStoryboardPage() {
         const payload = await res.json();
         if (!payload.storyboard) throw new Error(payload.error || "No storyboard returned");
         setStoryboard(payload.storyboard);
-        setStatus(`Done: ${payload.storyboard.scenes?.length || 0} frames`);
+        setStatus(`Done: ${payload.storyboard.scenes?.length || 0} frames. Saved locally.`);
         return;
       }
 
@@ -827,7 +1006,7 @@ export default function TrailerStoryboardPage() {
           const { event, data } = parseSseBlock(block);
           if (event === "done" && data.storyboard) {
             setStoryboard(data.storyboard);
-            setStatus(`Done: ${data.storyboard.scenes?.length || 0} frames`);
+            setStatus(`Done: ${data.storyboard.scenes?.length || 0} frames. Saved locally.`);
           } else if (event === "error" || event === "chunk_failed") {
             throw new Error(data.error || "Trailer generation failed");
           } else if (data.message) {
@@ -857,7 +1036,7 @@ export default function TrailerStoryboardPage() {
     setCroppedFrame("");
     const sb = buildLocalTrailerStoryboard({ script, duration: effectiveDuration, aspectRatio, stylePreset, target, targetFrames: expectedFrames, frameSeconds, timingMode });
     setStoryboard(sb);
-    setStatus(`Local preview: ${sb.scenes.length} frames, ${splitScenesIntoParts(sb.scenes, partSize).length} PARTS`);
+    setStatus(`Local preview: ${sb.scenes.length} frames, ${splitScenesIntoParts(sb.scenes, partSize).length} PARTS. Saved locally.`);
   }
 
   async function copyPrompt() {
@@ -891,47 +1070,24 @@ export default function TrailerStoryboardPage() {
     reader.readAsDataURL(file);
   }
 
+  function selectGridFrame(index) {
+    setSelectedFrameIndex(index);
+    setCroppedFrame("");
+    setStatus(`${frameLabel(partScenes[index], index)} selected`);
+  }
+
   function cropSelectedFrame() {
     if (!currentGridUpload || !partScenes.length) return;
-    const img = new Image();
-    img.onload = () => {
-      const { cols, rows } = gridLayoutFor(partScenes.length);
-      const col = safeFrameIndex % cols;
-      const row = Math.floor(safeFrameIndex / cols);
-      const cellW = Math.floor(img.naturalWidth / cols);
-      const cellH = Math.floor(img.naturalHeight / rows);
-      const insetRatio = Math.max(0, Math.min(12, Number(cropInset) || 0)) / 100;
-      const insetX = Math.floor(cellW * insetRatio);
-      const insetY = Math.floor(cellH * insetRatio);
-      const sourceX = col * cellW + insetX;
-      const sourceY = row * cellH + insetY;
-      const sourceW = Math.max(1, cellW - insetX * 2);
-      const sourceH = Math.max(1, cellH - insetY * 2);
-      const canvas = document.createElement("canvas");
-      canvas.width = 1080;
-      canvas.height = 1920;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const targetAspect = canvas.width / canvas.height;
-      const sourceAspect = sourceW / sourceH;
-      let drawW = sourceW;
-      let drawH = sourceH;
-      let drawX = sourceX;
-      let drawY = sourceY;
-      if (sourceAspect > targetAspect) {
-        drawW = Math.floor(sourceH * targetAspect);
-        drawX = sourceX + Math.floor((sourceW - drawW) / 2);
-      } else {
-        drawH = Math.floor(sourceW / targetAspect);
-        drawY = sourceY + Math.floor((sourceH - drawH) / 2);
-      }
-      ctx.drawImage(img, drawX, drawY, drawW, drawH, 0, 0, canvas.width, canvas.height);
-      setCroppedFrame(canvas.toDataURL("image/png"));
-      setStatus(`${frameLabel(selectedScene, safeFrameIndex)} cropped as clean 9:16 canvas`);
-    };
-    img.src = currentGridUpload;
+    renderGridCrop({
+      upload: currentGridUpload,
+      frameIndex: safeFrameIndex,
+      frameCount: partScenes.length,
+      inset: cropInset,
+      onDone: (dataUrl) => {
+        setCroppedFrame(dataUrl);
+        setStatus(`${frameLabel(selectedScene, safeFrameIndex)} cropped as clean 9:16 canvas`);
+      },
+    });
   }
 
   function downloadCroppedFrame() {
@@ -986,10 +1142,14 @@ export default function TrailerStoryboardPage() {
         .buttons{display:flex;gap:10px;flex-wrap:wrap}
         button{border:0;border-radius:6px;padding:11px 13px;background:#242936;color:#f7f3ea;font-weight:900;cursor:pointer}
         button.primary{background:#e3344f;color:white}
+        button.danger{background:#3a121b;color:#ffb3bd;border:1px solid rgba(227,52,79,.35)}
         button:disabled{opacity:.55;cursor:not-allowed}
         .pills{display:flex;gap:8px;flex-wrap:wrap}
         .pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);padding:8px 10px;border-radius:999px;font-size:12px}
         .pill.active{border-color:#e3344f;background:rgba(227,52,79,.18);color:#ffd6dc}
+        .metricbox{border:1px solid rgba(255,255,255,.12);background:#10131b;border-radius:6px;padding:11px;display:grid;gap:4px;min-height:46px}
+        .metricbox strong{font-size:20px;color:#fff;letter-spacing:0}
+        .metricbox span{font-size:11px;color:rgba(247,243,234,.58);text-transform:none;letter-spacing:0;font-weight:700}
         .status{font-size:13px;color:#9ee8c9}.error{font-size:13px;color:#ff9aa8}
         .parts{display:flex;gap:8px;flex-wrap:wrap}.part{border:1px solid rgba(255,255,255,.14);background:#11151f}.part.active{background:#e3344f}
         .locks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -1007,6 +1167,15 @@ export default function TrailerStoryboardPage() {
         .crop-preview{min-height:180px;border:1px solid rgba(255,255,255,.10);border-radius:8px;background:#0b0f17;display:grid;place-items:center;overflow:hidden}
         .crop-preview img{width:100%;height:100%;object-fit:contain;display:block}
         .crop-preview span{color:rgba(247,243,234,.48);font-size:12px}
+        .grid-picker{width:100%;position:relative;line-height:0;background:#0b0f17;border:1px solid rgba(255,255,255,.10);border-radius:8px;overflow:hidden}
+        .grid-picker img{width:100%;height:auto;display:block}
+        .grid-overlay{position:absolute;inset:0;display:grid}
+        .grid-cell{position:relative;border:0;border-radius:0;background:rgba(0,0,0,0);min-height:0;padding:0;color:#fff}
+        .grid-cell:hover{background:rgba(227,52,79,.10)}
+        .grid-cell.active{background:rgba(227,52,79,.12)}
+        .grid-cell.active:after{content:"";position:absolute;inset:var(--trim);border:3px solid #ff334f;box-shadow:0 0 0 1px rgba(0,0,0,.65),0 0 18px rgba(227,52,79,.35);pointer-events:none}
+        .grid-cell .badge{position:absolute;top:8px;left:8px;line-height:1;border-radius:999px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.18);padding:6px 8px;font-size:11px}
+        .grid-cell.active .badge{background:#e3344f;color:#fff}
         .lockbox div,.frame{font-size:13px;color:rgba(247,243,234,.76);line-height:1.45}
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
@@ -1052,7 +1221,15 @@ export default function TrailerStoryboardPage() {
               <input type="range" min={MIN_FRAME_SECONDS} max={MAX_FRAME_SECONDS} step="1" value={frameSeconds} onChange={(e) => setFrameSeconds(Number(e.target.value))} />
             </label>
             <div className="row">
-              <label>Custom frames<input type="number" min="1" max={maxManualFrames} value={manualFrames} disabled={autoTiming} onChange={(e) => setCustomFrameCount(clampNumber(e.target.value, 1, maxManualFrames, manualFrames))} /></label>
+              {autoTiming ? (
+                <div className="metricbox">
+                  <span>Auto frames</span>
+                  <strong>{autoFrames}</strong>
+                  <span>calculated from duration and seconds per frame</span>
+                </div>
+              ) : (
+                <label>Custom frames<input type="number" min="1" max={maxManualFrames} value={manualFrames} onChange={(e) => setCustomFrameCount(clampNumber(e.target.value, 1, maxManualFrames, manualFrames))} /></label>
+              )}
               <label>Aspect<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
             </div>
             <div className="row">
@@ -1064,6 +1241,10 @@ export default function TrailerStoryboardPage() {
               <button className="primary" disabled={busy || script.trim().length < 10} onClick={generateTrailer}>{busy ? "Generating..." : "Generate AI Trailer JSON"}</button>
               <button disabled={busy || script.trim().length < 10} onClick={buildLocalPreview}>Local test plan</button>
               <button disabled={!storyboard} onClick={downloadJson}>Download JSON</button>
+              <button disabled={busy} onClick={saveDraftNow}>Save locally</button>
+              <button disabled={busy} onClick={restoreSavedDraft}>Load last</button>
+              <button className="danger" disabled={busy} onClick={resetAll}>New project</button>
+              <button className="danger" disabled={busy} onClick={clearSavedDraft}>Clear saved</button>
             </div>
             <div className="pills">
               <span className="pill active">{expectedFrames} frames expected</span>
@@ -1071,6 +1252,7 @@ export default function TrailerStoryboardPage() {
               <span className="pill">{timingMode}</span>
               <span className="pill">{parts.length || 0} PARTS ready</span>
               <span className="pill">{partSize} per PART</span>
+              {lastSavedAt ? <span className="pill">saved locally</span> : null}
             </div>
             {status && <div className="status">{status}</div>}
             {error && <div className="error">{error}</div>}
@@ -1147,15 +1329,39 @@ export default function TrailerStoryboardPage() {
                   </div>
                   <div className="frame-select">
                     {partScenes.map((scene, i) => (
-                      <button key={scene.id || i} className={safeFrameIndex === i ? "active" : ""} onClick={() => { setSelectedFrameIndex(i); setCroppedFrame(""); }}>
+                      <button key={scene.id || i} className={safeFrameIndex === i ? "active" : ""} onClick={() => selectGridFrame(i)}>
                         {frameLabel(scene, i)}
                       </button>
                     ))}
                   </div>
                   <div className="crop-grid">
-                    <div className="crop-preview">
-                      {currentGridUpload ? <img src={currentGridUpload} alt={`PART ${safePart + 1} grid upload`} /> : <span>Upload generated PART grid here</span>}
-                    </div>
+                    {currentGridUpload ? (
+                      <div className="grid-picker">
+                        <img src={currentGridUpload} alt={`PART ${safePart + 1} grid upload`} />
+                        <div
+                          className="grid-overlay"
+                          style={{
+                            gridTemplateColumns: `repeat(${currentGridLayout.cols}, minmax(0, 1fr))`,
+                            gridTemplateRows: `repeat(${currentGridLayout.rows}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          {partScenes.map((scene, i) => (
+                            <button
+                              key={scene.id || i}
+                              type="button"
+                              className={`grid-cell${safeFrameIndex === i ? " active" : ""}`}
+                              style={{ "--trim": `${cropInset}%` }}
+                              onClick={() => selectGridFrame(i)}
+                              aria-label={`Select ${frameLabel(scene, i)}`}
+                            >
+                              <span className="badge">{frameLabel(scene, i)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="crop-preview"><span>Upload generated PART grid here</span></div>
+                    )}
                     <div className="crop-preview">
                       {croppedFrame ? <img src={croppedFrame} alt={`${frameLabel(selectedScene, safeFrameIndex)} crop`} /> : <span>Crop preview appears here</span>}
                     </div>
