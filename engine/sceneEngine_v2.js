@@ -561,6 +561,20 @@ SCRIPT BREAKDOWN PASS: before scenes, infer first appearance of each character, 
 Every trailer scene must include visual_beat_ru, visual_beat_en, allowed_characters, allowed_objects, allowed_location and forbidden_visuals.
 If a script line is abstract, make a minimal concrete shot from the already established locked location. Do NOT add people before they are introduced.
 For multiple generated variants of the same PART, keep identical story content and vary only camera angle, focal length, distance, foreground layer or composition.
+
+TRAILER HOOK PACING — NON-NEGOTIABLE:
+The first PART must sell the movie premise immediately. Do NOT spend the first 4 frames on only empty establishing shots or abstract narration.
+Compress abstract opening lines into ONE concrete hook frame. A trailer frame may combine 2-3 exact adjacent source lines in script_line_ru when needed to form one strong beat; never paraphrase them as new story.
+If the script introduces recurring protagonists anywhere in the first act, they must appear by frame 2 unless the script explicitly delays all people.
+If the script contains an inciting anomaly/prop/sign/button/display/discovery, it must appear by frame 3.
+Frame 4 must show the first consequence, choice, trap, threat, or irreversible movement into danger if such a beat exists in the script.
+For a 4-frame PART, use this mini-arc:
+1. HOOK IMAGE: the core location/anomaly/premise in one concrete shot.
+2. HUMAN STAKE: the recurring cast or victim group introduced by the script.
+3. INCITING DETAIL: the object/sign/display/action that makes the situation wrong.
+4. FIRST DANGER: the choice/trap/descent/reaction that makes escape uncertain.
+Opening scenes may jump forward within the script to these key beats, but must preserve story order inside the selected hook beats.
+After the hook PART, continue covering the remaining story beats in order without losing the full scenario arc.
 ` : ""}
 VISUAL FIDELITY — MANDATORY FOR ALL MODES:
 SOURCE OF TRUTH = each scene's script_line_ru / vo_ru source line.

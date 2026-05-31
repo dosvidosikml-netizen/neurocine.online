@@ -99,6 +99,13 @@ mode parameter:
 - "short_film" → SHORT FILM / DIALOGUE MODE: screenplay coverage with scripted dialogue, blocking, inserts, reaction shots and visible text fields
 - "trailer" → TRAILER STORYBOARD MODE: full film/trailer frame plan with cast_lock, location_lock, style_bible, grid continuity and long-form continuity up to 10 minutes
 
+TRAILER MODE PACING LAW:
+The opening PART must be a hook mini-arc, not a literal line-by-line dump.
+Compress abstract setup into one concrete hook image, introduce human stake by frame 2,
+show the inciting anomaly by frame 3, and show the first danger/trap/consequence by frame 4
+when those beats exist in the script. Use only exact source lines from the script; combine adjacent
+source lines in script_line_ru when needed, but never invent new story content.
+
 In SAFE mode, replace risky phrasing automatically:
   blood → "dark traces on fabric"
   bleeding → "physical distress visible"

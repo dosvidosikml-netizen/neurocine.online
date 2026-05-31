@@ -100,6 +100,87 @@ function splitScriptBeats(script = "") {
     .filter(Boolean);
 }
 
+function lineMatches(line = "", patterns = []) {
+  const value = cleanText(line).toLowerCase();
+  return patterns.some((pattern) => pattern.test(value));
+}
+
+function findBeatIndex(lines = [], patterns = [], used = new Set(), start = 0) {
+  for (let i = Math.max(0, start); i < lines.length; i += 1) {
+    if (!used.has(i) && lineMatches(lines[i], patterns)) return i;
+  }
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!used.has(i) && lineMatches(lines[i], patterns)) return i;
+  }
+  return -1;
+}
+
+function findNextUnusedIndex(lines = [], used = new Set(), start = 0) {
+  for (let i = Math.max(0, start); i < lines.length; i += 1) if (!used.has(i)) return i;
+  for (let i = 0; i < lines.length; i += 1) if (!used.has(i)) return i;
+  return -1;
+}
+
+function buildTrailerBeatPlan(lines = [], totalFrames = 1) {
+  const cleanLines = lines.map(cleanText).filter(Boolean);
+  if (!cleanLines.length) return ["Trailer beat"];
+
+  const used = new Set();
+  const plan = [];
+  const max = Math.max(1, Math.round(Number(totalFrames) || 1));
+  const characterPatterns = [/трое\s+сотрудник/, /сотрудник/, /геро/, /девушк/, /парень/];
+  const anomalyPatterns = [/-1/, /минус\s+перв/, /кнопк/, /панел/, /диспле/, /надпись/, /не\s+смотрите/];
+  const dangerPatterns = [/еха|едет|спуск|вниз|слишком\s+долго/, /стоп/, /красн/, /посмотрел/, /углу/, /человек/];
+  const openElevatorPatterns = [/лифт.*открыт/, /стоит\s+открыт/, /заходить\s+внутр/];
+
+  function pushSource(source, indices = []) {
+    if (!source || plan.length >= max) return;
+    plan.push(source);
+    indices.forEach((i) => used.add(i));
+  }
+
+  const castIndex = findBeatIndex(cleanLines, characterPatterns, used);
+  const searchUntil = castIndex >= 0 ? castIndex : cleanLines.length;
+  let hookEnd = -1;
+  for (let i = 0; i < searchUntil; i += 1) {
+    if (lineMatches(cleanLines[i], openElevatorPatterns)) hookEnd = i;
+  }
+  if (hookEnd < 0) hookEnd = Math.min(searchUntil - 1, 0);
+  if (hookEnd < 0) hookEnd = 0;
+  const hookStart = 0;
+  const hookIndices = [];
+  for (let i = hookStart; i <= hookEnd; i += 1) hookIndices.push(i);
+  pushSource(hookIndices.map((i) => cleanLines[i]).join(" / "), hookIndices);
+
+  if (max >= 2) {
+    const idx = castIndex >= 0 && !used.has(castIndex) ? castIndex : findNextUnusedIndex(cleanLines, used, hookEnd + 1);
+    if (idx >= 0) pushSource(cleanLines[idx], [idx]);
+  }
+
+  if (max >= 3) {
+    const idx = findBeatIndex(cleanLines, anomalyPatterns, used, Math.max(0, castIndex + 1));
+    const fallback = idx >= 0 ? idx : findNextUnusedIndex(cleanLines, used, castIndex + 1);
+    if (fallback >= 0) pushSource(cleanLines[fallback], [fallback]);
+  }
+
+  if (max >= 4) {
+    const idx = findBeatIndex(cleanLines, dangerPatterns, used, 0);
+    const fallback = idx >= 0 ? idx : findNextUnusedIndex(cleanLines, used, 0);
+    if (fallback >= 0) pushSource(cleanLines[fallback], [fallback]);
+  }
+
+  for (let i = 0; i < cleanLines.length && plan.length < max; i += 1) {
+    if (!used.has(i)) pushSource(cleanLines[i], [i]);
+  }
+
+  while (plan.length < max) {
+    const idx = Math.min(cleanLines.length - 1, Math.floor((plan.length / max) * cleanLines.length));
+    plan.push(cleanLines[idx] || cleanLines[cleanLines.length - 1] || "Trailer beat");
+  }
+
+  return plan.slice(0, max);
+}
+
 function estimateAutoFrameCount(script, duration, frameSeconds) {
   const safeDuration = clampNumber(duration, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 60);
   const safeFrameSeconds = clampNumber(frameSeconds, MIN_FRAME_SECONDS, MAX_FRAME_SECONDS, 3);
@@ -372,7 +453,13 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
   let sfx = "fluorescent tube flicker, old elevator metal vibration";
   let blocking = "Use only the characters currently introduced by the script; keep locked office/elevator geography.";
 
-  if (/этаж.*не должно существовать/.test(l)) {
+  if ((/этаж.*не должно существовать/.test(l) && /лифт.*открыт|стоит открытым|заходить внутр/.test(l)) || /последний лифт.*открыт|лифт.*стоит открытым/.test(l)) {
+    visualRu = "Хук: пустой ночной офисный коридор ведёт к открытому старому лифту, будто он ждёт; людей нет, опасность уже понятна.";
+    visualEn = "Hook shot: an empty night office corridor leads to an open old elevator waiting at the end; no people, the danger premise is immediately clear.";
+    allowedObjects = "office corridor, open elevator doors, empty elevator cabin, flickering fluorescent lights";
+    shotRole = "hook";
+    camera = "tense wide hook shot with elevator as focal point";
+  } else if (/этаж.*не должно существовать/.test(l)) {
     visualRu = "Пустой ночной офисный коридор с закрытыми дверями кабинетов и старым лифтом в глубине; тревожный намёк на несуществующий этаж, людей нет.";
     visualEn = "Empty night office corridor with closed office doors and the old elevator deep in the frame; a subtle impossible-floor mood, no people.";
     allowedObjects = "office corridor, old elevator doors, flickering fluorescent lights";
@@ -602,8 +689,18 @@ allowed_location, forbidden_visuals.
 FRAME COUNT CONTROL:
 Return exactly ${expectedFrames} scenes.
 Scene durations may be 2-10 seconds, but total_duration must equal ${effectiveDuration}s.
-If timing mode is auto, split the script into meaningful beats: establishing shots, dialogue, inserts, reactions, reveals, chase/action beats and final sting.
+If timing mode is auto, split the script into meaningful trailer beats: hook image, human stake, inciting anomaly, first danger, inserts, reactions, reveals, chase/action beats, climax and final sting.
 If a script beat needs multiple frames, continue the same beat visually without adding new story content.
+
+TRAILER HOOK PACING:
+- The first PART must sell the premise immediately. Do not spend the first 4 frames only on empty establishing shots or abstract narration.
+- Compress abstract opening narration into ONE concrete hook frame.
+- A scene.script_line_ru may combine 2-3 exact adjacent source lines with " / " when needed to form a strong trailer beat. Do not invent or paraphrase new story.
+- If recurring protagonists are introduced in the first act, they must appear by frame 2.
+- If the script contains an inciting anomaly/prop/sign/button/display/discovery, it must appear by frame 3.
+- Frame 4 must show the first consequence, choice, trap, threat, or irreversible movement into danger if such a beat exists.
+- For a 4-frame PART, use this mini-arc: 1) HOOK IMAGE, 2) HUMAN STAKE, 3) INCITING DETAIL, 4) FIRST DANGER.
+- After the first PART, continue covering the remaining scenario beats in story order.
 
 VISUAL BEAT RULES:
 - visual_beat_ru / visual_beat_en are the concrete shot descriptions used by PART grids.
@@ -629,12 +726,13 @@ ${script}`;
 function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePreset, target, targetFrames, frameSeconds, timingMode }) {
   const lines = splitScriptBeats(script);
   const totalFrames = Math.max(1, Math.round(Number(targetFrames) || estimateAutoFrameCount(script, duration, frameSeconds)));
+  const plannedLines = buildTrailerBeatPlan(lines, totalFrames);
   const frameDurations = distributeDurations(duration, totalFrames, frameSeconds);
   const style = getStyleProfile("film", stylePreset)?.style_lock || STYLE_PRESETS[stylePreset]?.lock || STYLE_PRESETS.cinematic.lock;
   let runningStart = 0;
   let entityState = { employees: false, cornerMan: false, duplicate: false };
   const scenes = Array.from({ length: totalFrames }, (_, i) => {
-    const source = lines[i] || lines[Math.min(lines.length - 1, Math.floor((i / totalFrames) * Math.max(1, lines.length)))] || "Trailer beat";
+    const source = plannedLines[i] || lines[Math.min(lines.length - 1, Math.floor((i / totalFrames) * Math.max(1, lines.length)))] || "Trailer beat";
     const visual = buildTrailerVisualBeat(source, entityState);
     entityState = visual.state;
     const isDialogue = /сказал|сказала|ш[её]пот|говорит|крик|крич/i.test(source);
@@ -665,7 +763,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       sfx: visual.sfx,
       camera: visual.camera,
       transition: "cut",
-      cut_energy: i > totalFrames * 0.7 ? "high" : i < 4 ? "low" : "medium",
+      cut_energy: i < 4 || i > totalFrames * 0.7 ? "high" : "medium",
       continuity_note: "Keep same film cast, wardrobe, location, lighting and production design. Style never adds unscripted objects or people.",
       safety_note: "Trailer mode safe visual framing",
       target,
@@ -700,7 +798,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       forbidden: "no luxury building, no daylight modern lobby, no new unrelated location",
     },
     style_bible: style,
-    grid_continuity: "PART 1 establishes the locked film world only through explicit visual beats. PART 2+ continues the same film using cast_lock, location_lock, style_bible, visual_beat fields and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
+    grid_continuity: "PART 1 must work as a trailer hook mini-arc: hook image, human stake, inciting anomaly, first danger. PART 2+ continues the same film using cast_lock, location_lock, style_bible, visual_beat fields and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
     scenes,
     export_meta: { mode: "trailer", target, trailer_mode: true, local_preview: true, target_scene_count: totalFrames, frame_seconds: frameSeconds, timing_mode: timingMode },
   };
