@@ -29,6 +29,8 @@ function isFirstFrame(frame = {}) {
 function collectContext(frame = {}, storyboard = {}) {
   return cleanText([
     frame.id,
+    frame.visual_beat_ru,
+    frame.visual_beat_en,
     frame.description_ru,
     frame.description_en,
     frame.image_prompt_en,
@@ -110,6 +112,7 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
 
   const ctx = cleanText([
     frameAudioContext,
+    frame.visual_beat_ru, frame.visual_beat_en,
     frame.description_ru, frame.description_en,
     frame.image_prompt_en, frame.vo_ru,
     action,
@@ -418,7 +421,21 @@ export function buildCharacterBlock(characterLock = [], { compact = false, omitN
 
 function getRelevantCharacterLock(characterLock = [], frame = {}) {
   if (!Array.isArray(characterLock) || characterLock.length === 0) return [];
+  const allowedRaw = Array.isArray(frame.allowed_characters)
+    ? frame.allowed_characters.map(cleanText).filter(Boolean).join(" ")
+    : cleanText(frame.allowed_characters || "");
+  if (Array.isArray(frame.allowed_characters) && frame.allowed_characters.length === 0) return [];
+  if (/^(none|no characters|no people|нет персонажей|без людей)$/i.test(allowedRaw)) return [];
+  if (allowedRaw) {
+    const allowedLower = allowedRaw.toLowerCase();
+    return characterLock.filter((c) => {
+      const fields = [c.name, c.role, c.description, c.visual_identity].map(cleanText).filter(Boolean);
+      return fields.some((value) => allowedLower.includes(value.toLowerCase()));
+    });
+  }
   const haystack = cleanText([
+    frame.visual_beat_ru,
+    frame.visual_beat_en,
     frame.description_ru,
     frame.description_en,
     stripGeneratedPromptSections(frame.image_prompt_en),
@@ -434,6 +451,8 @@ function getRelevantCharacterLock(characterLock = [], frame = {}) {
 
 function getFrameAction(frame = {}) {
   const preferred = [
+    frame.visual_beat_en,
+    frame.visual_beat_ru,
     frame.motion,
     frame.story_action_en,
     frame.action_en,
@@ -452,6 +471,18 @@ function getFrameAction(frame = {}) {
 
 function getScriptLine(frame = {}) {
   return cleanText(frame.script_line_ru || frame.script_line || frame.vo_ru || "");
+}
+
+function getVisualBeat(frame = {}) {
+  return cleanText(stripGeneratedPromptSections(
+    frame.visual_beat_en ||
+    frame.visual_beat_ru ||
+    frame.shot_visual_en ||
+    frame.shot_visual_ru ||
+    frame.visual_scene_en ||
+    frame.visual_scene_ru ||
+    ""
+  ));
 }
 
 function isDialogueMode(frame = {}, storyboard = {}) {
@@ -496,8 +527,18 @@ function getSourceTruthAction(frame = {}) {
 }
 
 function getSourceTruthVisual(frame = {}) {
-  const scriptLine = getScriptLine(frame);
-  return scriptLine || stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || "");
+  return getVisualBeat(frame) || stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || getScriptLine(frame) || "");
+}
+
+function promptList(value = "") {
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join("; ");
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, val]) => val ? `${key}: ${cleanText(val)}` : "")
+      .filter(Boolean)
+      .join("; ");
+  }
+  return cleanText(value || "");
 }
 
 function compactVideoBeat(text = "", maxWords = 34) {
@@ -526,7 +567,7 @@ function compactCameraMove(text = "", maxWords = 14) {
 }
 
 function inferMicroMotion(action = "", frame = {}) {
-  const text = cleanText([action, frame.description_ru, frame.description_en, frame.image_prompt_en, frame.sfx].filter(Boolean).join(" ")).toLowerCase();
+  const text = cleanText([action, frame.visual_beat_ru, frame.visual_beat_en, frame.description_ru, frame.description_en, frame.image_prompt_en, frame.sfx].filter(Boolean).join(" ")).toLowerCase();
   const moves = [];
   if (/(hand|finger|palm|рук|палец|ладон)/i.test(text)) moves.push("the raised hand trembles slightly, fingers tense");
   if (/(bed|blanket|mattress|кровать|одеял|матрас)/i.test(text)) moves.push("the blanket shifts with shallow breathing");
@@ -582,10 +623,15 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
   const frameNum = Number(String(frame.id || "").replace(/\D/g, "")) || 1;
   const relevantCharacters = getRelevantCharacterLock(storyboard.character_lock, frame);
   const characterBlock = buildCharacterBlock(relevantCharacters, { compact: target === "grok", omitNames: target === "grok" });
-  const sceneVisual = cleanText(stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || ""));
+  const sceneVisual = cleanText(getVisualBeat(frame) || stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || ""));
   const sourceTruthVisual = getSourceTruthVisual(frame) || sceneVisual;
   const camera = cleanText(frame.camera || "static documentary frame, natural lens perspective");
   const anchors = [REALISM_ANCHORS_SKIN[0], REALISM_ANCHORS_HAIR_FABRIC[0], REALISM_ANCHORS_OPTICS[0]].join(", ");
+  const allowedCharacters = promptList(frame.allowed_characters);
+  const allowedObjects = promptList(frame.allowed_objects);
+  const allowedLocation = promptList(frame.allowed_location);
+  const forbiddenVisuals = promptList(frame.forbidden_visuals || frame.forbidden_objects || frame.forbidden);
+  const allowedBlock = [allowedCharacters ? `Allowed characters: ${allowedCharacters}` : "", allowedObjects ? `Allowed objects: ${allowedObjects}` : "", allowedLocation ? `Allowed location: ${allowedLocation}` : ""].filter(Boolean).join(". ");
 
   if (target === "grok") {
     // Структурированный формат: Storyboard panel X of Y
@@ -595,9 +641,11 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
     const sourceLine = getScriptLine(frame);
 
     // Subject блок — character_lock фиксирует идентичность, но не добавляет героя в кадр без поддержки script line.
-    const subjectBlock = characterBlock
+    const subjectBlock = allowedCharacters
+      ? `Subject: ${allowedCharacters}`
+      : characterBlock
       ? `Subject: ${characterBlock} only if present in the source line`
-      : `Subject: ${limitWords(sourceTruthVisual, 18)}`;
+      : `Subject: ${/no people|no characters|без людей/i.test(forbiddenVisuals) ? "no human subject" : limitWords(sourceTruthVisual, 18)}`;
 
     // Action & Emotion строго из source line / vo_ru.
     const actionBlock = limitWords(sourceTruthVisual, 24);
@@ -627,7 +675,9 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
       lightBlock + ".",
       `Camera: ${camera}.`,
       `Style: ${styleRef}.`,
-      "no extra objects, no extra locations, no extra characters, sharp focus, cinematic lighting, photorealistic",
+      allowedBlock ? `${allowedBlock}.` : "",
+      forbiddenVisuals ? `Forbidden: ${forbiddenVisuals}.` : "",
+      "Style formula only controls lens, light, color, grain and texture; no extra objects, no extra locations, no extra characters, sharp focus, cinematic lighting, photorealistic",
       `${arFlag} --stylize ${stylize} --v 6`,
     ].filter(Boolean).join(" "));
   }
@@ -635,6 +685,8 @@ export function buildImagePrompt({ frame = {}, storyboard = {}, target = "veo3" 
   return cleanText([
     sceneVisual,
     characterBlock ? `Subject: ${characterBlock}` : "",
+    allowedBlock || "",
+    forbiddenVisuals ? `Forbidden: ${forbiddenVisuals}` : "",
     `Camera: ${camera}`,
     "Lighting: natural available light, soft ground bounce fill, realistic shadow penumbra",
     "Color grade: desaturated shadows, lifted blacks, natural skin tones",
@@ -682,7 +734,7 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
     "SOURCE OF TRUTH: script line.",
     `Script: "${limitWords(sourceLine, 16)}".`,
     "Preserve uploaded frame; animate only this described action.",
-    "No new objects or scene change.",
+    "No new objects, characters, locations or scene change.",
     `Camera: ${limitWords(camera, 8)}.`,
     `SFX: ${sfxShort}.`,
     `Photorealistic 24fps. ${duration}s --motion 4`,
@@ -718,7 +770,7 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
     "SOURCE OF TRUTH: script line.",
     `Script: "${limitWords(sourceLine, 18)}".`,
     "Preserve uploaded frame; animate only this described action.",
-    "No new objects or scene change.",
+    "No new objects, characters, locations or scene change.",
     `Camera: ${limitWords(camera, 10)}.`,
     `Pace: ${shot.phase.toLowerCase()}, ${limitWords(shot.rhythm, 8)}.`,
     `SFX: ${sfxShort}.`,

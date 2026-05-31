@@ -169,6 +169,7 @@ CONTINUITY PRIORITY:
 2. Same office/elevator/corridor location design and spatial logic.
 3. Same lighting family, lens language, color grade, realism and horror tone.
 4. Source of truth = the frame descriptions in the PART prompt.
+5. Visual beats are stricter than style text: if Visual beat says no people, the cell must be empty.
 
 CAST LOCK:
 ${castLock || characterLock || "Use the same recurring characters from the storyboard. Do not replace actors."}
@@ -183,6 +184,8 @@ FLOW/GROK RULES:
 - ${previousRule}
 - Do not invent a new style, new actors, new costumes, new rooms, new props, new time period or new supernatural rules.
 - Style is only lens/color/lighting/mood. Style cannot add objects that are not in the script.
+- Do not introduce characters before their first scripted appearance. Empty office/elevator beats must stay empty.
+- For repeated variants of this PART, keep the same story content and change only composition, lens, distance, angle or foreground layer.
 - Generate a clean ${gridLayout.cols}×${gridLayout.rows} temporary grid with ${partScenes.length} standalone 9:16 cells.
 - Internal frame order: ${labels}. Do not draw these labels.
 - No visible numbering, no captions, no title bars, no borders, no separators, no black gutters, no UI, no watermark.
@@ -193,10 +196,17 @@ Now follow the PART prompt exactly.`;
 function buildLockedFrameVideoPrompt({ scene, storyboard, styleProfile, frameLabelText, hasCrop }) {
   if (!scene) return "";
   const scriptLine = cleanText(scene.script_line_ru || scene.vo_ru || scene.description_ru || "");
+  const visualBeat = cleanText(scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "");
   const castLock = (storyboard?.cast_lock || []).map((item, i) => lockLine(item, `Cast ${i + 1}`)).filter(Boolean).join("\n");
   const characterLock = (storyboard?.character_lock || []).map((item, i) => lockLine(item, `Character ${i + 1}`)).filter(Boolean).join("\n");
   const locationLock = locationLockLine(storyboard?.location_lock || {});
   const style = cleanText(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "");
+  const allowed = [
+    scene.allowed_characters ? `characters: ${Array.isArray(scene.allowed_characters) ? scene.allowed_characters.join("; ") : scene.allowed_characters}` : "",
+    scene.allowed_objects ? `objects: ${Array.isArray(scene.allowed_objects) ? scene.allowed_objects.join("; ") : scene.allowed_objects}` : "",
+    scene.allowed_location ? `location: ${scene.allowed_location}` : "",
+  ].filter(Boolean).join(" | ");
+  const forbidden = cleanText(scene.forbidden_visuals || "");
   const dialogue = Array.isArray(scene.dialogue) && scene.dialogue.length
     ? scene.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
     : "";
@@ -208,6 +218,15 @@ Preserve exact faces, bodies, wardrobe, lighting direction, camera angle, compos
 
 SOURCE OF TRUTH SCRIPT LINE:
 ${scriptLine}
+
+VISUAL BEAT TO ANIMATE:
+${visualBeat}
+
+ALLOWED IN THIS FRAME:
+${allowed || "Only what is visible in the uploaded crop and directly supported by the source line."}
+
+FORBIDDEN IN THIS FRAME:
+${forbidden || "No new actors, props, rooms, costumes, era, weather or story events."}
 
 CAST LOCK — DO NOT CHANGE PEOPLE:
 ${castLock || characterLock || "Use the same recurring characters already established in the storyboard/grid. Do not replace actors."}
@@ -234,8 +253,223 @@ FORBIDDEN:
 Do not change face identity, age, ethnicity, hairstyle, wardrobe, body type, number of people, office/elevator design, time period, supernatural rules, props or location. Do not add subtitles, UI, watermark, captions, frame numbers, borders, black gutters, title bars or unrelated objects.`;
 }
 
+function extractOnScreenText(source = "") {
+  const text = cleanText(source);
+  const direct = text.match(/(?:надпись|подпись|дисплее?|экран|название|кнопка)[:—-]?\s*(.+)$/i)?.[1];
+  if (direct) return cleanText(direct);
+  if (/-1|минус перв/i.test(text)) return "-1";
+  if (/не смотрите в угол/i.test(text)) return "НЕ СМОТРИТЕ В УГОЛ";
+  if (/пропали без вести|2006/i.test(text)) return "Пропали без вести. 2006 год.";
+  if (/лифт на минус первый/i.test(text)) return "ЛИФТ НА МИНУС ПЕРВЫЙ";
+  return "";
+}
+
+function buildTrailerVisualBeat(source = "", previousState = {}) {
+  const text = cleanText(source);
+  const l = text.toLowerCase();
+  const introducesEmployees = /трое сотрудников|сотрудник|геро[иия]|девушка|парень|они\b|один из/.test(l);
+  const introducesCornerMan = /углу лифта стоял человек|тот человек|вдалеке.*человек|снова появился.*человек/.test(l);
+  const introducesDuplicate = /копи[яию]|самого себя/.test(l);
+  const state = {
+    employees: previousState.employees || introducesEmployees,
+    cornerMan: previousState.cornerMan || introducesCornerMan,
+    duplicate: previousState.duplicate || introducesDuplicate,
+  };
+
+  const hasEmployees = state.employees && /трое|сотрудник|геро|они\b|один|девушка|парень|посмотрели|бежали|кнопк|кричали|родились|исчезли|остался/.test(l);
+  const hasCornerMan = state.cornerMan && /человек|углу|вдалеке|исчез|ближе/.test(l);
+  const hasDuplicate = state.duplicate && /копи|самого себя|улыбнулась|нажимал/.test(l);
+  const hasScriptedOfficePeople = /люди|работник|лицом к стене|повернули головы/.test(l);
+  const noPeople = !hasEmployees && !hasCornerMan && !hasDuplicate && !hasScriptedOfficePeople;
+  const screenText = extractOnScreenText(text);
+
+  let visualRu = `Кадр по строке сценария: ${text}.`;
+  let visualEn = `Literal storyboard shot from the script line: ${text}.`;
+  let allowedLocation = "locked old empty night office / elevator / fluorescent corridor only";
+  let allowedObjects = "only scripted office/elevator elements visible in this beat";
+  let shotRole = "trailer_beat";
+  let camera = "restrained handheld medium shot";
+  let sfx = "fluorescent tube flicker, old elevator metal vibration";
+  let blocking = "Use only the characters currently introduced by the script; keep locked office/elevator geography.";
+
+  if (/этаж.*не должно существовать/.test(l)) {
+    visualRu = "Пустой ночной офисный коридор с закрытыми дверями кабинетов и старым лифтом в глубине; тревожный намёк на несуществующий этаж, людей нет.";
+    visualEn = "Empty night office corridor with closed office doors and the old elevator deep in the frame; a subtle impossible-floor mood, no people.";
+    allowedObjects = "office corridor, old elevator doors, flickering fluorescent lights";
+    shotRole = "establishing";
+    camera = "wide establishing shot";
+  } else if (/ночью|офис пустеет/.test(l)) {
+    visualRu = "Пустой офис после работы: выключенные мониторы, длинный коридор, редкие мигающие люминесцентные лампы; людей нет.";
+    visualEn = "Empty office after hours: switched-off monitors, long corridor, sparse flickering fluorescent lights; no people.";
+    allowedObjects = "office desks, switched-off computers, corridor, fluorescent lights";
+    shotRole = "establishing";
+    camera = "slow wide office establishing shot";
+    sfx = "ceiling ballast single click, distant door latch settling";
+  } else if (/лифт.*открыт|стоит открытым|заходить внутрь/.test(l)) {
+    visualRu = "Открытый старый лифт в конце ночного офисного коридора; пустая кабина видна издалека, людей нет.";
+    visualEn = "Open old elevator at the end of the night office corridor; empty cabin visible from distance, no people.";
+    allowedObjects = "open elevator doors, empty elevator cabin, corridor lights";
+    shotRole = "reveal";
+    camera = "locked-off corridor perspective";
+  } else if (/трое сотрудников/.test(l)) {
+    visualRu = "Те же трое офисных сотрудников после работы собирают вещи в почти пустом офисе; обычная усталость, без новых людей.";
+    visualEn = "The same three office employees after work gather their belongings in the nearly empty office; tired ordinary presence, no new people.";
+    allowedObjects = "three locked employees, desks, computers, bags, office chairs";
+    shotRole = "character_introduction";
+    camera = "handheld medium group shot";
+    blocking = "All three employees are introduced together and become the locked recurring cast.";
+  } else if (/панел|кнопк|минус первый|-1/.test(l)) {
+    visualRu = "Крупный план старой панели лифта: среди обычных кнопок горит странная кнопка -1; только рука уже представленного сотрудника при необходимости.";
+    visualEn = "Close-up of the old elevator panel: among ordinary buttons the strange -1 button glows; only the hand of an already introduced employee if needed.";
+    allowedLocation = "inside the same locked old elevator";
+    allowedObjects = "elevator panel, old buttons, exact -1 button";
+    shotRole = "insert";
+    camera = "macro insert close-up";
+    sfx = "button plastic tick, elevator panel faint electrical buzz";
+  } else if (/ехал|ехать вниз|слишком долго|слишком глубоко/.test(l)) {
+    visualRu = "Те же трое сотрудников внутри старой кабины лифта ощущают слишком долгий спуск; стены и свет той же кабины, без новых пассажиров.";
+    visualEn = "The same three employees inside the old elevator cabin feel the descent lasting too long; same cabin walls and lights, no new passengers.";
+    allowedLocation = "inside the same locked old elevator cabin";
+    allowedObjects = "three locked employees, elevator walls, control panel, ceiling light";
+    shotRole = "tension";
+    camera = "tight handheld elevator interior";
+    sfx = "elevator cable groan, cabin metal vibration";
+  } else if (/не смотрите в угол|диспле/.test(l)) {
+    visualRu = "Крупный план дисплея лифта с точной надписью «НЕ СМОТРИТЕ В УГОЛ»; вокруг тот же металл кабины.";
+    visualEn = "Close-up of the elevator display showing the exact text 'НЕ СМОТРИТЕ В УГОЛ'; same cabin metal around it.";
+    allowedLocation = "inside the same locked old elevator cabin";
+    allowedObjects = "elevator display, exact warning text, scratched metal panel";
+    shotRole = "insert";
+    camera = "display insert close-up";
+    sfx = "display relay click, fluorescent flicker snap";
+  } else if (/посмотрели/.test(l)) {
+    visualRu = "Те же трое сотрудников медленно поворачивают головы внутри кабины лифта к одному углу; человек в углу ещё не показан полностью.";
+    visualEn = "The same three employees slowly turn their heads inside the elevator cabin toward one corner; the corner figure is not fully revealed yet.";
+    allowedLocation = "inside the same locked old elevator cabin";
+    allowedObjects = "three locked employees, elevator corner, red dim cabin light";
+    shotRole = "reaction";
+    camera = "tight reaction shot";
+    sfx = "breath held in cabin, fluorescent buzz breaking";
+  } else if (/углу лифта стоял человек/.test(l)) {
+    visualRu = "В углу той же кабины лифта неподвижно стоит тот же тёмный человек; трое сотрудников видят, что он был там всё время.";
+    visualEn = "In the corner of the same elevator cabin the same dark silent man stands motionless; the three employees realize he was there all along.";
+    allowedLocation = "inside the same locked old elevator cabin";
+    allowedObjects = "corner man, three locked employees, elevator corner, red cabin light";
+    shotRole = "reveal";
+    camera = "wide claustrophobic elevator reveal";
+    sfx = "elevator light stutter, cloth brush from a frozen body";
+  } else if (/двери открылись|тот же офис|что-то было неправильно|столы|часы|люди за стеклом|повернули головы/.test(l)) {
+    visualRu = "Двери лифта открываются в тот же офис, но планировка неправильная: столы смещены, стеклянные перегородки, неподвижные люди за стеклом.";
+    visualEn = "Elevator doors open into the same office, but the layout is wrong: shifted desks, glass partitions, motionless people behind glass.";
+    allowedLocation = "same locked office, altered but still recognizably the same office";
+    allowedObjects = "elevator doors, office desks, glass partitions, motionless office people if the line implies them";
+    shotRole = "world_reveal";
+    camera = "wide reveal from elevator threshold";
+    sfx = "elevator doors scrape open, distant fluorescent tubes click";
+  } else if (/коридор.*длин|становились длиннее/.test(l)) {
+    visualRu = "Тот же офисный коридор визуально растягивается в глубину; линии потолка и стен уходят дальше, чем должны.";
+    visualEn = "The same office corridor visually stretches into depth; ceiling and wall lines extend farther than possible.";
+    allowedLocation = "same locked office corridor";
+    allowedObjects = "corridor walls, ceiling lights, office doors";
+    shotRole = "distortion";
+    camera = "long lens corridor compression shot";
+    sfx = "fluorescent sections shutting off, distant structural creak";
+  } else if (/фотограф|пропали без вести|2006/.test(l)) {
+    visualRu = "Крупный план старой пожелтевшей фотографии на офисной стене: на фото те же трое сотрудников, рядом точная подпись из сценария.";
+    visualEn = "Close-up of an old yellowed photo on the office wall: the same three employees are in the photo, with the exact scripted caption.";
+    allowedLocation = "same locked office photo wall";
+    allowedObjects = "old yellowed photo, photo frame, exact caption text";
+    shotRole = "evidence_insert";
+    camera = "static close-up insert";
+    sfx = "paper frame creak, fingertip sliding on dusty glass";
+  } else if (/вдалеке.*человек|снова появился.*человек|исчез|ближе/.test(l)) {
+    visualRu = "Тот же неподвижный человек из угла лифта появляется в конце того же офисного коридора; при мигании света он становится ближе.";
+    visualEn = "The same motionless man from the elevator corner appears at the end of the same office corridor; with the light flicker he is closer.";
+    allowedLocation = "same locked office corridor";
+    allowedObjects = "same corner man, corridor lights, office doors";
+    shotRole = "threat_reveal";
+    camera = "telephoto corridor shot";
+    sfx = "light section pop, shoes faint scrape on floor";
+  } else if (/лифт забирает/.test(l)) {
+    visualRu = "Тёмный пустой коридор и закрытые двери того же лифта как визуальная опора для шёпота правила; без новых персонажей.";
+    visualEn = "Dark empty corridor and closed doors of the same elevator as the visual anchor for the whispered rule; no new characters.";
+    allowedObjects = "closed elevator doors, dark corridor, flickering lights";
+    shotRole = "rule_whisper";
+    camera = "still ominous elevator doors";
+    sfx = "close whisper in room tone, elevator metal tick";
+  } else if (/бежали|били по кнопкам|кричали|выход/.test(l)) {
+    visualRu = "Те же сотрудники бегут обратно к лифту и бьют по кнопкам внутри той же офисной зоны; паника без новых людей.";
+    visualEn = "The same employees run back to the elevator and hit the buttons inside the same office zone; panic without new people.";
+    allowedLocation = "same locked office/elevator area";
+    allowedObjects = "three locked employees, elevator buttons, corridor, glass partitions";
+    shotRole = "chase";
+    camera = "urgent handheld action shot";
+    sfx = "rapid button hits, breath, shoes scraping floor";
+  } else if (/кровь|лампы взрывал|лицом к стене|самого себя/.test(l)) {
+    visualRu = "Нереальность того же офиса: тёмная красная жидкость поднимается вверх по стене, лампы лопаются, люди стоят лицом к стене, за стеклом видна копия сотрудника только если строка это описывает.";
+    visualEn = "The same office breaks reality: dark red liquid rises up the wall, lights burst, people face the wall, and an employee's double appears behind glass only when described.";
+    allowedLocation = "same locked office with glass partitions";
+    allowedObjects = "wall, dark red liquid, fluorescent lights, motionless office people, duplicate only if script line says so";
+    shotRole = "escalation";
+    camera = "fragmented horror insert";
+    sfx = "fluorescent tube crack, liquid sliding upward, glass vibration";
+  } else if (/не было кабины|ч[её]рная пустота|исчезли|остался только он/.test(l)) {
+    visualRu = "Открытые двери того же лифта без кабины: внутри только чёрная пустота; персонажи исчезают один за другим или остаётся один парень согласно строке.";
+    visualEn = "The same elevator doors open with no cabin inside: only black void; characters vanish one by one or one man remains according to the source line.";
+    allowedLocation = "same locked elevator threshold";
+    allowedObjects = "open elevator doors, black void, remaining locked employees only as scripted";
+    shotRole = "climax";
+    camera = "centered elevator void shot";
+    sfx = "empty shaft low air pull, elevator door motor strain";
+  } else if (/копи|ты уже нажимал/.test(l)) {
+    visualRu = "Внутри той же кабины стоит копия оставшегося парня, с тем же лицом и одеждой; она улыбается и произносит точную реплику.";
+    visualEn = "Inside the same elevator cabin stands the remaining man's duplicate, same face and wardrobe; the duplicate smiles and says the exact line.";
+    allowedLocation = "inside the same locked elevator cabin";
+    allowedObjects = "duplicate of the remaining man, elevator panel, elevator doors";
+    shotRole = "final_reveal";
+    camera = "frontal close medium shot";
+    sfx = "elevator door seal, dry breath, low metal click";
+  } else if (/лифт на минус первый|следующий этаж/.test(l)) {
+    visualRu = "Чёрный экран или закрывающиеся двери того же лифта с точным финальным текстом из сценария; без новых изображений и персонажей.";
+    visualEn = "Black screen or the same elevator doors closing with the exact final scripted title/text; no new imagery and no new characters.";
+    allowedLocation = "black screen or same locked elevator doors";
+    allowedObjects = "final title text only if scripted, elevator doors";
+    shotRole = "final_sting";
+    camera = "static final title / closing doors";
+    sfx = "elevator doors closing, final whisper";
+  }
+
+  const allowedCharacters = [
+    hasEmployees ? "same three locked late-night office employees only when this line refers to them" : "",
+    hasCornerMan ? "same silent corner man only when this line reveals/continues him" : "",
+    hasDuplicate ? "same remaining man's duplicate only when the script line names the duplicate/self" : "",
+    hasScriptedOfficePeople ? "scripted motionless office people behind glass / facing wall only as described" : "",
+  ].filter(Boolean);
+
+  const forbidden = [
+    noPeople ? "no people in this frame" : "",
+    "no random worker, no new woman/man, no toolbox, no cage elevator, no basement, no daylight lobby, no different era",
+    "no objects or locations not named or directly implied by this source line",
+  ].filter(Boolean).join("; ");
+
+  return {
+    state,
+    visual_ru: visualRu,
+    visual_en: visualEn,
+    allowed_characters: allowedCharacters,
+    allowed_objects: allowedObjects,
+    allowed_location: allowedLocation,
+    forbidden_visuals: forbidden,
+    on_screen_text: screenText ? [screenText] : [],
+    shot_role: shotRole,
+    camera,
+    sfx,
+    blocking,
+  };
+}
+
 function buildFullScenarioPrompt({ projectName, script, aspectRatio, stylePreset, target, expectedFrames, effectiveDuration, frameSeconds, timingMode, partSize, styleProfile }) {
-  const style = STYLE_PRESETS[stylePreset]?.lock || styleProfile?.style_lock || "locked cinematic realism";
+  const style = styleProfile?.style_lock || STYLE_PRESETS[stylePreset]?.lock || "locked cinematic realism";
   return `NEUROCINE TRAILER STORYBOARD MASTER PROMPT
 
 TASK:
@@ -258,11 +492,22 @@ GLOBAL RULES:
 - Do not invent new actors, new locations, new props, new costumes or new supernatural rules.
 - Keep the same cast, wardrobe, office/elevator geography, lighting family and style from first frame to last.
 - Style cannot override the script: do not add candles, oil lamps, stone, moss, medieval props, new rooms, new eras, new costumes or weather unless the script explicitly says so.
+- If a script line is abstract, convert it into a minimal visual beat from the already established locked location. Do NOT add a person just to make the frame interesting.
+- Do not introduce characters before the script introduces them. Before "Трое сотрудников..." the frame must be empty office/elevator geography only.
 - Dialogue must be copied exactly from the script into scene.dialogue with stable voice_id.
 - Visible signs, captions, displays and title cards must go into scene.on_screen_text.
 - Narrator/trailer VO belongs in scene.vo_ru.
 - Final PART can contain any remaining frame count. Never add filler frames just to make a perfect grid.
 - PART grid images must be clean 9:16 cells with no visible numbering, labels, title bars, black gutters, borders or separators.
+
+SCRIPT BREAKDOWN PASS:
+Before writing scenes, scan the full script and produce the internal breakdown:
+1. recurring cast and first frame where each character is introduced;
+2. recurring locations and allowed office/elevator geography;
+3. props/signs/displays/captions that are explicitly named;
+4. dialogue lines and stable voice_id per speaker;
+5. ordered visual beats from beginning to end.
+Every scene must be based on this breakdown, not on free invention.
 
 ROOT JSON FIELDS REQUIRED:
 project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock,
@@ -271,7 +516,8 @@ character_lock, voice_lock, cast_lock, location_lock, style_bible, grid_continui
 SCENE FIELDS REQUIRED FOR EVERY FRAME:
 id, start, duration, description_ru, script_line_ru, image_prompt_en, video_prompt_en, vo_ru,
 dialogue, on_screen_text, blocking, shot_role, sfx, camera, transition, cut_energy,
-continuity_note, safety_note.
+continuity_note, safety_note, visual_beat_ru, visual_beat_en, allowed_characters, allowed_objects,
+allowed_location, forbidden_visuals.
 
 FRAME COUNT CONTROL:
 Return exactly ${expectedFrames} scenes.
@@ -279,11 +525,19 @@ Scene durations may be 2-10 seconds, but total_duration must equal ${effectiveDu
 If timing mode is auto, split the script into meaningful beats: establishing shots, dialogue, inserts, reactions, reveals, chase/action beats and final sting.
 If a script beat needs multiple frames, continue the same beat visually without adding new story content.
 
+VISUAL BEAT RULES:
+- visual_beat_ru / visual_beat_en are the concrete shot descriptions used by PART grids.
+- image_prompt_en must start from visual_beat_en, not from abstract narration.
+- allowed_characters must name only characters allowed in that frame. Empty means no character should appear.
+- allowed_objects must name only props/objects supported by the source line.
+- forbidden_visuals must explicitly block common hallucinations for that beat.
+- If the user asks for multiple variants of the same PART, keep the same visual beats and only vary camera angle, focal length, distance, foreground layer and composition.
+
 STYLE BIBLE:
 ${style}
 
 STYLE COMPATIBILITY:
-Use the style only for lens, color, lighting and mood. If any style token conflicts with the script location/object list, ignore that style token and keep the scripted office/elevator world.
+Use the style only for lens, camera behavior, color, contrast, grain, texture and lighting quality. If any style token conflicts with the script location/object list, ignore that style token and keep the scripted office/elevator world.
 
 OUTPUT:
 Return valid JSON only. No markdown. No explanation.
@@ -296,10 +550,13 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
   const lines = splitScriptBeats(script);
   const totalFrames = Math.max(1, Math.round(Number(targetFrames) || estimateAutoFrameCount(script, duration, frameSeconds)));
   const frameDurations = distributeDurations(duration, totalFrames, frameSeconds);
-  const style = STYLE_PRESETS[stylePreset]?.lock || STYLE_PRESETS.cinematic.lock;
+  const style = getStyleProfile("film", stylePreset)?.style_lock || STYLE_PRESETS[stylePreset]?.lock || STYLE_PRESETS.cinematic.lock;
   let runningStart = 0;
+  let entityState = { employees: false, cornerMan: false, duplicate: false };
   const scenes = Array.from({ length: totalFrames }, (_, i) => {
     const source = lines[i] || lines[Math.min(lines.length - 1, Math.floor((i / totalFrames) * Math.max(1, lines.length)))] || "Trailer beat";
+    const visual = buildTrailerVisualBeat(source, entityState);
+    entityState = visual.state;
     const isDialogue = /сказал|сказала|ш[её]пот|говорит|крик|крич/i.test(source);
     const dialogueText = source.match(/(?:сказал(?:а)?|говорит|ш[её]пот[^:]*|крик[^:]*)[:—-]\s*(.+)$/i)?.[1] || "";
     const sceneDuration = frameDurations[i] || frameSeconds || 3;
@@ -309,21 +566,27 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       id: frameId(i + 1),
       start: sceneStart,
       duration: sceneDuration,
-      description_ru: source,
+      description_ru: visual.visual_ru,
       script_line_ru: source,
       source_of_truth: "script_line",
-      image_prompt_en: `SCENE PRIMARY FOCUS: locked horror trailer frame, source line: ${source}. Same office elevator film, same cast identity, same location design. ASPECT RATIO: ${aspectRatio}`,
-      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only the described action. No new characters, locations or objects. Camera: restrained handheld. SFX: scene-matched ambience. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
+      visual_beat_ru: visual.visual_ru,
+      visual_beat_en: visual.visual_en,
+      allowed_characters: visual.allowed_characters,
+      allowed_objects: visual.allowed_objects,
+      allowed_location: visual.allowed_location,
+      forbidden_visuals: visual.forbidden_visuals,
+      image_prompt_en: `SCENE PRIMARY FOCUS: ${visual.visual_en}. Source line: "${source}". Allowed characters: ${visual.allowed_characters.length ? visual.allowed_characters.join("; ") : "none unless explicitly visible in this beat"}. Allowed objects/location: ${visual.allowed_objects}; ${visual.allowed_location}. Style formula affects only lens, light, color, grain and texture; no new story content. ASPECT RATIO: ${aspectRatio}`,
+      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only this visual beat: ${visual.visual_en}. No new characters, locations or objects. Camera: ${visual.camera}. SFX: ${visual.sfx}. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
       vo_ru: source,
       dialogue: isDialogue && dialogueText ? [{ speaker: "Offscreen voice", voice_id: "voice_04", text: dialogueText, delivery: "low supernatural whisper" }] : [],
-      on_screen_text: /надпись|подпись|экран|диспле|название/i.test(source) ? [source.replace(/^.*(?:надпись|подпись|дисплее?)[:—-]?\s*/i, "").trim()].filter(Boolean) : [],
-      blocking: "Actors and camera positions continue from the same locked trailer geography.",
-      shot_role: i < 3 ? "establishing" : i > totalFrames - 4 ? "final_sting" : i % 5 === 0 ? "reveal" : i % 3 === 0 ? "insert" : "trailer_beat",
-      sfx: "fluorescent flicker, elevator metal vibration, restrained room tone",
-      camera: i % 3 === 0 ? "close-up insert" : "handheld medium shot",
+      on_screen_text: visual.on_screen_text,
+      blocking: visual.blocking,
+      shot_role: visual.shot_role,
+      sfx: visual.sfx,
+      camera: visual.camera,
       transition: "cut",
       cut_energy: i > totalFrames * 0.7 ? "high" : i < 4 ? "low" : "medium",
-      continuity_note: "Keep same film cast, wardrobe, location, lighting and production design.",
+      continuity_note: "Keep same film cast, wardrobe, location, lighting and production design. Style never adds unscripted objects or people.",
       safety_note: "Trailer mode safe visual framing",
       target,
     };
@@ -357,7 +620,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       forbidden: "no luxury building, no daylight modern lobby, no new unrelated location",
     },
     style_bible: style,
-    grid_continuity: "PART 1 establishes cast/location/style. PART 2+ continues same film using cast_lock, location_lock, style_bible and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
+    grid_continuity: "PART 1 establishes the locked film world only through explicit visual beats. PART 2+ continues the same film using cast_lock, location_lock, style_bible, visual_beat fields and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
     scenes,
     export_meta: { mode: "trailer", target, trailer_mode: true, local_preview: true, target_scene_count: totalFrames, frame_seconds: frameSeconds, timing_mode: timingMode },
   };
@@ -909,6 +1172,7 @@ export default function TrailerStoryboardPage() {
                     <div className="frame" key={scene.id || i}>
                       <strong>{frameLabel(scene, i)} · {scene.shot_role || scene.beat_type || "frame"}</strong><br />
                       Source: {scene.script_line_ru || scene.vo_ru || scene.description_ru}<br />
+                      Visual: {scene.visual_beat_ru || scene.description_ru}<br />
                       {Array.isArray(scene.dialogue) && scene.dialogue.length > 0 ? <>Dialogue: {scene.dialogue.map(formatDialogueLine).join(" / ")}<br /></> : null}
                       SFX: {scene.sfx || ""}
                     </div>

@@ -186,6 +186,13 @@ function ensureImagePrompt(image = "", aspectRatio = "9:16") {
 
 function getSceneVisual(scene = {}) {
   return cleanPrompt(
+    scene.visual_beat_en ||
+    scene.visual_beat_ru ||
+    scene.shot_visual_en ||
+    scene.shot_visual_ru ||
+    scene.visual_scene_en ||
+    scene.visual_scene_ru ||
+    scene.allowed_visual ||
     scene.image_prompt_en ||
     scene.image_prompt ||
     scene.description_en ||
@@ -344,6 +351,8 @@ function getMotion(scene = {}) {
     scene.story_action_en ||
     scene.action_en ||
     scene.motion ||
+    scene.visual_beat_en ||
+    scene.visual_beat_ru ||
     scene.camera_movement ||
     scene.camera ||
     scene.description_en ||
@@ -548,6 +557,10 @@ If the frame count is odd or custom (27, 29, 31, etc.), keep exact frame count a
 For long format up to 10 minutes, preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
 Narrator/trailer VO belongs in vo_ru. Character speech belongs only in dialogue[]. Supernatural whispers/offscreen lines may use dialogue with speaker "Offscreen voice" and stable voice_id.
 Do NOT create new actors, new office/elevator design, new costumes, or new supernatural rules between frames unless the script explicitly introduces them.
+SCRIPT BREAKDOWN PASS: before scenes, infer first appearance of each character, allowed locations, scripted props/signs/displays, dialogue lines and ordered visual beats.
+Every trailer scene must include visual_beat_ru, visual_beat_en, allowed_characters, allowed_objects, allowed_location and forbidden_visuals.
+If a script line is abstract, make a minimal concrete shot from the already established locked location. Do NOT add people before they are introduced.
+For multiple generated variants of the same PART, keep identical story content and vary only camera angle, focal length, distance, foreground layer or composition.
 ` : ""}
 VISUAL FIDELITY — MANDATORY FOR ALL MODES:
 SOURCE OF TRUTH = each scene's script_line_ru / vo_ru source line.
@@ -557,6 +570,7 @@ Every scene's visual description, objects, characters, locations and actions MUS
 If the script line says "руки дрожат над кружкой" — the scene shows HANDS and a CUP. NOT feet. NOT a corridor. NOT POV walking.
 If an object, location or action is NOT in the script line → it MUST NOT appear in the visual description.
 Creative cinematic interpretation is FORBIDDEN if it adds elements absent from the script.
+Style is a formula only: lens, camera behavior, color grade, contrast, grain, texture and lighting quality. Style cannot introduce new objects, locations, eras, costumes or characters.
 
 WORLD / ERA / AUDIO LOGIC — MANDATORY:
 Before writing scenes, infer the physical world, era, location, technology level and allowed sound sources from the script.
@@ -581,6 +595,12 @@ dialogue object format: { "speaker": "...", "voice_id": "voice_01", "text": "exa
 on_screen_text must be [] unless text visibly appears on screen, a sign, a display, a photo caption, or a title card.
 video_prompt_en may include "Dialogue:" only when dialogue[] is non-empty, and must say exact scripted dialogue only / no extra speech.
 vo_ru should summarize the beat for production reference; do not turn character dialogue into narrator VO.
+${isTrailer ? `Trailer-only strict visual fields:
+visual_beat_ru and visual_beat_en = concrete camera-visible shot derived from script_line_ru.
+allowed_characters = only characters allowed in that frame. Use [] before the script introduces people.
+allowed_objects = only props/signs/displays/locations supported by that source line.
+allowed_location = the exact locked location slice for the frame.
+forbidden_visuals = hallucinations to block for that frame, including new actors/props/rooms/era/costumes.` : ""}
 ` : ""}
 ${normalizedTarget === "grok" ? `
 MASTER STYLE DESCRIPTION (add as root field "master_style"):
@@ -688,16 +708,25 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
   let start = 0;
   const scenes = splitScenes.map((s, i) => {
     const duration = durations[i] || 3;
+    const visualBeatRu = sanitizeForGenerator(s.visual_beat_ru || s.visualBeatRu || s.visual_beat || s.shot_visual_ru || s.visual_scene_ru || "");
+    const visualBeatEn = sanitizeForGenerator(s.visual_beat_en || s.visualBeatEn || s.shot_visual_en || s.visual_scene_en || "");
+    const promptSource = visualBeatEn || visualBeatRu || s.image_prompt_en || s.image_prompt || s.image || s.description_en || s.description_ru || s.vo_ru || "documentary scene";
     const sourceScene = {
       id: padFrame(i + 1),
       start,
       duration,
       beat_type: s.beat_type || s.beat || (i === 0 ? "hook" : i === splitScenes.length - 1 ? "ending" : "escalation"),
-      description_ru: sanitizeForGenerator(s.description_ru || s.ru_description || s.description || ""),
-      description_en: sanitizeForGenerator(s.description_en || ""),
+      description_ru: sanitizeForGenerator(s.description_ru || s.ru_description || s.description || visualBeatRu || ""),
+      description_en: sanitizeForGenerator(s.description_en || visualBeatEn || ""),
+      visual_beat_ru: visualBeatRu,
+      visual_beat_en: visualBeatEn,
+      allowed_characters: normalizeTextList(s.allowed_characters || s.allowedCharacters || []),
+      allowed_objects: normalizeTextList(s.allowed_objects || s.allowedObjects || []),
+      allowed_location: cleanPrompt(s.allowed_location || s.allowedLocation || ""),
+      forbidden_visuals: cleanPrompt(s.forbidden_visuals || s.forbiddenVisuals || s.forbidden || ""),
       story_action_en: sanitizeForGenerator(s.story_action_en || s.action_en || ""),
       action_en: sanitizeForGenerator(s.action_en || ""),
-      image_prompt_en: ensureImagePrompt(s.image_prompt_en || s.image_prompt || s.image || s.description_en || s.description_ru || s.vo_ru || "documentary scene", raw.aspect_ratio || "9:16"),
+      image_prompt_en: ensureImagePrompt(promptSource, raw.aspect_ratio || "9:16"),
       video_prompt_en: cleanPrompt(s.video_prompt_en || s.video_prompt || s.video || ""),
       vo_ru: s.vo_ru || s.voice || s.vo || "",
       dialogue: normalizeDialogue(s.dialogue || s.dialogues || s.lines || [], voiceLockSafe),

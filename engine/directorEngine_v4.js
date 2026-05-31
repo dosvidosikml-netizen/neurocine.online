@@ -285,6 +285,8 @@ export const STYLE_PRESETS = {
   }
 };
 
+const STYLE_FORMULA_LOCK = "STYLE FORMULA: style preset controls lens, camera behavior, color grade, contrast, grain, texture and lighting quality only; it must not introduce characters, props, locations, era, weather, costumes, signs or plot events";
+
 export function getStyleProfile(projectType = "film", stylePreset = "cinematic") {
   const type = PROJECT_TYPES[projectType] || PROJECT_TYPES.film;
   const preset = STYLE_PRESETS[stylePreset] || STYLE_PRESETS.cinematic;
@@ -293,7 +295,7 @@ export function getStyleProfile(projectType = "film", stylePreset = "cinematic")
     project_type_label: type.label,
     style_preset: stylePreset,
     style_label: preset.label,
-    style_lock: `${type.lock}. ${preset.lock}`,
+    style_lock: `${type.lock}. ${preset.lock}. ${STYLE_FORMULA_LOCK}`,
     negative_lock: NEGATIVE_LOCK
   };
 }
@@ -313,6 +315,7 @@ export function buildScenarioLock(storyboard = {}, script = "", styleProfile = {
       "SOURCE OF TRUTH = script line / vo_ru: объекты, локации, действия, погода и эпоха должны иметь опору в строке сценария.",
       "Нельзя добавлять новых персонажей, новую эпоху, новую локацию или новый сюжетный поворот.",
       "Можно менять только операторский язык: ракурс, крупность, линзу, перспективу, композицию, глубину резкости.",
+      "Style preset работает как формула камеры/света/цвета/фактуры и не может добавлять предметы, эпоху, локации, костюмы или персонажей.",
       "Reference/anchor images фиксируют визуальную непрерывность, но не добавляют новые сюжетные детали.",
       "Image prompts всегда на английском и начинаются с SCENE PRIMARY FOCUS:",
       "Video prompts всегда на английском и начинаются с ANIMATE CURRENT FRAME:",
