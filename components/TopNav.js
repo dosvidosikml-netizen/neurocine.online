@@ -4,7 +4,8 @@ export default function TopNav({ active = "home" }) {
   const items = [
     ["home", "/", "Главная"],
     ["chat", "/chat", "Chat"],
-    ["storyboard", "/storyboard", "Studio"]
+    ["storyboard", "/storyboard", "Studio"],
+    ["trailer", "/trailer", "Trailer"]
   ];
   return (
     <div className="nav-links">

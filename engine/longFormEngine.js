@@ -124,6 +124,9 @@ export function buildChunkUserPrompt({
   mode = "safe",
   target = "veo3",
   aspectRatio = "9:16",
+  targetScenes = null,
+  frameSeconds = 3,
+  timingMode = "manual",
   characterLockFromPrev = null,
   voiceLockFromPrev = null,
   castLockFromPrev = null,
@@ -140,7 +143,12 @@ export function buildChunkUserPrompt({
   else if (progressPct < 90) actPosition = "CLIMAX (пик эмоционального напряжения)";
   else actPosition = "OUTRO + ВОПРОС (переворот + открытый вопрос для комментариев)";
 
-  const targetScenes = Math.round(chunkDuration / 3);
+  const forcedScenes = Number(targetScenes);
+  const safeTargetScenes = Number.isFinite(forcedScenes) && forcedScenes > 0
+    ? Math.max(1, Math.round(forcedScenes))
+    : Math.max(1, Math.round(chunkDuration / 3));
+  const safeFrameSeconds = Math.max(2, Math.min(10, Number(frameSeconds) || 3));
+  const safeTimingMode = String(timingMode || "manual").toLowerCase() === "auto" ? "auto_script_scan" : "manual_exact";
   const isObserverMode = detectObserverMode(globalScript);
   const normalizedMode = String(mode || "").toLowerCase();
   const isShortFilm = normalizedMode === "short_film" || normalizedMode === "trailer";
@@ -208,8 +216,8 @@ TRAILER STORYBOARD MODE:
 - Treat the full input as one film/trailer up to 10 minutes, split into chunks only for model limits.
 - Preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
 - Each chunk must continue the same production design, not restart a new concept.
-- Odd frame counts are valid. Do not add extra frames to fill a perfect 2x2 grid.
-- For grid export, PARTS may end with 2 or 3 cells when needed.
+- Odd and custom frame counts are valid. Do not add extra frames to fill a perfect 2x2 grid.
+- For grid export, PARTS may end with any remaining cell count when needed.
 ` : "";
 
   return `Generate storyboard JSON для CHUNK ${chunkIndex + 1} of ${totalChunks} большого long-form ролика.
@@ -224,8 +232,9 @@ CONTENT MODE: ${mode}
 VIDEO TARGET: ${target}
 ASPECT RATIO: ${aspectRatio}
 
-Target scenes для этого chunk: ${targetScenes} (MANDATORY).
-Каждая сцена 2-4 секунды.
+Target scenes для этого chunk: ${safeTargetScenes} (MANDATORY).
+Timing mode: ${safeTimingMode}. Preferred average: ${safeFrameSeconds}s per frame.
+Каждая сцена 2-${isTrailer ? 10 : 4} секунды.
 total_duration JSON для chunk = ${chunkDuration}.
 ${observerBlock}
 ${shortFilmBlock}

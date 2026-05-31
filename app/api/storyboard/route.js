@@ -238,7 +238,7 @@ mode="short_film" exception:
 mode="trailer" exception:
 - Treat the script as one locked film/trailer production, not separate grids.
 - Create root cast_lock, location_lock, style_bible and grid_continuity.
-- Keep exact frame count even when odd, for example 29 frames. Final grid PART may contain 2 or 3 cells; never add filler frames just to make a perfect 2x2.
+- Keep exact requested frame count even when odd, for example 27, 29, 31 or any custom count. Final grid PART may contain any remaining cell count; never add filler frames just to make a perfect 2x2.
 - For long format up to 10 minutes, preserve cast/location/style/voice locks across chunks.
 - Narrator VO stays in vo_ru. Character dialogue or supernatural whispers go in scene.dialogue with stable voice_id.
 - Never redesign recurring actors, wardrobe, office/elevator/corridor design, or supernatural rules between frames unless explicitly scripted.
@@ -246,11 +246,16 @@ mode="trailer" exception:
 ═══════════════════════════════════════════════════════════════════════════
 # DURATION CONTROL — STRICT
 ═══════════════════════════════════════════════════════════════════════════
-For duration 30/60/90/120/180 seconds:
+For classic duration 30/60/90/120/180 seconds without custom target_scene_count:
 - target_scenes = duration / 3 (MANDATORY)
 - average scene duration = 3 seconds
 - each scene duration MUST be 2, 3, or 4 — NEVER 5+
 - total_duration MUST equal requested duration exactly
+
+If request includes target_scene_count / frame_seconds:
+- target_scene_count is authoritative
+- frame_seconds may be 2-10 seconds in trailer mode
+- total_duration MUST still equal requested duration exactly
 
 If running out of story content: add B-roll detail shots, reaction cutaways,
 atmospheric inserts. NEVER stretch a single scene beyond 4 seconds.
@@ -324,7 +329,7 @@ If broken → rewrite until valid.
     "forbidden": "locations/designs that must not appear"
   },
   "style_bible": "locked trailer style, lens language, color grade, lighting, genre rhythm",
-  "grid_continuity": "PART 1 establishes locks; PART 2+ reuse locks and previous PART visual DNA; odd final PART can be 2 or 3 cells",
+  "grid_continuity": "PART 1 establishes locks; PART 2+ reuse locks and previous PART visual DNA; final PART can contain any remaining frame count",
   "postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" },
   "scenes": [
     {
@@ -421,6 +426,26 @@ function extractJson(text = "") {
   throw new Error("Модель вернула неполный JSON — попробуйте ещё раз или уменьшите длительность видео");
 }
 
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function distributeTargetScenes(totalScenes, chunks = []) {
+  const total = Number(totalScenes);
+  if (!Number.isFinite(total) || total <= 0 || !chunks.length) return chunks.map(() => null);
+  const wanted = Math.max(1, Math.round(total));
+  const totalDuration = chunks.reduce((sum, chunk) => sum + Number(chunk.duration || 0), 0) || 1;
+  let assigned = 0;
+  return chunks.map((chunk, index) => {
+    if (index === chunks.length - 1) return Math.max(1, wanted - assigned);
+    const count = Math.max(1, Math.round((wanted * Number(chunk.duration || 0)) / totalDuration));
+    assigned += count;
+    return count;
+  });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // POST handler
 // ────────────────────────────────────────────────────────────────────────────
@@ -435,6 +460,13 @@ export async function POST(req) {
     const projectName = body.project_name || "NeuroCine Project";
     const mode = normalizeMode(body.mode || "safe");
     const target = normalizeTarget(body.target || "veo3");
+    const targetScenesRaw = body.target_scene_count ?? body.frame_count ?? body.frames;
+    const minScenesForDuration = Math.max(1, Math.ceil(duration / 10));
+    const maxScenesForDuration = Math.max(minScenesForDuration, Math.ceil(duration / 2));
+    const targetScenes = Number(targetScenesRaw) > 0 ? clampNumber(targetScenesRaw, minScenesForDuration, Math.min(300, maxScenesForDuration), null) : null;
+    const frameSeconds = clampNumber(body.frame_seconds ?? body.frame_duration_sec ?? body.frame_duration, 2, 10, 3);
+    const timingMode = String(body.timing_mode || body.timingMode || "").toLowerCase() === "auto" ? "auto" : "manual";
+    const storyboardTiming = { targetScenes, frameSeconds, timingMode };
 
     if (!script || script.length < 10) {
       return NextResponse.json({ error: "Сценарий слишком короткий." }, { status: 400 });
@@ -445,7 +477,7 @@ export async function POST(req) {
       return NextResponse.json({ error: accessGuard.message || "LIVE доступ закрыт", apiError: true, accessDenied: true }, { status: accessGuard.status || 403 });
     }
     const apiKeyOverride = accessGuard.apiKey;
-    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/storyboard", success: true, modelUsed: "storyboard_requested", metadata: usageMeta(body, { stream: body.stream === true, duration, target, mode }) });
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/storyboard", success: true, modelUsed: "storyboard_requested", metadata: usageMeta(body, { stream: body.stream === true, duration, target, mode, targetScenes, frameSeconds, timingMode }) });
 
     // ── SSE STREAMING — всегда включён при stream: true ──────────────────────
     // Render рвёт соединение через ~100с если сервер молчит.
@@ -505,6 +537,7 @@ export async function POST(req) {
             if (isLongForm) {
               // ── Long-form: чанки по 90с ────────────────────────────────
               const chunks = getChunkPlan(duration);
+              const chunkSceneCounts = distributeTargetScenes(targetScenes, chunks);
               const scriptChunks = splitScriptForChunks(script, chunks);
               send("started", {
                 total_chunks: chunks.length,
@@ -539,6 +572,7 @@ export async function POST(req) {
                   chunkDuration: ch.duration, chunkStart: ch.start,
                   totalDuration: duration, scriptForChunk: scriptChunks[i] || "",
                   globalScript: script, mode, target, aspectRatio,
+                  targetScenes: chunkSceneCounts[i], frameSeconds, timingMode,
                   characterLockFromPrev, voiceLockFromPrev, castLockFromPrev,
                   locationLockFromPrev, styleBibleFromPrev, lastSceneFromPrev, globalStyleLock,
                 });
@@ -561,7 +595,7 @@ export async function POST(req) {
                 }
 
                 const parsedChunk = extractJson(result.content);
-                const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target);
+                const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target, { targetScenes: chunkSceneCounts[i], frameSeconds, timingMode });
                 if (i > 0 && characterLockFromPrev) normalizedChunk.character_lock = characterLockFromPrev;
                 if (i > 0 && voiceLockFromPrev) normalizedChunk.voice_lock = voiceLockFromPrev;
                 if (i > 0 && castLockFromPrev) normalizedChunk.cast_lock = castLockFromPrev;
@@ -586,7 +620,7 @@ export async function POST(req) {
 
               send("merging", { message: "Склеиваю chunks в единый storyboard JSON" });
               const mergedRaw = mergeChunks(chunkResults, duration);
-              const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target);
+              const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target, storyboardTiming);
               sbMerged.project_name = projectName;
               sbMerged.aspect_ratio = aspectRatio || sbMerged.aspect_ratio;
               const valMerged = validateStoryboard(sbMerged, mode, target);
@@ -604,7 +638,7 @@ export async function POST(req) {
                 return;
               }
 
-              const userInput = buildStoryboardUserPrompt({ script, duration, mode, target, aspectRatio });
+              const userInput = buildStoryboardUserPrompt({ script, duration, mode, target, aspectRatio, targetScenes, frameSeconds, timingMode });
               const result = await callOpenRouter({
                 taskType: TASK_TYPES.STORYBOARD_GENERATION,
                 systemPrompt: SYSTEM_PROMPT, userMessage: userInput,
@@ -625,7 +659,7 @@ export async function POST(req) {
               }
 
               const parsed = extractJson(result.content);
-              const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target);
+              const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, storyboardTiming);
               storyboard.project_name = projectName;
               storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
               const validation = validateStoryboard(storyboard, mode, target);
@@ -682,6 +716,9 @@ export async function POST(req) {
       mode,
       target,
       aspectRatio,
+      targetScenes,
+      frameSeconds,
+      timingMode,
     });
 
     // Через modelRouter — STORYBOARD_GENERATION task с правильными defaults
@@ -714,7 +751,7 @@ export async function POST(req) {
     }
 
     const parsed = extractJson(result.content);
-    const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target);
+    const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, storyboardTiming);
 
     storyboard.project_name = projectName;
     storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;

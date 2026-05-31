@@ -70,8 +70,16 @@ const GROK_VIDEO_WORD_LIMIT = 80;
 const DEFAULT_VIDEO_LOCK = "grounded physical realism, realistic inertia, organic handheld camera drift, visible environmental reaction, fabric responding to motion, audio must be physically possible for the script era, location and visible objects";
 const DEFAULT_STYLE_LOCK = "RAW unretouched photograph, NOT CGI, NOT rendered, shot on ARRI Alexa 35, Zeiss Master Prime, natural available light, Kodak Portra 400, 35mm film grain, no subtitles, no UI, no watermark";
 
-export function getDurationPreset(duration = 60) {
+export function getDurationPreset(duration = 60, forcedTargetScenes = null) {
   const d = Number(duration);
+  const forcedScenes = Number(forcedTargetScenes);
+  if (Number.isFinite(forcedScenes) && forcedScenes > 0) {
+    const targetScenes = Math.max(1, Math.round(forcedScenes));
+    const wordsMin = Math.round(d * 2.2 * 0.9);
+    const wordsMax = Math.round(d * 2.5 * 1.05);
+    const longForm = d > 180;
+    return { targetScenes, wordsMin, wordsMax, longForm, ...(longForm ? { chunkSize: 90 } : {}) };
+  }
   if (DURATION_PRESETS[d]) return DURATION_PRESETS[d];
   // Интерполяция для нестандартных длительностей (45с, 75с, 150с и т.д.)
   // Базовая логика: 1 кадр на каждые 3 секунды, ~2.2 слова/с
@@ -425,21 +433,43 @@ function padFrame(n) {
   return `frame_${String(n).padStart(2, "0")}`;
 }
 
-function clampDuration(value) {
+function clampDuration(value, maxDuration = 4) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 3;
-  return Math.min(4, Math.max(2, Math.round(n)));
+  const max = Math.max(4, Math.min(10, Math.round(Number(maxDuration) || 4)));
+  return Math.min(max, Math.max(2, Math.round(n)));
 }
 
-function splitLongScenes(scenes = []) {
+function splitLongScenes(scenes = [], maxDuration = 4) {
   const result = [];
+  const max = Math.max(4, Math.min(10, Math.round(Number(maxDuration) || 4)));
   for (const s of scenes) {
     const dur = Number(s.duration || 3);
-    if (dur <= 4) result.push(s);
+    if (dur <= max) result.push(s);
     else {
-      const chunks = Math.ceil(dur / 3);
-      for (let i = 0; i < chunks; i++) result.push({ ...s, duration: clampDuration(dur / chunks) });
+      const chunks = Math.ceil(dur / max);
+      for (let i = 0; i < chunks; i++) result.push({ ...s, duration: clampDuration(dur / chunks, max) });
     }
+  }
+  return result;
+}
+
+function fitSceneCount(scenes = [], targetScenes = null) {
+  const target = Number(targetScenes);
+  if (!Number.isFinite(target) || target <= 0) return scenes;
+  const wanted = Math.max(1, Math.round(target));
+  const source = Array.isArray(scenes) && scenes.length ? scenes : [{ description_ru: "Документальная сцена", vo_ru: "", duration: 3 }];
+  if (source.length === wanted) return source;
+  if (source.length > wanted) return source.slice(0, wanted);
+  const result = [...source];
+  while (result.length < wanted) {
+    const prev = result[result.length - 1] || source[0];
+    result.push({
+      ...prev,
+      id: padFrame(result.length + 1),
+      description_ru: prev.description_ru || prev.vo_ru || "Продолжение текущего scripted beat",
+      continuity_note: [prev.continuity_note, "Additional timing frame created to preserve requested exact frame count."].filter(Boolean).join(" "),
+    });
   }
   return result;
 }
@@ -453,10 +483,14 @@ function getCutEnergy(scene = {}, index = 0) {
   return index % 3 === 2 ? "low" : "medium";
 }
 
-export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16" } = {}) {
+export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16", targetScenes = null, frameSeconds = 3, timingMode = "fixed" } = {}) {
   const d = Number(duration) || 60;
   const normalizedMode = normalizeMode(mode);
   const normalizedTarget = normalizeTarget(target);
+  const requestedTargetScenes = Number(targetScenes);
+  const hasForcedScenes = Number.isFinite(requestedTargetScenes) && requestedTargetScenes > 0;
+  const safeFrameSeconds = Math.max(2, Math.min(10, Number(frameSeconds) || 3));
+  const timingLabel = String(timingMode || "fixed").toLowerCase() === "auto" ? "auto_script_scan" : "manual_exact";
 
   // Детектируем реальную длину скрипта по словам (~2.2 сл/с для русского диктора).
   // Если скрипт длиннее выбранной длительности на >20% — адаптируем количество кадров
@@ -469,7 +503,7 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
     : d;
   const durationMismatch = effectiveDuration > d;
 
-  const preset = getDurationPreset(effectiveDuration);
+  const preset = getDurationPreset(effectiveDuration, hasForcedScenes ? requestedTargetScenes : null);
   const isObserverMode = detectObserverMode(script);
   const isScriptStrict = normalizedMode === "script_strict";
   const isShortFilm = normalizedMode === "short_film";
@@ -481,7 +515,9 @@ Output ONLY valid JSON. No markdown.
 
 CONTENT MODE: ${normalizedMode}. ${STORYBOARD_MODES[normalizedMode].instruction}
 VIDEO TARGET: ${normalizedTarget}. ${STORYBOARD_TARGETS[normalizedTarget].description}
-DURATION: ${effectiveDuration}s. Generate EXACTLY ${preset.targetScenes} scenes. Every scene duration must be 2, 3, or 4 seconds. total_duration must equal ${effectiveDuration}.${durationMismatch ? `\nNOTE: script word count (~${scriptWords} words ≈ ${scriptEstSec}s) exceeds selected duration (${d}s). Scene count was scaled up to cover the full script.` : ""}
+DURATION: ${effectiveDuration}s. Generate EXACTLY ${preset.targetScenes} scenes. TIMING MODE: ${timingLabel}. Preferred average: ${safeFrameSeconds}s per frame. Every scene duration must be 2-${isTrailer ? 10 : 4} seconds. total_duration must equal ${effectiveDuration}.${durationMismatch ? `\nNOTE: script word count (~${scriptWords} words ≈ ${scriptEstSec}s) exceeds selected duration (${d}s). Scene count was scaled up to cover the full script.` : ""}
+${hasForcedScenes ? `CUSTOM FRAME COUNT IS AUTHORITATIVE: output exactly ${preset.targetScenes} frames/scenes, even if this is 27, 29, 31 or any other non-grid number. Do not round to a 2x2 grid.` : ""}
+${timingLabel === "auto_script_scan" ? "AUTO TIMING: scan the script for meaningful beats, dialogue lines, reveals, inserts and reaction shots, then assign those beats across the requested frames without inventing new story content." : ""}
 ASPECT RATIO: ${aspectRatio}.
 ${isScriptStrict ? `
 STRICT SCRIPT DISTRIBUTION — MANDATORY:
@@ -508,7 +544,7 @@ TRAILER STORYBOARD MODE — MANDATORY:
 Build the entire ${preset.targetScenes}-frame trailer plan first, then write frames. The plan must remain one film, not separate grid concepts.
 Create root "cast_lock" for all recurring characters and root "location_lock" for recurring places. Create root "style_bible" summarizing visual style, lens, palette, lighting, production design and genre rhythm.
 Create root "grid_continuity" explaining how PART grids continue: PART 1 establishes cast/location/style; PART 2+ must reuse cast_lock, location_lock, style_bible and previous PART visual DNA.
-If the frame count is odd (example: 29 frames), keep exact frame count and allow the final PART grid to contain 2 or 3 cells. Do not add or remove frames to make a perfect 2x2 grid.
+If the frame count is odd or custom (27, 29, 31, etc.), keep exact frame count and allow the final PART grid to contain any remaining cell count. Do not add or remove frames to make a perfect 2x2 grid.
 For long format up to 10 minutes, preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
 Narrator/trailer VO belongs in vo_ru. Character speech belongs only in dialogue[]. Supernatural whispers/offscreen lines may use dialogue with speaker "Offscreen voice" and stable voice_id.
 Do NOT create new actors, new office/elevator design, new costumes, or new supernatural rules between frames unless the script explicitly introduces them.
@@ -593,22 +629,28 @@ ${script}
 Return JSON only.`;
 }
 
-export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedMode = "safe", modelUsed = "openai/gpt-5.4", requestedTarget = "veo3") {
+export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedMode = "safe", modelUsed = "openai/gpt-5.4", requestedTarget = "veo3", timing = {}) {
   const mode = normalizeMode(raw?.export_meta?.mode || requestedMode);
   const target = normalizeTarget(raw?.export_meta?.target || requestedTarget);
   const filmMode = mode === "short_film" || mode === "trailer";
   const engineTarget = mode === "raw" ? "grok_raw" : mode === "short_film" ? "short_film_dialogue" : mode === "trailer" ? "trailer_storyboard" : "gpt_safe";
   const targetDuration = Number(requestedDuration) || Number(raw.total_duration) || 60;
+  const forcedTargetScenes = Number(timing?.targetScenes || timing?.target_scene_count || 0);
+  const hasForcedScenes = Number.isFinite(forcedTargetScenes) && forcedTargetScenes > 0;
+  const maxSceneDuration = mode === "trailer" ? Math.max(4, Math.min(10, Number(timing?.frameSeconds || timing?.frame_seconds || 4) || 4)) : 4;
   const inputScenes = Array.isArray(raw.scenes) ? raw.scenes : Array.isArray(raw.shots) ? raw.shots : [];
-  const splitScenes = splitLongScenes(inputScenes.length ? inputScenes : [{ description_ru: "Документальная сцена", vo_ru: "", duration: 3 }]);
+  const splitScenes = fitSceneCount(
+    splitLongScenes(inputScenes.length ? inputScenes : [{ description_ru: "Документальная сцена", vo_ru: "", duration: 3 }], maxSceneDuration),
+    hasForcedScenes ? forcedTargetScenes : null
+  );
 
-  let durations = splitScenes.map((s) => clampDuration(s.duration || 3));
+  let durations = splitScenes.map((s) => clampDuration(s.duration || timing?.frameSeconds || 3, maxSceneDuration));
   let sum = durations.reduce((a, b) => a + b, 0);
   let guard = 0;
   while (sum !== targetDuration && guard < 2000) {
     guard += 1;
     if (sum < targetDuration) {
-      const idx = durations.findIndex((d) => d < 4);
+      const idx = durations.findIndex((d) => d < maxSceneDuration);
       if (idx === -1) break;
       durations[idx] += 1; sum += 1;
     } else {

@@ -29,18 +29,76 @@ const DEFAULT_SCRIPT = `В каждом здании есть этаж, кото
 Лифт на минус первый.
 Следующий этаж... твой.`;
 
-const DURATION_OPTIONS = [
-  { seconds: 60, label: "60с", frames: 20 },
-  { seconds: 87, label: "87с · 29 кадров", frames: 29 },
-  { seconds: 120, label: "2м", frames: 40 },
-  { seconds: 180, label: "3м", frames: 60 },
-  { seconds: 300, label: "5м", frames: 100 },
-  { seconds: 600, label: "10м", frames: 200 },
+const MIN_TOTAL_DURATION = 2;
+const MAX_TOTAL_DURATION = 600;
+const MIN_FRAME_SECONDS = 2;
+const MAX_FRAME_SECONDS = 10;
+
+const QUICK_PRESETS = [
+  { seconds: 60, label: "60с" },
+  { seconds: 87, label: "87с" },
+  { seconds: 120, label: "2м" },
+  { seconds: 180, label: "3м" },
+  { seconds: 300, label: "5м" },
+  { seconds: 600, label: "10м" },
 ];
 
-function frameCountForDuration(duration) {
-  const found = DURATION_OPTIONS.find((x) => x.seconds === Number(duration));
-  return found?.frames || Math.max(3, Math.round(Number(duration || 60) / 3));
+function clampNumber(value, min, max, fallback = min) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function splitScriptBeats(script = "") {
+  return String(script || "")
+    .split(/\n+|(?<=[.!?…])\s+/)
+    .map(cleanText)
+    .filter(Boolean);
+}
+
+function estimateAutoFrameCount(script, duration, frameSeconds) {
+  const safeDuration = clampNumber(duration, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 60);
+  const safeFrameSeconds = clampNumber(frameSeconds, MIN_FRAME_SECONDS, MAX_FRAME_SECONDS, 3);
+  const beatCount = splitScriptBeats(script).length;
+  const preferredFrames = Math.max(1, Math.round(safeDuration / safeFrameSeconds));
+  const minFrames = Math.max(1, Math.ceil(safeDuration / MAX_FRAME_SECONDS));
+  const maxFrames = Math.max(minFrames, Math.floor(safeDuration / MIN_FRAME_SECONDS));
+  const scriptAware = beatCount > 0 ? Math.min(beatCount, preferredFrames) : preferredFrames;
+  return clampNumber(scriptAware, minFrames, maxFrames, preferredFrames);
+}
+
+function distributeDurations(totalDuration, totalFrames, preferredSeconds) {
+  const frames = Math.max(1, Math.round(Number(totalFrames) || 1));
+  const preferred = clampNumber(preferredSeconds, MIN_FRAME_SECONDS, MAX_FRAME_SECONDS, 3);
+  const minTotal = frames * MIN_FRAME_SECONDS;
+  const maxTotal = frames * MAX_FRAME_SECONDS;
+  const target = clampNumber(totalDuration, minTotal, maxTotal, frames * preferred);
+  const durations = Array.from({ length: frames }, () => preferred);
+  let sum = durations.reduce((a, b) => a + b, 0);
+  let guard = 0;
+  while (sum !== target && guard < 5000) {
+    guard += 1;
+    if (sum < target) {
+      const idx = durations.findIndex((x) => x < MAX_FRAME_SECONDS);
+      if (idx === -1) break;
+      durations[idx] += 1;
+      sum += 1;
+    } else {
+      const idx = durations.findIndex((x) => x > MIN_FRAME_SECONDS);
+      if (idx === -1) break;
+      durations[idx] -= 1;
+      sum -= 1;
+    }
+  }
+  return durations;
+}
+
+function formatDuration(seconds) {
+  const value = Number(seconds) || 0;
+  if (value < 60) return `${value}с`;
+  const m = Math.floor(value / 60);
+  const s = value % 60;
+  return s ? `${m}м ${s}с` : `${m}м`;
 }
 
 function cleanText(value = "") {
@@ -77,23 +135,28 @@ function lockLine(item, fallback = "Lock") {
   ].filter(Boolean).map(cleanText).join(" — ");
 }
 
-function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePreset, target }) {
-  const lines = String(script || "").split(/\n+/).map(cleanText).filter(Boolean);
-  const totalFrames = frameCountForDuration(duration);
+function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePreset, target, targetFrames, frameSeconds, timingMode }) {
+  const lines = splitScriptBeats(script);
+  const totalFrames = Math.max(1, Math.round(Number(targetFrames) || estimateAutoFrameCount(script, duration, frameSeconds)));
+  const frameDurations = distributeDurations(duration, totalFrames, frameSeconds);
   const style = STYLE_PRESETS[stylePreset]?.lock || STYLE_PRESETS.cinematic.lock;
+  let runningStart = 0;
   const scenes = Array.from({ length: totalFrames }, (_, i) => {
     const source = lines[i] || lines[Math.min(lines.length - 1, Math.floor((i / totalFrames) * Math.max(1, lines.length)))] || "Trailer beat";
     const isDialogue = /сказал|сказала|ш[её]пот|говорит|крик|крич/i.test(source);
     const dialogueText = source.match(/(?:сказал(?:а)?|говорит|ш[её]пот[^:]*|крик[^:]*)[:—-]\s*(.+)$/i)?.[1] || "";
+    const sceneDuration = frameDurations[i] || frameSeconds || 3;
+    const sceneStart = runningStart;
+    runningStart += sceneDuration;
     return {
       id: frameId(i + 1),
-      start: i * 3,
-      duration: 3,
+      start: sceneStart,
+      duration: sceneDuration,
       description_ru: source,
       script_line_ru: source,
       source_of_truth: "script_line",
       image_prompt_en: `SCENE PRIMARY FOCUS: locked horror trailer frame, source line: ${source}. Same office elevator film, same cast identity, same location design. ASPECT RATIO: ${aspectRatio}`,
-      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only the described action. No new characters, locations or objects. Camera: restrained handheld. SFX: scene-matched ambience. Photorealistic 24fps. 3s --motion 4`,
+      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only the described action. No new characters, locations or objects. Camera: restrained handheld. SFX: scene-matched ambience. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
       vo_ru: source,
       dialogue: isDialogue && dialogueText ? [{ speaker: "Offscreen voice", voice_id: "voice_04", text: dialogueText, delivery: "low supernatural whisper" }] : [],
       on_screen_text: /надпись|подпись|экран|диспле|название/i.test(source) ? [source.replace(/^.*(?:надпись|подпись|дисплее?)[:—-]?\s*/i, "").trim()].filter(Boolean) : [],
@@ -114,7 +177,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
     language: "ru",
     format: "trailer_storyboard",
     aspect_ratio: aspectRatio,
-    total_duration: totalFrames * 3,
+    total_duration: frameDurations.reduce((a, b) => a + b, 0),
     global_style_lock: style,
     global_video_lock: "same film trailer continuity, locked cast, locked elevator-office geography, no redesign between PART grids",
     character_lock: [
@@ -137,9 +200,9 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       forbidden: "no luxury building, no daylight modern lobby, no new unrelated location",
     },
     style_bible: style,
-    grid_continuity: "PART 1 establishes cast/location/style. PART 2+ continues same film using cast_lock, location_lock, style_bible and previous PART visual DNA. Odd final PART can contain 2 or 3 cells.",
+    grid_continuity: "PART 1 establishes cast/location/style. PART 2+ continues same film using cast_lock, location_lock, style_bible and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
     scenes,
-    export_meta: { mode: "trailer", target, trailer_mode: true, local_preview: true },
+    export_meta: { mode: "trailer", target, trailer_mode: true, local_preview: true, target_scene_count: totalFrames, frame_seconds: frameSeconds, timing_mode: timingMode },
   };
 }
 
@@ -167,6 +230,9 @@ export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("Лифт на минус первый");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [duration, setDuration] = useState(87);
+  const [frameSeconds, setFrameSeconds] = useState(3);
+  const [autoTiming, setAutoTiming] = useState(true);
+  const [customFrameCount, setCustomFrameCount] = useState(27);
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [target, setTarget] = useState("grok");
   const [stylePreset, setStylePreset] = useState("mysticHorror");
@@ -197,6 +263,14 @@ export default function TrailerStoryboardPage() {
       appearanceMode: "full",
     });
   }, [storyboard, styleProfile, partScenes, safePart, scenes.length, partSize]);
+  const maxManualFrames = Math.max(1, Math.floor(MAX_TOTAL_DURATION / Math.max(1, Number(frameSeconds) || 3)));
+  const manualFrames = clampNumber(customFrameCount, 1, maxManualFrames, 27);
+  const autoFrames = estimateAutoFrameCount(script, duration, frameSeconds);
+  const expectedFrames = autoTiming ? autoFrames : manualFrames;
+  const effectiveDuration = autoTiming
+    ? clampNumber(duration, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 87)
+    : clampNumber(manualFrames * frameSeconds, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 81);
+  const timingMode = autoTiming ? "auto" : "manual";
 
   async function generateTrailer() {
     setBusy(true);
@@ -216,7 +290,11 @@ export default function TrailerStoryboardPage() {
         body: JSON.stringify({
           project_name: projectName,
           script,
-          duration,
+          duration: effectiveDuration,
+          target_scene_count: expectedFrames,
+          frame_seconds: frameSeconds,
+          timing_mode: timingMode,
+          auto_analyze_script: autoTiming,
           aspect_ratio: aspectRatio,
           style: stylePreset,
           mode: "trailer",
@@ -279,7 +357,7 @@ export default function TrailerStoryboardPage() {
     setError("");
     setBusy(false);
     setActivePart(0);
-    const sb = buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePreset, target });
+    const sb = buildLocalTrailerStoryboard({ script, duration: effectiveDuration, aspectRatio, stylePreset, target, targetFrames: expectedFrames, frameSeconds, timingMode });
     setStoryboard(sb);
     setStatus(`Local preview: ${sb.scenes.length} frames, ${splitScenesIntoParts(sb.scenes, partSize).length} PARTS`);
   }
@@ -300,9 +378,6 @@ export default function TrailerStoryboardPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
-
-  const expectedFrames = frameCountForDuration(duration);
-
   return (
     <main className="trailer-page">
       <style jsx>{`
@@ -312,13 +387,22 @@ export default function TrailerStoryboardPage() {
         .kicker{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#ffb3bd;font-weight:900}
         h1{margin:0;font-size:clamp(28px,6vw,62px);line-height:.95;letter-spacing:0}
         .hero p{margin:0;max-width:820px;color:rgba(247,243,234,.72);line-height:1.55}
+        .hero-links{display:flex;gap:10px;flex-wrap:wrap}
+        .hero-links a{border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:10px 12px;color:#f7f3ea;text-decoration:none;font-size:13px;font-weight:900;background:rgba(255,255,255,.055)}
         .grid{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:16px;align-items:start}
         .panel{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.045);border-radius:8px;padding:14px;display:grid;gap:12px}
         .panel h2{margin:0;font-size:16px}
         label{display:grid;gap:6px;font-size:12px;color:rgba(247,243,234,.66);font-weight:800;text-transform:uppercase;letter-spacing:.06em}
         input,textarea,select{width:100%;box-sizing:border-box;background:#10131b;color:#f7f3ea;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:11px;font:inherit}
+        input[type="range"]{accent-color:#e3344f;padding:0}
+        input[type="checkbox"]{width:auto}
         textarea{min-height:320px;resize:vertical;line-height:1.45}
         .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .range-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .range-head strong{color:#fff;font-size:13px;letter-spacing:0;text-transform:none}
+        .quick{display:flex;gap:7px;flex-wrap:wrap}
+        .quick button{padding:7px 9px;font-size:11px;background:#151a24}
+        .check{display:flex;align-items:center;gap:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.035);border-radius:8px;padding:10px;color:#f7f3ea;text-transform:none;letter-spacing:0}
         .buttons{display:flex;gap:10px;flex-wrap:wrap}
         button{border:0;border-radius:6px;padding:11px 13px;background:#242936;color:#f7f3ea;font-weight:900;cursor:pointer}
         button.primary{background:#e3344f;color:white}
@@ -348,6 +432,10 @@ export default function TrailerStoryboardPage() {
             <span className="pill">long format up to 10m</span>
             <span className="pill">Grok/Veo prompt packs</span>
           </div>
+          <div className="hero-links">
+            <a href="/studio">Studio menu</a>
+            <a href="/storyboard">Classic storyboard</a>
+          </div>
         </section>
 
         <section className="grid">
@@ -355,8 +443,23 @@ export default function TrailerStoryboardPage() {
             <h2>01 · Script Setup</h2>
             <label>Project name<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
             <label>Scenario<textarea value={script} onChange={(e) => setScript(e.target.value)} /></label>
+            <label className="check">
+              <input type="checkbox" checked={autoTiming} onChange={(e) => setAutoTiming(e.target.checked)} />
+              Авто: ИИ сканирует сценарий и сам раскладывает его на биты
+            </label>
+            <label>
+              <span className="range-head"><span>Total duration</span><strong>{formatDuration(effectiveDuration)}</strong></span>
+              <input type="range" min={MIN_TOTAL_DURATION} max={MAX_TOTAL_DURATION} step="1" value={duration} disabled={!autoTiming} onChange={(e) => setDuration(Number(e.target.value))} />
+              <div className="quick">
+                {QUICK_PRESETS.map((x) => <button key={x.seconds} type="button" disabled={!autoTiming} onClick={() => setDuration(x.seconds)}>{x.label}</button>)}
+              </div>
+            </label>
+            <label>
+              <span className="range-head"><span>Seconds per frame</span><strong>{frameSeconds}с</strong></span>
+              <input type="range" min={MIN_FRAME_SECONDS} max={MAX_FRAME_SECONDS} step="1" value={frameSeconds} onChange={(e) => setFrameSeconds(Number(e.target.value))} />
+            </label>
             <div className="row">
-              <label>Duration<select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>{DURATION_OPTIONS.map((x) => <option key={x.seconds} value={x.seconds}>{x.label}</option>)}</select></label>
+              <label>Custom frames<input type="number" min="1" max={maxManualFrames} value={manualFrames} disabled={autoTiming} onChange={(e) => setCustomFrameCount(clampNumber(e.target.value, 1, maxManualFrames, manualFrames))} /></label>
               <label>Aspect<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
             </div>
             <div className="row">
@@ -371,6 +474,8 @@ export default function TrailerStoryboardPage() {
             </div>
             <div className="pills">
               <span className="pill active">{expectedFrames} frames expected</span>
+              <span className="pill">{formatDuration(effectiveDuration)} total</span>
+              <span className="pill">{timingMode}</span>
               <span className="pill">{parts.length || 0} PARTS ready</span>
               <span className="pill">{partSize} per PART</span>
             </div>
@@ -381,7 +486,7 @@ export default function TrailerStoryboardPage() {
           <div className="panel">
             <h2>02 · Trailer Structure</h2>
             {!storyboard ? (
-              <div className="frame">Generate AI Trailer JSON or use Local test plan to verify 29-frame PART behavior.</div>
+              <div className="frame">Generate AI Trailer JSON or use Local test plan to verify custom frames, odd counts and long-format PART behavior.</div>
             ) : (
               <>
                 <div className="pills">

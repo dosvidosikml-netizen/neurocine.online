@@ -203,6 +203,7 @@ export default function ProjectsCenter() {
           <nav className="nc-projects-nav">
             <a className="primary" href="/studio">Главная Studio</a>
             <a href="/storyboard">Студия раскадровки</a>
+            <a href="/trailer">Трейлер</a>
             <a href="/account">Центр аккаунта</a>
             <a href="/director/control-room">Консоль режиссёра</a>
           </nav>

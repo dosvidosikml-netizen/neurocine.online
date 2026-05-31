@@ -1750,6 +1750,11 @@ ${lines.join("\n")}` : "";
 
   const handleCreateToolSelect = useCallback((tool) => {
     if (!tool) return;
+    const route = String(tool.route || "");
+    if (route.startsWith("/")) {
+      window.location.href = route;
+      return;
+    }
     const anchor = tool.anchor || String(tool.route || "").split("#")[1] || "setup";
     navigateToStudioAnchor(anchor);
     const label = tool.status === "active"
