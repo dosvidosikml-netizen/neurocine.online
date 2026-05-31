@@ -55,7 +55,7 @@ function sceneMotion(scene = {}) {
 }
 
 function sceneScriptLine(scene = {}) {
-  return cleanText(scene.vo_ru || scene.script_line_ru || scene.script_line || "");
+  return cleanText(scene.script_line_ru || scene.script_line || scene.vo_ru || "");
 }
 
 function getShotType(scene = {}, i = 0) {
@@ -128,13 +128,60 @@ export function splitScenesIntoParts(scenes = [], partSize = 4) {
   const size = Math.max(1, Number(partSize) || 4);
   const parts = [];
   for (let i = 0; i < scenes.length; i += size) parts.push(scenes.slice(i, i + size));
+  if (parts.length > 1 && parts[parts.length - 1].length === 1 && parts[parts.length - 2].length > 2) {
+    const moved = parts[parts.length - 2].pop();
+    parts[parts.length - 1].unshift(moved);
+  }
   return parts;
+}
+
+function isTrailerStoryboard(storyboard = {}) {
+  const mode = String(storyboard?.export_meta?.mode || storyboard?.mode || "").toLowerCase();
+  return mode === "trailer" || mode === "trailer_storyboard" || mode === "film_trailer";
+}
+
+function formatCastLock(storyboard = {}) {
+  const cast = Array.isArray(storyboard.cast_lock) && storyboard.cast_lock.length
+    ? storyboard.cast_lock
+    : Array.isArray(storyboard.character_lock)
+      ? storyboard.character_lock.map((c, i) => ({
+          id: c.id || `CHAR_${String(i + 1).padStart(2, "0")}`,
+          role: c.role || c.name || `Character ${i + 1}`,
+          visual_identity: [c.description, c.face_features, c.hair, c.physical_condition].filter(Boolean).join("; "),
+          wardrobe: c.clothing || "",
+          forbidden_changes: c.forbidden_changes || "no different actor, no different age, no different face, no different wardrobe unless the script explicitly changes it",
+        }))
+      : [];
+  return cast.map((c, i) => {
+    const id = cleanText(c.id || `CHAR_${String(i + 1).padStart(2, "0")}`);
+    const role = cleanText(c.role || c.name || c.character || `Character ${i + 1}`);
+    const identity = cleanText(c.visual_identity || c.must_appear_as || c.description || "");
+    const wardrobe = cleanText(c.wardrobe || c.clothing || "");
+    const forbid = cleanText(c.forbidden_changes || "no actor redesign, no wardrobe drift, no age drift");
+    return `${id} / ${role}: ${[identity, wardrobe ? `wardrobe: ${wardrobe}` : "", `forbidden: ${forbid}`].filter(Boolean).join("; ")}`;
+  }).filter(Boolean).join("\n");
+}
+
+function formatLocationLock(storyboard = {}) {
+  const loc = storyboard.location_lock;
+  if (!loc || typeof loc !== "object") return cleanText(storyboard.world_lock || "same locked film location, era, materials, lighting and spatial logic");
+  return [
+    loc.main || loc.main_location || loc.location,
+    loc.materials ? `materials: ${loc.materials}` : "",
+    loc.lighting ? `lighting: ${loc.lighting}` : "",
+    loc.spatial_rules ? `spatial rules: ${loc.spatial_rules}` : "",
+    loc.forbidden ? `forbidden: ${loc.forbidden}` : "",
+  ].filter(Boolean).map(cleanText).join("; ");
 }
 
 export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHero", strictLevel = "hard" } = {}) {
   const sourceStyle = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
   const world = cleanText(storyboard?.world_lock || storyboard?.project_type || "same cinematic universe");
   const chars = Array.isArray(storyboard?.character_lock) ? storyboard.character_lock : [];
+  const trailerMode = isTrailerStoryboard(storyboard);
+  const castLock = formatCastLock(storyboard);
+  const locationLock = formatLocationLock(storyboard);
+  const styleBible = cleanText(storyboard?.style_bible || storyboard?.master_style || "");
   const heroLine = chars.length
     ? chars.map((c, i) => `${c.name || `Character ${i + 1}`}: ${cleanText([c.description, c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join("; "))}`).join("\n")
     : "If the script repeats the same hero, keep the same face, proportions, clothing and emotional state whenever that hero appears. If the current frame is WORLD-only, do not force the hero into it.";
@@ -163,6 +210,20 @@ WORLD LOCK:
 All frames exist in the SAME cinematic universe.
 World identity: ${world}
 Maintain the same historical period, environment logic, lighting family, color grading, texture density, lens language and documentary realism across all generated PARTS.
+${trailerMode ? `
+TRAILER / FILM CONTINUITY LOCK:
+This is not a new storyboard. This PART is a continuation of the same film plan.
+CAST LOCK:
+${castLock || heroLine}
+
+LOCATION LOCK:
+${locationLock}
+
+STYLE BIBLE:
+${styleBible || sourceStyle || "same locked cinematic style, same lens language, same color grade, same production design"}
+
+Do not redesign actors between PARTS. Do not replace the office/elevator/corridor with a new location. Do not change wardrobe, age, face, body type or role unless the script explicitly says so.
+` : ""}
 
 HERO / CHARACTER LOCK:
 ${heroLine}
@@ -242,6 +303,7 @@ FRAMES: F${String(start).padStart(2, "0")}–F${String(end).padStart(2, "0")} of
 REFERENCE INPUT:
 ${refText}
 This PART must continue the same project, but each frame must follow its own scenario input.
+${isTrailerStoryboard(storyboard) ? "TRAILER MODE: generate this as one segment of the same locked film trailer. Treat previous and next PARTS as the same production, not separate concepts." : ""}
 ${appearanceNote}
 FORMAT:
 ${cols} columns × ${rows} rows — exactly ${partScenes.length} equal cells.
@@ -411,6 +473,10 @@ export function buildFlowCompactPartPrompt({
         : "Use Previous PART only for world/style DNA. Do not copy compositions.";
 
   const relevantCharacterLock = getRelevantCharacterLock(characterLock, partScenes, appearanceMode);
+  const trailerMode = isTrailerStoryboard(storyboard);
+  const castLock = formatCastLock(storyboard);
+  const locationLock = formatLocationLock(storyboard);
+  const styleBible = cleanText(storyboard?.style_bible || storyboard?.master_style || "");
   const chars = relevantCharacterLock.slice(0, 4).map((c, i) => {
     const name = cleanText(c.name || `Character ${i + 1}`);
     const desc = cleanText(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "));
@@ -441,6 +507,20 @@ Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${
 
 STYLE LOCK:
 ${styleLock || "dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, cold overcast light, realistic skin and fabric, dirty hands, smoke, mud, damp stone, shallow depth of field, subtle 35mm film grain."}
+${trailerMode ? `
+TRAILER PRODUCTION LOCK:
+This PART belongs to the same trailer storyboard as all other PARTS.
+CAST LOCK:
+${castLock || "Use the same recurring characters from character_lock; do not redesign actors."}
+
+LOCATION LOCK:
+${locationLock}
+
+STYLE BIBLE:
+${styleBible || styleLock || "same film style, same lens language, same lighting family, same production design"}
+
+If this is a 29-frame or other odd-count storyboard, the final PART may contain 2 or 3 cells. That is intentional. Generate exactly the listed labels, no missing cells, no extra cells.
+` : ""}
 
 MANDATORY VISUAL TYPE:
 camera-photographed live-action film stills, natural imperfections, realistic skin and fabric, physical documentary realism. Not illustration, not painting, not concept art, not parchment, not fantasy art.

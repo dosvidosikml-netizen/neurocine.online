@@ -126,6 +126,9 @@ export function buildChunkUserPrompt({
   aspectRatio = "9:16",
   characterLockFromPrev = null,
   voiceLockFromPrev = null,
+  castLockFromPrev = null,
+  locationLockFromPrev = null,
+  styleBibleFromPrev = null,
   lastSceneFromPrev = null,
   globalStyleLock = null,
 }) {
@@ -139,7 +142,9 @@ export function buildChunkUserPrompt({
 
   const targetScenes = Math.round(chunkDuration / 3);
   const isObserverMode = detectObserverMode(globalScript);
-  const isShortFilm = String(mode || "").toLowerCase() === "short_film";
+  const normalizedMode = String(mode || "").toLowerCase();
+  const isShortFilm = normalizedMode === "short_film" || normalizedMode === "trailer";
+  const isTrailer = normalizedMode === "trailer";
 
   const observerBlock = isObserverMode
     ? `
@@ -153,7 +158,7 @@ character_lock должен быть ПУСТЫМ [] или содержать �
     : "";
 
   const continuityBlock = chunkIndex === 0
-    ? `Это ПЕРВЫЙ chunk из ${totalChunks}. Создай детальный character_lock с описанием персонажей.${isShortFilm ? " Создай voice_lock для всех говорящих персонажей." : ""} Зафиксируй global_style_lock — он будет переиспользован во всех следующих chunks.`
+    ? `Это ПЕРВЫЙ chunk из ${totalChunks}. Создай детальный character_lock с описанием персонажей.${isShortFilm ? " Создай voice_lock для всех говорящих персонажей." : ""}${isTrailer ? " Создай cast_lock, location_lock, style_bible и grid_continuity для всего фильма." : ""} Зафиксируй global_style_lock — он будет переиспользован во всех следующих chunks.`
     : `Это chunk ${chunkIndex + 1} из ${totalChunks}.
 
 CHARACTER LOCK (НЕ МЕНЯЙ — сохрани verbatim из предыдущих chunks):
@@ -161,6 +166,16 @@ ${JSON.stringify(characterLockFromPrev, null, 2)}
 ${isShortFilm ? `
 VOICE LOCK (НЕ МЕНЯЙ — сохрани voice_id verbatim из предыдущих chunks):
 ${JSON.stringify(voiceLockFromPrev, null, 2)}
+` : ""}
+${isTrailer ? `
+CAST LOCK (НЕ МЕНЯЙ — сохрани verbatim):
+${JSON.stringify(castLockFromPrev, null, 2)}
+
+LOCATION LOCK (НЕ МЕНЯЙ — сохрани verbatim):
+${JSON.stringify(locationLockFromPrev, null, 2)}
+
+STYLE BIBLE (НЕ МЕНЯЙ — сохрани verbatim):
+${styleBibleFromPrev || "(не задан)"}
 ` : ""}
 
 GLOBAL STYLE LOCK (НЕ МЕНЯЙ):
@@ -187,6 +202,16 @@ SHORT FILM / DIALOGUE MODE:
 - Do not create narrator VO from dialogue.
 ` : "";
 
+  const trailerBlock = isTrailer ? `
+
+TRAILER STORYBOARD MODE:
+- Treat the full input as one film/trailer up to 10 minutes, split into chunks only for model limits.
+- Preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
+- Each chunk must continue the same production design, not restart a new concept.
+- Odd frame counts are valid. Do not add extra frames to fill a perfect 2x2 grid.
+- For grid export, PARTS may end with 2 or 3 cells when needed.
+` : "";
+
   return `Generate storyboard JSON для CHUNK ${chunkIndex + 1} of ${totalChunks} большого long-form ролика.
 
 CHUNK INFO:
@@ -204,6 +229,7 @@ Target scenes для этого chunk: ${targetScenes} (MANDATORY).
 total_duration JSON для chunk = ${chunkDuration}.
 ${observerBlock}
 ${shortFilmBlock}
+${trailerBlock}
 ${continuityBlock}
 
 ОБЩИЙ СЦЕНАРИЙ (для контекста — что было до этого chunk и что будет после):
@@ -229,6 +255,10 @@ export function mergeChunks(chunkResults, totalDuration) {
   // character_lock из первого chunk — он самый детальный
   const characterLock = chunkResults[0]?.character_lock || [];
   const voiceLock = chunkResults[0]?.voice_lock || [];
+  const castLock = chunkResults[0]?.cast_lock || [];
+  const locationLock = chunkResults[0]?.location_lock || {};
+  const styleBible = chunkResults[0]?.style_bible || "";
+  const gridContinuity = chunkResults[0]?.grid_continuity || "";
   const voiceByCharacter = new Map(
     (Array.isArray(voiceLock) ? voiceLock : [])
       .map((item) => [String(item.character || item.name || item.speaker || "").trim().toLowerCase(), item.voice_id])
@@ -298,6 +328,10 @@ export function mergeChunks(chunkResults, totalDuration) {
     global_video_lock: globalVideoLock,
     character_lock: characterLock,
     voice_lock: voiceLock,
+    cast_lock: castLock,
+    location_lock: locationLock,
+    style_bible: styleBible,
+    grid_continuity: gridContinuity,
     postprocess,
     scenes: allScenes,
     errors,

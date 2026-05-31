@@ -456,7 +456,7 @@ function getScriptLine(frame = {}) {
 
 function isDialogueMode(frame = {}, storyboard = {}) {
   const mode = String(storyboard?.mode || storyboard?.export_meta?.mode || frame?.mode || "").toLowerCase();
-  return mode === "short_film" || mode === "dialogue" || mode === "film_dialogue" || mode === "screenplay" || (Array.isArray(frame.dialogue) && frame.dialogue.length > 0);
+  return mode === "short_film" || mode === "trailer" || mode === "trailer_storyboard" || mode === "dialogue" || mode === "film_dialogue" || mode === "screenplay" || (Array.isArray(frame.dialogue) && frame.dialogue.length > 0);
 }
 
 function voiceKey(value = "") {

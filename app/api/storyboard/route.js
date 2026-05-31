@@ -97,6 +97,7 @@ mode parameter:
 - "safe" → GPT SAFE MODE (default): documentary phrasing, no explicit gore, no exposed body
 - "raw"  → GROK RAW MODE: stronger camera, intensity, atmosphere — still non-erotic, non-fetishized
 - "short_film" → SHORT FILM / DIALOGUE MODE: screenplay coverage with scripted dialogue, blocking, inserts, reaction shots and visible text fields
+- "trailer" → TRAILER STORYBOARD MODE: full film/trailer frame plan with cast_lock, location_lock, style_bible, grid continuity and long-form continuity up to 10 minutes
 
 In SAFE mode, replace risky phrasing automatically:
   blood → "dark traces on fabric"
@@ -234,6 +235,14 @@ mode="short_film" exception:
 - Add scene.script_line_ru, scene.blocking and scene.shot_role.
 - Do not invent any spoken line, caption, rule, location or character not present in the script.
 
+mode="trailer" exception:
+- Treat the script as one locked film/trailer production, not separate grids.
+- Create root cast_lock, location_lock, style_bible and grid_continuity.
+- Keep exact frame count even when odd, for example 29 frames. Final grid PART may contain 2 or 3 cells; never add filler frames just to make a perfect 2x2.
+- For long format up to 10 minutes, preserve cast/location/style/voice locks across chunks.
+- Narrator VO stays in vo_ru. Character dialogue or supernatural whispers go in scene.dialogue with stable voice_id.
+- Never redesign recurring actors, wardrobe, office/elevator/corridor design, or supernatural rules between frames unless explicitly scripted.
+
 ═══════════════════════════════════════════════════════════════════════════
 # DURATION CONTROL — STRICT
 ═══════════════════════════════════════════════════════════════════════════
@@ -298,6 +307,24 @@ If broken → rewrite until valid.
       "delivery_arc": "performance change across the story"
     }
   ],
+  "cast_lock": [
+    {
+      "id": "CHAR_01",
+      "role": "recurring character role",
+      "visual_identity": "same actor identity from first appearance to final frame",
+      "wardrobe": "locked clothing unless explicitly changed by script",
+      "forbidden_changes": "no different actor, no wardrobe drift, no age drift"
+    }
+  ],
+  "location_lock": {
+    "main": "recurring film location",
+    "materials": "locked materials and production design",
+    "lighting": "locked lighting family",
+    "spatial_rules": "how rooms/corridors/elevator connect",
+    "forbidden": "locations/designs that must not appear"
+  },
+  "style_bible": "locked trailer style, lens language, color grade, lighting, genre rhythm",
+  "grid_continuity": "PART 1 establishes locks; PART 2+ reuse locks and previous PART visual DNA; odd final PART can be 2 or 3 cells",
   "postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" },
   "scenes": [
     {
@@ -494,6 +521,9 @@ export async function POST(req) {
               const chunkResults = [];
               let characterLockFromPrev = null;
               let voiceLockFromPrev = null;
+              let castLockFromPrev = null;
+              let locationLockFromPrev = null;
+              let styleBibleFromPrev = null;
               let lastSceneFromPrev = null;
               let globalStyleLock = null;
               let lastModelUsed = null;
@@ -509,13 +539,14 @@ export async function POST(req) {
                   chunkDuration: ch.duration, chunkStart: ch.start,
                   totalDuration: duration, scriptForChunk: scriptChunks[i] || "",
                   globalScript: script, mode, target, aspectRatio,
-                  characterLockFromPrev, voiceLockFromPrev, lastSceneFromPrev, globalStyleLock,
+                  characterLockFromPrev, voiceLockFromPrev, castLockFromPrev,
+                  locationLockFromPrev, styleBibleFromPrev, lastSceneFromPrev, globalStyleLock,
                 });
 
                 const result = await callOpenRouter({
                   taskType: TASK_TYPES.STORYBOARD_GENERATION,
                   systemPrompt: SYSTEM_PROMPT, userMessage: chunkUserMessage,
-                  temperatureOverride: mode === "raw" ? 0.55 : mode === "short_film" ? 0.45 : 0.3,
+                  temperatureOverride: mode === "raw" ? 0.55 : mode === "trailer" ? 0.42 : mode === "short_film" ? 0.45 : 0.3,
                   responseFormat: { type: "json_object" },
                   appTitle: `NeuroCine Long-Form Chunk ${i + 1}/${chunks.length}`,
                   apiKeyOverride,
@@ -533,11 +564,17 @@ export async function POST(req) {
                 const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target);
                 if (i > 0 && characterLockFromPrev) normalizedChunk.character_lock = characterLockFromPrev;
                 if (i > 0 && voiceLockFromPrev) normalizedChunk.voice_lock = voiceLockFromPrev;
+                if (i > 0 && castLockFromPrev) normalizedChunk.cast_lock = castLockFromPrev;
+                if (i > 0 && locationLockFromPrev) normalizedChunk.location_lock = locationLockFromPrev;
+                if (i > 0 && styleBibleFromPrev) normalizedChunk.style_bible = styleBibleFromPrev;
                 if (globalStyleLock) normalizedChunk.global_style_lock = globalStyleLock;
 
                 chunkResults.push(normalizedChunk);
                 characterLockFromPrev = normalizedChunk.character_lock || characterLockFromPrev;
                 voiceLockFromPrev = normalizedChunk.voice_lock || voiceLockFromPrev;
+                castLockFromPrev = normalizedChunk.cast_lock || castLockFromPrev;
+                locationLockFromPrev = normalizedChunk.location_lock || locationLockFromPrev;
+                styleBibleFromPrev = normalizedChunk.style_bible || styleBibleFromPrev;
                 globalStyleLock = normalizedChunk.global_style_lock || globalStyleLock;
                 lastSceneFromPrev = extractLastSceneContext(normalizedChunk);
                 lastModelUsed = result.model_used;
@@ -571,7 +608,7 @@ export async function POST(req) {
               const result = await callOpenRouter({
                 taskType: TASK_TYPES.STORYBOARD_GENERATION,
                 systemPrompt: SYSTEM_PROMPT, userMessage: userInput,
-                temperatureOverride: mode === "raw" ? 0.55 : mode === "short_film" ? 0.45 : 0.3,
+                temperatureOverride: mode === "raw" ? 0.55 : mode === "trailer" ? 0.42 : mode === "short_film" ? 0.45 : 0.3,
                 responseFormat: { type: "json_object" },
                 appTitle: "NeuroCine Storyboard Engine v2.2",
                 apiKeyOverride,
@@ -652,7 +689,7 @@ export async function POST(req) {
       taskType: TASK_TYPES.STORYBOARD_GENERATION,
       systemPrompt: SYSTEM_PROMPT,
       userMessage: userInput,
-      temperatureOverride: mode === "raw" ? 0.55 : mode === "short_film" ? 0.45 : 0.3,
+      temperatureOverride: mode === "raw" ? 0.55 : mode === "trailer" ? 0.42 : mode === "short_film" ? 0.45 : 0.3,
       responseFormat: { type: "json_object" },
       appTitle: "NeuroCine Storyboard Engine v2.2",
       apiKeyOverride,

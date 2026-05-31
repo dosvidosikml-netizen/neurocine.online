@@ -13,6 +13,7 @@ export const DURATION_PRESETS = {
   30:  { targetScenes: 10,  wordsMin: 65,   wordsMax: 85,   longForm: false },
   45:  { targetScenes: 15,  wordsMin: 95,   wordsMax: 120,  longForm: false },
   60:  { targetScenes: 20,  wordsMin: 130,  wordsMax: 160,  longForm: false },
+  87:  { targetScenes: 29,  wordsMin: 190,  wordsMax: 230,  longForm: false },
   90:  { targetScenes: 30,  wordsMin: 200,  wordsMax: 240,  longForm: false },
   120: { targetScenes: 40,  wordsMin: 270,  wordsMax: 320,  longForm: false },
   180: { targetScenes: 60,  wordsMin: 420,  wordsMax: 480,  longForm: false },
@@ -45,6 +46,11 @@ export const STORYBOARD_MODES = {
     label: "SHORT FILM / DIALOGUE",
     engineTarget: "short_film_dialogue",
     instruction: "SCREENPLAY MODE: Treat the input as a short film script, not a voiceover article. Preserve dialogue, on-screen text, blocking, reveals, reaction shots and continuity. Dialogue is allowed ONLY when explicitly written in the script; never invent lines.",
+  },
+  trailer: {
+    label: "TRAILER STORYBOARD",
+    engineTarget: "trailer_storyboard",
+    instruction: "TRAILER MODE: Build a complete film trailer frame plan first, then lock cast, location, style, grid continuity and dialogue/VO metadata. Every frame is part of the same production; do not redesign characters or locations between grid parts.",
   },
 };
 
@@ -102,6 +108,7 @@ export function normalizeMode(mode = "safe") {
   if (value === "raw" || value === "grok_raw") return "raw";
   if (value === "script_strict" || value === "strict" || value === "source_of_truth") return "script_strict";
   if (value === "short_film" || value === "dialogue" || value === "film_dialogue" || value === "screenplay") return "short_film";
+  if (value === "trailer" || value === "trailer_storyboard" || value === "film_trailer" || value === "teaser") return "trailer";
   return "safe";
 }
 
@@ -240,6 +247,49 @@ function normalizeVoiceLock(value = [], scenes = []) {
   }
 
   return items;
+}
+
+function normalizeCastLock(value = [], characterLock = []) {
+  const rawItems = Array.isArray(value) && value.length
+    ? value
+    : Array.isArray(characterLock)
+      ? characterLock.map((char, i) => ({
+          id: char.id || `CHAR_${String(i + 1).padStart(2, "0")}`,
+          role: char.role || char.name || `Character ${i + 1}`,
+          visual_identity: [char.description, char.face_features, char.hair, char.physical_condition].filter(Boolean).join("; "),
+          wardrobe: char.clothing || "",
+          forbidden_changes: "no different actor, no different face, no different age, no wardrobe drift unless explicitly scripted",
+        }))
+      : [];
+
+  return rawItems
+    .map((item, i) => {
+      if (!item || typeof item !== "object") return null;
+      const role = cleanPrompt(item.role || item.name || item.character || item.id || `Character ${i + 1}`);
+      if (!role) return null;
+      return {
+        id: cleanPrompt(item.id || `CHAR_${String(i + 1).padStart(2, "0")}`),
+        role,
+        visual_identity: cleanPrompt(item.visual_identity || item.must_appear_as || item.description || ""),
+        wardrobe: cleanPrompt(item.wardrobe || item.clothing || ""),
+        forbidden_changes: cleanPrompt(item.forbidden_changes || item.forbidden || "no actor redesign, no wardrobe drift, no age drift"),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeLocationLock(value = {}) {
+  if (!value || typeof value !== "object") {
+    const text = cleanPrompt(value || "");
+    return text ? { main: text } : {};
+  }
+  return {
+    main: cleanPrompt(value.main || value.main_location || value.location || ""),
+    materials: cleanPrompt(value.materials || ""),
+    lighting: cleanPrompt(value.lighting || ""),
+    spatial_rules: cleanPrompt(value.spatial_rules || value.spatialRules || ""),
+    forbidden: cleanPrompt(value.forbidden || ""),
+  };
 }
 
 function findVoiceIdForSpeaker(speaker = "", voiceLock = []) {
@@ -405,23 +455,26 @@ function getCutEnergy(scene = {}, index = 0) {
 
 export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16" } = {}) {
   const d = Number(duration) || 60;
+  const normalizedMode = normalizeMode(mode);
+  const normalizedTarget = normalizeTarget(target);
 
   // Детектируем реальную длину скрипта по словам (~2.2 сл/с для русского диктора).
   // Если скрипт длиннее выбранной длительности на >20% — адаптируем количество кадров
   // чтобы не обрезать контент. Итоговая длительность раундится до кратного 3с.
   const scriptWords = script.trim().split(/\s+/).filter(Boolean).length;
   const scriptEstSec = scriptWords > 0 ? Math.round(scriptWords / 2.2) : d;
-  const effectiveDuration = scriptEstSec > d * 1.20
+  const lockSelectedDuration = normalizedMode === "trailer";
+  const effectiveDuration = !lockSelectedDuration && scriptEstSec > d * 1.20
     ? Math.max(d, Math.round(scriptEstSec / 3) * 3)
     : d;
   const durationMismatch = effectiveDuration > d;
 
   const preset = getDurationPreset(effectiveDuration);
-  const normalizedMode = normalizeMode(mode);
-  const normalizedTarget = normalizeTarget(target);
   const isObserverMode = detectObserverMode(script);
   const isScriptStrict = normalizedMode === "script_strict";
   const isShortFilm = normalizedMode === "short_film";
+  const isTrailer = normalizedMode === "trailer";
+  const isFilmMode = isShortFilm || isTrailer;
 
   return `Generate production storyboard JSON for NeuroCine.
 Output ONLY valid JSON. No markdown.
@@ -438,7 +491,7 @@ Each scene's visual description = a LITERAL camera shot of exactly what that tex
 No invented locations, characters, objects or actions beyond what the text explicitly names.
 Sequence must cover 100% of the script from first word to last — no skipping, no repeating.
 ` : ""}
-${isShortFilm ? `
+${isFilmMode ? `
 SHORT FILM / DIALOGUE MODE — MANDATORY:
 Treat SCRIPT as a screenplay for a short film, not as narrator VO.
 Break the script into cinematic beats: establishing shot, inserts, OTS, shot/reverse-shot, reaction close-ups, reveal shots, chase/action beats, final sting.
@@ -449,6 +502,16 @@ Each scene must include "script_line_ru" with the exact source beat from the scr
 Do NOT invent dialogue lines, extra exposition, new characters, new locations, or new supernatural rules.
 For dialogue scenes, use cinematic coverage: who is speaking, who listens, eye-line, reaction, hand movement, elevator/office spatial position.
 For non-dialogue scenes, dialogue must be [].
+` : ""}
+${isTrailer ? `
+TRAILER STORYBOARD MODE — MANDATORY:
+Build the entire ${preset.targetScenes}-frame trailer plan first, then write frames. The plan must remain one film, not separate grid concepts.
+Create root "cast_lock" for all recurring characters and root "location_lock" for recurring places. Create root "style_bible" summarizing visual style, lens, palette, lighting, production design and genre rhythm.
+Create root "grid_continuity" explaining how PART grids continue: PART 1 establishes cast/location/style; PART 2+ must reuse cast_lock, location_lock, style_bible and previous PART visual DNA.
+If the frame count is odd (example: 29 frames), keep exact frame count and allow the final PART grid to contain 2 or 3 cells. Do not add or remove frames to make a perfect 2x2 grid.
+For long format up to 10 minutes, preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
+Narrator/trailer VO belongs in vo_ru. Character speech belongs only in dialogue[]. Supernatural whispers/offscreen lines may use dialogue with speaker "Offscreen voice" and stable voice_id.
+Do NOT create new actors, new office/elevator design, new costumes, or new supernatural rules between frames unless the script explicitly introduces them.
 ` : ""}
 VISUAL FIDELITY — MANDATORY FOR ALL MODES:
 SOURCE OF TRUTH = each scene's script_line_ru / vo_ru source line.
@@ -475,7 +538,7 @@ ${isObserverMode ? `OBSERVER MODE: The script speaks to the viewer as "you". Do 
 
 MANDATORY scene fields:
 id, start, duration, description_ru, image_prompt_en, video_prompt_en, vo_ru, sfx, camera, transition, cut_energy, continuity_note, safety_note.
-${isShortFilm ? `SHORT FILM extra scene fields:
+${isFilmMode ? `SHORT FILM extra scene fields:
 script_line_ru, dialogue, on_screen_text, blocking, shot_role.
 dialogue must be [] unless the script explicitly contains a spoken line for that beat.
 dialogue object format: { "speaker": "...", "voice_id": "voice_01", "text": "exact line", "delivery": "short performance note" }.
@@ -522,7 +585,7 @@ Examples of CORRECT sfx:
 WRONG: "ambient room tone", "quiet hum", "soft background noise"
 
 REQUIRED root fields:
-project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock, character_lock${isShortFilm ? ", voice_lock" : ""}, postprocess, scenes, export_meta${normalizedTarget === "grok" ? ", master_style" : ""}.
+project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock, character_lock${isFilmMode ? ", voice_lock" : ""}${isTrailer ? ", cast_lock, location_lock, style_bible, grid_continuity" : ""}, postprocess, scenes, export_meta${normalizedTarget === "grok" ? ", master_style" : ""}.
 
 SCRIPT:
 ${script}
@@ -533,7 +596,8 @@ Return JSON only.`;
 export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedMode = "safe", modelUsed = "openai/gpt-5.4", requestedTarget = "veo3") {
   const mode = normalizeMode(raw?.export_meta?.mode || requestedMode);
   const target = normalizeTarget(raw?.export_meta?.target || requestedTarget);
-  const engineTarget = mode === "raw" ? "grok_raw" : mode === "short_film" ? "short_film_dialogue" : "gpt_safe";
+  const filmMode = mode === "short_film" || mode === "trailer";
+  const engineTarget = mode === "raw" ? "grok_raw" : mode === "short_film" ? "short_film_dialogue" : mode === "trailer" ? "trailer_storyboard" : "gpt_safe";
   const targetDuration = Number(requestedDuration) || Number(raw.total_duration) || 60;
   const inputScenes = Array.isArray(raw.scenes) ? raw.scenes : Array.isArray(raw.shots) ? raw.shots : [];
   const splitScenes = splitLongScenes(inputScenes.length ? inputScenes : [{ description_ru: "Документальная сцена", vo_ru: "", duration: 3 }]);
@@ -560,6 +624,8 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     physical_condition: char.physical_condition ? sanitizeForGenerator(char.physical_condition) : char.physical_condition,
   })) : [];
   const voiceLockSafe = normalizeVoiceLock(raw.voice_lock, inputScenes);
+  const castLockSafe = normalizeCastLock(raw.cast_lock, characterLockSafe);
+  const locationLockSafe = normalizeLocationLock(raw.location_lock || raw.world_location_lock || raw.location);
 
   const storyboardMeta = {
     project_name: raw.project_name || "NeuroCine Storyboard",
@@ -571,6 +637,9 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     global_style_lock: raw.global_style_lock || DEFAULT_STYLE_LOCK,
     character_lock: characterLockSafe,
     voice_lock: voiceLockSafe,
+    cast_lock: castLockSafe,
+    location_lock: locationLockSafe,
+    style_bible: raw.style_bible || raw.master_style || raw.global_style_lock || DEFAULT_STYLE_LOCK,
     ...(target === "grok" && raw.master_style ? { master_style: raw.master_style } : {}),
   };
 
@@ -608,7 +677,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     let negativePrompt = NEGATIVE_PROMPT_BASE;
 
     try {
-      const agentPrompts = buildFramePromptsForTarget({ frame: { ...sourceScene, video_prompt_en: "", motion: getScriptLine(sourceScene) || getMotion(sourceScene) }, storyboard: { ...storyboardMeta, mode }, target, includeVo: mode === "short_film" });
+      const agentPrompts = buildFramePromptsForTarget({ frame: { ...sourceScene, video_prompt_en: "", motion: getScriptLine(sourceScene) || getMotion(sourceScene) }, storyboard: { ...storyboardMeta, mode }, target, includeVo: filmMode });
       imagePrompt = agentPrompts.image_prompt_en || imagePrompt;
       videoPrompt = agentPrompts.video_prompt_en || videoPrompt;
       negativePrompt = agentPrompts.negative_prompt || negativePrompt;
@@ -659,7 +728,13 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     global_negative_prompt: NEGATIVE_PROMPT_BASE,
     world_audio_lock: "Audio and SFX must be physically possible for the script era, location and visible objects. No modern sirens/alarms unless explicitly scripted or visible.",
     character_lock: characterLockSafe,
-    voice_lock: mode === "short_film" ? voiceLockSafe : (Array.isArray(raw.voice_lock) ? voiceLockSafe : []),
+    voice_lock: filmMode ? voiceLockSafe : (Array.isArray(raw.voice_lock) ? voiceLockSafe : []),
+    ...(mode === "trailer" ? {
+      cast_lock: castLockSafe,
+      location_lock: locationLockSafe,
+      style_bible: raw.style_bible || raw.master_style || raw.global_style_lock || DEFAULT_STYLE_LOCK,
+      grid_continuity: raw.grid_continuity || "Generate the full frame plan once, then produce PART grids as continuations of the same film using cast_lock, location_lock, style_bible and previous PART visual DNA. Odd frame counts may end with a 2-cell or 3-cell PART.",
+    } : {}),
     postprocess: raw.postprocess || { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     scenes,
     export_meta: {
@@ -670,8 +745,9 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       model: modelUsed,
       version: "neurocine_storyboard_v2_4_world_audio_brain",
       auto_safe_to_grok: mode !== "raw",
-      dialogue_mode: mode === "short_film",
-      voice_lock: mode === "short_film",
+      dialogue_mode: filmMode,
+      voice_lock: filmMode,
+      trailer_mode: mode === "trailer",
       world_audio_brain: true,
       postprocess: { upscale: "x2", final_upscale: "x4", model: "real-esrgan", provider: "replicate" },
     },
@@ -682,6 +758,7 @@ export function validateStoryboard(data = {}, requestedMode = "safe", requestedT
   const errors = [];
   const mode = normalizeMode(data?.export_meta?.mode || requestedMode);
   const target = normalizeTarget(data?.export_meta?.target || requestedTarget);
+  const filmMode = mode === "short_film" || mode === "trailer";
 
   if (!data || typeof data !== "object") errors.push("Storyboard is not an object");
   if (!data.global_video_lock) errors.push("global_video_lock is missing");
@@ -710,13 +787,17 @@ export function validateStoryboard(data = {}, requestedMode = "safe", requestedT
 
       if (!["low", "medium", "high"].includes(String(s.cut_energy || "").toLowerCase())) errors.push(`${expectedId}: cut_energy must be low, medium, or high`);
 
-      if (mode === "short_film" && Array.isArray(s.dialogue) && s.dialogue.length > 0) {
+      if (filmMode && Array.isArray(s.dialogue) && s.dialogue.length > 0) {
         if (!Array.isArray(data.voice_lock) || data.voice_lock.length === 0) errors.push(`${expectedId}: voice_lock missing for dialogue mode`);
         s.dialogue.forEach((line, lineIdx) => {
           if (line && typeof line === "object" && line.speaker && !line.voice_id) {
             errors.push(`${expectedId}: dialogue ${lineIdx + 1} missing voice_id`);
           }
         });
+      }
+
+      if (mode === "trailer" && (!Array.isArray(data.cast_lock) || data.cast_lock.length === 0) && Array.isArray(data.character_lock) && data.character_lock.length > 0) {
+        errors.push("trailer mode: cast_lock missing while character_lock exists");
       }
 
       if (mode !== "raw") {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import {
   PROJECT_TYPES, STYLE_PRESETS,
   build2KPrompt, buildStoryGridPrompt, buildChunkGridPrompt,
@@ -42,6 +43,14 @@ function gridCols(n) { return n <= 8 ? 2 : 3; }
 function partGridCols(n) { const count = Math.max(1, Number(n) || 1); return count <= 2 ? count : 2; }
 function gridRows(n, cols = gridCols(n)) { return Math.max(1, Math.ceil(Math.max(1, Number(n) || 1) / Math.max(1, cols))); }
 function partCellLabel(i) { return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i] || String(i + 1); }
+function sceneGlobalIndex(scene, scenes = [], fallback = 0) {
+  const byRef = scenes.indexOf(scene);
+  if (byRef >= 0) return byRef;
+  const byId = scene?.id ? scenes.findIndex((s) => s?.id === scene.id) : -1;
+  if (byId >= 0) return byId;
+  const n = Number(String(scene?.id || "").match(/\d+/)?.[0] || 0);
+  return n > 0 ? n - 1 : fallback;
+}
 
 /* ─── Flow/VEO TXT export ─── */
 function formatVoiceLockLine(v) {
@@ -411,13 +420,14 @@ function ProjectSetupPanelV40({
   clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
   authLocked = false,
 }) {
-  const durationOptions = [30, 45, 60, 90, 120, 180, 300, 600];
+  const durationOptions = [30, 45, 60, 87, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
   const modeOptions = [
     { id: "safe",          label: "Safe",          hint: "документально, без жёстких кадров" },
     { id: "raw",           label: "Raw",           hint: "меньше смягчения, больше фактуры" },
     { id: "script_strict", label: "📜 По сценарию", hint: "строго по тексту — AI не выдумывает действия" },
     { id: "short_film",    label: "🎭 Short Film", hint: "сцены, диалоги, blocking, титры и reaction shots" },
+    { id: "trailer",       label: "🎬 Trailer", hint: "film locks, cast continuity, grid parts, до 10 минут" },
   ];
   const targetOptions = [
     { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
@@ -506,7 +516,7 @@ function ProjectSetupPanelV40({
             <div className="setup-pills-v40">
               {durationOptions.map((v) => (
                 <button key={v} className={Number(duration) === v ? "active" : ""} onClick={() => setDuration(v)} disabled={authLocked} type="button">
-                  {v < 60 ? `${v}с` : v === 60 ? "60с" : v < 300 ? `${v / 60}м` : `${v / 60}м`}
+                  {v === 87 ? "87с · 29к" : v < 60 ? `${v}с` : v === 60 ? "60с" : v < 300 ? `${v / 60}м` : `${v / 60}м`}
                 </button>
               ))}
             </div>
@@ -581,13 +591,16 @@ function ProjectSetupPanelV40({
 
 /* ─── main page ─── */
 export default function StudioPage() {
+  const pathname = usePathname();
+  const isTrailerRoute = String(pathname || "").startsWith("/trailer");
+  const defaultStoryboardMode = isTrailerRoute ? "trailer" : "safe";
 
   /* STEP 1 — Script */
-  const [projectName, setProjectName] = useState("NeuroCine Project");
+  const [projectName, setProjectName] = useState(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project");
   const [topic, setTopic]             = useState("");
   const [projectType, setProjectType] = useState("film");
   const [stylePreset, setStylePreset] = useState("cinematic");
-  const [duration, setDuration]       = useState(60);
+  const [duration, setDuration]       = useState(isTrailerRoute ? 87 : 60);
   const [aspectRatio, setAspect]      = useState("9:16");
   const [tone, setTone]               = useState("cinematic documentary thriller");
   const [script, setScript]           = useState("");
@@ -600,7 +613,7 @@ export default function StudioPage() {
   const [sbBusy, setSbBusy]   = useState(false);
   const [sbStat, setSbStat]   = useState("");
   const [jsonIn, setJsonIn]   = useState("");
-  const [sbMode, setSbMode]   = useState("safe");
+  const [sbMode, setSbMode]   = useState(defaultStoryboardMode);
   const [target, setTarget]   = useState("veo3"); // "veo3" | "grok" — целевая видео-модель
   const [validation, setValidation] = useState(null);
 
@@ -664,8 +677,10 @@ export default function StudioPage() {
     setAccount(prev => prev ? { ...prev, profile: { ...(prev.profile || {}), ...patch } } : prev);
   }, []);
   const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
-  const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
-  const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
+  const draftTextBase = isTrailerRoute ? `${BASE_KEY_TEXT}:trailer` : BASE_KEY_TEXT;
+  const draftImgsBase = isTrailerRoute ? `${BASE_KEY_IMGS}:trailer` : BASE_KEY_IMGS;
+  const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(draftTextBase, storageOwnerId) : "", [storageOwnerId, draftTextBase]);
+  const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(draftImgsBase, storageOwnerId) : "", [storageOwnerId, draftImgsBase]);
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
@@ -760,7 +775,7 @@ export default function StudioPage() {
   const activeChunkScenes = chunks[activeChunk] || [];
 
   const autoParts = useMemo(() => splitScenesIntoParts(scenes, autoPartSize), [scenes, autoPartSize]);
-  const autoPartScenes = useMemo(() => scenes.slice(autoPartIndex * autoPartSize, autoPartIndex * autoPartSize + autoPartSize), [scenes, autoPartIndex, autoPartSize]);
+  const autoPartScenes = useMemo(() => autoParts[autoPartIndex] || [], [autoParts, autoPartIndex]);
   // Собираем CHARACTER OVERRIDE блок для движка
   const charOverrideBlock = charOverrideEnabled ? (() => {
     const mods = Object.entries(charModifiers).filter(([,v])=>v).map(([k]) => {
@@ -907,11 +922,11 @@ ${lines.join("\n")}` : "";
 
     // Always reset visible workspace before loading the draft for the current account.
     // This prevents admin/user/browser-account leakage after logout/login.
-    setProjectName("NeuroCine Project");
+    setProjectName(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project");
     setTopic("");
     setProjectType("film");
     setStylePreset("cinematic");
-    setDuration(60);
+    setDuration(isTrailerRoute ? 87 : 60);
     setAspect("9:16");
     setTone("cinematic documentary thriller");
     setScript("");
@@ -920,7 +935,7 @@ ${lines.join("\n")}` : "";
     setSbBusy(false);
     setSbStat("");
     setJsonIn("");
-    setSbMode("safe");
+    setSbMode(defaultStoryboardMode);
     setTarget("veo3");
     setValidation(null);
     setSBusy(false);
@@ -985,7 +1000,7 @@ ${lines.join("\n")}` : "";
 
     setSnapshotStatus(text?.local_save_warning ? "⚠ Локальный черновик загружен без тяжёлых prompt packs. Для полного сохранения используй Cloud Projects." : text ? "✓ Локальный черновик этого аккаунта загружен" : "");
     setHydrated(true);
-  }, [storageOwnerId, KEY_TEXT, KEY_IMGS]);
+  }, [storageOwnerId, KEY_TEXT, KEY_IMGS, isTrailerRoute, defaultStoryboardMode, liveAllowed]);
 
   /* ── AUTOSAVE WRITE (text) ── */
   useEffect(() => {
@@ -1083,15 +1098,15 @@ ${lines.join("\n")}` : "";
   }
 
   function clearEverything() {
-    setProjectName("NeuroCine Project");
+    setProjectName(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project");
     setTopic("");
     setTone("cinematic documentary thriller");
     setProjectType("film");
     setStylePreset("cinematic");
-    setDuration(60);
+    setDuration(isTrailerRoute ? 87 : 60);
     setAspect("9:16");
     setTarget("veo3");
-    setSbMode("safe");
+    setSbMode(defaultStoryboardMode);
     setScript("");
     setScriptValidation(null);
     setJsonIn("");
@@ -1606,8 +1621,8 @@ ${lines.join("\n")}` : "";
 
   function clearAll() {
     localStorage.removeItem(KEY_TEXT); localStorage.removeItem(KEY_IMGS);
-    setScript(""); setTopic(""); setProjectName("NeuroCine Project"); setJsonIn("");
-    setSStat(""); setSbMode("safe"); setScriptValidation(null);
+    setScript(""); setTopic(""); setProjectName(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project"); setJsonIn("");
+    setSStat(""); setSbMode(defaultStoryboardMode); setScriptValidation(null);
     setSnapshotStatus("");
     resetStoryboardOutputs({ keepAnchors: false });
   }
@@ -2439,9 +2454,18 @@ ${lines.join("\n")}` : "";
                   >
                     🎭 Film
                   </button>
+                  <button
+                    className={`btn${sbMode === "trailer" ? " btn-red" : ""}`}
+                    onClick={() => setSbMode("trailer")}
+                    style={{ flex: 1 }}
+                  >
+                    🎬 Trailer
+                  </button>
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
-                  {sbMode === "short_film"
+                  {sbMode === "trailer"
+                    ? "Trailer — full frame plan, cast/location/style locks, balanced PART grids"
+                    : sbMode === "short_film"
                     ? "Short Film — сценарные сцены, точные диалоги, blocking, титры и reaction shots"
                     : sbMode === "safe"
                       ? "Safe — документальный стиль, без жёсткого контента"
@@ -2647,7 +2671,7 @@ ${lines.join("\n")}` : "";
                         <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${autoPartCols}, 1fr)`, gridTemplateRows: `repeat(${autoPartRows}, 1fr)` }}>
                           {autoPartScenes.map((s, localIdx) => {
                             const label = partCellLabel(localIdx);
-                            const globalIdx = autoPartIndex * autoPartSize + localIdx;
+                            const globalIdx = sceneGlobalIndex(s, scenes, localIdx);
                             const selected = frameIdx === globalIdx;
                             return (
                               <button
@@ -2707,7 +2731,7 @@ ${lines.join("\n")}` : "";
                       <div className="brow" style={{ marginBottom: 12 }}>
                         {autoPartScenes.map((s, localIdx) => {
                           const label = partCellLabel(localIdx);
-                          const globalIdx = autoPartIndex * autoPartSize + localIdx;
+                          const globalIdx = sceneGlobalIndex(s, scenes, localIdx);
                           const selected = frameIdx === globalIdx;
                           return (
                             <button
