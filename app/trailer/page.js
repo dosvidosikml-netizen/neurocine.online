@@ -148,6 +148,48 @@ function locationLockLine(lock = {}) {
   return Object.entries(lock).map(([key, value]) => value ? `${key}: ${cleanText(value)}` : "").filter(Boolean).join("; ");
 }
 
+function buildFlowGrokContinuityFixPrompt({ storyboard, styleProfile, partScenes, partIndex, partSize, gridLayout }) {
+  if (!storyboard || !partScenes?.length) return "";
+  const labels = partScenes.map((scene, i) => frameLabel(scene, partIndex * partSize + i)).join(", ");
+  const castLock = (storyboard.cast_lock || []).map((item, i) => lockLine(item, `Cast ${i + 1}`)).filter(Boolean).join("\n");
+  const characterLock = (storyboard.character_lock || []).map((item, i) => lockLine(item, `Character ${i + 1}`)).filter(Boolean).join("\n");
+  const locationLock = locationLockLine(storyboard.location_lock || {});
+  const style = cleanText(storyboard.style_bible || storyboard.global_style_lock || styleProfile?.style_lock || "");
+  const previousRule = partIndex > 0
+    ? "If a previous PART grid/reference is uploaded, use it only as visual DNA for cast identity, wardrobe, lighting family, lens language, color grade and production design. Do not copy the same compositions."
+    : "This is PART 1. Establish the locked film identity clearly so later PARTS can continue it.";
+
+  return `FLOW / GROK CONTINUITY FIX — PUT THIS BEFORE THE PART PROMPT
+
+This is PART ${partIndex + 1} of the same trailer / short film, not a new concept and not a new storyboard.
+Continue the exact same film world from previous frames.
+
+CONTINUITY PRIORITY:
+1. Same cast identity, faces, body types, wardrobe and emotional condition.
+2. Same office/elevator/corridor location design and spatial logic.
+3. Same lighting family, lens language, color grade, realism and horror tone.
+4. Source of truth = the frame descriptions in the PART prompt.
+
+CAST LOCK:
+${castLock || characterLock || "Use the same recurring characters from the storyboard. Do not replace actors."}
+
+LOCATION LOCK:
+${locationLock || "Use the same locked location from the storyboard. Do not redesign the place."}
+
+STYLE LOCK:
+${style || "same camera-photographed live-action style, same lighting family, same color grade"}
+
+FLOW/GROK RULES:
+- ${previousRule}
+- Do not invent a new style, new actors, new costumes, new rooms, new props, new time period or new supernatural rules.
+- Style is only lens/color/lighting/mood. Style cannot add objects that are not in the script.
+- Generate a clean ${gridLayout.cols}×${gridLayout.rows} temporary grid with ${partScenes.length} standalone 9:16 cells.
+- Internal frame order: ${labels}. Do not draw these labels.
+- No visible numbering, no captions, no title bars, no borders, no separators, no black gutters, no UI, no watermark.
+
+Now follow the PART prompt exactly.`;
+}
+
 function buildLockedFrameVideoPrompt({ scene, storyboard, styleProfile, frameLabelText, hasCrop }) {
   if (!scene) return "";
   const scriptLine = cleanText(scene.script_line_ru || scene.vo_ru || scene.description_ru || "");
@@ -371,7 +413,7 @@ export default function TrailerStoryboardPage() {
   const safeFrameIndex = Math.max(0, Math.min(selectedFrameIndex, Math.max(0, partScenes.length - 1)));
   const selectedScene = partScenes[safeFrameIndex] || null;
   const currentGridUpload = gridUploads[safePart] || "";
-  const currentGridLayout = gridLayoutFor(partScenes.length || partSize);
+  const currentGridLayout = useMemo(() => gridLayoutFor(partScenes.length || partSize), [partScenes.length, partSize]);
   const selectedPrompt = useMemo(() => {
     if (!storyboard || !partScenes.length) return "";
     return buildFlowCompactPartPrompt({
@@ -387,6 +429,18 @@ export default function TrailerStoryboardPage() {
       appearanceMode: "full",
     });
   }, [storyboard, styleProfile, partScenes, safePart, scenes.length, partSize]);
+  const flowGrokFixedPrompt = useMemo(() => {
+    if (!selectedPrompt) return "";
+    const fix = buildFlowGrokContinuityFixPrompt({
+      storyboard,
+      styleProfile,
+      partScenes,
+      partIndex: safePart,
+      partSize,
+      gridLayout: currentGridLayout,
+    });
+    return `${fix}\n\n${selectedPrompt}`.trim();
+  }, [selectedPrompt, storyboard, styleProfile, partScenes, safePart, partSize, currentGridLayout]);
   const maxManualFrames = Math.max(1, Math.floor(MAX_TOTAL_DURATION / Math.max(1, Number(frameSeconds) || 3)));
   const manualFrames = clampNumber(customFrameCount, 1, maxManualFrames, 27);
   const autoFrames = estimateAutoFrameCount(script, duration, frameSeconds);
@@ -547,6 +601,12 @@ export default function TrailerStoryboardPage() {
     if (!selectedPrompt) return;
     await navigator.clipboard.writeText(selectedPrompt);
     setStatus(`PART ${safePart + 1} prompt copied`);
+  }
+
+  async function copyFlowGrokFixedPrompt() {
+    if (!flowGrokFixedPrompt) return;
+    await navigator.clipboard.writeText(flowGrokFixedPrompt);
+    setStatus(`PART ${safePart + 1} Flow/Grok fixed prompt copied`);
   }
 
   async function copySelectedVideoPrompt() {
@@ -793,12 +853,16 @@ export default function TrailerStoryboardPage() {
                 <div className="promptbox">
                   <div className="prompt-head">
                     <h2>04 · PART Grid Prompt</h2>
-                    <button disabled={!selectedPrompt} onClick={copyPrompt}>Copy PART prompt</button>
+                    <div className="buttons">
+                      <button disabled={!selectedPrompt} onClick={copyPrompt}>Copy PART prompt</button>
+                      <button className="primary" disabled={!flowGrokFixedPrompt} onClick={copyFlowGrokFixedPrompt}>Fix Flow/Grok + copy</button>
+                    </div>
                   </div>
                   <div className="pills">
                     <span className="pill active">{currentGridLayout.cols}×{currentGridLayout.rows} grid</span>
                     <span className="pill">{partScenes.length} frames in this PART</span>
                     <span className="pill">{partSize} max per PART</span>
+                    <span className="pill">continuity fix ready</span>
                   </div>
                   <div className="mono">{selectedPrompt || "Select/generate PART to see prompt."}</div>
                 </div>
