@@ -451,7 +451,43 @@ function getFrameAction(frame = {}) {
 }
 
 function getScriptLine(frame = {}) {
-  return cleanText(frame.vo_ru || frame.script_line_ru || frame.script_line || "");
+  return cleanText(frame.script_line_ru || frame.script_line || frame.vo_ru || "");
+}
+
+function isDialogueMode(frame = {}, storyboard = {}) {
+  const mode = String(storyboard?.mode || storyboard?.export_meta?.mode || frame?.mode || "").toLowerCase();
+  return mode === "short_film" || mode === "dialogue" || mode === "film_dialogue" || mode === "screenplay" || (Array.isArray(frame.dialogue) && frame.dialogue.length > 0);
+}
+
+function voiceKey(value = "") {
+  return cleanText(value).toLowerCase();
+}
+
+function voiceLockForSpeaker(storyboard = {}, speaker = "") {
+  const key = voiceKey(speaker);
+  if (!key) return null;
+  return (Array.isArray(storyboard.voice_lock) ? storyboard.voice_lock : []).find((item) => {
+    return voiceKey(item.character || item.name || item.speaker || "") === key;
+  }) || null;
+}
+
+function dialogueToText(value, storyboard = {}) {
+  if (Array.isArray(value)) {
+    return value.map((line) => {
+      if (typeof line === "string") return cleanText(line);
+      if (!line || typeof line !== "object") return "";
+      const speaker = cleanText(line.speaker || line.character || "");
+      const lock = voiceLockForSpeaker(storyboard, speaker);
+      const voiceId = cleanText(line.voice_id || line.voiceId || lock?.voice_id || "");
+      const delivery = cleanText(line.delivery || line.tone || line.performance || "");
+      const speakerLabel = `${speaker}${voiceId ? ` [${voiceId}]` : ""}`.trim();
+      const text = cleanText(line.text || line.line || line.dialogue || "");
+      const deliveryTag = delivery ? ` (${delivery})` : "";
+      return [speakerLabel, text ? `${text}${deliveryTag}` : ""].filter(Boolean).join(": ");
+    }).filter(Boolean).join(" / ");
+  }
+  if (value && typeof value === "object") return dialogueToText([value], storyboard);
+  return cleanText(value || "");
 }
 
 function getSourceTruthAction(frame = {}) {
@@ -510,7 +546,13 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
   const camera = compactCameraMove(frame.camera || "subtle slow push-in", 14);
   const motion = inferMicroMotion(rawAction, frame);
   const audio = buildAudioPlan({ frame, storyboard, action: rawAction });
-  const noVoice = includeVo && frame.vo_ru ? "Voiceover may be added separately; keep this clip non-verbal but keep diegetic ambient and SFX audible." : "VOICE LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music — BUT diegetic ambient sound and the SFX above MUST be present and audible.";
+  const dialogueMode = isDialogueMode(frame, storyboard);
+  const dialogueText = dialogueToText(frame.dialogue, storyboard);
+  const noVoice = dialogueMode
+    ? (dialogueText ? `Dialogue: exact scripted line(s) only: ${dialogueText}. Keep listed voice_id and delivery. No improvised speech, no voiceover.` : "Dialogue: none in this shot. No improvised speech, no voiceover.")
+    : includeVo && frame.vo_ru
+      ? "Voiceover may be added separately; keep this clip non-verbal but keep diegetic ambient and SFX audible."
+      : "VOICE LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music — BUT diegetic ambient sound and the SFX above MUST be present and audible.";
   const continuity = consistency === "ultra"
     ? "Keep the exact uploaded composition, lighting, clothing, grime and object layout."
     : "Keep visual continuity with the uploaded frame.";
@@ -625,7 +667,11 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
   const action = sanitizeSensitiveMinorTerms(removeGeneratedNames(getSourceTruthAction(frame), storyboard), minorSafe) || "the visible subject holds position with subtle movement";
   const sourceLine = getScriptLine(frame) || action;
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const noVoice = includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
+  const dialogueMode = isDialogueMode(frame, storyboard);
+  const dialogueText = dialogueToText(frame.dialogue, storyboard);
+  const noVoice = dialogueMode
+    ? (dialogueText ? `Dialogue only if synced: "${limitWords(dialogueText, 12)}". Keep voice_id. No extra speech.` : "NO SPEECH, NO VOICEOVER.")
+    : includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
   const duration = Math.min(8, Math.max(3, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "static handheld").split(",")[0].trim();
   const sfxShort = buildGrokSfxLine(audio);
@@ -650,7 +696,11 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
   const duration = Math.min(10, Math.max(4, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "subtle handheld documentary movement");
   const audio = buildAudioPlan({ frame, storyboard, action });
-  const noVoice = includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
+  const dialogueMode = isDialogueMode(frame, storyboard);
+  const dialogueText = dialogueToText(frame.dialogue, storyboard);
+  const noVoice = dialogueMode
+    ? (dialogueText ? `Dialogue only if synced: "${limitWords(dialogueText, 12)}". Keep voice_id. No extra speech.` : "NO SPEECH, NO VOICEOVER.")
+    : includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
   const shot = getShotProgression(frame);
   const sourceLine = getScriptLine(frame) || action;
   const sfxShort = buildGrokSfxLine(audio);
@@ -728,17 +778,24 @@ export function stripBannedWords(text = "") {
 
 export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {}, includeVo = false, target = "veo3" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
+  const dialogueMode = isDialogueMode(frame, storyboard);
   let out = stripBannedWords(text);
   out = stripNoVoiceGarbage(out, includeVo);
   out = sanitizeSensitiveMinorTerms(out, minorSafe);
   out = dedupeFinalPrompt(out);
 
-  if (!includeVo) {
+  if (!includeVo && !dialogueMode) {
     const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient diegetic SFX MUST be present and audible.";
     if (String(target).toLowerCase() === "grok" && !out.startsWith("NO SPEECH")) out = `${hardNoVoice} ${out}`;
     if (!/(No dialogue,\s*no voiceover|No speech,\s*no voiceover|NO SPEECH)/i.test(out) && String(target).toLowerCase() !== "grok") {
       out = `${out} No dialogue, no voiceover; ambient sound and SFX must stay audible.`;
     }
+  } else if (dialogueMode) {
+    const dialogueText = dialogueToText(frame.dialogue, storyboard);
+    const guard = dialogueText
+      ? `Dialogue lock: use only the scripted line(s): ${dialogueText}. Match voice_id and delivery if provided. No extra speech, no narrator voiceover.`
+      : "Dialogue lock: no spoken line in this shot. No improvised speech, no narrator voiceover.";
+    if (!/Dialogue lock:/i.test(out)) out = `${out} ${guard}`;
   }
   return dedupeFinalPrompt(out);
 }
@@ -789,7 +846,7 @@ export function validateFramePrompts({ frame, storyboard, target = "veo3" }) {
   if (target === "grok") {
     const wordCount = cleanText(frame.video_prompt_en || "").split(/\s+/).length;
     if (wordCount > 80) errors.push(`Grok video prompt too long: ${wordCount} words (max 80)`);
-    if (/human voices|voiceover|dialogue|narration/i.test(frame.video_prompt_en || "")) {
+    if (!isDialogueMode(frame, storyboard) && /human voices|voiceover|dialogue|narration/i.test(frame.video_prompt_en || "")) {
       if (!/^ANIMATE CURRENT FRAME:\s*NO SPEECH/i.test(frame.video_prompt_en || "")) errors.push("Grok prompt may allow voices/dialogue");
     }
   }

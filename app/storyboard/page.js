@@ -44,11 +44,32 @@ function gridRows(n, cols = gridCols(n)) { return Math.max(1, Math.ceil(Math.max
 function partCellLabel(i) { return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i] || String(i + 1); }
 
 /* ─── Flow/VEO TXT export ─── */
+function formatVoiceLockLine(v) {
+  if (!v || typeof v !== "object") return "";
+  const character = v.character || v.name || v.speaker || "";
+  const label = `${character}${v.voice_id ? ` [${v.voice_id}]` : ""}`.trim();
+  return [label, v.voice_profile || v.profile || v.description, v.delivery_arc || v.delivery].filter(Boolean).join(" — ");
+}
+
+function formatDialogueLine(line) {
+  if (typeof line === "string") return line;
+  if (!line || typeof line !== "object") return "";
+  const speaker = line.speaker || line.character || "";
+  const voice = line.voice_id ? ` [${line.voice_id}]` : "";
+  const text = line.text || line.line || line.dialogue || "";
+  const delivery = line.delivery ? ` (${line.delivery})` : "";
+  return [speaker ? `${speaker}${voice}` : "", text ? `${text}${delivery}` : ""].filter(Boolean).join(": ");
+}
+
 function buildFlowTxt(storyboard, styleProfile) {
   if (!storyboard) return "";
   const sb = storyboard;
   const chars = (sb.character_lock || [])
     .map(c => `${c.name} — ${c.description}`)
+    .join("\n");
+  const voices = (sb.voice_lock || [])
+    .map(formatVoiceLockLine)
+    .filter(Boolean)
     .join("\n");
   const lines = [
     `STORYBOARD GRID — ${sb.project_name || "NeuroCine Project"}`,
@@ -56,11 +77,16 @@ function buildFlowTxt(storyboard, styleProfile) {
     `STYLE LOCK: ${styleProfile?.style_lock || sb.global_style_lock || ""}`,
     "",
     chars ? `CHARACTER LOCK:\n${chars}` : "",
+    voices ? `VOICE LOCK:\n${voices}` : "",
     "",
   ].filter(l => l !== null);
 
   (sb.scenes || []).forEach(s => {
     const vis = (s.image_prompt_en || "").replace(/^SCENE PRIMARY FOCUS:\s*/i, "").trim();
+    const dialogue = Array.isArray(s.dialogue)
+      ? s.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+      : (s.dialogue || "");
+    const screenText = Array.isArray(s.on_screen_text) ? s.on_screen_text.join(" / ") : (s.on_screen_text || "");
     // strip SFX from video_prompt_en for ANIMATION field
     const anim = (s.video_prompt_en || "")
       .replace(/^ANIMATE CURRENT FRAME:\s*/i, "")
@@ -70,6 +96,10 @@ function buildFlowTxt(storyboard, styleProfile) {
       `FRAME ${String(s.id || "").replace("frame_", "").padStart(2, "0")} / ${s.start ?? "?"}–${s.end ?? "?"}s`,
       `VISUAL: ${vis}`,
       `ANIMATION: ${anim}`,
+      `SOURCE: ${s.script_line_ru || s.vo_ru || ""}`,
+      `DIALOGUE: ${dialogue}`,
+      `ON SCREEN: ${screenText}`,
+      `BLOCKING: ${s.blocking || ""}`,
       `VO: ${s.vo_ru || ""}`,
       `SFX: ${s.sfx || ""}`,
       ""
@@ -387,6 +417,7 @@ function ProjectSetupPanelV40({
     { id: "safe",          label: "Safe",          hint: "документально, без жёстких кадров" },
     { id: "raw",           label: "Raw",           hint: "меньше смягчения, больше фактуры" },
     { id: "script_strict", label: "📜 По сценарию", hint: "строго по тексту — AI не выдумывает действия" },
+    { id: "short_film",    label: "🎭 Short Film", hint: "сцены, диалоги, blocking, титры и reaction shots" },
   ];
   const targetOptions = [
     { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
@@ -1548,9 +1579,14 @@ ${lines.join("\n")}` : "";
     downloadTextFile(JSON.stringify(obj, null, 2), safeFileName(projectName) + ".json", "application/json;charset=utf-8");
   }
   function exportTxt() {
-    const lines = [`NEUROCINE — ${projectName}\n\nСЦЕНАРИЙ:\n${script}\n\n--- STORYBOARD ---\n`];
+    const voiceLock = (storyboard?.voice_lock || []).map(formatVoiceLockLine).filter(Boolean).join("\n");
+    const lines = [`NEUROCINE — ${projectName}\n\nСЦЕНАРИЙ:\n${script}\n\n${voiceLock ? `--- VOICE LOCK ---\n${voiceLock}\n\n` : ""}--- STORYBOARD ---\n`];
     scenes.forEach(s => {
-      lines.push(`\n[${s.id}] ${s.start}s–${s.end ?? "?"}s | ${s.beat_type}\nVO: ${s.vo_ru}\nIMAGE: ${s.image_prompt_en}\nVIDEO: ${s.video_prompt_en}\nSFX: ${s.sfx}\n`);
+      const dialogue = Array.isArray(s.dialogue)
+        ? s.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+        : (s.dialogue || "");
+      const screenText = Array.isArray(s.on_screen_text) ? s.on_screen_text.join(" / ") : (s.on_screen_text || "");
+      lines.push(`\n[${s.id}] ${s.start}s–${s.end ?? "?"}s | ${s.beat_type || s.shot_role || "frame"}\nSOURCE: ${s.script_line_ru || s.vo_ru || ""}\nDIALOGUE: ${dialogue}\nON SCREEN: ${screenText}\nBLOCKING: ${s.blocking || ""}\nVO: ${s.vo_ru || ""}\nIMAGE: ${s.image_prompt_en}\nVIDEO: ${s.video_prompt_en}\nSFX: ${s.sfx}\n`);
     });
     downloadTextFile(lines.join(""), safeFileName(projectName) + ".txt");
   }
@@ -1559,7 +1595,12 @@ ${lines.join("\n")}` : "";
     downloadTextFile(txt, safeFileName(projectName) + "-flow-veo.txt");
   }
   function copyAllVo() {
-    const all = scenes.map(s => `[${s.id}] ${s.vo_ru || ""}`).join("\n\n");
+    const all = scenes.map((s) => {
+      const dialogue = Array.isArray(s.dialogue)
+        ? s.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+        : (s.dialogue || "");
+      return `[${s.id}] ${dialogue || s.vo_ru || ""}`;
+    }).join("\n\n");
     navigator.clipboard.writeText(all);
   }
 
@@ -2391,9 +2432,20 @@ ${lines.join("\n")}` : "";
                   >
                     ⚡ Raw
                   </button>
+                  <button
+                    className={`btn${sbMode === "short_film" ? " btn-red" : ""}`}
+                    onClick={() => setSbMode("short_film")}
+                    style={{ flex: 1 }}
+                  >
+                    🎭 Film
+                  </button>
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
-                  {sbMode === "safe" ? "Safe — документальный стиль, без жёсткого контента" : "Raw — сильная камера, интенсивная атмосфера, кинематографичнее"}
+                  {sbMode === "short_film"
+                    ? "Short Film — сценарные сцены, точные диалоги, blocking, титры и reaction shots"
+                    : sbMode === "safe"
+                      ? "Safe — документальный стиль, без жёсткого контента"
+                      : "Raw — сильная камера, интенсивная атмосфера, кинематографичнее"}
                 </div>
               </div>
 
@@ -2467,7 +2519,7 @@ ${lines.join("\n")}` : "";
                   <button className="btn btn-sm" onClick={exportJson}>⬇ .json</button>
                   <button className="btn btn-sm" onClick={exportTxt}>⬇ .txt</button>
                   <button className="btn btn-sm btn-red" onClick={exportFlow}>⬇ Flow/VEO</button>
-                  <button className="btn btn-sm" onClick={copyAllVo} title="Копировать все VO для TTS">📋 Все VO</button>
+                  <button className="btn btn-sm" onClick={copyAllVo} title="Копировать VO/диалоги для TTS с voice_id">📋 VO/Dialogues</button>
                 </div>
               )}
             </div>
@@ -2478,6 +2530,11 @@ ${lines.join("\n")}` : "";
                   {storyboard ? (
                     <>
                       <div style={{ color: "#22c55e", fontWeight: 900, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
+                      {Array.isArray(storyboard?.voice_lock) && storyboard.voice_lock.length > 0 && (
+                        <div style={{ fontSize: 12, marginBottom: 8 }}>
+                          Voice lock: {storyboard.voice_lock.map(v => `${v.character || v.name || "Character"}${v.voice_id ? ` [${v.voice_id}]` : ""}`).join(" · ")}
+                        </div>
+                      )}
                       Дальше работа идёт в блоке 03: FRAME GRID PROMPT → PART-сетка {autoPartGridLabel} → {autoPartCellLabels.join("/") || "кадр"} → video prompt из JSON.
                     </>
                   ) : (
@@ -2751,7 +2808,7 @@ ${lines.join("\n")}` : "";
                         />
                         <div className="frame-card" style={{ marginTop: 12 }}>
                           <div className="frame-card-title">{curFrame.id}</div>
-                          <div className="frame-card-meta">PART {autoPartIndex + 1} · {curFrame.start ?? "?"}–{curFrame.end ?? "?"}s · {curFrame.beat_type || "frame"}</div>
+                          <div className="frame-card-meta">PART {autoPartIndex + 1} · {curFrame.start ?? "?"}–{curFrame.end ?? "?"}s · {curFrame.shot_role || curFrame.beat_type || "frame"}</div>
                           <button className="mini-toggle" onClick={() => setShowFrameRu(v => !v)}>
                             Описание RU {showFrameRu ? "▲" : "▼"}
                           </button>
@@ -2759,6 +2816,34 @@ ${lines.join("\n")}` : "";
                             <div className="frame-card-row">
                               <div className="frame-card-lbl">Описание</div>
                               <div className="frame-card-val">{curFrame.description_ru || curFrame.vo_ru || "—"}</div>
+                            </div>
+                          )}
+                          {curFrame.script_line_ru && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">Source</div>
+                              <div className="frame-card-val">{curFrame.script_line_ru}</div>
+                            </div>
+                          )}
+                          {Array.isArray(curFrame.dialogue) && curFrame.dialogue.length > 0 && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">Dialogue</div>
+                              <div className="frame-card-val">
+                                {curFrame.dialogue.map((line, i) => (
+                                  <div key={i}>{formatDialogueLine(line)}</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {Array.isArray(curFrame.on_screen_text) && curFrame.on_screen_text.length > 0 && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">On screen</div>
+                              <div className="frame-card-val">{curFrame.on_screen_text.join(" / ")}</div>
+                            </div>
+                          )}
+                          {curFrame.blocking && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">Blocking</div>
+                              <div className="frame-card-val">{curFrame.blocking}</div>
                             </div>
                           )}
                           {curFrame.sfx && (

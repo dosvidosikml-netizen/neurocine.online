@@ -96,6 +96,7 @@ generate scenes → SAFETY CONTROL → SCENE SCORING → AUTO-CHECK → output J
 mode parameter:
 - "safe" → GPT SAFE MODE (default): documentary phrasing, no explicit gore, no exposed body
 - "raw"  → GROK RAW MODE: stronger camera, intensity, atmosphere — still non-erotic, non-fetishized
+- "short_film" → SHORT FILM / DIALOGUE MODE: screenplay coverage with scripted dialogue, blocking, inserts, reaction shots and visible text fields
 
 In SAFE mode, replace risky phrasing automatically:
   blood → "dark traces on fabric"
@@ -121,6 +122,7 @@ These models have DIFFERENT prompt expectations. You must adapt.
 - AUDIO BLOCK IS MANDATORY in video_prompt_en:
     "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
 - Veo 3 generates native synchronized sound — use ambience and SFX only by default
+- EXCEPTION: in mode="short_film", dialogue is allowed only when copied exactly from scene.dialogue. Use "Dialogue: exact scripted line only..." and still forbid improvised speech / narrator VO. Preserve voice_id from voice_lock for every speaking character.
 
 ## GROK IMAGINE PROMPT FORMAT
 - video_prompt_en: compact 40-80 words
@@ -223,6 +225,15 @@ vo_ru:
 - never include vo_ru, VO meaning, narration, speech, or dialogue inside image_prompt_en/video_prompt_en by default
 - documentary / trailer tone
 
+mode="short_film" exception:
+- Treat the script as screenplay, not narrator VO.
+- Put character speech in scene.dialogue as exact scripted lines.
+- Create root voice_lock for every speaking character: character, voice_id, voice_profile, delivery_arc.
+- Every scene.dialogue object must include speaker, voice_id, text, delivery. Reuse the same voice_id for that speaker from first frame to last.
+- Put visible titles, elevator panel text, photo captions and final title cards in scene.on_screen_text.
+- Add scene.script_line_ru, scene.blocking and scene.shot_role.
+- Do not invent any spoken line, caption, rule, location or character not present in the script.
+
 ═══════════════════════════════════════════════════════════════════════════
 # DURATION CONTROL — STRICT
 ═══════════════════════════════════════════════════════════════════════════
@@ -248,6 +259,7 @@ If any scene < 8 → rewrite until 8+.
 - valid JSON only, no markdown
 - one focus per frame
 - character_lock injected verbatim into every image_prompt and video_prompt
+- in mode="short_film", voice_lock exists and every dialogue line reuses the matching voice_id
 - image_prompt_en starts with "SCENE PRIMARY FOCUS:"
 - video_prompt_en ends with EXACT continuity sentence
 - NO banned style tokens (cinematic, 8k, masterpiece, perfect, etc.)
@@ -278,6 +290,14 @@ If broken → rewrite until valid.
       "physical_condition": "condition description"
     }
   ],
+  "voice_lock": [
+    {
+      "character": "Character Name",
+      "voice_id": "voice_01",
+      "voice_profile": "stable vocal identity and timbre",
+      "delivery_arc": "performance change across the story"
+    }
+  ],
   "postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" },
   "scenes": [
     {
@@ -289,6 +309,10 @@ If broken → rewrite until valid.
       "image_prompt_en": "SCENE PRIMARY FOCUS: ...",
       "video_prompt_en": "...Maintain EXACT same character appearance, face, clothing, and condition as previous frame.",
       "vo_ru": "Текст диктора",
+      "dialogue": [{ "speaker": "Character Name", "voice_id": "voice_01", "text": "Exact scripted line", "delivery": "short performance note" }],
+      "on_screen_text": [],
+      "blocking": "",
+      "shot_role": "",
       "sfx": "scene-matched ambience",
       "camera": "static medium shot",
       "transition": "cut",
@@ -469,6 +493,7 @@ export async function POST(req) {
 
               const chunkResults = [];
               let characterLockFromPrev = null;
+              let voiceLockFromPrev = null;
               let lastSceneFromPrev = null;
               let globalStyleLock = null;
               let lastModelUsed = null;
@@ -484,13 +509,13 @@ export async function POST(req) {
                   chunkDuration: ch.duration, chunkStart: ch.start,
                   totalDuration: duration, scriptForChunk: scriptChunks[i] || "",
                   globalScript: script, mode, target, aspectRatio,
-                  characterLockFromPrev, lastSceneFromPrev, globalStyleLock,
+                  characterLockFromPrev, voiceLockFromPrev, lastSceneFromPrev, globalStyleLock,
                 });
 
                 const result = await callOpenRouter({
                   taskType: TASK_TYPES.STORYBOARD_GENERATION,
                   systemPrompt: SYSTEM_PROMPT, userMessage: chunkUserMessage,
-                  temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+                  temperatureOverride: mode === "raw" ? 0.55 : mode === "short_film" ? 0.45 : 0.3,
                   responseFormat: { type: "json_object" },
                   appTitle: `NeuroCine Long-Form Chunk ${i + 1}/${chunks.length}`,
                   apiKeyOverride,
@@ -507,10 +532,12 @@ export async function POST(req) {
                 const parsedChunk = extractJson(result.content);
                 const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target);
                 if (i > 0 && characterLockFromPrev) normalizedChunk.character_lock = characterLockFromPrev;
+                if (i > 0 && voiceLockFromPrev) normalizedChunk.voice_lock = voiceLockFromPrev;
                 if (globalStyleLock) normalizedChunk.global_style_lock = globalStyleLock;
 
                 chunkResults.push(normalizedChunk);
                 characterLockFromPrev = normalizedChunk.character_lock || characterLockFromPrev;
+                voiceLockFromPrev = normalizedChunk.voice_lock || voiceLockFromPrev;
                 globalStyleLock = normalizedChunk.global_style_lock || globalStyleLock;
                 lastSceneFromPrev = extractLastSceneContext(normalizedChunk);
                 lastModelUsed = result.model_used;
@@ -544,7 +571,7 @@ export async function POST(req) {
               const result = await callOpenRouter({
                 taskType: TASK_TYPES.STORYBOARD_GENERATION,
                 systemPrompt: SYSTEM_PROMPT, userMessage: userInput,
-                temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+                temperatureOverride: mode === "raw" ? 0.55 : mode === "short_film" ? 0.45 : 0.3,
                 responseFormat: { type: "json_object" },
                 appTitle: "NeuroCine Storyboard Engine v2.2",
                 apiKeyOverride,
@@ -625,7 +652,7 @@ export async function POST(req) {
       taskType: TASK_TYPES.STORYBOARD_GENERATION,
       systemPrompt: SYSTEM_PROMPT,
       userMessage: userInput,
-      temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+      temperatureOverride: mode === "raw" ? 0.55 : mode === "short_film" ? 0.45 : 0.3,
       responseFormat: { type: "json_object" },
       appTitle: "NeuroCine Storyboard Engine v2.2",
       apiKeyOverride,

@@ -369,6 +369,30 @@ export function buildLocalStoryboard(options = {}) {
   return fallbackStoryboard(options);
 }
 
+export function storyboardToProjectJson(storyboard = {}, extras = {}) {
+  const scenes = Array.isArray(storyboard?.scenes)
+    ? storyboard.scenes
+    : Array.isArray(storyboard?.frames)
+      ? storyboard.frames
+      : [];
+  return {
+    neurocine_project_snapshot: true,
+    version: "sceneEngine-project-export-v1",
+    exported_at: new Date().toISOString(),
+    project_name: storyboard?.project_name || storyboard?.title || extras?.projectName || "NeuroCine Project",
+    script: extras?.script || storyboard?.script || storyboard?.full_script || "",
+    storyboard: {
+      ...storyboard,
+      scenes,
+    },
+    director: extras?.director || {},
+    export_meta: {
+      ...(storyboard?.export_meta || {}),
+      ...(extras?.export_meta || {}),
+    },
+  };
+}
+
 export default {
   STYLE_LOCKS,
   VIDEO_LOCK,
@@ -377,5 +401,6 @@ export default {
   getDurationPlan,
   inferSceneCount,
   normalizeStoryboard,
-  buildLocalStoryboard
+  buildLocalStoryboard,
+  storyboardToProjectJson
 };

@@ -165,7 +165,7 @@ export function buildWorldAudioBlock(frame = {}, storyboard = {}) {
 }
 
 function scriptLineFor(frame = {}) {
-  return cleanText(frame?.vo_ru || frame?.script_line_ru || frame?.script_line || "");
+  return cleanText(frame?.script_line_ru || frame?.script_line || frame?.vo_ru || "");
 }
 
 function buildSourceTruthRule(frame = {}, { compact = false } = {}) {
