@@ -30,6 +30,18 @@ function frameLabel(scene, index = 0) {
   return `F${String(frameNumber(scene, index)).padStart(2, "0")}`;
 }
 
+function cellPositionName(index = 0, cols = 2) {
+  const col = index % Math.max(1, cols);
+  const row = Math.floor(index / Math.max(1, cols));
+  const vertical = row === 0 ? "upper" : row === 1 ? "lower" : `row ${row + 1}`;
+  const horizontal = col === 0 ? "left" : col === 1 ? "right" : `column ${col + 1}`;
+  return `${vertical}-${horizontal} cell`;
+}
+
+function cellOrderText(count = 0, cols = 2) {
+  return Array.from({ length: count }, (_, i) => cellPositionName(i, cols)).join(" -> ");
+}
+
 function visualBeatText(scene = {}) {
   return stripPromptPrefix(
     scene.visual_beat_en ||
@@ -139,13 +151,11 @@ function getRelevantCharacterLock(characterLock = [], partScenes = [], appearanc
   return relevant.length ? relevant : [];
 }
 
-function getContinuityLink(partScenes = [], localIdx = 0, partIndex = 0, partSize = 4) {
+function getContinuityLink(partScenes = [], localIdx = 0) {
   if (localIdx === 0) {
     return "CONTINUITY LINK: establish the first literal state of this event. If later frames stay in the same beat, preserve the same subject/entity and environment unless the scenario explicitly changes them.";
   }
-  const prev = partScenes[localIdx - 1];
-  const prevLabel = frameLabel(prev, partIndex * partSize + localIdx - 1);
-  return `CONTINUITY LINK: if this frame continues the reveal or action from ${prevLabel}, preserve the same subject/entity, same environment and same event. Change only angle, distance, lens, emphasis or foreground layer unless the SCENARIO INPUT explicitly introduces a new subject.`;
+  return "CONTINUITY LINK: if this frame continues the reveal or action from the previous cell, preserve the same subject/entity, same environment and same event. Change only angle, distance, lens, emphasis or foreground layer unless the SCENARIO INPUT explicitly introduces a new subject.";
 }
 
 const LEGACY_LIVE_ACTION_STYLE_LOCK = `CRITICAL VISUAL RULE — OLD NEUROCINE LIVE-ACTION LOOK:
@@ -162,7 +172,7 @@ Do not create a parchment page, drawn card, comic panel, sketch board, illustrat
 Grid borders are allowed only as simple thin black separators between photographic frames.`;
 
 const HARD_NEGATIVE_VISUAL_LOCK = `NEGATIVE VISUAL LOCK — REJECT IF PRESENT:
-NO parchment background, NO paper texture, NO old manuscript look, NO beige canvas, NO drawn storyboard, NO painted storyboard, NO illustration, NO concept art, NO 2D art, NO cartoon, NO anime, NO comic style, NO sketch, NO painterly brush strokes, NO digital painting look, NO fantasy poster, NO stylized rendering, NO clean fantasy armor, NO modern objects, NO modern clothes, NO subtitles, NO UI, NO watermark, NO decorative captions, NO extra text except the requested frame labels.`;
+NO parchment background, NO paper texture, NO old manuscript look, NO beige canvas, NO drawn storyboard, NO painted storyboard, NO illustration, NO concept art, NO 2D art, NO cartoon, NO anime, NO comic style, NO sketch, NO painterly brush strokes, NO digital painting look, NO fantasy poster, NO stylized rendering, NO clean fantasy armor, NO modern objects, NO modern clothes, NO subtitles, NO UI, NO watermark, NO decorative captions, NO visible cell identifiers, NO non-story text overlays.`;
 
 export function splitScenesIntoParts(scenes = [], partSize = 4) {
   const size = Math.max(1, Number(partSize) || 4);
@@ -324,15 +334,14 @@ export function buildAutoChainPartPrompt({
     : "";
 
   const frameBlocks = partScenes.map((s, localIdx) => {
-    const globalIdx = partIndex * partSize + localIdx;
-    const label = frameLabel(s, globalIdx);
+    const cellName = cellPositionName(localIdx, cols);
     const sceneTxt = sceneText(s, { characterLock, appearanceMode });
     const scriptLine = sceneScriptLine(s);
     const allowed = sceneAllowedLine(s);
     const forbidden = sceneForbiddenLine(s);
-    return `${label}:
+    return `${cellName.toUpperCase()}:
 ${frameRoleHint(localIdx, chainMode)}
-${getContinuityLink(partScenes, localIdx, partIndex, partSize)}
+${getContinuityLink(partScenes, localIdx)}
 MANDATORY VISUAL PREFIX: camera-photographed live-action image, NOT illustration, NOT 2D art, NOT painting, NOT concept art.
 SCRIPT LINE (SOURCE OF TRUTH): ${scriptLine || "use SCENARIO INPUT only; do not invent missing details"}
 VISUAL BEAT (STRICT): ${sceneTxt}
@@ -345,7 +354,7 @@ SFX NOTE: ${cleanText(s.sfx || "")}`;
   }).join("\n\n");
 
   return `STORYBOARD GRID PART ${partIndex + 1} — AUTO-CHAIN STRICT CONTINUATION
-FRAMES: F${String(start).padStart(2, "0")}–F${String(end).padStart(2, "0")} of ${totalScenes || storyboard?.scenes?.length || end} total
+FRAME COUNT: ${partScenes.length} of ${totalScenes || storyboard?.scenes?.length || end} total
 
 REFERENCE INPUT:
 ${refText}
@@ -356,12 +365,7 @@ FORMAT:
 ${cols} columns × ${rows} rows — exactly ${partScenes.length} equal cells.
 Each cell format: ${aspect}${aspect === "9:16" ? " portrait" : ""}.
 ${isTrailerStoryboard(storyboard) && partScenes.length === 4 && aspect === "9:16" ? "GEOMETRY LOCK: output ONE single vertical 9:16 image canvas divided into exactly 2x2 equal quadrants; each quadrant is a vertical 9:16 frame. NO nested grids, NO horizontal thumbnails, NO rounded cards, NO gallery/contact-sheet layout, NO black outer background." : `Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to ${aspect}.`}
-Use simple black separators between frames. Do NOT use parchment, beige paper, decorative background, or illustrated page layout.
-
-FRAME LABELS:
-${partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i)).join(", ")} only.
-Small white text, top-left corner of each cell.
-No other text.
+Use simple thin black separators between cells. Do NOT use parchment, beige paper, decorative background, illustrated page layout, visible identifiers, captions, UI, watermark or non-story text overlays.
 
 ${buildWorldLock({ storyboard, styleProfile, chainMode, strictLevel })}
 
@@ -391,7 +395,7 @@ Exactly ${partScenes.length} frames.
 Every frame matches its VISUAL BEAT only.
 Same old NeuroCine live-action style across all cells.
 Recurring hero identity remains consistent only where the scenario includes the hero.
-No parchment. No illustration. No concept art. No extra text except frame labels.`;
+No parchment. No illustration. No concept art. No visible identifiers or non-story text overlays.`;
 }
 
 export function buildAutoChainAllParts({
@@ -511,11 +515,11 @@ export function buildFlowCompactPartPrompt({
 } = {}) {
   if (!partScenes.length) return "";
   const characterLock = storyboard?.character_lock || [];
-  const start = frameNumber(partScenes[0], partIndex * partSize);
-  const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
-  const labels = partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i)).join(", ");
   const isFirstPart = partIndex === 0;
   const aspect = storyboard?.aspect_ratio || "9:16";
+  const cols = partScenes.length <= 2 ? partScenes.length : 2;
+  const rows = Math.ceil(partScenes.length / cols);
+  const orderText = cellOrderText(partScenes.length, cols);
 
   const refLine = isFirstPart
     ? "Use Hero Anchor only if uploaded for recurring identity. No Previous PART exists yet."
@@ -537,23 +541,21 @@ export function buildFlowCompactPartPrompt({
   }).filter(Boolean).join("\n");
 
   const frames = partScenes.map((s, localIdx) => {
-    const label = frameLabel(s, partIndex * partSize + localIdx);
+    const cellName = cellPositionName(localIdx, cols);
     const text = sceneText(s, { characterLock, appearanceMode });
     const scriptLine = sceneScriptLine(s);
     const allowed = sceneAllowedLine(s);
     const forbidden = sceneForbiddenLine(s);
     const sfx = cleanText(s.sfx || "subtle ambience");
-    return `${label}
+    return `${cellName.toUpperCase()}
 Source line: "${scriptLine || text}"
 Visual beat: ${text}
 ${allowed ? `Allowed in this cell: ${allowed}` : "Allowed in this cell: only what this source line and visual beat explicitly name."}
 ${forbidden ? `Forbidden in this cell: ${forbidden}` : "Forbidden in this cell: no extra actors, no new props, no new location, no new era, no new costumes, no new story event."}
-${getContinuityLink(partScenes, localIdx, partIndex, partSize)}
+${getContinuityLink(partScenes, localIdx)}
 SFX mood: ${sfx}`;
   }).join("\n\n");
 
-  const cols = partScenes.length <= 2 ? partScenes.length : 2;
-  const rows = Math.ceil(partScenes.length / cols);
   const styleLock = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
   const chainLine = chainMode === "worldOnly"
     ? "WORLD ONLY — lock the same world, period, lighting family and realism; characters may change only when the scenario changes."
@@ -565,18 +567,18 @@ SFX mood: ${sfx}`;
       : "HARD — strict to the scenario; cinematic framing is allowed without adding plot content.";
   const trailerGeometryLock = trailerMode
     ? partScenes.length === 4 && aspect === "9:16"
-      ? "GEOMETRY LOCK: output ONE single vertical 9:16 image canvas. Divide it into exactly 2 columns and 2 rows, four equal quadrants. Because the full 2x2 canvas is 9:16, every quadrant is also a vertical 9:16 frame. Fill the whole canvas edge-to-edge. NO nested grids inside a cell, NO contact sheet, NO storyboard thumbnails, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background."
-      : `GEOMETRY LOCK: output ONE single image containing exactly ${partScenes.length} equal cells in the listed ${cols}x${rows} layout. Fill the whole output edge-to-edge. NO nested grids inside a cell, NO contact sheet, NO storyboard thumbnails, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background.`
+      ? "GEOMETRY LOCK: create ONE SINGLE vertical 9:16 output image. Inside this one 9:16 canvas arrange exactly four cinematic scenes as a strict 2x2 collage: two scenes on top, two scenes below. Fill the canvas edge-to-edge. Use thin black separators only. NO nested grids inside any cell, NO contact sheet, NO storyboard thumbnail sheet, NO long vertical strip, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background."
+      : `GEOMETRY LOCK: create ONE SINGLE output image containing exactly ${partScenes.length} equal cells in the listed ${cols}x${rows} layout. Fill the output edge-to-edge. Use thin black separators only. NO nested grids inside any cell, NO contact sheet, NO storyboard thumbnail sheet, NO long vertical strip, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background.`
     : "";
 
   const gridInstruction = trailerMode
-    ? `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). ${trailerGeometryLock} Each cell must be a clean ${aspect}${aspect === "9:16" ? " vertical portrait" : ""} image, edge-to-edge. NO frame labels, NO numbers, NO captions, NO title bars, NO black gutters, NO borders, NO separators, NO UI, NO watermark. The grid is only a temporary layout for cropping; every cell must look like a standalone ${aspect} video frame.`
-    : `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.`;
+    ? `Generate exactly ${partScenes.length} live-action cinematic scenes in a clean ${cols}×${rows} collage (${cols} columns × ${rows} rows). ${trailerGeometryLock} Cell order for story reading only: ${orderText}. Do not draw any cell names, identifiers, numbering, captions, title bars, UI, watermark or non-story text.`
+    : `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators only. Do not draw cell names, identifiers, numbering, captions, subtitles, UI or watermark.`;
   const trailerFinalCheck = trailerMode
-    ? `Exactly ${partScenes.length} clean unlabeled ${aspect} frames inside one single ${aspect} output image. Use the internal frame order ${labels}, but do not draw labels/numbers/text/borders in the image. Follow each frame's Visual beat literally. No nested mosaics, no horizontal thumbnail strips, no app-gallery cards. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`
-    : `Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
+    ? `Exactly ${partScenes.length} clean unlabeled scenes inside one single ${aspect} output image. Follow the cell order ${orderText} for reading only, but do not draw any names, numbers, captions, title bars, UI, watermark or non-story text. No nested mosaics, no horizontal thumbnail strips, no app-gallery cards. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`
+    : `Exactly ${partScenes.length} frames. Follow each frame literally. Do not draw visible identifiers or captions. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
 
-  return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
+  return `STORYBOARD GRID PART ${partIndex + 1}
 ${gridInstruction}
 
 STYLE LOCK:
@@ -593,7 +595,7 @@ ${locationLock}
 STYLE BIBLE:
 ${styleBible || styleLock || "same film style, same lens language, same lighting family, same production design"}
 
-If this is an odd-count storyboard, the final PART may contain fewer cells. That is intentional. Generate exactly the listed internal frame order, no missing cells, no extra cells, and no visible labels.
+If this is an odd-count storyboard, the final PART may contain fewer cells. That is intentional. Generate exactly the listed cell order, no missing cells, no extra cells, and no visible identifiers.
 ` : ""}
 
 MANDATORY VISUAL TYPE:

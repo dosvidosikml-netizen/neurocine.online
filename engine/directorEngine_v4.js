@@ -8,6 +8,14 @@ function scriptLineFor(frame = {}) {
   return cleanText(frame.vo_ru || frame.script_line_ru || frame.script_line || "");
 }
 
+function cellPositionName(index = 0, cols = 2) {
+  const col = index % Math.max(1, cols);
+  const row = Math.floor(index / Math.max(1, cols));
+  const vertical = row === 0 ? "upper" : row === 1 ? "lower" : `row ${row + 1}`;
+  const horizontal = col === 0 ? "left" : col === 1 ? "right" : `column ${col + 1}`;
+  return `${vertical}-${horizontal} cell`;
+}
+
 export const PROJECT_TYPES = {
   film: {
     label: "Фильм / реализм",
@@ -376,17 +384,18 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
     const sourceLine = scriptLineFor(s);
+    const cellName = cellPositionName(i, cols);
     // Inject anti-2D style into every frame description
     const styleEnforce = "camera-photographed live-action image, shot on ARRI Alexa 65 Zeiss Master Prime T2.8, NOT CGI, NOT rendered, NOT illustrated, NOT cartoon, NOT anime, NOT painting — real camera, real location, real physics —";
-    return `${i + 1}. [F${String(i + 1).padStart(2, "0")}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
+    return `${cellName.toUpperCase()} — SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
   }).join("\n");
 
   // Text inside generated image is forbidden.
 const labelInstruction = `
 TEXT RULE:
 - Do NOT place any text inside the generated image.
-- Do NOT add F01/F02/F03/F04 labels.
-- Do NOT add frame numbers.
+- Do NOT add visible cell identifiers.
+- Do NOT add frame-number text.
 - Do NOT add captions, subtitles, UI, watermarks, or decorative text.
 `;
 
@@ -406,7 +415,7 @@ GRID GEOMETRY LOCK (CRITICAL — NON-NEGOTIABLE):
 - No storyboard sheet.
 - No contact sheet.
 - No film strip.
-- No frame labels.
+- No visible cell identifiers.
 - No text.
 
 CRITICAL LAYOUT RULES:
@@ -414,7 +423,7 @@ CRITICAL LAYOUT RULES:
 - Arrange in strict ${cols}×${rows} grid, equal-size cells, left-to-right top-to-bottom
 - Every cell shows a different scene from the story in order
 - Each cell is ${aspect} — ${aspect === "9:16" ? "portrait/vertical" : "landscape/horizontal"}
-- No subtitles, no UI, no watermark, no frame labels, no F01/F02/F03/F04, no text anywhere, no frame labels, no F01/F02/F03/F04, no text anywhere
+- No subtitles, no UI, no watermark, no visible cell identifiers, no frame-number text, no decorative text anywhere
 ${labelInstruction}
 
 CRITICAL STYLE RULE — APPLY TO EVERY SINGLE CELL:
@@ -502,7 +511,7 @@ export function buildLocalImageAnalysis(frame = {}, variant = "A", styleProfile 
 export function buildVideoPrompt(frame = {}, analysis = {}, storyboard = {}, styleProfile = {}) {
   const sfx = analysis.sfx || frame.sfx || "subtle realistic ambience";
   const sourceLine = scriptLineFor(frame);
-  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark, no frame labels, no F01/F02/F03/F04, no text anywhere.\n\nSFX: ${sfx}`;
+  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark, no visible cell identifiers, no frame-number text, no decorative text.\n\nSFX: ${sfx}`;
 }
 
 /**
@@ -515,7 +524,6 @@ export function buildChunkGridPrompt(scenes = [], storyboard = {}, styleProfile 
   const rows = Math.ceil(n / cols);
   const aspect = storyboard?.aspect_ratio || "9:16";
   const totalScenes = storyboard?.scenes?.length || n;
-  const globalOffset = chunkIndex * n;
 
   const [aw, ah] = aspect.split(":").map(Number);
   const cellRatio = aw / ah;
@@ -542,21 +550,21 @@ export function buildChunkGridPrompt(scenes = [], storyboard = {}, styleProfile 
     const en = (s.image_prompt_en || "")
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
-    const globalNum = globalOffset + i + 1;
     const sourceLine = scriptLineFor(s);
+    const cellName = cellPositionName(i, cols);
     const styleEnforce = "camera-photographed live-action image, NOT illustration, NOT 2D art, NOT cartoon —";
-    return `${globalNum}. [F${String(globalNum).padStart(2, "0")}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
+    return `${cellName.toUpperCase()} — SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
   }).join("\n");
 
   return `STORYBOARD GRID PART ${chunkIndex + 1} — ${storyboard.project_name || "NeuroCine Project"}
-FRAMES: ${globalOffset + 1}–${globalOffset + n} of ${totalScenes} total
+FRAME COUNT: ${n} of ${totalScenes} total
 
 OVERALL IMAGE FORMAT: ${overallOrientation}
 GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells
 
 IMPORTANT — TWO SEPARATE FORMAT RULES:
 1. EACH CELL format: ${aspect} — every individual frame must be ${aspect === "9:16" ? "tall vertical (portrait)" : aspect}
-2. OVERALL IMAGE: a ${cols}×${rows} grid — natural canvas size, do NOT force overall image to ${aspect}
+2. ${aspect === "9:16" && n === 4 ? "OVERALL IMAGE: one single vertical 9:16 canvas with a strict 2×2 collage inside it" : `OVERALL IMAGE: one single ${cols}×${rows} grid canvas made of equal photographic cells`}
 
 CRITICAL: This is PART ${chunkIndex + 1} of a multi-part storyboard. Visual style, characters, and world must be IDENTICAL to all other parts.
 
@@ -566,8 +574,8 @@ CRITICAL LAYOUT RULES:
 
 TEXT RULE:
 - No text inside image.
-- No F01/F02/F03/F04 labels.
-- No frame numbers.
+- No visible cell identifiers.
+- No frame-number text.
 
 CRITICAL STYLE RULE — EVERY CELL:
 Every frame must be: camera-photographed live-action image, cinematic realism, NOT illustration, NOT 2D art, NOT cartoon, NOT anime, NOT painting. Any cell that looks like illustration = REJECTED.
@@ -622,7 +630,8 @@ export function buildContinuationPrompt(anchorFrames = [], nextScenes = [], stor
       .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
       .trim();
     const sourceLine = scriptLineFor(s);
-    return `${i + 1}. [${s.id}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${en || sourceLine || ""}`;
+    const cellName = cellPositionName(i, cols);
+    return `${cellName.toUpperCase()} — SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${en || sourceLine || ""}`;
   }).join("\n");
 
   return `CHAIN CONTINUATION — STORYBOARD GRID PART ${chunkIndex + 1}
@@ -653,7 +662,7 @@ ${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinemat
 ${charLock ? `CHARACTER LOCK — FACE MATCH PRIORITY: 1.0 (HARD LOCK) — MUST MATCH PREVIOUS GRID EXACTLY\nIDENTITY CONSISTENCY: EXACT MATCH REQUIRED — reference image is law, not suggestion.\n${charLock}\n` : ""}CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Exactly ${n}.
 - Arrange in strict ${cols}×${rows} grid, equal-size cells, each cell ${aspect}
-- No text, no numbers, no subtitles, no UI, no watermark
+- No visible cell identifiers, no frame-number text, no captions, no subtitles, no UI, no watermark
 
 NEXT FRAMES TO GENERATE (in order):
 ${framesEN}

@@ -164,6 +164,18 @@ function gridLayoutFor(count = 4) {
   return { cols, rows: Math.ceil(safe / cols) };
 }
 
+function cellPositionName(index = 0, cols = 2) {
+  const col = index % Math.max(1, cols);
+  const row = Math.floor(index / Math.max(1, cols));
+  const vertical = row === 0 ? "upper" : row === 1 ? "lower" : `row ${row + 1}`;
+  const horizontal = col === 0 ? "left" : col === 1 ? "right" : `column ${col + 1}`;
+  return `${vertical}-${horizontal} cell`;
+}
+
+function cellOrderText(count = 0, cols = 2) {
+  return Array.from({ length: count }, (_, i) => cellPositionName(i, cols)).join(" -> ");
+}
+
 function formatDialogueLine(line) {
   if (typeof line === "string") return line;
   if (!line || typeof line !== "object") return "";
@@ -217,9 +229,9 @@ function compactStyleLine(style = "") {
   ) || "same locked cinematic realism, same lighting and color grade";
 }
 
-function buildFlowGrokContinuityFixPrompt({ storyboard, styleProfile, partScenes, partIndex, partSize, gridLayout }) {
+function buildFlowGrokContinuityFixPrompt({ storyboard, styleProfile, partScenes, partIndex, gridLayout }) {
   if (!storyboard || !partScenes?.length) return "";
-  const labels = partScenes.map((scene, i) => frameLabel(scene, partIndex * partSize + i)).join(", ");
+  const orderText = cellOrderText(partScenes.length, gridLayout.cols);
   const castLock = (storyboard.cast_lock || []).map((item, i) => lockLine(item, `Cast ${i + 1}`)).filter(Boolean).join("\n");
   const characterLock = (storyboard.character_lock || []).map((item, i) => lockLine(item, `Character ${i + 1}`)).filter(Boolean).join("\n");
   const locationLock = locationLockLine(storyboard.location_lock || {});
@@ -256,11 +268,11 @@ FLOW/GROK RULES:
 - Do not introduce characters before their first scripted appearance. Empty office/elevator beats must stay empty.
 - For repeated variants of this PART, keep the same story content and change only composition, lens, distance, angle or foreground layer.
 - Generate ONE single vertical 9:16 output image, not multiple gallery cards and not a contact sheet.
-- Generate a clean ${gridLayout.cols}×${gridLayout.rows} temporary grid with ${partScenes.length} standalone 9:16 cells.
-- If this is 4 frames, divide the one 9:16 image into exactly four equal 2×2 quadrants; each quadrant is itself a vertical 9:16 frame.
-- No nested grids inside cells, no horizontal thumbnail strips, no app-gallery cards, no rounded cards, no black outer background.
-- Internal frame order: ${labels}. Do not draw these labels.
-- No visible numbering, no captions, no title bars, no borders, no separators, no black gutters, no UI, no watermark.
+- Arrange exactly ${partScenes.length} scenes inside that one canvas as a strict ${gridLayout.cols}×${gridLayout.rows} collage.
+- If this is 4 frames, divide the one 9:16 image into exactly four equal 2×2 quadrants: two scenes on top, two scenes below.
+- Cell order for reading only: ${orderText}. Do not draw any cell names or identifiers.
+- Use thin black separators only. No nested grids inside cells, no horizontal thumbnail strips, no app-gallery cards, no rounded cards, no black outer background.
+- No visible numbering, no captions, no title bars, no UI, no watermark, no non-story text.
 
 Now follow the PART prompt exactly.`;
 }
@@ -566,7 +578,7 @@ GLOBAL RULES:
 - Visible signs, captions, displays and title cards must go into scene.on_screen_text.
 - Narrator/trailer VO belongs in scene.vo_ru.
 - Final PART can contain any remaining frame count. Never add filler frames just to make a perfect grid.
-- PART grid images must be clean 9:16 cells with no visible numbering, labels, title bars, black gutters, borders or separators.
+- For 4-frame PART grids in 9:16, create one single vertical 9:16 canvas with a strict 2×2 collage inside it. Use thin black separators only. No visible numbering, cell names, captions, title bars, UI, watermark or non-story text.
 
 SCRIPT BREAKDOWN PASS:
 Before writing scenes, scan the full script and produce the internal breakdown:
@@ -814,11 +826,10 @@ export default function TrailerStoryboardPage() {
       styleProfile,
       partScenes,
       partIndex: safePart,
-      partSize,
       gridLayout: currentGridLayout,
     });
     return `${fix}\n\n${selectedPrompt}`.trim();
-  }, [selectedPrompt, storyboard, styleProfile, partScenes, safePart, partSize, currentGridLayout]);
+  }, [selectedPrompt, storyboard, styleProfile, partScenes, safePart, currentGridLayout]);
   const maxManualFrames = Math.max(1, Math.floor(MAX_TOTAL_DURATION / Math.max(1, Number(frameSeconds) || 3)));
   const manualFrames = clampNumber(customFrameCount, 1, maxManualFrames, 27);
   const autoFrames = estimateAutoFrameCount(script, duration, frameSeconds);
