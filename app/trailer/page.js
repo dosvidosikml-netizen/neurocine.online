@@ -135,6 +135,59 @@ function lockLine(item, fallback = "Lock") {
   ].filter(Boolean).map(cleanText).join(" — ");
 }
 
+function buildFullScenarioPrompt({ projectName, script, aspectRatio, stylePreset, target, expectedFrames, effectiveDuration, frameSeconds, timingMode, partSize, styleProfile }) {
+  const style = STYLE_PRESETS[stylePreset]?.lock || styleProfile?.style_lock || "locked cinematic realism";
+  return `NEUROCINE TRAILER STORYBOARD MASTER PROMPT
+
+TASK:
+Scan the entire script and create one complete trailer / short-film storyboard JSON.
+This is the source storyboard for all later PART grids.
+
+PROJECT:
+- title: ${projectName || "Untitled trailer"}
+- target video model: ${target}
+- aspect ratio: ${aspectRatio}
+- total duration: ${effectiveDuration}s
+- exact frame count: ${expectedFrames}
+- timing mode: ${timingMode}
+- preferred seconds per frame: ${frameSeconds}s
+- PART grid size after storyboard: ${partSize} frames per PART
+
+GLOBAL RULES:
+- SOURCE OF TRUTH = script line.
+- Use only characters, locations, objects, actions and dialogue present in the script.
+- Do not invent new actors, new locations, new props, new costumes or new supernatural rules.
+- Keep the same cast, wardrobe, office/elevator geography, lighting family and style from first frame to last.
+- Dialogue must be copied exactly from the script into scene.dialogue with stable voice_id.
+- Visible signs, captions, displays and title cards must go into scene.on_screen_text.
+- Narrator/trailer VO belongs in scene.vo_ru.
+- Final PART can contain any remaining frame count. Never add filler frames just to make a perfect grid.
+
+ROOT JSON FIELDS REQUIRED:
+project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock,
+character_lock, voice_lock, cast_lock, location_lock, style_bible, grid_continuity, scenes, export_meta.
+
+SCENE FIELDS REQUIRED FOR EVERY FRAME:
+id, start, duration, description_ru, script_line_ru, image_prompt_en, video_prompt_en, vo_ru,
+dialogue, on_screen_text, blocking, shot_role, sfx, camera, transition, cut_energy,
+continuity_note, safety_note.
+
+FRAME COUNT CONTROL:
+Return exactly ${expectedFrames} scenes.
+Scene durations may be 2-10 seconds, but total_duration must equal ${effectiveDuration}s.
+If timing mode is auto, split the script into meaningful beats: establishing shots, dialogue, inserts, reactions, reveals, chase/action beats and final sting.
+If a script beat needs multiple frames, continue the same beat visually without adding new story content.
+
+STYLE BIBLE:
+${style}
+
+OUTPUT:
+Return valid JSON only. No markdown. No explanation.
+
+SCRIPT:
+${script}`;
+}
+
 function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePreset, target, targetFrames, frameSeconds, timingMode }) {
   const lines = splitScriptBeats(script);
   const totalFrames = Math.max(1, Math.round(Number(targetFrames) || estimateAutoFrameCount(script, duration, frameSeconds)));
@@ -271,6 +324,19 @@ export default function TrailerStoryboardPage() {
     ? clampNumber(duration, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 87)
     : clampNumber(manualFrames * frameSeconds, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 81);
   const timingMode = autoTiming ? "auto" : "manual";
+  const fullScenarioPrompt = useMemo(() => buildFullScenarioPrompt({
+    projectName,
+    script,
+    aspectRatio,
+    stylePreset,
+    target,
+    expectedFrames,
+    effectiveDuration,
+    frameSeconds,
+    timingMode,
+    partSize,
+    styleProfile,
+  }), [projectName, script, aspectRatio, stylePreset, target, expectedFrames, effectiveDuration, frameSeconds, timingMode, partSize, styleProfile]);
 
   async function generateTrailer() {
     setBusy(true);
@@ -368,6 +434,12 @@ export default function TrailerStoryboardPage() {
     setStatus(`PART ${safePart + 1} prompt copied`);
   }
 
+  async function copyFullScenarioPrompt() {
+    if (!fullScenarioPrompt) return;
+    await navigator.clipboard.writeText(fullScenarioPrompt);
+    setStatus("Full scenario storyboard prompt copied");
+  }
+
   function downloadJson() {
     if (!storyboard) return;
     const blob = new Blob([JSON.stringify(storyboard, null, 2)], { type: "application/json;charset=utf-8" });
@@ -415,9 +487,13 @@ export default function TrailerStoryboardPage() {
         .locks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
         .lockbox{border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.18);border-radius:8px;padding:11px;display:grid;gap:8px}
         .lockbox h3{margin:0;font-size:12px;text-transform:uppercase;color:#ffb3bd}
+        .promptbox{border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.18);border-radius:8px;padding:12px;display:grid;gap:10px}
+        .prompt-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+        .prompt-head h2{margin:0}
         .lockbox div,.frame{font-size:13px;color:rgba(247,243,234,.76);line-height:1.45}
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
+        .mono.master{max-height:360px;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;background:#0b0f17}
         @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}}
       `}</style>
 
@@ -484,6 +560,13 @@ export default function TrailerStoryboardPage() {
           </div>
 
           <div className="panel">
+            <div className="promptbox">
+              <div className="prompt-head">
+                <h2>00 · Full Scenario Prompt</h2>
+                <button type="button" onClick={copyFullScenarioPrompt}>Copy full prompt</button>
+              </div>
+              <div className="mono master">{fullScenarioPrompt}</div>
+            </div>
             <h2>02 · Trailer Structure</h2>
             {!storyboard ? (
               <div className="frame">Generate AI Trailer JSON or use Local test plan to verify custom frames, odd counts and long-format PART behavior.</div>
