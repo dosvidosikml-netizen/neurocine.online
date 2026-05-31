@@ -213,7 +213,10 @@ FLOW/GROK RULES:
 - Style is only lens/color/lighting/mood. Style cannot add objects that are not in the script.
 - Do not introduce characters before their first scripted appearance. Empty office/elevator beats must stay empty.
 - For repeated variants of this PART, keep the same story content and change only composition, lens, distance, angle or foreground layer.
+- Generate ONE single vertical 9:16 output image, not multiple gallery cards and not a contact sheet.
 - Generate a clean ${gridLayout.cols}×${gridLayout.rows} temporary grid with ${partScenes.length} standalone 9:16 cells.
+- If this is 4 frames, divide the one 9:16 image into exactly four equal 2×2 quadrants; each quadrant is itself a vertical 9:16 frame.
+- No nested grids inside cells, no horizontal thumbnail strips, no app-gallery cards, no rounded cards, no black outer background.
 - Internal frame order: ${labels}. Do not draw these labels.
 - No visible numbering, no captions, no title bars, no borders, no separators, no black gutters, no UI, no watermark.
 

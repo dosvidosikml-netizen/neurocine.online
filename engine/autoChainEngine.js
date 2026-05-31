@@ -355,7 +355,7 @@ ${appearanceNote}
 FORMAT:
 ${cols} columns × ${rows} rows — exactly ${partScenes.length} equal cells.
 Each cell format: ${aspect}${aspect === "9:16" ? " portrait" : ""}.
-Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to ${aspect}.
+${isTrailerStoryboard(storyboard) && partScenes.length === 4 && aspect === "9:16" ? "GEOMETRY LOCK: output ONE single vertical 9:16 image canvas divided into exactly 2x2 equal quadrants; each quadrant is a vertical 9:16 frame. NO nested grids, NO horizontal thumbnails, NO rounded cards, NO gallery/contact-sheet layout, NO black outer background." : `Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to ${aspect}.`}
 Use simple black separators between frames. Do NOT use parchment, beige paper, decorative background, or illustrated page layout.
 
 FRAME LABELS:
@@ -563,12 +563,17 @@ SFX mood: ${sfx}`;
     : strictLevel === "soft"
       ? "SOFT — cinematic polish is allowed, but never contradict the scenario."
       : "HARD — strict to the scenario; cinematic framing is allowed without adding plot content.";
+  const trailerGeometryLock = trailerMode
+    ? partScenes.length === 4 && aspect === "9:16"
+      ? "GEOMETRY LOCK: output ONE single vertical 9:16 image canvas. Divide it into exactly 2 columns and 2 rows, four equal quadrants. Because the full 2x2 canvas is 9:16, every quadrant is also a vertical 9:16 frame. Fill the whole canvas edge-to-edge. NO nested grids inside a cell, NO contact sheet, NO storyboard thumbnails, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background."
+      : `GEOMETRY LOCK: output ONE single image containing exactly ${partScenes.length} equal cells in the listed ${cols}x${rows} layout. Fill the whole output edge-to-edge. NO nested grids inside a cell, NO contact sheet, NO storyboard thumbnails, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background.`
+    : "";
 
   const gridInstruction = trailerMode
-    ? `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell must be a clean ${aspect}${aspect === "9:16" ? " vertical portrait" : ""} image, edge-to-edge. NO frame labels, NO numbers, NO captions, NO title bars, NO black gutters, NO borders, NO separators, NO UI, NO watermark. The grid is only a temporary layout for cropping; every cell must look like a standalone 9:16 video frame.`
+    ? `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). ${trailerGeometryLock} Each cell must be a clean ${aspect}${aspect === "9:16" ? " vertical portrait" : ""} image, edge-to-edge. NO frame labels, NO numbers, NO captions, NO title bars, NO black gutters, NO borders, NO separators, NO UI, NO watermark. The grid is only a temporary layout for cropping; every cell must look like a standalone ${aspect} video frame.`
     : `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.`;
   const trailerFinalCheck = trailerMode
-    ? `Exactly ${partScenes.length} clean unlabeled ${aspect} frames. Use the internal frame order ${labels}, but do not draw labels/numbers/text/borders in the image. Follow each frame's Visual beat literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`
+    ? `Exactly ${partScenes.length} clean unlabeled ${aspect} frames inside one single ${aspect} output image. Use the internal frame order ${labels}, but do not draw labels/numbers/text/borders in the image. Follow each frame's Visual beat literally. No nested mosaics, no horizontal thumbnail strips, no app-gallery cards. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`
     : `Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
 
   return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
