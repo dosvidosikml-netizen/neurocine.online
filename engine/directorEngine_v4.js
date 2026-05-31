@@ -381,14 +381,14 @@ export function buildStoryGridPrompt(storyboard = {}, styleProfile = {}) {
     return `${i + 1}. [F${String(i + 1).padStart(2, "0")}] SOURCE LINE: ${sourceLine || "use storyboard frame only; do not invent missing details"} | ${styleEnforce} ${en || sourceLine || ""}`;
   }).join("\n");
 
-  // Frame label instruction
-  const labelInstruction = `
-FRAME LABELS (mandatory):
-- Each cell must have a label: F01, F02, F03... up to F${String(n).padStart(2, "0")}
-- Label placement: OUTSIDE the photographic image content — place each label in a thin solid black border strip at the TOP of each cell, ABOVE the photo frame, not overlapping any part of the image itself
-- Label style: small white sans-serif text centered in the black top border strip, clean and readable
-- The black label strip height: approximately 20–24px, sitting above the photo content
-- Use the same numbering as in the FRAMES list above`;
+  // Text inside generated image is forbidden.
+const labelInstruction = `
+TEXT RULE:
+- Do NOT place any text inside the generated image.
+- Do NOT add F01/F02/F03/F04 labels.
+- Do NOT add frame numbers.
+- Do NOT add captions, subtitles, UI, watermarks, or decorative text.
+`;
 
   return `STORYBOARD GRID — ${storyboard.project_name || "NeuroCine Project"}
 
@@ -397,19 +397,24 @@ TOTAL FRAMES: ${n}
 GRID LAYOUT: ${cols} columns × ${rows} rows — exactly ${n} equal cells
 
 GRID GEOMETRY LOCK (CRITICAL — NON-NEGOTIABLE):
-- Each cell MUST be a true ${aspect} frame — ${aspect === "9:16" ? "tall vertical portrait, NOT square, NOT landscape" : aspect === "16:9" ? "wide horizontal cinematic, NOT square, NOT portrait" : aspect}
-- The overall canvas MUST ${aspect === "9:16" ? "be vertically oriented (portrait) — 4 tall vertical frames in 2×2 = overall tall canvas" : aspect === "16:9" ? "be horizontally oriented — 4 wide frames in 2×2 = overall wide canvas" : "preserve cell aspect ratio"}
-- DO NOT crop, compress or approximate frames to fit a square layout
-- DO NOT make the overall canvas square when cells are portrait
-- FAIL CONDITION: if any frame appears square or landscape when 9:16 is required — REJECT and regenerate
-- Final canvas = ${cols} columns × ${rows} rows of true ${aspect} cells placed edge-to-edge with thin black separators
+- If aspect is 9:16, the FINAL OUTPUT must be ONE SINGLE vertical 9:16 image.
+- All frames must exist INSIDE that single 9:16 canvas.
+- For 4 frames, use a strict 2×2 collage: two scenes on top, two scenes below.
+- Internal cells are collage regions inside the vertical poster, not separate 9:16 pages.
+- Use thin black separators only.
+- No white margins.
+- No storyboard sheet.
+- No contact sheet.
+- No film strip.
+- No frame labels.
+- No text.
 
 CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Not ${n - 1}, not ${n + 1}. Exactly ${n}.
 - Arrange in strict ${cols}×${rows} grid, equal-size cells, left-to-right top-to-bottom
 - Every cell shows a different scene from the story in order
 - Each cell is ${aspect} — ${aspect === "9:16" ? "portrait/vertical" : "landscape/horizontal"}
-- No subtitles, no UI, no watermark anywhere (frame labels F01–F${String(n).padStart(2, "0")} are the only allowed text)
+- No subtitles, no UI, no watermark, no frame labels, no F01/F02/F03/F04, no text anywhere, no frame labels, no F01/F02/F03/F04, no text anywhere
 ${labelInstruction}
 
 CRITICAL STYLE RULE — APPLY TO EVERY SINGLE CELL:
@@ -497,7 +502,7 @@ export function buildLocalImageAnalysis(frame = {}, variant = "A", styleProfile 
 export function buildVideoPrompt(frame = {}, analysis = {}, storyboard = {}, styleProfile = {}) {
   const sfx = analysis.sfx || frame.sfx || "subtle realistic ambience";
   const sourceLine = scriptLineFor(frame);
-  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark.\n\nSFX: ${sfx}`;
+  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark, no frame labels, no F01/F02/F03/F04, no text anywhere.\n\nSFX: ${sfx}`;
 }
 
 /**
@@ -558,13 +563,11 @@ CRITICAL: This is PART ${chunkIndex + 1} of a multi-part storyboard. Visual styl
 CRITICAL LAYOUT RULES:
 - Generate EXACTLY ${n} frames. Exactly ${n}.
 - Strict ${cols}×${rows} grid, equal-size cells, each cell ${aspect}
-- No subtitles, no UI, no watermark (frame labels F${String(globalOffset + 1).padStart(2, "0")}–F${String(globalOffset + n).padStart(2, "0")} are the only allowed text)
 
-FRAME LABELS (mandatory):
-- Each cell must show its frame number: F${String(globalOffset + 1).padStart(2, "0")}, F${String(globalOffset + 2).padStart(2, "0")}... up to F${String(globalOffset + n).padStart(2, "0")}
-- Label placement: place each label in a thin solid BLACK border strip ABOVE the photo content — NOT overlapping the image itself, NOT over faces, NOT over backgrounds
-- The black strip sits on top of each cell, approximately 20px tall, with white sans-serif text centered inside it
-- The photographic frame starts BELOW the label strip — label never touches the scene content
+TEXT RULE:
+- No text inside image.
+- No F01/F02/F03/F04 labels.
+- No frame numbers.
 
 CRITICAL STYLE RULE — EVERY CELL:
 Every frame must be: camera-photographed live-action image, cinematic realism, NOT illustration, NOT 2D art, NOT cartoon, NOT anime, NOT painting. Any cell that looks like illustration = REJECTED.
