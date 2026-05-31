@@ -45,6 +45,48 @@ const QUICK_PRESETS = [
 
 const TRAILER_DRAFT_KEY = "neurocine.trailerStoryboardDraft.v1";
 
+const STYLE_LABELS_RU = {
+  cinematic: "Кино-документальный",
+  dark: "Мрачный исторический триллер",
+  truecrime: "True crime / расследование",
+  war: "Военная документалистика",
+  neonNoir: "Неоновый нуар",
+  synthwave80s: "Синтвейв 80-х",
+  cyberpunk: "Киберпанк-мегаполис",
+  vhsRetro: "VHS / Super 8",
+  analogFilm: "Аналоговая плёнка Kodak",
+  mysticHorror: "Мистический хоррор",
+  ghostSupernatural: "Призраки / сверхъестественное",
+  foundFootage: "Found footage / найденная запись",
+  psychologicalDread: "Психологический ужас",
+  folkHorror: "Фолк-хоррор",
+  grimeSlasher: "Грязный слэшер",
+  liminalUncanny: "Лиминальный ужас",
+  scifiAtmospheric: "Атмосферная фантастика",
+  fantasyEpic: "Эпическое фэнтези",
+  westernGritty: "Жёсткий вестерн",
+  apocalyptic: "Постапокалипсис",
+  filmNoir: "Чёрно-белый нуар",
+  brutalistMinimal: "Бруталистский минимализм",
+  hyperreal8k: "Гиперреализм 8K",
+  animation2d: "2D-анимация",
+  animation25d: "2.5D-анимация",
+  animation3d: "Премиальная 3D-анимация",
+  stopmotion: "Стоп-моушн",
+  cutoutPaper: "Бумажная аппликация",
+  animeDark: "Тёмное аниме",
+  animeShonenAction: "Сёнэн-экшен",
+  animeSliceOfLife: "Аниме slice-of-life",
+  ghibliInspired: "В духе Ghibli",
+  graphicNovel: "Графический роман",
+  comicHalftone: "Комикс / halftone",
+  musicVideo: "Музыкальный клип",
+};
+
+function styleLabelRu(key, fallback) {
+  return STYLE_LABELS_RU[key] || fallback || key;
+}
+
 function clampNumber(value, min, max, fallback = min) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -739,6 +781,7 @@ export default function TrailerStoryboardPage() {
   const [error, setError] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState("");
+  const [showMasterPrompt, setShowMasterPrompt] = useState(false);
 
   const styleProfile = useMemo(() => getStyleProfile("film", stylePreset), [stylePreset]);
   const scenes = useMemo(() => (Array.isArray(storyboard?.scenes) ? storyboard.scenes : []), [storyboard]);
@@ -870,7 +913,7 @@ export default function TrailerStoryboardPage() {
     try {
       const raw = window.localStorage.getItem(TRAILER_DRAFT_KEY);
       if (!raw) {
-        setStatus("No saved trailer storyboard found");
+        setStatus("Сохранённая раскадровка не найдена");
         return;
       }
       const draft = JSON.parse(raw);
@@ -892,7 +935,7 @@ export default function TrailerStoryboardPage() {
       setCroppedFrame("");
       setError("");
       setLastSavedAt(draft.lastSavedAt || "");
-      setStatus(draft.storyboard?.scenes ? `Loaded saved storyboard: ${draft.storyboard.scenes.length} frames` : "Loaded saved setup");
+      setStatus(draft.storyboard?.scenes ? `Загружено: ${draft.storyboard.scenes.length} кадров` : "Загружены сохранённые настройки");
     } catch {}
   }
 
@@ -906,27 +949,25 @@ export default function TrailerStoryboardPage() {
     try {
       window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
       setLastSavedAt(savedAt);
-      setStatus(storyboard?.scenes ? `Saved locally: ${storyboard.scenes.length} frames` : "Setup saved locally");
+      setStatus(storyboard?.scenes ? `Сохранено локально: ${storyboard.scenes.length} кадров` : "Настройки сохранены локально");
     } catch {
       try {
         window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({ ...payload, gridUploads: {} }));
         setLastSavedAt(savedAt);
-        setStatus("Saved locally without grid images because browser storage is full");
+        setStatus("Сохранено без изображений сеток: хранилище браузера заполнено");
       } catch {
-        setError("Could not save locally: browser storage is full");
+        setError("Не удалось сохранить локально: хранилище браузера заполнено");
       }
     }
   }
 
   function clearSavedDraft() {
-    if (!window.confirm("Удалить сохранённый trailer storyboard из браузера?")) return;
     window.localStorage.removeItem(TRAILER_DRAFT_KEY);
     setLastSavedAt("");
-    setStatus("Saved trailer storyboard cleared");
+    setStatus("Сохранённый черновик удалён из браузера");
   }
 
   function resetAll() {
-    if (!window.confirm("Очистить текущий trailer project и начать новый?")) return;
     window.localStorage.removeItem(TRAILER_DRAFT_KEY);
     setProjectName("");
     setScript("");
@@ -946,13 +987,14 @@ export default function TrailerStoryboardPage() {
     setStoryboard(null);
     setError("");
     setLastSavedAt("");
-    setStatus("New trailer project ready");
+    setShowMasterPrompt(false);
+    setStatus("Всё очищено: сценарий, раскадровка, PART-сетки, кроп и локальное сохранение");
   }
 
   async function generateTrailer() {
     setBusy(true);
     setError("");
-    setStatus("Preparing trailer storyboard request...");
+    setStatus("Готовлю запрос на трейлерную раскадровку...");
     setActivePart(0);
     setSelectedFrameIndex(0);
     setCroppedFrame("");
@@ -984,14 +1026,14 @@ export default function TrailerStoryboardPage() {
       const contentType = res.headers.get("content-type") || "";
       if (!res.ok && !contentType.includes("text/event-stream")) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || `Storyboard API failed (${res.status})`);
+        throw new Error(payload.error || `Ошибка API раскадровки (${res.status})`);
       }
 
       if (!res.body || !contentType.includes("text/event-stream")) {
         const payload = await res.json();
-        if (!payload.storyboard) throw new Error(payload.error || "No storyboard returned");
+        if (!payload.storyboard) throw new Error(payload.error || "API не вернул раскадровку");
         setStoryboard(payload.storyboard);
-        setStatus(`Done: ${payload.storyboard.scenes?.length || 0} frames. Saved locally.`);
+        setStatus(`Готово: ${payload.storyboard.scenes?.length || 0} кадров. Сохранено локально.`);
         return;
       }
 
@@ -1009,22 +1051,22 @@ export default function TrailerStoryboardPage() {
           const { event, data } = parseSseBlock(block);
           if (event === "done" && data.storyboard) {
             setStoryboard(data.storyboard);
-            setStatus(`Done: ${data.storyboard.scenes?.length || 0} frames. Saved locally.`);
+            setStatus(`Готово: ${data.storyboard.scenes?.length || 0} кадров. Сохранено локально.`);
           } else if (event === "error" || event === "chunk_failed") {
-            throw new Error(data.error || "Trailer generation failed");
+            throw new Error(data.error || "Генерация трейлерной раскадровки не удалась");
           } else if (data.message) {
             setStatus(data.message);
           } else if (event === "chunk_started") {
-            setStatus(`Generating chunk ${data.chunk_number}/${data.total_chunks}...`);
+            setStatus(`Генерируется часть ${data.chunk_number}/${data.total_chunks}...`);
           } else if (event === "chunk_completed") {
-            setStatus(`Chunk ${data.chunk_number}/${data.total_chunks} complete`);
+            setStatus(`Часть ${data.chunk_number}/${data.total_chunks} готова`);
           } else {
             setStatus(event);
           }
         }
       }
     } catch (e) {
-      setError(e.message || "Trailer generation failed");
+      setError(e.message || "Генерация трейлерной раскадровки не удалась");
       setStatus("");
     } finally {
       setBusy(false);
@@ -1039,26 +1081,26 @@ export default function TrailerStoryboardPage() {
     setCroppedFrame("");
     const sb = buildLocalTrailerStoryboard({ script, duration: effectiveDuration, aspectRatio, stylePreset, target, targetFrames: expectedFrames, frameSeconds, timingMode });
     setStoryboard(sb);
-    setStatus(`Local preview: ${sb.scenes.length} frames, ${splitScenesIntoParts(sb.scenes, partSize).length} PARTS. Saved locally.`);
+    setStatus(`Локальный тест: ${sb.scenes.length} кадров, ${splitScenesIntoParts(sb.scenes, partSize).length} PART. Сохранено локально.`);
   }
 
   async function copyPrompt() {
     if (!selectedPrompt) return;
     await navigator.clipboard.writeText(selectedPrompt);
-    setStatus(`PART ${safePart + 1} prompt copied`);
+    setStatus(`Промт PART ${safePart + 1} скопирован`);
   }
 
   async function copyFlowGrokFixedPrompt() {
     if (!flowGrokFixedPrompt) return;
     await navigator.clipboard.writeText(flowGrokFixedPrompt);
-    setStatus(`PART ${safePart + 1} Flow/Grok fixed prompt copied`);
+    setStatus(`Фикс Flow/Grok для PART ${safePart + 1} скопирован`);
   }
 
   async function copySelectedVideoPrompt() {
     const text = selectedFrameVideoPrompt || "";
     if (!text) return;
     await navigator.clipboard.writeText(text);
-    setStatus(`${frameLabel(selectedScene, safeFrameIndex)} video prompt copied`);
+    setStatus(`Видеопромт ${frameLabel(selectedScene, safeFrameIndex)} скопирован`);
   }
 
   function uploadPartGrid(file) {
@@ -1068,7 +1110,7 @@ export default function TrailerStoryboardPage() {
       setGridUploads((prev) => ({ ...prev, [safePart]: String(reader.result || "") }));
       setSelectedFrameIndex(0);
       setCroppedFrame("");
-      setStatus(`PART ${safePart + 1} grid uploaded`);
+      setStatus(`PART ${safePart + 1}: сетка загружена`);
     };
     reader.readAsDataURL(file);
   }
@@ -1076,7 +1118,7 @@ export default function TrailerStoryboardPage() {
   function selectGridFrame(index) {
     setSelectedFrameIndex(index);
     setCroppedFrame("");
-    setStatus(`${frameLabel(partScenes[index], index)} selected`);
+    setStatus(`${frameLabel(partScenes[index], index)} выбран`);
   }
 
   function cropSelectedFrame() {
@@ -1088,7 +1130,7 @@ export default function TrailerStoryboardPage() {
       inset: cropInset,
       onDone: (dataUrl) => {
         setCroppedFrame(dataUrl);
-        setStatus(`${frameLabel(selectedScene, safeFrameIndex)} cropped as clean 9:16 canvas`);
+        setStatus(`${frameLabel(selectedScene, safeFrameIndex)} обрезан в чистый 9:16`);
       },
     });
   }
@@ -1104,7 +1146,7 @@ export default function TrailerStoryboardPage() {
   async function copyFullScenarioPrompt() {
     if (!fullScenarioPrompt) return;
     await navigator.clipboard.writeText(fullScenarioPrompt);
-    setStatus("Full scenario storyboard prompt copied");
+    setStatus("Мастер-промт всего сценария скопирован");
   }
 
   function downloadJson() {
@@ -1188,74 +1230,74 @@ export default function TrailerStoryboardPage() {
 
       <div className="wrap">
         <section className="hero">
-          <div className="kicker">NeuroCine Trailer Storyboard</div>
-          <h1>Отдельный трейлерный storyboard</h1>
-          <p>Новая рабочая зона: полный frame plan, cast lock, location lock, style bible, voice lock и PART prompts. Старый storyboard здесь не используется.</p>
+          <div className="kicker">NeuroCine трейлерная раскадровка</div>
+          <h1>Отдельная трейлерная раскадровка</h1>
+          <p>Новая рабочая зона: полный план кадров, фиксация актёров, локаций, стиля, голосов и промты для PART-сеток. Старая раскадровка здесь не используется.</p>
           <div className="pills">
-            <span className="pill active">mode: trailer</span>
-            <span className="pill">odd frames supported</span>
-            <span className="pill">long format up to 10m</span>
-            <span className="pill">Grok/Veo prompt packs</span>
+            <span className="pill active">режим: трейлер</span>
+            <span className="pill">любое число кадров</span>
+            <span className="pill">лонг до 10 минут</span>
+            <span className="pill">пакеты Grok/Veo</span>
           </div>
           <div className="hero-links">
-            <a href="/studio">Studio menu</a>
-            <a href="/storyboard">Classic storyboard</a>
+            <a href="/studio">Меню студии</a>
+            <a href="/storyboard">Обычная раскадровка</a>
           </div>
         </section>
 
         <section className="grid">
           <div className="panel">
-            <h2>01 · Script Setup</h2>
-            <label>Project name<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
-            <label>Scenario<textarea value={script} onChange={(e) => setScript(e.target.value)} /></label>
+            <h2>01 · Настройка сценария</h2>
+            <label>Название проекта<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
+            <label>Сценарий<textarea value={script} onChange={(e) => setScript(e.target.value)} /></label>
             <label className="check">
               <input type="checkbox" checked={autoTiming} onChange={(e) => setAutoTiming(e.target.checked)} />
               Авто: ИИ сканирует сценарий и сам раскладывает его на биты
             </label>
             <label>
-              <span className="range-head"><span>Total duration</span><strong>{formatDuration(effectiveDuration)}</strong></span>
+              <span className="range-head"><span>Длительность</span><strong>{formatDuration(effectiveDuration)}</strong></span>
               <input type="range" min={MIN_TOTAL_DURATION} max={MAX_TOTAL_DURATION} step="1" value={duration} disabled={!autoTiming} onChange={(e) => setDuration(Number(e.target.value))} />
               <div className="quick">
                 {QUICK_PRESETS.map((x) => <button key={x.seconds} type="button" disabled={!autoTiming} onClick={() => setDuration(x.seconds)}>{x.label}</button>)}
               </div>
             </label>
             <label>
-              <span className="range-head"><span>Seconds per frame</span><strong>{frameSeconds}с</strong></span>
+              <span className="range-head"><span>Секунд на кадр</span><strong>{frameSeconds}с</strong></span>
               <input type="range" min={MIN_FRAME_SECONDS} max={MAX_FRAME_SECONDS} step="1" value={frameSeconds} onChange={(e) => setFrameSeconds(Number(e.target.value))} />
             </label>
             <div className="row">
               {autoTiming ? (
                 <div className="metricbox">
-                  <span>Auto frames</span>
+                  <span>Авто-кадры</span>
                   <strong>{autoFrames}</strong>
-                  <span>calculated from duration and seconds per frame</span>
+                  <span>расчёт по длительности и секундам на кадр</span>
                 </div>
               ) : (
-                <label>Custom frames<input type="number" min="1" max={maxManualFrames} value={manualFrames} onChange={(e) => setCustomFrameCount(clampNumber(e.target.value, 1, maxManualFrames, manualFrames))} /></label>
+                <label>Кадров вручную<input type="number" min="1" max={maxManualFrames} value={manualFrames} onChange={(e) => setCustomFrameCount(clampNumber(e.target.value, 1, maxManualFrames, manualFrames))} /></label>
               )}
-              <label>Aspect<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
+              <label>Формат<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
             </div>
             <div className="row">
-              <label>Target<select value={target} onChange={(e) => setTarget(e.target.value)}><option value="grok">Grok</option><option value="veo3">Veo 3</option></select></label>
-              <label>PART size<select value={partSize} onChange={(e) => { setPartSize(Number(e.target.value)); setActivePart(0); }}><option value={4}>4 frames</option><option value={6}>6 frames</option><option value={8}>8 frames</option></select></label>
+              <label>Модель<select value={target} onChange={(e) => setTarget(e.target.value)}><option value="grok">Grok</option><option value="veo3">Veo 3</option></select></label>
+              <label>Размер PART<select value={partSize} onChange={(e) => { setPartSize(Number(e.target.value)); setActivePart(0); }}><option value={4}>4 кадра</option><option value={6}>6 кадров</option><option value={8}>8 кадров</option></select></label>
             </div>
-            <label>Style<select value={stylePreset} onChange={(e) => setStylePreset(e.target.value)}>{Object.entries(STYLE_PRESETS).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}</select></label>
+            <label>Стиль<select value={stylePreset} onChange={(e) => setStylePreset(e.target.value)}>{Object.entries(STYLE_PRESETS).map(([key, val]) => <option key={key} value={key}>{styleLabelRu(key, val.label)}</option>)}</select></label>
             <div className="buttons">
-              <button className="primary" disabled={busy || script.trim().length < 10} onClick={generateTrailer}>{busy ? "Generating..." : "Generate AI Trailer JSON"}</button>
-              <button disabled={busy || script.trim().length < 10} onClick={buildLocalPreview}>Local test plan</button>
-              <button disabled={!storyboard} onClick={downloadJson}>Download JSON</button>
-              <button disabled={busy} onClick={saveDraftNow}>Save locally</button>
-              <button disabled={busy} onClick={restoreSavedDraft}>Load last</button>
-              <button className="danger" disabled={busy} onClick={resetAll}>New project</button>
-              <button className="danger" disabled={busy} onClick={clearSavedDraft}>Clear saved</button>
+              <button className="primary" disabled={busy || script.trim().length < 10} onClick={generateTrailer}>{busy ? "Генерация..." : "Сгенерировать JSON"}</button>
+              <button disabled={busy || script.trim().length < 10} onClick={buildLocalPreview}>Локальный тест</button>
+              <button disabled={!storyboard} onClick={downloadJson}>Скачать JSON</button>
+              <button disabled={busy} onClick={saveDraftNow}>Сохранить</button>
+              <button disabled={busy} onClick={restoreSavedDraft}>Загрузить</button>
+              <button className="danger" disabled={busy} onClick={resetAll}>Очистить всё</button>
+              <button className="danger" disabled={busy} onClick={clearSavedDraft}>Удалить сохранённое</button>
             </div>
             <div className="pills">
-              <span className="pill active">{expectedFrames} frames expected</span>
-              <span className="pill">{formatDuration(effectiveDuration)} total</span>
-              <span className="pill">{timingMode}</span>
-              <span className="pill">{parts.length || 0} PARTS ready</span>
-              <span className="pill">{partSize} per PART</span>
-              {lastSavedAt ? <span className="pill">saved locally</span> : null}
+              <span className="pill active">{expectedFrames} кадров</span>
+              <span className="pill">{formatDuration(effectiveDuration)} всего</span>
+              <span className="pill">{autoTiming ? "авто" : "ручной"}</span>
+              <span className="pill">{parts.length || 0} PART готово</span>
+              <span className="pill">{partSize} в PART</span>
+              {lastSavedAt ? <span className="pill">сохранено локально</span> : null}
             </div>
             {status && <div className="status">{status}</div>}
             {error && <div className="error">{error}</div>}
@@ -1264,35 +1306,42 @@ export default function TrailerStoryboardPage() {
           <div className="panel">
             <div className="promptbox">
               <div className="prompt-head">
-                <h2>00 · Full Scenario Prompt</h2>
-                <button type="button" onClick={copyFullScenarioPrompt}>Copy full prompt</button>
+                <h2>00 · Мастер-промт сценария</h2>
+                <div className="buttons">
+                  <button type="button" onClick={() => setShowMasterPrompt((value) => !value)}>{showMasterPrompt ? "Скрыть" : "Показать"}</button>
+                  <button type="button" onClick={copyFullScenarioPrompt}>Копировать</button>
+                </div>
               </div>
-              <div className="mono master">{fullScenarioPrompt}</div>
+              {showMasterPrompt ? (
+                <div className="mono master">{fullScenarioPrompt}</div>
+              ) : (
+                <div className="frame">Мастер-промт скрыт. Он нужен только для копирования полного сценария в генератор JSON, это ещё не готовая раскадровка.</div>
+              )}
             </div>
-            <h2>02 · Trailer Structure</h2>
+            <h2>02 · Структура трейлера</h2>
             {!storyboard ? (
-              <div className="frame">Generate AI Trailer JSON or use Local test plan to verify custom frames, odd counts and long-format PART behavior.</div>
+              <div className="frame">Сгенерируй JSON или запусти локальный тест, чтобы проверить любое число кадров, PART-разбивку и лонг-формат.</div>
             ) : (
               <>
                 <div className="pills">
-                  <span className="pill active">{storyboard.scenes?.length || 0} frames</span>
-                  <span className="pill">{storyboard.total_duration || 0}s</span>
+                  <span className="pill active">{storyboard.scenes?.length || 0} кадров</span>
+                  <span className="pill">{storyboard.total_duration || 0}с</span>
                   <span className="pill">{storyboard.export_meta?.target || target}</span>
-                  <span className="pill">{storyboard.export_meta?.local_preview ? "local preview" : "AI storyboard"}</span>
+                  <span className="pill">{storyboard.export_meta?.local_preview ? "локальный тест" : "AI-раскадровка"}</span>
                 </div>
                 <div className="locks">
-                  <div className="lockbox"><h3>Cast Lock</h3>{(storyboard.cast_lock || []).map((x, i) => <div key={i}>{lockLine(x, `Cast ${i + 1}`)}</div>)}</div>
-                  <div className="lockbox"><h3>Location Lock</h3><div>{Object.entries(storyboard.location_lock || {}).map(([k, v]) => v ? `${k}: ${v}` : "").filter(Boolean).join("; ") || "No location lock"}</div></div>
-                  <div className="lockbox"><h3>Voice Lock</h3>{(storyboard.voice_lock || []).map((x, i) => <div key={i}>{lockLine(x, `Voice ${i + 1}`)}</div>)}</div>
-                  <div className="lockbox"><h3>Grid Continuity</h3><div>{storyboard.grid_continuity || "No grid continuity"}</div></div>
+                  <div className="lockbox"><h3>Фиксация актёров</h3>{(storyboard.cast_lock || []).map((x, i) => <div key={i}>{lockLine(x, `Актёр ${i + 1}`)}</div>)}</div>
+                  <div className="lockbox"><h3>Фиксация локации</h3><div>{Object.entries(storyboard.location_lock || {}).map(([k, v]) => v ? `${k}: ${v}` : "").filter(Boolean).join("; ") || "Локация не задана"}</div></div>
+                  <div className="lockbox"><h3>Фиксация голосов</h3>{(storyboard.voice_lock || []).map((x, i) => <div key={i}>{lockLine(x, `Голос ${i + 1}`)}</div>)}</div>
+                  <div className="lockbox"><h3>Непрерывность PART</h3><div>{storyboard.grid_continuity || "Непрерывность не задана"}</div></div>
                 </div>
 
                 <div>
-                  <h2>03 · PARTS</h2>
+                  <h2>03 · PART-сетки</h2>
                   <div className="parts">
                     {parts.map((part, i) => (
                       <button key={i} className={`part${safePart === i ? " active" : ""}`} onClick={() => { setActivePart(i); setSelectedFrameIndex(0); setCroppedFrame(""); }}>
-                        PART {i + 1} · {frameLabel(part[0], 0)}-{frameLabel(part[part.length - 1], 0)} · {part.length}
+                        PART {i + 1} · {frameLabel(part[0], 0)}-{frameLabel(part[part.length - 1], 0)} · {part.length} кадр.
                       </button>
                     ))}
                   </div>
@@ -1300,35 +1349,35 @@ export default function TrailerStoryboardPage() {
 
                 <div className="promptbox">
                   <div className="prompt-head">
-                    <h2>04 · PART Grid Prompt</h2>
+                    <h2>04 · Промт PART-сетки</h2>
                     <div className="buttons">
-                      <button disabled={!selectedPrompt} onClick={copyPrompt}>Copy PART prompt</button>
-                      <button className="primary" disabled={!flowGrokFixedPrompt} onClick={copyFlowGrokFixedPrompt}>Fix Flow/Grok + copy</button>
+                      <button disabled={!selectedPrompt} onClick={copyPrompt}>Копировать PART</button>
+                      <button className="primary" disabled={!flowGrokFixedPrompt} onClick={copyFlowGrokFixedPrompt}>Фикс Flow/Grok</button>
                     </div>
                   </div>
                   <div className="pills">
-                    <span className="pill active">{currentGridLayout.cols}×{currentGridLayout.rows} grid</span>
-                    <span className="pill">{partScenes.length} frames in this PART</span>
-                    <span className="pill">{partSize} max per PART</span>
-                    <span className="pill">continuity fix ready</span>
+                    <span className="pill active">{currentGridLayout.cols}×{currentGridLayout.rows} сетка</span>
+                    <span className="pill">{partScenes.length} кадров в PART</span>
+                    <span className="pill">до {partSize} в PART</span>
+                    <span className="pill">фикс непрерывности готов</span>
                   </div>
-                  <div className="mono">{selectedPrompt || "Select/generate PART to see prompt."}</div>
+                  <div className="mono">{selectedPrompt || "Сначала создай или выбери PART."}</div>
                 </div>
 
                 <div className="uploadbox">
                   <div className="prompt-head">
-                    <h2>05 · Upload Grid + Crop Frame</h2>
-                    <button disabled={!currentGridUpload || !selectedScene} onClick={cropSelectedFrame}>Crop selected frame</button>
+                    <h2>05 · Загрузка сетки и кроп</h2>
+                    <button disabled={!currentGridUpload || !selectedScene} onClick={cropSelectedFrame}>Обрезать выбранный кадр</button>
                   </div>
                   <input type="file" accept="image/*" onChange={(e) => uploadPartGrid(e.target.files?.[0])} />
                   <label>
-                    <span className="range-head"><span>Canvas crop trim</span><strong>{cropInset}%</strong></span>
+                    <span className="range-head"><span>Обрезка рамки</span><strong>{cropInset}%</strong></span>
                     <input type="range" min="0" max="12" step="1" value={cropInset} onChange={(e) => setCropInset(Number(e.target.value))} />
                   </label>
                   <div className="pills">
-                    <span className="pill active">Output: 1080×1920</span>
-                    <span className="pill">Clean 9:16</span>
-                    <span className="pill">Cover crop</span>
+                    <span className="pill active">Вывод: 1080×1920</span>
+                    <span className="pill">Чистый 9:16</span>
+                    <span className="pill">Заполнение кадра</span>
                   </div>
                   <div className="frame-select">
                     {partScenes.map((scene, i) => (
@@ -1340,7 +1389,7 @@ export default function TrailerStoryboardPage() {
                   <div className="crop-grid">
                     {currentGridUpload ? (
                       <div className="grid-picker">
-                        <img src={currentGridUpload} alt={`PART ${safePart + 1} grid upload`} />
+                        <img src={currentGridUpload} alt={`PART ${safePart + 1} загруженная сетка`} />
                         <div
                           className="grid-overlay"
                           style={{
@@ -1355,7 +1404,7 @@ export default function TrailerStoryboardPage() {
                               className={`grid-cell${safeFrameIndex === i ? " active" : ""}`}
                               style={{ "--trim": `${cropInset}%` }}
                               onClick={() => selectGridFrame(i)}
-                              aria-label={`Select ${frameLabel(scene, i)}`}
+                              aria-label={`Выбрать ${frameLabel(scene, i)}`}
                             >
                               <span className="badge">{frameLabel(scene, i)}</span>
                             </button>
@@ -1363,26 +1412,26 @@ export default function TrailerStoryboardPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="crop-preview"><span>Upload generated PART grid here</span></div>
+                      <div className="crop-preview"><span>Загрузи сюда сгенерированную PART-сетку</span></div>
                     )}
                     <div className="crop-preview">
-                      {croppedFrame ? <img src={croppedFrame} alt={`${frameLabel(selectedScene, safeFrameIndex)} crop`} /> : <span>Crop preview appears here</span>}
+                      {croppedFrame ? <img src={croppedFrame} alt={`Кроп ${frameLabel(selectedScene, safeFrameIndex)}`} /> : <span>Здесь появится кроп выбранного кадра</span>}
                     </div>
                   </div>
                   <div className="buttons">
-                    <button disabled={!croppedFrame} onClick={downloadCroppedFrame}>Download 9:16 crop</button>
-                    <button disabled={!selectedFrameVideoPrompt} onClick={copySelectedVideoPrompt}>Copy locked frame video prompt</button>
+                    <button disabled={!croppedFrame} onClick={downloadCroppedFrame}>Скачать кроп 9:16</button>
+                    <button disabled={!selectedFrameVideoPrompt} onClick={copySelectedVideoPrompt}>Копировать видеопромт</button>
                   </div>
-                  {selectedScene && <div className="mono">{selectedFrameVideoPrompt || "No video prompt for this frame."}</div>}
+                  {selectedScene && <div className="mono">{selectedFrameVideoPrompt || "Для этого кадра нет видеопромта."}</div>}
                 </div>
 
                 <div className="frames">
                   {partScenes.map((scene, i) => (
                     <div className="frame" key={scene.id || i}>
-                      <strong>{frameLabel(scene, i)} · {scene.shot_role || scene.beat_type || "frame"}</strong><br />
-                      Source: {scene.script_line_ru || scene.vo_ru || scene.description_ru}<br />
-                      Visual: {scene.visual_beat_ru || scene.description_ru}<br />
-                      {Array.isArray(scene.dialogue) && scene.dialogue.length > 0 ? <>Dialogue: {scene.dialogue.map(formatDialogueLine).join(" / ")}<br /></> : null}
+                      <strong>{frameLabel(scene, i)} · {scene.shot_role || scene.beat_type || "кадр"}</strong><br />
+                      Источник: {scene.script_line_ru || scene.vo_ru || scene.description_ru}<br />
+                      Визуал: {scene.visual_beat_ru || scene.description_ru}<br />
+                      {Array.isArray(scene.dialogue) && scene.dialogue.length > 0 ? <>Диалог: {scene.dialogue.map(formatDialogueLine).join(" / ")}<br /></> : null}
                       SFX: {scene.sfx || ""}
                     </div>
                   ))}
