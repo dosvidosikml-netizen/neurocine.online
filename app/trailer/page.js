@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
 import { STYLE_PRESETS, getStyleProfile } from "../../engine/directorEngine_v4";
 import { splitScenesIntoParts, buildFlowCompactPartPrompt } from "../../engine/autoChainEngine";
@@ -42,6 +42,8 @@ const QUICK_PRESETS = [
   { seconds: 300, label: "5м" },
   { seconds: 600, label: "10м" },
 ];
+
+const TRAILER_DRAFT_KEY = "neurocine.trailerStoryboardDraft.v1";
 
 function clampNumber(value, min, max, fallback = min) {
   const n = Number(value);
@@ -141,6 +143,55 @@ function lockLine(item, fallback = "Lock") {
   ].filter(Boolean).map(cleanText).join(" — ");
 }
 
+function locationLockLine(lock = {}) {
+  if (!lock || typeof lock !== "object") return cleanText(lock || "");
+  return Object.entries(lock).map(([key, value]) => value ? `${key}: ${cleanText(value)}` : "").filter(Boolean).join("; ");
+}
+
+function buildLockedFrameVideoPrompt({ scene, storyboard, styleProfile, frameLabelText, hasCrop }) {
+  if (!scene) return "";
+  const scriptLine = cleanText(scene.script_line_ru || scene.vo_ru || scene.description_ru || "");
+  const castLock = (storyboard?.cast_lock || []).map((item, i) => lockLine(item, `Cast ${i + 1}`)).filter(Boolean).join("\n");
+  const characterLock = (storyboard?.character_lock || []).map((item, i) => lockLine(item, `Character ${i + 1}`)).filter(Boolean).join("\n");
+  const locationLock = locationLockLine(storyboard?.location_lock || {});
+  const style = cleanText(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "");
+  const dialogue = Array.isArray(scene.dialogue) && scene.dialogue.length
+    ? scene.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+    : "";
+
+  return `LOCKED FRAME VIDEO PROMPT — ${frameLabelText}
+
+USE THE UPLOADED CROPPED FRAME AS THE VISUAL SOURCE${hasCrop ? "" : " WHEN AVAILABLE"}.
+Preserve exact faces, bodies, wardrobe, lighting direction, camera angle, composition and location from that crop.
+
+SOURCE OF TRUTH SCRIPT LINE:
+${scriptLine}
+
+CAST LOCK — DO NOT CHANGE PEOPLE:
+${castLock || characterLock || "Use the same recurring characters already established in the storyboard/grid. Do not replace actors."}
+
+LOCATION LOCK — DO NOT CHANGE PLACE:
+${locationLock || "Continue the same locked location from the uploaded grid and storyboard."}
+
+ACTION:
+Animate only the action/emotion described by the source script line. Keep the same people from the crop and previous frames. If the frame shows the same employee group, they remain the same employees, not new actors.
+
+${dialogue ? `DIALOGUE LOCK:\n${dialogue}\nNo extra speech.\n` : ""}STYLE LOCK:
+${style}
+
+STYLE COMPATIBILITY:
+Style is only lens/color/lighting language. It must not introduce candles, oil lamps, stone, moss, medieval props, new rooms, new eras, new costumes, weather, extra people or objects unless the script line explicitly contains them.
+
+CAMERA:
+${cleanText(scene.camera || "restrained handheld micro-drift")}. No scene change, no cutaway to another location.
+
+SFX:
+${cleanText(scene.sfx || "physical sounds already visible or implied by the frame")}.
+
+FORBIDDEN:
+Do not change face identity, age, ethnicity, hairstyle, wardrobe, body type, number of people, office/elevator design, time period, supernatural rules, props or location. Do not add subtitles, UI, watermark, captions or unrelated objects.`;
+}
+
 function buildFullScenarioPrompt({ projectName, script, aspectRatio, stylePreset, target, expectedFrames, effectiveDuration, frameSeconds, timingMode, partSize, styleProfile }) {
   const style = STYLE_PRESETS[stylePreset]?.lock || styleProfile?.style_lock || "locked cinematic realism";
   return `NEUROCINE TRAILER STORYBOARD MASTER PROMPT
@@ -164,6 +215,7 @@ GLOBAL RULES:
 - Use only characters, locations, objects, actions and dialogue present in the script.
 - Do not invent new actors, new locations, new props, new costumes or new supernatural rules.
 - Keep the same cast, wardrobe, office/elevator geography, lighting family and style from first frame to last.
+- Style cannot override the script: do not add candles, oil lamps, stone, moss, medieval props, new rooms, new eras, new costumes or weather unless the script explicitly says so.
 - Dialogue must be copied exactly from the script into scene.dialogue with stable voice_id.
 - Visible signs, captions, displays and title cards must go into scene.on_screen_text.
 - Narrator/trailer VO belongs in scene.vo_ru.
@@ -186,6 +238,9 @@ If a script beat needs multiple frames, continue the same beat visually without 
 
 STYLE BIBLE:
 ${style}
+
+STYLE COMPATIBILITY:
+Use the style only for lens, color, lighting and mood. If any style token conflicts with the script location/object list, ignore that style token and keep the scripted office/elevator world.
 
 OUTPUT:
 Return valid JSON only. No markdown. No explanation.
@@ -294,7 +349,7 @@ export default function TrailerStoryboardPage() {
   const [customFrameCount, setCustomFrameCount] = useState(27);
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [target, setTarget] = useState("grok");
-  const [stylePreset, setStylePreset] = useState("mysticHorror");
+  const [stylePreset, setStylePreset] = useState("psychologicalDread");
   const [partSize, setPartSize] = useState(4);
   const [activePart, setActivePart] = useState(0);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
@@ -304,6 +359,7 @@ export default function TrailerStoryboardPage() {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [draftReady, setDraftReady] = useState(false);
 
   const styleProfile = useMemo(() => getStyleProfile("film", stylePreset), [stylePreset]);
   const scenes = useMemo(() => (Array.isArray(storyboard?.scenes) ? storyboard.scenes : []), [storyboard]);
@@ -350,6 +406,45 @@ export default function TrailerStoryboardPage() {
     partSize,
     styleProfile,
   }), [projectName, script, aspectRatio, stylePreset, target, expectedFrames, effectiveDuration, frameSeconds, timingMode, partSize, styleProfile]);
+  const selectedFrameVideoPrompt = useMemo(() => buildLockedFrameVideoPrompt({
+    scene: selectedScene,
+    storyboard,
+    styleProfile,
+    frameLabelText: frameLabel(selectedScene, safeFrameIndex),
+    hasCrop: Boolean(croppedFrame),
+  }), [selectedScene, storyboard, styleProfile, safeFrameIndex, croppedFrame]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TRAILER_DRAFT_KEY);
+      if (!raw) {
+        setDraftReady(true);
+        return;
+      }
+      const draft = JSON.parse(raw);
+      if (draft.projectName) setProjectName(draft.projectName);
+      if (draft.script) setScript(draft.script);
+      if (draft.duration) setDuration(Number(draft.duration));
+      if (draft.frameSeconds) setFrameSeconds(Number(draft.frameSeconds));
+      if (typeof draft.autoTiming === "boolean") setAutoTiming(draft.autoTiming);
+      if (draft.customFrameCount) setCustomFrameCount(Number(draft.customFrameCount));
+      if (draft.aspectRatio) setAspectRatio(draft.aspectRatio);
+      if (draft.target) setTarget(draft.target);
+      if (draft.stylePreset) setStylePreset(draft.stylePreset);
+      if (draft.partSize) setPartSize(Number(draft.partSize));
+    } catch {}
+    setDraftReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    try {
+      window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({
+        projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
+        aspectRatio, target, stylePreset, partSize,
+      }));
+    } catch {}
+  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize]);
 
   async function generateTrailer() {
     setBusy(true);
@@ -452,7 +547,7 @@ export default function TrailerStoryboardPage() {
   }
 
   async function copySelectedVideoPrompt() {
-    const text = selectedScene?.video_prompt_en || "";
+    const text = selectedFrameVideoPrompt || "";
     if (!text) return;
     await navigator.clipboard.writeText(text);
     setStatus(`${frameLabel(selectedScene, safeFrameIndex)} video prompt copied`);
@@ -697,9 +792,9 @@ export default function TrailerStoryboardPage() {
                     </div>
                   </div>
                   <div className="buttons">
-                    <button disabled={!selectedScene?.video_prompt_en} onClick={copySelectedVideoPrompt}>Copy selected frame video prompt</button>
+                    <button disabled={!selectedFrameVideoPrompt} onClick={copySelectedVideoPrompt}>Copy locked frame video prompt</button>
                   </div>
-                  {selectedScene && <div className="mono">{selectedScene.video_prompt_en || "No video prompt for this frame."}</div>}
+                  {selectedScene && <div className="mono">{selectedFrameVideoPrompt || "No video prompt for this frame."}</div>}
                 </div>
 
                 <div className="frames">
