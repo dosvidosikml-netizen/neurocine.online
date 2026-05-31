@@ -189,7 +189,7 @@ SFX:
 ${cleanText(scene.sfx || "physical sounds already visible or implied by the frame")}.
 
 FORBIDDEN:
-Do not change face identity, age, ethnicity, hairstyle, wardrobe, body type, number of people, office/elevator design, time period, supernatural rules, props or location. Do not add subtitles, UI, watermark, captions or unrelated objects.`;
+Do not change face identity, age, ethnicity, hairstyle, wardrobe, body type, number of people, office/elevator design, time period, supernatural rules, props or location. Do not add subtitles, UI, watermark, captions, frame numbers, borders, black gutters, title bars or unrelated objects.`;
 }
 
 function buildFullScenarioPrompt({ projectName, script, aspectRatio, stylePreset, target, expectedFrames, effectiveDuration, frameSeconds, timingMode, partSize, styleProfile }) {
@@ -220,6 +220,7 @@ GLOBAL RULES:
 - Visible signs, captions, displays and title cards must go into scene.on_screen_text.
 - Narrator/trailer VO belongs in scene.vo_ru.
 - Final PART can contain any remaining frame count. Never add filler frames just to make a perfect grid.
+- PART grid images must be clean 9:16 cells with no visible numbering, labels, title bars, black gutters, borders or separators.
 
 ROOT JSON FIELDS REQUIRED:
 project_name, language, format, aspect_ratio, total_duration, global_style_lock, global_video_lock,
@@ -355,6 +356,7 @@ export default function TrailerStoryboardPage() {
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
   const [gridUploads, setGridUploads] = useState({});
   const [croppedFrame, setCroppedFrame] = useState("");
+  const [cropInset, setCropInset] = useState(0);
   const [storyboard, setStoryboard] = useState(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -432,6 +434,7 @@ export default function TrailerStoryboardPage() {
       if (draft.target) setTarget(draft.target);
       if (draft.stylePreset) setStylePreset(draft.stylePreset);
       if (draft.partSize) setPartSize(Number(draft.partSize));
+      if (Number.isFinite(Number(draft.cropInset))) setCropInset(Number(draft.cropInset));
     } catch {}
     setDraftReady(true);
   }, []);
@@ -441,10 +444,10 @@ export default function TrailerStoryboardPage() {
     try {
       window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({
         projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
-        aspectRatio, target, stylePreset, partSize,
+        aspectRatio, target, stylePreset, partSize, cropInset,
       }));
     } catch {}
-  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize]);
+  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize, cropInset]);
 
   async function generateTrailer() {
     setBusy(true);
@@ -574,16 +577,46 @@ export default function TrailerStoryboardPage() {
       const row = Math.floor(safeFrameIndex / cols);
       const cellW = Math.floor(img.naturalWidth / cols);
       const cellH = Math.floor(img.naturalHeight / rows);
+      const insetRatio = Math.max(0, Math.min(12, Number(cropInset) || 0)) / 100;
+      const insetX = Math.floor(cellW * insetRatio);
+      const insetY = Math.floor(cellH * insetRatio);
+      const sourceX = col * cellW + insetX;
+      const sourceY = row * cellH + insetY;
+      const sourceW = Math.max(1, cellW - insetX * 2);
+      const sourceH = Math.max(1, cellH - insetY * 2);
       const canvas = document.createElement("canvas");
-      canvas.width = cellW;
-      canvas.height = cellH;
+      canvas.width = 1080;
+      canvas.height = 1920;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH, 0, 0, cellW, cellH);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const targetAspect = canvas.width / canvas.height;
+      const sourceAspect = sourceW / sourceH;
+      let drawW = sourceW;
+      let drawH = sourceH;
+      let drawX = sourceX;
+      let drawY = sourceY;
+      if (sourceAspect > targetAspect) {
+        drawW = Math.floor(sourceH * targetAspect);
+        drawX = sourceX + Math.floor((sourceW - drawW) / 2);
+      } else {
+        drawH = Math.floor(sourceW / targetAspect);
+        drawY = sourceY + Math.floor((sourceH - drawH) / 2);
+      }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH, 0, 0, canvas.width, canvas.height);
       setCroppedFrame(canvas.toDataURL("image/png"));
-      setStatus(`${frameLabel(selectedScene, safeFrameIndex)} cropped from PART ${safePart + 1}`);
+      setStatus(`${frameLabel(selectedScene, safeFrameIndex)} cropped as clean 9:16 canvas`);
     };
     img.src = currentGridUpload;
+  }
+
+  function downloadCroppedFrame() {
+    if (!croppedFrame || !selectedScene) return;
+    const a = document.createElement("a");
+    a.href = croppedFrame;
+    a.download = `${projectName || "trailer"}-${frameLabel(selectedScene, safeFrameIndex)}-9x16.png`;
+    a.click();
   }
 
   async function copyFullScenarioPrompt() {
@@ -776,6 +809,15 @@ export default function TrailerStoryboardPage() {
                     <button disabled={!currentGridUpload || !selectedScene} onClick={cropSelectedFrame}>Crop selected frame</button>
                   </div>
                   <input type="file" accept="image/*" onChange={(e) => uploadPartGrid(e.target.files?.[0])} />
+                  <label>
+                    <span className="range-head"><span>Canvas crop trim</span><strong>{cropInset}%</strong></span>
+                    <input type="range" min="0" max="12" step="1" value={cropInset} onChange={(e) => setCropInset(Number(e.target.value))} />
+                  </label>
+                  <div className="pills">
+                    <span className="pill active">Output: 1080×1920</span>
+                    <span className="pill">Clean 9:16</span>
+                    <span className="pill">Cover crop</span>
+                  </div>
                   <div className="frame-select">
                     {partScenes.map((scene, i) => (
                       <button key={scene.id || i} className={safeFrameIndex === i ? "active" : ""} onClick={() => { setSelectedFrameIndex(i); setCroppedFrame(""); }}>
@@ -792,6 +834,7 @@ export default function TrailerStoryboardPage() {
                     </div>
                   </div>
                   <div className="buttons">
+                    <button disabled={!croppedFrame} onClick={downloadCroppedFrame}>Download 9:16 crop</button>
                     <button disabled={!selectedFrameVideoPrompt} onClick={copySelectedVideoPrompt}>Copy locked frame video prompt</button>
                   </div>
                   {selectedScene && <div className="mono">{selectedFrameVideoPrompt || "No video prompt for this frame."}</div>}

@@ -502,8 +502,15 @@ export function buildFlowCompactPartPrompt({
       ? "SOFT — cinematic polish is allowed, but never contradict the scenario."
       : "HARD — strict to the scenario; cinematic framing is allowed without adding plot content.";
 
+  const gridInstruction = trailerMode
+    ? `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell must be a clean ${aspect}${aspect === "9:16" ? " vertical portrait" : ""} image, edge-to-edge. NO frame labels, NO numbers, NO captions, NO title bars, NO black gutters, NO borders, NO separators, NO UI, NO watermark. The grid is only a temporary layout for cropping; every cell must look like a standalone 9:16 video frame.`
+    : `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.`;
+  const trailerFinalCheck = trailerMode
+    ? `Exactly ${partScenes.length} clean unlabeled ${aspect} frames. Use the internal frame order ${labels}, but do not draw labels/numbers/text/borders in the image. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`
+    : `Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
+
   return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
-Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.
+${gridInstruction}
 
 STYLE LOCK:
 ${styleLock || "dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, cold overcast light, realistic skin and fabric, dirty hands, smoke, mud, damp stone, shallow depth of field, subtle 35mm film grain."}
@@ -519,7 +526,7 @@ ${locationLock}
 STYLE BIBLE:
 ${styleBible || styleLock || "same film style, same lens language, same lighting family, same production design"}
 
-If this is a 29-frame or other odd-count storyboard, the final PART may contain 2 or 3 cells. That is intentional. Generate exactly the listed labels, no missing cells, no extra cells.
+If this is an odd-count storyboard, the final PART may contain fewer cells. That is intentional. Generate exactly the listed internal frame order, no missing cells, no extra cells, and no visible labels.
 ` : ""}
 
 MANDATORY VISUAL TYPE:
@@ -540,5 +547,5 @@ ${chars ? `CHARACTER LOCK:\n${chars}\nUse this only as identity reference when a
 ${frames}
 
 FINAL CHECK:
-Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
+${trailerFinalCheck}`;
 }
