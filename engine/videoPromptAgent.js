@@ -52,18 +52,25 @@ export function hasMinorContext(frame = {}, storyboard = {}) {
 
 function cleanAudioCue(text = "") {
   return cleanText(text)
-    .replace(/электрический гул экрана/gi, "electric screen hum")
-    .replace(/гул экрана/gi, "screen hum")
+    .replace(/\broom tone\b/gi, "near-silence")
+    .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
+    .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
+    .replace(/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX")
+    .replace(/\bambient sound\b/gi, "clean physical SFX")
+    .replace(/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук")
+    .replace(/\bгул\b/gi, "короткий физический щелчок")
+    .replace(/электрический гул экрана/gi, "screen power tick")
+    .replace(/гул экрана/gi, "screen power tick")
     .replace(/скрип кровати/gi, "bed creak")
     .replace(/скрип матраса/gi, "mattress creak")
     .replace(/ткань/gi, "fabric rustle")
     .replace(/дыхание/gi, "shallow breathing")
     .replace(/пыль/gi, "dust in still air")
-    .replace(/вентиляционный гул|гул вентиляции/gi, "ventilation hum")
+    .replace(/вентиляционный гул|гул вентиляции/gi, "ventilation grille tick")
     .replace(/щелчок сканера/gi, "scanner click")
-    .replace(/crowd murmur/gi, "distant non-verbal crowd ambience")
-    .replace(/human voices/gi, "non-verbal human ambience")
-    .replace(/\bvoices\b/gi, "non-verbal ambience")
+    .replace(/crowd murmur/gi, "distant non-verbal crowd texture")
+    .replace(/human voices/gi, "non-verbal human presence")
+    .replace(/\bvoices\b/gi, "non-verbal presence")
     .replace(/\bdialogue\b/gi, "no dialogue")
     .replace(/\bspeech\b/gi, "no speech")
     .replace(/\bnarration\b/gi, "no narration")
@@ -156,7 +163,7 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
   if (hasAny(ctx, ["laptop", "keyboard", "typing", "keys", "ноутбук", "клавиатур", "печатает", "набирает"])) {
     cues.push("individual keycap click — sharp plastic-on-membrane contact, 42g actuation");
     cues.push("fingertip skin dragging across keycap surface between keystrokes");
-    cues.push("laptop chassis resonance — low-frequency body vibration during typing burst");
+    cues.push("laptop chassis resonance — short plastic body tick during typing burst");
     // убираем гул экрана — заменяем на конкретный звук
     if (hasAny(ctx, ["screen", "monitor", "экран", "монитор", "дисплей"])) {
       cues.push("LCD backlight faint electrical tick on brightness cycle");
@@ -165,7 +172,7 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
 
   // ── ОКНО / СТЕКЛО / ОТРАЖЕНИЕ ────────────────────────────────────────────
   if (hasAny(ctx, ["window", "glass", "reflection", "окно", "стекл", "отражени", "смотрит.*окно", "у окна"])) {
-    cues.push("double-pane window pressure flex — low-frequency hum only when wind gusts");
+    cues.push("double-pane window pressure flex — single glass tick during wind gust");
     cues.push("condensation droplet tracking down glass — near-silent friction squeak");
     if (hasAny(ctx, ["rain", "дождь", "капли"])) {
       cues.push("individual raindrops striking glass at irregular intervals — not continuous rain sheet");
@@ -186,8 +193,8 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
 
   // ── КУХНЯ / ХОЛОДИЛЬНИК ───────────────────────────────────────────────────
   if (hasAny(ctx, ["kitchen", "fridge", "refrigerator", "кухня", "холодильник", "кухне"])) {
-    cues.push("refrigerator compressor start — low-frequency thump then constant 60Hz vibration in floor");
-    cues.push("kitchen silence — absence of sound except compressor and distant traffic seeping through wall");
+    cues.push("refrigerator compressor start — low thump, then silence around shelf ticks");
+    cues.push("kitchen silence — isolated compressor relay click and fabric or breath if visible");
   }
 
   // ── ДЫХАНИЕ / УСТАЛОСТЬ / ИЗНЕМОЖЕНИЕ ───────────────────────────────────
@@ -222,7 +229,7 @@ function buildAudioPlan({ frame = {}, storyboard = {}, action = "" } = {}) {
   // Если ничего не совпало — используем конкретный физический минимализм
   const finalCues = dedupeList([...extracted, ...cues]);
   if (!finalCues.length) {
-    finalCues.push("room tone — physical silence with micro-texture: air pressure, distant low-end through walls");
+    finalCues.push("near-silence — close breath, fabric shift, isolated material ticks");
     finalCues.push("involuntary body sound — clothes fabric shift, slow breath cycle");
   }
 
@@ -592,8 +599,8 @@ function buildCompactVideoPrompt({ frame = {}, storyboard = {}, includeVo = fals
   const noVoice = dialogueMode
     ? (dialogueText ? `Dialogue: exact scripted line(s) only: ${dialogueText}. Keep listed voice_id and delivery. No improvised speech, no voiceover.` : "Dialogue: none in this shot. No improvised speech, no voiceover.")
     : includeVo && frame.vo_ru
-      ? "Voiceover may be added separately; keep this clip non-verbal but keep diegetic ambient and SFX audible."
-      : "VOICE LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music — BUT diegetic ambient sound and the SFX above MUST be present and audible.";
+      ? "Voiceover may be added separately; keep this clip non-verbal but keep clean diegetic SFX audible."
+      : "VOICE LOCK: no human voice, no speech, no dialogue, no narration, no whisper, no voiceover, no music — BUT clean close diegetic SFX MUST be present; no hum, drone or room tone.";
   const continuity = consistency === "ultra"
     ? "Keep the exact uploaded composition, lighting, clothing, grime and object layout."
     : "Keep visual continuity with the uploaded frame.";
@@ -708,7 +715,7 @@ function getShotProgression(frame = {}) {
   return { n, phase, rhythm };
 }
 
-// Для Grok — укороченные SFX теги без ASMR-нарратива (ограничение токенов)
+// Для Grok — короткие ASMR/SFX теги без длинного аудио-блока (ограничение токенов)
 function buildGrokSfxLine(audio) {
   const simplify = (cue) => String(cue || "").split(" — ")[0].split("; ")[0].slice(0, 50);
   return dedupeList([audio.primary, ...audio.background].map(simplify)).slice(0, 3).join(", ");
@@ -723,7 +730,7 @@ function buildGrokCheapPrompt({ frame = {}, storyboard = {}, includeVo = false, 
   const dialogueText = dialogueToText(frame.dialogue, storyboard);
   const noVoice = dialogueMode
     ? (dialogueText ? `Dialogue only if synced: "${limitWords(dialogueText, 12)}". Keep voice_id. No extra speech.` : "NO SPEECH, NO VOICEOVER.")
-    : includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
+    : includeVo ? "" : "NO SPEECH, NO VOICEOVER. Clean close SFX only; no hum/drone/room tone/music.";
   const duration = Math.min(8, Math.max(3, Number(frame.duration || 5)));
   const camera = cleanText(frame.camera || "static handheld").split(",")[0].trim();
   const sfxShort = buildGrokSfxLine(audio);
@@ -752,7 +759,7 @@ function buildGrokProPrompt({ frame = {}, storyboard = {}, includeVo = false, co
   const dialogueText = dialogueToText(frame.dialogue, storyboard);
   const noVoice = dialogueMode
     ? (dialogueText ? `Dialogue only if synced: "${limitWords(dialogueText, 12)}". Keep voice_id. No extra speech.` : "NO SPEECH, NO VOICEOVER.")
-    : includeVo ? "" : "NO SPEECH, NO VOICEOVER. Ambient diegetic sound MUST be audible.";
+    : includeVo ? "" : "NO SPEECH, NO VOICEOVER. Clean close SFX only; no hum/drone/room tone/music.";
   const shot = getShotProgression(frame);
   const sourceLine = getScriptLine(frame) || action;
   const sfxShort = buildGrokSfxLine(audio);
@@ -837,10 +844,10 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
   out = dedupeFinalPrompt(out);
 
   if (!includeVo && !dialogueMode) {
-    const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient diegetic SFX MUST be present and audible.";
+    const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Clean close diegetic SFX only; no hum, drone, room tone or music.";
     if (String(target).toLowerCase() === "grok" && !out.startsWith("NO SPEECH")) out = `${hardNoVoice} ${out}`;
     if (!/(No dialogue,\s*no voiceover|No speech,\s*no voiceover|NO SPEECH)/i.test(out) && String(target).toLowerCase() !== "grok") {
-      out = `${out} No dialogue, no voiceover; ambient sound and SFX must stay audible.`;
+      out = `${out} No dialogue, no voiceover; clean close diegetic SFX only, no hum, drone, room tone or music.`;
     }
   } else if (dialogueMode) {
     const dialogueText = dialogueToText(frame.dialogue, storyboard);

@@ -230,6 +230,19 @@ function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function cleanSfxText(value = "") {
+  return cleanText(value)
+    .replace(/\broom tone\b/gi, "near-silence")
+    .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
+    .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
+    .replace(/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX")
+    .replace(/\bambient sound\b/gi, "clean physical SFX")
+    .replace(/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук")
+    .replace(/\bгул\b/gi, "короткий физический щелчок")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function frameId(n) {
   return `frame_${String(n).padStart(2, "0")}`;
 }
@@ -407,8 +420,11 @@ ${compactStyleLine(style)}
 CAMERA:
 ${cleanText(scene.camera || "restrained handheld micro-drift")}. No scene change, no cutaway to another location.
 
+SOUND LOCK:
+Clean close-mic diegetic ASMR only. Use silence plus exact visible physical SFX. No background hum, drone, room tone, music bed or generic ambience.
+
 SFX:
-${cleanText(scene.sfx || "physical sounds already visible or implied by the frame")}.
+${cleanSfxText(scene.sfx || "physical sounds already visible or implied by the frame")}.
 
 FORBIDDEN:
 ${forbidden || "No new actors, props, rooms, costumes, era, weather or story events."} No subtitles, UI, watermark, captions, frame numbers, borders, black gutters or unrelated objects.`;
@@ -450,7 +466,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
   let allowedObjects = "only scripted office/elevator elements visible in this beat";
   let shotRole = "trailer_beat";
   let camera = "restrained handheld medium shot";
-  let sfx = "fluorescent tube flicker, old elevator metal vibration";
+  let sfx = "single fluorescent tick, dry elevator relay click, silence between close physical cues";
   let blocking = "Use only the characters currently introduced by the script; keep locked office/elevator geography.";
 
   if ((/этаж.*не должно существовать/.test(l) && /лифт.*открыт|стоит открытым|заходить внутр/.test(l)) || /последний лифт.*открыт|лифт.*стоит открытым/.test(l)) {
@@ -492,7 +508,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
     allowedObjects = "elevator panel, old buttons, exact -1 button";
     shotRole = "insert";
     camera = "macro insert close-up";
-    sfx = "button plastic tick, elevator panel faint electrical buzz";
+    sfx = "button plastic tick, fingertip scrape on worn plastic, dry relay click under panel";
   } else if (/ехал|ехать вниз|слишком долго|слишком глубоко/.test(l)) {
     visualRu = "Те же трое сотрудников внутри старой кабины лифта ощущают слишком долгий спуск; стены и свет той же кабины, без новых пассажиров.";
     visualEn = "The same three employees inside the old elevator cabin feel the descent lasting too long; same cabin walls and lights, no new passengers.";
@@ -500,7 +516,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
     allowedObjects = "three locked employees, elevator walls, control panel, ceiling light";
     shotRole = "tension";
     camera = "tight handheld elevator interior";
-    sfx = "elevator cable groan, cabin metal vibration";
+    sfx = "short elevator cable creak, cabin seam tick, held breath and fabric rustle";
   } else if (/не смотрите в угол|диспле/.test(l)) {
     visualRu = "Крупный план дисплея лифта с точной надписью «НЕ СМОТРИТЕ В УГОЛ»; вокруг тот же металл кабины.";
     visualEn = "Close-up of the elevator display showing the exact text 'НЕ СМОТРИТЕ В УГОЛ'; same cabin metal around it.";
@@ -516,7 +532,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
     allowedObjects = "three locked employees, elevator corner, red dim cabin light";
     shotRole = "reaction";
     camera = "tight reaction shot";
-    sfx = "breath held in cabin, fluorescent buzz breaking";
+    sfx = "held breath in cabin, one fluorescent snap, clothing rustle as heads turn";
   } else if (/углу лифта стоял человек/.test(l)) {
     visualRu = "В углу той же кабины лифта неподвижно стоит тот же тёмный человек; трое сотрудников видят, что он был там всё время.";
     visualEn = "In the corner of the same elevator cabin the same dark silent man stands motionless; the three employees realize he was there all along.";
@@ -563,7 +579,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
     allowedObjects = "closed elevator doors, dark corridor, flickering lights";
     shotRole = "rule_whisper";
     camera = "still ominous elevator doors";
-    sfx = "close whisper in room tone, elevator metal tick";
+    sfx = "close dry whisper, elevator metal tick, silence around the voice";
   } else if (/бежали|били по кнопкам|кричали|выход/.test(l)) {
     visualRu = "Те же сотрудники бегут обратно к лифту и бьют по кнопкам внутри той же офисной зоны; паника без новых людей.";
     visualEn = "The same employees run back to the elevator and hit the buttons inside the same office zone; panic without new people.";
@@ -579,7 +595,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
     allowedObjects = "wall, dark red liquid, fluorescent lights, motionless office people, duplicate only if script line says so";
     shotRole = "escalation";
     camera = "fragmented horror insert";
-    sfx = "fluorescent tube crack, liquid sliding upward, glass vibration";
+    sfx = "fluorescent tube crack, liquid sliding upward, glass edge tick";
   } else if (/не было кабины|ч[её]рная пустота|исчезли|остался только он/.test(l)) {
     visualRu = "Открытые двери того же лифта без кабины: внутри только чёрная пустота; персонажи исчезают один за другим или остаётся один парень согласно строке.";
     visualEn = "The same elevator doors open with no cabin inside: only black void; characters vanish one by one or one man remains according to the source line.";
@@ -665,6 +681,7 @@ GLOBAL RULES:
 - Visible signs, captions, displays and title cards must go into scene.on_screen_text.
 - Narrator/trailer VO belongs in scene.vo_ru.
 - Final PART can contain any remaining frame count. Never add filler frames just to make a perfect grid.
+- Audio/SFX must be clean close-mic diegetic ASMR: exact visible physical sounds, sparse silence and suspense. No background hum, drone bed, room tone filler, music bed, white noise or vague ambience.
 - For 4-frame PART grids in 9:16, create one single vertical 9:16 canvas with a strict 2×2 collage inside it. Use thin black separators only. No visible numbering, cell names, captions, title bars, UI, watermark or non-story text.
 
 SCRIPT BREAKDOWN PASS:
@@ -739,6 +756,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
     const dialogueText = source.match(/(?:сказал(?:а)?|говорит|ш[её]пот[^:]*|крик[^:]*)[:—-]\s*(.+)$/i)?.[1] || "";
     const sceneDuration = frameDurations[i] || frameSeconds || 3;
     const sceneStart = runningStart;
+    const safeSfx = cleanSfxText(visual.sfx);
     runningStart += sceneDuration;
     return {
       id: frameId(i + 1),
@@ -754,13 +772,13 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       allowed_location: visual.allowed_location,
       forbidden_visuals: visual.forbidden_visuals,
       image_prompt_en: `SCENE PRIMARY FOCUS: ${visual.visual_en}. Source line: "${source}". Allowed characters: ${visual.allowed_characters.length ? visual.allowed_characters.join("; ") : "none unless explicitly visible in this beat"}. Allowed objects/location: ${visual.allowed_objects}; ${visual.allowed_location}. Style formula affects only lens, light, color, grain and texture; no new story content. ASPECT RATIO: ${aspectRatio}`,
-      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only this visual beat: ${visual.visual_en}. No new characters, locations or objects. Camera: ${visual.camera}. SFX: ${visual.sfx}. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
+      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only this visual beat: ${visual.visual_en}. No new characters, locations or objects. Camera: ${visual.camera}. Sound: clean close-mic ASMR SFX only; no background hum, drone, room tone, music or generic ambience. SFX: ${safeSfx}. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
       vo_ru: source,
       dialogue: isDialogue && dialogueText ? [{ speaker: "Offscreen voice", voice_id: "voice_04", text: dialogueText, delivery: "low supernatural whisper" }] : [],
       on_screen_text: visual.on_screen_text,
       blocking: visual.blocking,
       shot_role: visual.shot_role,
-      sfx: visual.sfx,
+      sfx: safeSfx,
       camera: visual.camera,
       transition: "cut",
       cut_energy: i < 4 || i > totalFrames * 0.7 ? "high" : "medium",

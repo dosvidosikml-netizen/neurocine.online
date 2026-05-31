@@ -43,7 +43,7 @@ function inferWorldProfile(frame = {}, storyboard = {}) {
     return {
       id: "ancient_documentary",
       label: "ancient historical documentary reconstruction",
-      allowedAudio: "dry wind over cracked earth, soft footsteps on dry soil, rustling dry grass, distant low water pressure, soft water movement, fire embers, goats or distant settlement ambience only when visible, low natural documentary tension",
+      allowedAudio: "dry wind over cracked earth, soft footsteps on dry soil, rustling dry grass, distant low water pressure, soft water movement, fire embers, goats or distant settlement texture only when visible, sparse silence and natural tension",
       forbiddenAudio: "sirens, alarms, ambulance, police, cars, engines, city noise, radio, phones, electronic warning tones, modern emergency sounds, synthetic disaster alarms",
       forbiddenObjects: "modern vehicles, asphalt roads, street lights, police, ambulance, phones, power lines, modern buildings, modern clothing unless explicitly required",
       rule: "Only sounds and objects physically possible in an ancient Black Sea basin / historical reconstruction are allowed.",
@@ -65,7 +65,7 @@ function inferWorldProfile(frame = {}, storyboard = {}) {
     return {
       id: "space_scifi",
       label: "space / spacecraft world",
-      allowedAudio: "inside-helmet breathing, suit fabric, radio static only if communications are present, low spacecraft vibration, interior hum, muffled impacts through structure",
+      allowedAudio: "inside-helmet breathing, suit fabric, radio static only if communications are present, spacecraft structure ticks, relay clicks, muffled impacts through structure",
       forbiddenAudio: "open-air wind in vacuum, birds, street traffic, random ambulance sirens, police sirens, city noise",
       forbiddenObjects: "unexplained city props, random cars, period-inconsistent objects",
       rule: "Audio must obey space physics: no open-air sound in vacuum; only interior/contact/transmitted sound.",
@@ -76,7 +76,7 @@ function inferWorldProfile(frame = {}, storyboard = {}) {
     return {
       id: "modern_world",
       label: "modern world",
-      allowedAudio: "location-specific modern ambience only if visible or scripted",
+      allowedAudio: "location-specific clean physical SFX only if visible or scripted, with silence between cues",
       forbiddenAudio: "random sirens, alarms or emergency tones unless the script or visible frame explicitly contains emergency vehicles, police, alarm hardware or city emergency context",
       forbiddenObjects: "unrelated props not in the script",
       rule: "Modern sounds are allowed only when supported by the script or visible frame, never just because the mood is dramatic.",
@@ -86,7 +86,7 @@ function inferWorldProfile(frame = {}, storyboard = {}) {
   return {
     id: "generic_documentary",
     label: "documentary world",
-    allowedAudio: "scene-matched natural ambience, footsteps, fabric, breath, wind, room tone or environmental texture that physically belongs to the visible location",
+    allowedAudio: "scene-matched clean physical SFX, footsteps, fabric, breath, wind or material texture that physically belongs to the visible location, with silence between cues",
     forbiddenAudio: "random sirens, alarms, ambulance, police, engines, electronic warning tones unless explicitly present in the script or visible frame",
     forbiddenObjects: "unrelated objects, unrelated era, unrelated location elements",
     rule: "Audio and props must come from the visible world and the script, not from generic dramatic mood.",
@@ -126,19 +126,26 @@ function removeForbiddenAudio(text = "", profile, allowModernEmergency = false) 
   if (allowModernEmergency) return cleanText(out);
 
   const replacements = [
+    [/\broom tone\b/gi, "near-silence"],
+    [/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick"],
+    [/\bdrone bed\b|\bdrone\b/gi, "sparse silence"],
+    [/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX"],
+    [/\bambient sound\b/gi, "clean physical SFX"],
+    [/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук"],
+    [/\bгул\b/gi, "короткий физический щелчок"],
     [/\b(loud\s+)?(rotating\s+)?alarm siren\b/gi, "low natural tension"],
-    [/\bambulance siren\b/gi, "distant natural ambience"],
-    [/\bpolice siren\b/gi, "distant natural ambience"],
-    [/\bsiren(s)?\b/gi, "natural ambience"],
+    [/\bambulance siren\b/gi, "distant physical tension"],
+    [/\bpolice siren\b/gi, "distant physical tension"],
+    [/\bsiren(s)?\b/gi, "natural physical tension"],
     [/\balarm(s)?\b/gi, "natural tension"],
-    [/\balert tone(s)?\b/gi, "low environmental tone"],
-    [/\bwarning tone(s)?\b/gi, "low environmental tone"],
-    [/\bemergency sound(s)?\b/gi, "scene-matched natural ambience"],
+    [/\balert tone(s)?\b/gi, "single material tick"],
+    [/\bwarning tone(s)?\b/gi, "single material tick"],
+    [/\bemergency sound(s)?\b/gi, "scene-matched clean physical SFX"],
     [/\bengine(s)?\b/gi, ""],
     [/\bcars?\b/gi, ""],
     [/\bambulance\b/gi, ""],
     [/\bpolice\b/gi, ""],
-    [/сирен[ауы]?/gi, "естественный шум среды"],
+    [/сирен[ауы]?/gi, "точный физический звук среды"],
     [/тревог[ауы]?/gi, "естественное напряжение"],
     [/скор(ая|ой|ую)/gi, ""],
     [/полици[яию]/gi, ""],
@@ -182,7 +189,7 @@ function buildSourceTruthRule(frame = {}, { compact = false } = {}) {
 
 export function applyWorldBrainToFrame(frame = {}, storyboard = {}) {
   const { profile, allowModernEmergency, block } = buildWorldAudioBlock(frame, storyboard);
-  const cleanSfx = removeForbiddenAudio(frame.sfx || "scene-matched ambience", profile, allowModernEmergency);
+  const cleanSfx = removeForbiddenAudio(frame.sfx || "clean close physical SFX, silence between cues", profile, allowModernEmergency);
   const next = { ...frame, sfx: cleanSfx || profile.allowedAudio };
 
   if (next.image_prompt_en) {

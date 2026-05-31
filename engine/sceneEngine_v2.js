@@ -176,6 +176,19 @@ function cleanPrompt(value = "") {
   return stripBannedWords(sanitizeForGenerator(String(value || "").replace(/\s+/g, " ").trim()));
 }
 
+function cleanSfxCue(value = "") {
+  return sanitizeForGenerator(String(value || ""))
+    .replace(/\broom tone\b/gi, "near-silence")
+    .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
+    .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
+    .replace(/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX")
+    .replace(/\bambient sound\b/gi, "clean physical SFX")
+    .replace(/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук")
+    .replace(/\bгул\b/gi, "короткий физический щелчок")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function ensureImagePrompt(image = "", aspectRatio = "9:16") {
   let out = cleanPrompt(image);
   if (!out) out = "documentary physical scene, one clear subject focus, natural light, film grain";
@@ -386,7 +399,8 @@ function compactGrokVideo(scene = {}, baseVideo = "") {
   const sourceTruth = scriptLine || getSceneVisual(scene);
   const camera = trimWords(cleanPrompt(scene.camera || "handheld"), 8);
   const duration = Math.min(10, Math.max(3, Number(scene.duration || 5)));
-  const sfxShort = scene.sfx ? trimWords(String(scene.sfx).split(" — ")[0], 7) : "scene-matched ambience";
+  const safeSfx = cleanSfxCue(scene.sfx);
+  const sfxShort = safeSfx ? trimWords(String(safeSfx).split(" — ")[0], 7) : "clean close SFX, silence between cues";
   const dialogueText = dialogueToText(scene.dialogue);
   const body = [
     "ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line.",
@@ -395,7 +409,7 @@ function compactGrokVideo(scene = {}, baseVideo = "") {
     "Preserve uploaded frame; animate only this described action.",
     "No new objects, locations, characters, or scene change.",
     `Camera: ${camera}.`,
-    `SFX: ${sfxShort}.`,
+    `SFX: ${sfxShort}; clean ASMR, no hum, drone, room tone or music.`,
     `Photorealistic 24fps. ${duration}s --motion 4`,
   ].join(" ");
   return enforceGrokVideoWordLimit(appendContinuity(body, GROK_VIDEO_WORD_LIMIT), GROK_VIDEO_WORD_LIMIT);
@@ -419,12 +433,13 @@ function ensureVeoVideo(scene = {}, baseVideo = "") {
   let { body, audio } = extractAudioBlock(out);
   const dialogueText = dialogueToText(scene.dialogue);
   if (!audio) {
+    const cleanSfx = cleanSfxCue(scene.sfx) || "clean close physical SFX, silence between cues";
     audio = dialogueText
-      ? `Audio: restrained diegetic ambience. Dialogue: exact scripted line only: ${dialogueText}. Keep voice_id and delivery. SFX: ${scene.sfx || "low room tone, subtle environmental texture"}. No extra speech, no voiceover.`
-      : `Audio: restrained documentary ambience. SFX: ${scene.sfx || "low room tone, subtle environmental texture"}. No dialogue, no voiceover.`;
+      ? `Audio: clean close-mic diegetic ASMR only, silence between cues. Dialogue: exact scripted line only: ${dialogueText}. Keep voice_id and delivery. SFX: ${cleanSfx}. No background hum, drone, room tone, music, extra speech or voiceover.`
+      : `Audio: clean close-mic diegetic ASMR only, silence between cues. SFX: ${cleanSfx}. No background hum, drone, room tone, music, dialogue or voiceover.`;
   }
   const audioWords = audio.trim().split(/\s+/).filter(Boolean).length;
-  if (audioWords > (dialogueText ? 45 : 25)) audio = trimWords(audio, dialogueText ? 45 : 25);
+  if (audioWords > (dialogueText ? 55 : 40)) audio = trimWords(audio, dialogueText ? 55 : 40);
 
   const reservedTail = ` ${audio} ${EXACT_CONTINUITY}`;
   const reservedWords = reservedTail.trim().split(/\s+/).filter(Boolean).length;
@@ -591,7 +606,8 @@ Before writing scenes, infer the physical world, era, location, technology level
 Audio must come from objects, bodies, weather, animals, water, fire, rooms or machines that physically exist in that world and in the visible frame.
 Do NOT add modern sirens, alarms, ambulance, police, cars, engines, phones, radio, electronic warning tones or city noise unless the user script explicitly contains them or the visible scene physically contains them.
 A dramatic flood, disaster, danger, fear or tension does NOT automatically allow a siren.
-For historical / ancient / medieval scenes, use only era-plausible natural sound and physical ambience.
+Never use generic background hum, drone beds, room tone filler, white noise, music beds or vague ambience. Use clean close-mic ASMR-style physical SFX, sparse silence and exact diegetic sounds only.
+For historical / ancient / medieval scenes, use only era-plausible clean physical sound.
 
 REFERENCE VISIBILITY LOGIC — MANDATORY:
 If a character reference/anchor is used and the face is visible, preserve exact face identity.
@@ -624,7 +640,7 @@ IMAGE PROMPT (Grok — строго эту структуру):
 "Storyboard panel {frame_number} of ${preset.targetScenes}: SOURCE OF TRUTH: script line. [Subject: only characters/objects named or directly implied by vo_ru], [Action & Emotion: only the action/emotion in vo_ru], [Environment: only location/time/weather supported by vo_ru; otherwise neutral minimal background], [Lighting: plausible for that exact scene], [Camera: shot type + angle + composition], [Style: artistic style + 2 film/art references], no extra objects, no extra locations, highly detailed, sharp focus, cinematic lighting, photorealistic --ar ${aspectRatio === "9:16" ? "9:16" : aspectRatio === "16:9" ? "16:9" : "1:1"} --stylize 350 --v 6"
 
 VIDEO PROMPT (Grok — строго эту структуру, MAX 80 WORDS):
-"SOURCE OF TRUTH: script line. Script: [short vo_ru quote]. Preserve uploaded frame. Animate ONLY the action described by this script line. No new objects, locations, characters, weather or scene change. Camera: [one movement]. SFX: [2-3 physical cues]. Photorealistic 24fps. [duration]s --motion [3-6]"
+"SOURCE OF TRUTH: script line. Script: [short vo_ru quote]. Preserve uploaded frame. Animate ONLY the action described by this script line. No new objects, locations, characters, weather or scene change. Camera: [one movement]. SFX: [2-3 clean close physical cues; no hum/drone/room tone/music]. Photorealistic 24fps. [duration]s --motion [3-6]"
 GROK VIDEO HARD LIMIT: MAXIMUM 80 WORDS including prefix, SFX and continuity. Count every word. No ALLOWED/FORBIDDEN AUDIO blocks. No world_audio_rule. One camera sentence. End with duration and --motion.
 ` : `
 IMAGE PROMPT:
@@ -747,7 +763,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       on_screen_text: normalizeTextList(s.on_screen_text || s.text_on_screen || s.screen_text || []),
       blocking: cleanPrompt(s.blocking || s.actor_blocking || ""),
       shot_role: cleanPrompt(s.shot_role || s.scene_role || s.beat_type || s.beat || ""),
-      sfx: sanitizeForGenerator(s.sfx || s.sound || "scene-matched ambience"),
+      sfx: cleanSfxCue(s.sfx || s.sound || "clean close physical SFX, silence between cues"),
       camera: s.camera || s.camera_movement || "organic handheld",
       transition: s.transition || "cut",
       cut_energy: getCutEnergy(s, i),

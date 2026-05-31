@@ -4,6 +4,19 @@ function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function cleanSfxText(value = "") {
+  return cleanText(value)
+    .replace(/\broom tone\b/gi, "near-silence")
+    .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
+    .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
+    .replace(/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX")
+    .replace(/\bambient sound\b/gi, "clean physical SFX")
+    .replace(/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук")
+    .replace(/\bгул\b/gi, "короткий физический щелчок")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function scriptLineFor(frame = {}) {
   return cleanText(frame.vo_ru || frame.script_line_ru || frame.script_line || "");
 }
@@ -503,15 +516,15 @@ export function buildLocalImageAnalysis(frame = {}, variant = "A", styleProfile 
     environment_motion: "subtle physical movement in air, cloth, dust, smoke or weather where relevant",
     emotion: frame.emotion || "preserve the original emotional meaning",
     continuity: "same character, same location, same story event, same style lock",
-    sfx: frame.sfx || "subtle room tone, breath, fabric movement, environmental texture",
+    sfx: cleanSfxText(frame.sfx || "clean close physical SFX, breath, fabric movement, silence between cues"),
     notes_ru: "Локальный анализ: изображение не было разобрано Vision-моделью, но video prompt будет построен строго по выбранному кадру и сценарию."
   };
 }
 
 export function buildVideoPrompt(frame = {}, analysis = {}, storyboard = {}, styleProfile = {}) {
-  const sfx = analysis.sfx || frame.sfx || "subtle realistic ambience";
+  const sfx = cleanSfxText(analysis.sfx || frame.sfx || "clean close physical SFX, silence between cues");
   const sourceLine = scriptLineFor(frame);
-  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark, no visible cell identifiers, no frame-number text, no decorative text.\n\nSFX: ${sfx}`;
+  return `ANIMATE CURRENT FRAME:\n\nLOCKED FRAME ID: ${frame.id || "frame"}\n\nAnimate the uploaded locked frame according to the original storyboard action only.\n\nSOURCE OF TRUTH SCRIPT LINE:\n${sourceLine || "Use the locked storyboard frame only; do not invent missing story details."}\n\nSTORY ACTION LOCK:\n${frame.description_ru || "Preserve the selected frame story action."}\n\nVO MEANING LOCK:\n${frame.vo_ru || "Preserve the original voiceover meaning."}\n\nVISUAL LOCK FROM IMAGE ANALYSIS:\nCamera: ${analysis.camera || "preserve uploaded composition and lens feeling"}.\nLighting: ${analysis.lighting || "preserve uploaded lighting"}.\nEmotion: ${analysis.emotion || frame.emotion || "preserve emotional tone"}.\nContinuity: ${analysis.continuity || "same character, same location, same story event"}.\n\nMOTION DESIGN:\n${analysis.subject_motion || "Add restrained realistic micro-movements matching the locked script action."}\n${analysis.environment_motion || "Animate only environmental elements already visible in the uploaded frame; if none are visible, keep the environment still."}\n\nCAMERA BEHAVIOR:\nOrganic handheld micro-drift only unless the frame requires a slow push-in. No floaty movement, no sudden invented action, no scene change.\n\nSTYLE LOCK:\n${styleProfile.style_lock || storyboard.global_style_lock || STYLE_LOCKS.cinematic}\n\nPHYSICAL REALISM:\n${storyboard.global_video_lock || VIDEO_LOCK}. Weight, inertia, friction, contact points and material response must feel real.\n\nSOUND LOCK:\nClean close-mic diegetic ASMR only. Use exact visible physical SFX and silence between cues. No background hum, drone, room tone, music bed or generic ambience.\n\nFORBIDDEN:\nDo not change character, face, costume, location, timeline, emotion, story event, VO meaning, style, era. Do not add objects, locations, weather, actions or characters absent from the script line. No subtitles, no UI, no watermark, no visible cell identifiers, no frame-number text, no decorative text.\n\nSFX: ${sfx}`;
 }
 
 /**

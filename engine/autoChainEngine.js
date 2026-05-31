@@ -7,6 +7,19 @@ function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function cleanSfxText(value = "") {
+  return cleanText(value)
+    .replace(/\broom tone\b/gi, "near-silence")
+    .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
+    .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
+    .replace(/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX")
+    .replace(/\bambient sound\b/gi, "clean physical SFX")
+    .replace(/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук")
+    .replace(/\bгул\b/gi, "короткий физический щелчок")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function stripPromptPrefix(value = "") {
   return cleanText(value)
     .replace(/^SCENE PRIMARY FOCUS:\s*/i, "")
@@ -350,7 +363,7 @@ ${forbidden ? `FORBIDDEN IN FRAME: ${forbidden}` : "FORBIDDEN IN FRAME: new peop
 VO MEANING: ${cleanText(s.vo_ru || "")}
 SHOT TYPE: ${getShotType(s, localIdx)}
 COMPOSITION RULE: visualize only the described action/subject/environment from SCRIPT LINE + VISUAL BEAT; keep cinematic composition but do not add new story events, props, locations, weather or characters.
-SFX NOTE: ${cleanText(s.sfx || "")}`;
+SFX NOTE: ${cleanSfxText(s.sfx || "")}`;
   }).join("\n\n");
 
   return `STORYBOARD GRID PART ${partIndex + 1} — AUTO-CHAIN STRICT CONTINUATION
@@ -424,7 +437,7 @@ export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, cha
   // VO блок: если VO включён — даём смысловой якорь; если выключен — жёсткий запрет
   const voBlock = includeVo && scene.vo_ru
     ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}`
-    : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient SFX and environmental sound only.";
+    : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Clean close-mic diegetic ASMR SFX only; no background hum, drone, room tone, music or generic ambience.";
 
   return `ANIMATE CURRENT FRAME: ${label}
 ${scriptAnchor}
@@ -453,7 +466,7 @@ CINEMATOGRAPHY:
 camera-photographed live-action cinematic realism, documentary physical reality, natural imperfections, 35mm anamorphic, Kodak Vision3 500T grain. ${style}
 ${voBlock}
 SFX:
-${cleanText(scene.sfx || "subtle environmental ambience")}
+${cleanSfxText(scene.sfx || "clean close physical SFX, silence between cues")}
 
 RESTRICTIONS:
 No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.${!includeVo ? " No spoken words, no voiceover, no dialogue audio of any kind." : ""}`;
@@ -546,7 +559,7 @@ export function buildFlowCompactPartPrompt({
     const scriptLine = sceneScriptLine(s);
     const allowed = sceneAllowedLine(s);
     const forbidden = sceneForbiddenLine(s);
-    const sfx = cleanText(s.sfx || "subtle ambience");
+    const sfx = cleanSfxText(s.sfx || "clean close physical SFX, silence between cues");
     return `${cellName.toUpperCase()}
 Source line: "${scriptLine || text}"
 Visual beat: ${text}

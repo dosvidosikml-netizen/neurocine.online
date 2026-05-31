@@ -128,8 +128,8 @@ These models have DIFFERENT prompt expectations. You must adapt.
 - Order: shot type → subject → action → environment → camera → lighting → color → realism → audio
 - Camera movement MUST include explicit timing: "slow 2-second push-in", "static 3-second hold"
 - AUDIO BLOCK IS MANDATORY in video_prompt_en:
-    "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
-- Veo 3 generates native synchronized sound — use ambience and SFX only by default
+    "Audio: clean close-mic diegetic ASMR only, silence between cues. SFX: [specific visible physical details]. No background hum, drone, room tone, music, dialogue or voiceover."
+- Veo 3 generates native synchronized sound — use sparse silence and exact SFX only by default, never generic ambience
 - EXCEPTION: in mode="short_film", dialogue is allowed only when copied exactly from scene.dialogue. Use "Dialogue: exact scripted line only..." and still forbid improvised speech / narrator VO. Preserve voice_id from voice_lock for every speaking character.
 
 ## GROK IMAGINE PROMPT FORMAT
@@ -137,7 +137,7 @@ These models have DIFFERENT prompt expectations. You must adapt.
 - VISUAL HOOK FIRST: first 8-12 words must be the strongest image
 - Use stylistic references instead of timing: "shot like a Roger Deakins documentary fragment"
 - Single action only — Grok breaks on multi-step actions
-- No Audio block needed inside prompt — audio is layered separately
+- No long Audio block needed inside prompt, but SFX must still say clean close-mic physical cues only; no hum, drone, room tone or music
 - Negative prompt has less weight in Grok — emphasize quality in positive prompt
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -209,14 +209,14 @@ Every video_prompt_en MUST (regardless of target):
 - End EXACTLY with: "Maintain EXACT same character appearance, face, clothing, and condition as previous frame."
 
 VEO 3 specific:
-- Mandatory Audio block: "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
+- Mandatory Audio block: "Audio: clean close-mic diegetic ASMR only, silence between cues. SFX: [specific visible physical details]. No background hum, drone, room tone, music, dialogue or voiceover."
 - Explicit timing on camera movement
 - Length: 60-120 words
 
 GROK specific:
 - Visual hook first 8-12 words
 - Stylistic reference (e.g., "shot like a Christopher Doyle Hong Kong night scene")
-- No Audio block inside prompt
+- No long Audio block inside prompt; include compact SFX and forbid hum/drone/room tone/music
 - Length: 40-80 words
 
 Safe mode action verbs: jerks, collapses, recoils, stumbles, struggles, loses balance,
@@ -352,7 +352,7 @@ If broken → rewrite until valid.
       "on_screen_text": [],
       "blocking": "",
       "shot_role": "",
-      "sfx": "scene-matched ambience",
+      "sfx": "clean close physical SFX, silence between cues",
       "camera": "static medium shot",
       "transition": "cut",
       "cut_energy": "medium",
