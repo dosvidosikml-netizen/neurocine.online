@@ -114,6 +114,12 @@ function frameLabel(scene, index = 0) {
   return `F${String(n).padStart(2, "0")}`;
 }
 
+function gridLayoutFor(count = 4) {
+  const safe = Math.max(1, Math.round(Number(count) || 1));
+  const cols = safe <= 2 ? safe : 2;
+  return { cols, rows: Math.ceil(safe / cols) };
+}
+
 function formatDialogueLine(line) {
   if (typeof line === "string") return line;
   if (!line || typeof line !== "object") return "";
@@ -291,6 +297,9 @@ export default function TrailerStoryboardPage() {
   const [stylePreset, setStylePreset] = useState("mysticHorror");
   const [partSize, setPartSize] = useState(4);
   const [activePart, setActivePart] = useState(0);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
+  const [gridUploads, setGridUploads] = useState({});
+  const [croppedFrame, setCroppedFrame] = useState("");
   const [storyboard, setStoryboard] = useState(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -301,6 +310,10 @@ export default function TrailerStoryboardPage() {
   const parts = useMemo(() => splitScenesIntoParts(scenes, partSize), [scenes, partSize]);
   const safePart = Math.max(0, Math.min(activePart, Math.max(0, parts.length - 1)));
   const partScenes = useMemo(() => parts[safePart] || [], [parts, safePart]);
+  const safeFrameIndex = Math.max(0, Math.min(selectedFrameIndex, Math.max(0, partScenes.length - 1)));
+  const selectedScene = partScenes[safeFrameIndex] || null;
+  const currentGridUpload = gridUploads[safePart] || "";
+  const currentGridLayout = gridLayoutFor(partScenes.length || partSize);
   const selectedPrompt = useMemo(() => {
     if (!storyboard || !partScenes.length) return "";
     return buildFlowCompactPartPrompt({
@@ -344,6 +357,8 @@ export default function TrailerStoryboardPage() {
     setStatus("Preparing trailer storyboard request...");
     setStoryboard(null);
     setActivePart(0);
+    setSelectedFrameIndex(0);
+    setCroppedFrame("");
 
     try {
       const token = await getAuthToken();
@@ -423,6 +438,8 @@ export default function TrailerStoryboardPage() {
     setError("");
     setBusy(false);
     setActivePart(0);
+    setSelectedFrameIndex(0);
+    setCroppedFrame("");
     const sb = buildLocalTrailerStoryboard({ script, duration: effectiveDuration, aspectRatio, stylePreset, target, targetFrames: expectedFrames, frameSeconds, timingMode });
     setStoryboard(sb);
     setStatus(`Local preview: ${sb.scenes.length} frames, ${splitScenesIntoParts(sb.scenes, partSize).length} PARTS`);
@@ -432,6 +449,46 @@ export default function TrailerStoryboardPage() {
     if (!selectedPrompt) return;
     await navigator.clipboard.writeText(selectedPrompt);
     setStatus(`PART ${safePart + 1} prompt copied`);
+  }
+
+  async function copySelectedVideoPrompt() {
+    const text = selectedScene?.video_prompt_en || "";
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    setStatus(`${frameLabel(selectedScene, safeFrameIndex)} video prompt copied`);
+  }
+
+  function uploadPartGrid(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setGridUploads((prev) => ({ ...prev, [safePart]: String(reader.result || "") }));
+      setSelectedFrameIndex(0);
+      setCroppedFrame("");
+      setStatus(`PART ${safePart + 1} grid uploaded`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function cropSelectedFrame() {
+    if (!currentGridUpload || !partScenes.length) return;
+    const img = new Image();
+    img.onload = () => {
+      const { cols, rows } = gridLayoutFor(partScenes.length);
+      const col = safeFrameIndex % cols;
+      const row = Math.floor(safeFrameIndex / cols);
+      const cellW = Math.floor(img.naturalWidth / cols);
+      const cellH = Math.floor(img.naturalHeight / rows);
+      const canvas = document.createElement("canvas");
+      canvas.width = cellW;
+      canvas.height = cellH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH, 0, 0, cellW, cellH);
+      setCroppedFrame(canvas.toDataURL("image/png"));
+      setStatus(`${frameLabel(selectedScene, safeFrameIndex)} cropped from PART ${safePart + 1}`);
+    };
+    img.src = currentGridUpload;
   }
 
   async function copyFullScenarioPrompt() {
@@ -490,11 +547,20 @@ export default function TrailerStoryboardPage() {
         .promptbox{border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.18);border-radius:8px;padding:12px;display:grid;gap:10px}
         .prompt-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
         .prompt-head h2{margin:0}
+        .uploadbox{border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.16);border-radius:8px;padding:12px;display:grid;gap:10px}
+        .uploadbox input[type="file"]{padding:9px;background:#0b0f17}
+        .frame-select{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .frame-select button{min-height:42px;padding:8px;font-size:12px;background:#11151f;border:1px solid rgba(255,255,255,.13)}
+        .frame-select button.active{background:#e3344f;color:#fff}
+        .crop-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+        .crop-preview{min-height:180px;border:1px solid rgba(255,255,255,.10);border-radius:8px;background:#0b0f17;display:grid;place-items:center;overflow:hidden}
+        .crop-preview img{width:100%;height:100%;object-fit:contain;display:block}
+        .crop-preview span{color:rgba(247,243,234,.48);font-size:12px}
         .lockbox div,.frame{font-size:13px;color:rgba(247,243,234,.76);line-height:1.45}
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
         .mono.master{max-height:360px;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;background:#0b0f17}
-        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
 
       <div className="wrap">
@@ -589,11 +655,51 @@ export default function TrailerStoryboardPage() {
                   <h2>03 · PARTS</h2>
                   <div className="parts">
                     {parts.map((part, i) => (
-                      <button key={i} className={`part${safePart === i ? " active" : ""}`} onClick={() => setActivePart(i)}>
+                      <button key={i} className={`part${safePart === i ? " active" : ""}`} onClick={() => { setActivePart(i); setSelectedFrameIndex(0); setCroppedFrame(""); }}>
                         PART {i + 1} · {frameLabel(part[0], 0)}-{frameLabel(part[part.length - 1], 0)} · {part.length}
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="promptbox">
+                  <div className="prompt-head">
+                    <h2>04 · PART Grid Prompt</h2>
+                    <button disabled={!selectedPrompt} onClick={copyPrompt}>Copy PART prompt</button>
+                  </div>
+                  <div className="pills">
+                    <span className="pill active">{currentGridLayout.cols}×{currentGridLayout.rows} grid</span>
+                    <span className="pill">{partScenes.length} frames in this PART</span>
+                    <span className="pill">{partSize} max per PART</span>
+                  </div>
+                  <div className="mono">{selectedPrompt || "Select/generate PART to see prompt."}</div>
+                </div>
+
+                <div className="uploadbox">
+                  <div className="prompt-head">
+                    <h2>05 · Upload Grid + Crop Frame</h2>
+                    <button disabled={!currentGridUpload || !selectedScene} onClick={cropSelectedFrame}>Crop selected frame</button>
+                  </div>
+                  <input type="file" accept="image/*" onChange={(e) => uploadPartGrid(e.target.files?.[0])} />
+                  <div className="frame-select">
+                    {partScenes.map((scene, i) => (
+                      <button key={scene.id || i} className={safeFrameIndex === i ? "active" : ""} onClick={() => { setSelectedFrameIndex(i); setCroppedFrame(""); }}>
+                        {frameLabel(scene, i)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="crop-grid">
+                    <div className="crop-preview">
+                      {currentGridUpload ? <img src={currentGridUpload} alt={`PART ${safePart + 1} grid upload`} /> : <span>Upload generated PART grid here</span>}
+                    </div>
+                    <div className="crop-preview">
+                      {croppedFrame ? <img src={croppedFrame} alt={`${frameLabel(selectedScene, safeFrameIndex)} crop`} /> : <span>Crop preview appears here</span>}
+                    </div>
+                  </div>
+                  <div className="buttons">
+                    <button disabled={!selectedScene?.video_prompt_en} onClick={copySelectedVideoPrompt}>Copy selected frame video prompt</button>
+                  </div>
+                  {selectedScene && <div className="mono">{selectedScene.video_prompt_en || "No video prompt for this frame."}</div>}
                 </div>
 
                 <div className="frames">
@@ -607,10 +713,6 @@ export default function TrailerStoryboardPage() {
                   ))}
                 </div>
 
-                <div className="panel" style={{ padding: 0, border: 0, background: "transparent" }}>
-                  <div className="buttons"><button disabled={!selectedPrompt} onClick={copyPrompt}>Copy selected PART prompt</button></div>
-                  <div className="mono">{selectedPrompt || "Select/generate PART to see prompt."}</div>
-                </div>
               </>
             )}
           </div>
