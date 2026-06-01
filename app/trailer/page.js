@@ -1208,6 +1208,7 @@ export default function TrailerStoryboardPage() {
   const [localRenderProvider, setLocalRenderProvider] = useState(DEFAULT_LOCAL_RENDER_PROVIDER);
   const [localRenderBusy, setLocalRenderBusy] = useState(false);
   const [localRenderAction, setLocalRenderAction] = useState("");
+  const [localRenderNotice, setLocalRenderNotice] = useState({ type: "idle", message: "С телефона жми розовые кнопки очереди. После нажатия статус появится здесь." });
   const [localRenderJobs, setLocalRenderJobs] = useState({});
   const [localAgentToken, setLocalAgentToken] = useState("");
   const [localQueueJobs, setLocalQueueJobs] = useState({});
@@ -1429,12 +1430,14 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if (!localAgentToken) setLocalAgentToken(token);
     await navigator.clipboard.writeText(localAgentCommand.replace("PASTE_AGENT_TOKEN", token));
     setStatus("Команда локального агента скопирована");
+    setLocalRenderNotice({ type: "success", message: "Команда агента скопирована. Запусти её на ПК, если агент ещё не работает." });
   }
 
   async function refreshLocalQueueJobs(quiet = false) {
     const entries = Object.values(localQueueJobs || {}).filter((job) => job?.id);
     if (!entries.length || !localAgentToken) return;
     if (!quiet) setLocalRenderAction("refresh");
+    if (!quiet) setLocalRenderNotice({ type: "working", message: "Обновляю очередь агента..." });
     try {
       const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
         method: "POST",
@@ -1462,8 +1465,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       }
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
       if (!quiet) setStatus(`Очередь обновлена: ${Object.keys(nextJobs).length} заданий`);
+      if (!quiet) setLocalRenderNotice({ type: "success", message: `Очередь обновлена: ${Object.keys(nextJobs).length} заданий.` });
     } catch (e) {
       if (!quiet) setError(`Не удалось обновить очередь: ${e.message}`);
+      if (!quiet) setLocalRenderNotice({ type: "error", message: `Не удалось обновить очередь: ${e.message}` });
     } finally {
       if (!quiet) setLocalRenderAction("");
     }
@@ -1648,6 +1653,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalRenderProvider(DEFAULT_LOCAL_RENDER_PROVIDER);
     setLocalRenderBusy(false);
     setLocalRenderAction("");
+    setLocalRenderNotice({ type: "idle", message: "Проект очищен. Создай storyboard JSON, потом ставь PART в очередь." });
     setLocalRenderJobs({});
     setLocalAgentToken(makeLocalAgentToken());
     setLocalQueueJobs({});
@@ -1763,11 +1769,14 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalRenderBusy(true);
     setLocalRenderAction("check");
     setStatus("Проверяю локальный генератор на ПК...");
+    setLocalRenderNotice({ type: "working", message: "Проверяю доступность локального генератора..." });
     try {
       const result = await requestLocalWorkerHealth({ workerUrl: localWorkerUrl, provider: localRenderProvider });
       setStatus(`Локальный ПК доступен (${result.mode === "direct" ? "напрямую из браузера" : "через локальный proxy"}).`);
+      setLocalRenderNotice({ type: "success", message: `ПК доступен: ${result.mode === "direct" ? "напрямую из браузера" : "через proxy"}.` });
     } catch (e) {
       setError(`Локальный генератор не отвечает: ${e.message}. Запусти WebUI/Forge с --api или NeuroCine worker на этом адресе.`);
+      setLocalRenderNotice({ type: "error", message: `ПК не отвечает: ${e.message}` });
     } finally {
       setLocalRenderBusy(false);
       setLocalRenderAction("");
@@ -1779,6 +1788,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     const prompt = buildPartPromptForIndex(partIndex, true);
     if (!storyboard || !part.length || !prompt) {
       setError("Сначала создай storyboard JSON и выбери PART.");
+      setLocalRenderNotice({ type: "error", message: "Сначала создай storyboard JSON и выбери PART." });
       return false;
     }
     if (!keepQueueBusy) {
@@ -1791,6 +1801,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setCroppedFrame("");
     updateLocalRenderJob(partIndex, { status: "rendering", message: "генерация на ПК..." });
     setStatus(`PART ${partIndex + 1}: отправляю промт на локальный ПК...`);
+    setLocalRenderNotice({ type: "working", message: `PART ${partIndex + 1}: отправляю промт на локальный ПК...` });
     try {
       const payload = buildCurrentLocalPayload(prompt, partIndex);
       const result = await requestLocalPartImage({
@@ -1802,10 +1813,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setGridUploads((prev) => ({ ...prev, [partIndex]: result.image }));
       updateLocalRenderJob(partIndex, { status: "done", message: result.mode === "direct" ? "готово напрямую" : "готово через proxy" });
       setStatus(`PART ${partIndex + 1}: сетка с локального ПК вставлена в блок.`);
+      setLocalRenderNotice({ type: "success", message: `PART ${partIndex + 1}: сетка готова и вставлена в блок.` });
       return true;
     } catch (e) {
       updateLocalRenderJob(partIndex, { status: "error", message: e.message || "ошибка" });
       setError(`PART ${partIndex + 1}: ${e.message || "локальная генерация не удалась"}`);
+      setLocalRenderNotice({ type: "error", message: `PART ${partIndex + 1}: ${e.message || "локальная генерация не удалась"}` });
       return false;
     } finally {
       if (!keepQueueBusy) {
@@ -1844,9 +1857,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   async function queuePartsForLocalAgent(partIndexes = []) {
     const actionName = partIndexes.length === 1 ? "queue-current" : "queue-all";
     setLocalRenderAction(actionName);
+    setLocalRenderNotice({ type: "working", message: actionName === "queue-current" ? "Нажатие принято: ставлю текущий PART в очередь..." : "Нажатие принято: ставлю все PART в очередь..." });
     if (!parts.length || !storyboard) {
       setLocalRenderAction("");
       setError("Сначала создай storyboard JSON.");
+      setLocalRenderNotice({ type: "error", message: "Сначала создай storyboard JSON, потом ставь PART в очередь." });
       return;
     }
     const token = localAgentToken || makeLocalAgentToken();
@@ -1871,11 +1886,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     } catch (e) {
       setLocalRenderAction("");
       setError(`Ошибка настроек модели/workflow: ${e.message}`);
+      setLocalRenderNotice({ type: "error", message: `Ошибка настроек модели/workflow: ${e.message}` });
       return;
     }
     if (!jobs.length) {
       setLocalRenderAction("");
       setError("Не удалось собрать PART-промты для очереди.");
+      setLocalRenderNotice({ type: "error", message: "Не удалось собрать PART-промты для очереди." });
       return;
     }
 
@@ -1909,11 +1926,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       }
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
       setStatus(`Очередь создана: ${Object.keys(nextJobs).length} PART. Запусти Local Agent на ПК.`);
+      setLocalRenderNotice({ type: "success", message: `Очередь создана: ${Object.keys(nextJobs).length} PART. Local Agent на ПК должен забрать задания.` });
     } catch (e) {
       indexes.forEach((partIndex) => {
         updateLocalRenderJob(partIndex, { status: "error", message: "очередь не создана" });
       });
       setError(`Очередь не создана: ${e.message}`);
+      setLocalRenderNotice({ type: "error", message: `Очередь не создана: ${e.message}` });
     } finally {
       setLocalRenderBusy(false);
       setLocalRenderAction("");
@@ -2057,6 +2076,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .hint{font-size:12px;line-height:1.45;color:rgba(247,243,234,.62)}
         .param-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .compact-area{min-height:86px}
+        .local-notice{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);border-radius:6px;padding:10px 12px;font-size:13px;font-weight:800;color:rgba(247,243,234,.82)}
+        .local-notice.working{border-color:rgba(255,196,112,.45);background:rgba(74,50,17,.20);color:#ffdca6}
+        .local-notice.success{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.30);color:#b7ffe3}
+        .local-notice.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32);color:#ffb3bd}
         .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
         .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:8px 9px;font-size:12px;color:rgba(247,243,234,.70)}
         .job.queued{border-color:rgba(255,196,112,.45);color:#ffdca6;background:rgba(74,50,17,.18)}
@@ -2247,6 +2270,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       </button>
                       <button className="action-service" disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Команда агента</button>
                     </div>
+                  </div>
+                  <div className={`local-notice ${localRenderNotice.type || "idle"}`}>
+                    {localRenderNotice.message}
                   </div>
                   <div className="row">
                     <label>Адрес локального генератора<input value={localWorkerUrl} onChange={(e) => setLocalWorkerUrl(e.target.value)} placeholder={DEFAULT_LOCAL_WORKER_URL} /></label>
