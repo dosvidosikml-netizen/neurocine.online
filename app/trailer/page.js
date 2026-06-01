@@ -1237,6 +1237,7 @@ export default function TrailerStoryboardPage() {
   const [storyboard, setStoryboard] = useState(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scriptBusy, setScriptBusy] = useState(false);
   const [error, setError] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState("");
@@ -1708,6 +1709,54 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setStatus("Всё очищено: сценарий, раскадровка, PART-сетки, кроп и локальное сохранение");
   }
 
+  async function generateScriptFromTopic() {
+    const topic = projectName.trim();
+    if (topic.length < 3) {
+      setError("Сначала введи тему или название проекта.");
+      return;
+    }
+
+    setScriptBusy(true);
+    setError("");
+    setStatus("Генерирую сценарий из темы...");
+    setStoryboard(null);
+    setGridUploads({});
+    setCroppedFrame("");
+    setActivePart(0);
+    setSelectedFrameIndex(0);
+    setLocalRenderJobs({});
+    setLocalQueueJobs({});
+
+    try {
+      const token = await getAuthToken();
+      const data = await fetchJsonWithTimeout("/api/trailer/script", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          topic,
+          project_name: topic,
+          duration: effectiveDuration,
+          frame_seconds: frameSeconds,
+          frame_count: expectedFrames,
+          style: styleLabelRu(stylePreset, styleProfile?.label || stylePreset),
+          target,
+        }),
+      }, 90000);
+
+      if (!data.text) throw new Error(data.error || "API не вернул сценарий");
+      setScript(data.text.trim());
+      setStatus(`Сценарий готов. Теперь нажми “Сгенерировать JSON”.${data.model_used ? ` Модель: ${data.model_used}` : ""}`);
+    } catch (e) {
+      setError(e.message || "Генерация сценария не удалась");
+      setStatus("");
+    } finally {
+      setScriptBusy(false);
+    }
+  }
+
   async function generateTrailer() {
     setBusy(true);
     setError("");
@@ -2168,7 +2217,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           <div className="panel">
             <h2>01 · Настройка сценария</h2>
             <label>Название проекта<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
-            <label>Сценарий<textarea value={script} onChange={(e) => setScript(e.target.value)} /></label>
+            <label>Сценарий<textarea value={script} onChange={(e) => setScript(e.target.value)} placeholder="Вставь готовый сценарий или сначала введи тему выше и нажми “Сгенерировать сценарий”." /></label>
+            <div className="buttons">
+              <button className="primary" type="button" disabled={busy || scriptBusy || projectName.trim().length < 3} onClick={generateScriptFromTopic}>
+                {scriptBusy ? "Генерирую сценарий..." : "Сгенерировать сценарий"}
+              </button>
+              <span className="hint">Если есть только тема, сначала жми эту кнопку. Потом — “Сгенерировать JSON”.</span>
+            </div>
             <label className="check">
               <input type="checkbox" checked={autoTiming} onChange={(e) => setAutoTiming(e.target.checked)} />
               Авто: ИИ сканирует сценарий и сам раскладывает его на биты
@@ -2202,13 +2257,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
             </div>
             <label>Стиль<select value={stylePreset} onChange={(e) => setStylePreset(e.target.value)}>{Object.entries(STYLE_PRESETS).map(([key, val]) => <option key={key} value={key}>{styleLabelRu(key, val.label)}</option>)}</select></label>
             <div className="buttons">
-              <button className="primary" disabled={busy || script.trim().length < 10} onClick={generateTrailer}>{busy ? "Генерация..." : "Сгенерировать JSON"}</button>
-              <button disabled={busy || script.trim().length < 10} onClick={buildLocalPreview}>Локальный тест</button>
+              <button className="primary" disabled={busy || scriptBusy || script.trim().length < 10} onClick={generateTrailer}>{busy ? "Генерация..." : "Сгенерировать JSON"}</button>
+              <button disabled={busy || scriptBusy || script.trim().length < 10} onClick={buildLocalPreview}>Локальный тест</button>
               <button disabled={!storyboard} onClick={downloadJson}>Скачать JSON</button>
-              <button disabled={busy} onClick={saveDraftNow}>Сохранить</button>
-              <button disabled={busy} onClick={restoreSavedDraft}>Загрузить</button>
-              <button className="danger" disabled={busy} onClick={resetAll}>Очистить всё</button>
-              <button className="danger" disabled={busy} onClick={clearSavedDraft}>Удалить сохранённое</button>
+              <button disabled={busy || scriptBusy} onClick={saveDraftNow}>Сохранить</button>
+              <button disabled={busy || scriptBusy} onClick={restoreSavedDraft}>Загрузить</button>
+              <button className="danger" disabled={busy || scriptBusy} onClick={resetAll}>Очистить всё</button>
+              <button className="danger" disabled={busy || scriptBusy} onClick={clearSavedDraft}>Удалить сохранённое</button>
             </div>
             <div className="pills">
               <span className="pill active">{expectedFrames} кадров</span>
