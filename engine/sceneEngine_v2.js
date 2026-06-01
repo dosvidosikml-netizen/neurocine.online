@@ -8,6 +8,7 @@ import {
   NEGATIVE_PROMPT_BASE,
 } from "./videoPromptAgent";
 import { applyWorldBrainToFrame, buildWorldAudioBlock } from "./storyboardWorldBrain";
+import { toPromptEnglish } from "./promptLanguage";
 
 export const DURATION_PRESETS = {
   30:  { targetScenes: 10,  wordsMin: 65,   wordsMax: 85,   longForm: false },
@@ -177,7 +178,7 @@ function cleanPrompt(value = "") {
 }
 
 function cleanSfxCue(value = "") {
-  return sanitizeForGenerator(String(value || ""))
+  const cleaned = sanitizeForGenerator(String(value || ""))
     .replace(/\broom tone\b/gi, "near-silence")
     .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
     .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
@@ -187,10 +188,14 @@ function cleanSfxCue(value = "") {
     .replace(/\bгул\b/gi, "короткий физический щелчок")
     .replace(/\s+/g, " ")
     .trim();
+  return toPromptEnglish(cleaned, { fallback: "clean close physical SFX, silence between cues" });
 }
 
-function ensureImagePrompt(image = "", aspectRatio = "9:16") {
-  let out = cleanPrompt(image);
+function ensureImagePrompt(image = "", aspectRatio = "9:16", preserveRussian = []) {
+  let out = cleanPrompt(toPromptEnglish(image, {
+    fallback: "documentary physical scene, one clear subject focus, natural light, film grain",
+    preserveRussian,
+  }));
   if (!out) out = "documentary physical scene, one clear subject focus, natural light, film grain";
   if (!out.startsWith("SCENE PRIMARY FOCUS:")) out = `SCENE PRIMARY FOCUS: ${out}`;
   if (!/ASPECT RATIO:/i.test(out)) out += ` ASPECT RATIO: ${aspectRatio}`;
@@ -198,7 +203,7 @@ function ensureImagePrompt(image = "", aspectRatio = "9:16") {
 }
 
 function getSceneVisual(scene = {}) {
-  return cleanPrompt(
+  return toPromptEnglish(cleanPrompt(
     scene.visual_beat_en ||
     scene.visual_beat_ru ||
     scene.shot_visual_en ||
@@ -213,11 +218,11 @@ function getSceneVisual(scene = {}) {
     scene.visual ||
     scene.vo_ru ||
     "documentary scene"
-  ).replace(/^SCENE PRIMARY FOCUS:\s*/i, "").replace(/ASPECT RATIO:.*$/i, "").trim();
+  ).replace(/^SCENE PRIMARY FOCUS:\s*/i, "").replace(/ASPECT RATIO:.*$/i, "").trim(), { fallback: "documentary scene", preserveRussian: normalizeTextList(scene.on_screen_text || []) });
 }
 
 function getScriptLine(scene = {}) {
-  return cleanPrompt(scene.script_line_ru || scene.script_line || scene.vo_ru || "");
+  return toPromptEnglish(cleanPrompt(scene.script_line_ru || scene.script_line || scene.vo_ru || ""), { fallback: "current scripted beat", preserveRussian: normalizeTextList(scene.on_screen_text || []) });
 }
 
 function voiceLockKey(value = "") {
@@ -293,14 +298,14 @@ function normalizeCastLock(value = [], characterLock = []) {
   return rawItems
     .map((item, i) => {
       if (!item || typeof item !== "object") return null;
-      const role = cleanPrompt(item.role || item.name || item.character || item.id || `Character ${i + 1}`);
+      const role = toPromptEnglish(cleanPrompt(item.role || item.name || item.character || item.id || `Character ${i + 1}`), { fallback: `Character ${i + 1}` });
       if (!role) return null;
       return {
         id: cleanPrompt(item.id || `CHAR_${String(i + 1).padStart(2, "0")}`),
         role,
-        visual_identity: cleanPrompt(item.visual_identity || item.must_appear_as || item.description || ""),
-        wardrobe: cleanPrompt(item.wardrobe || item.clothing || ""),
-        forbidden_changes: cleanPrompt(item.forbidden_changes || item.forbidden || "no actor redesign, no wardrobe drift, no age drift"),
+        visual_identity: toPromptEnglish(cleanPrompt(item.visual_identity || item.must_appear_as || item.description || ""), { fallback: "same actor identity, face, body type and emotional condition from first appearance" }),
+        wardrobe: toPromptEnglish(cleanPrompt(item.wardrobe || item.clothing || ""), { fallback: "same wardrobe from first appearance" }),
+        forbidden_changes: toPromptEnglish(cleanPrompt(item.forbidden_changes || item.forbidden || "no actor redesign, no wardrobe drift, no age drift"), { fallback: "no actor redesign, no wardrobe drift, no age drift" }),
       };
     })
     .filter(Boolean);
@@ -308,15 +313,15 @@ function normalizeCastLock(value = [], characterLock = []) {
 
 function normalizeLocationLock(value = {}) {
   if (!value || typeof value !== "object") {
-    const text = cleanPrompt(value || "");
+    const text = toPromptEnglish(cleanPrompt(value || ""), { fallback: "" });
     return text ? { main: text } : {};
   }
   return {
-    main: cleanPrompt(value.main || value.main_location || value.location || ""),
-    materials: cleanPrompt(value.materials || ""),
-    lighting: cleanPrompt(value.lighting || ""),
-    spatial_rules: cleanPrompt(value.spatial_rules || value.spatialRules || ""),
-    forbidden: cleanPrompt(value.forbidden || ""),
+    main: toPromptEnglish(cleanPrompt(value.main || value.main_location || value.location || ""), { fallback: "same locked location" }),
+    materials: toPromptEnglish(cleanPrompt(value.materials || ""), { fallback: "" }),
+    lighting: toPromptEnglish(cleanPrompt(value.lighting || ""), { fallback: "" }),
+    spatial_rules: toPromptEnglish(cleanPrompt(value.spatial_rules || value.spatialRules || ""), { fallback: "" }),
+    forbidden: toPromptEnglish(cleanPrompt(value.forbidden || ""), { fallback: "" }),
   };
 }
 
@@ -432,12 +437,15 @@ function ensureVeoVideo(scene = {}, baseVideo = "") {
 
   let { body, audio } = extractAudioBlock(out);
   const dialogueText = dialogueToText(scene.dialogue);
+  const visibleText = normalizeTextList(scene.on_screen_text || []);
+  body = toPromptEnglish(body, { fallback: "ANIMATE CURRENT FRAME: restrained physical motion in the current storyboard frame", preserveRussian: visibleText });
   if (!audio) {
     const cleanSfx = cleanSfxCue(scene.sfx) || "clean close physical SFX, silence between cues";
     audio = dialogueText
       ? `Audio: clean close-mic diegetic ASMR only, silence between cues. Dialogue: exact scripted line only: ${dialogueText}. Keep voice_id and delivery. SFX: ${cleanSfx}. No background hum, drone, room tone, music, extra speech or voiceover.`
       : `Audio: clean close-mic diegetic ASMR only, silence between cues. SFX: ${cleanSfx}. No background hum, drone, room tone, music, dialogue or voiceover.`;
   }
+  audio = toPromptEnglish(audio, { fallback: audio, preserveRussian: [dialogueText, ...visibleText].filter(Boolean) });
   const audioWords = audio.trim().split(/\s+/).filter(Boolean).length;
   if (audioWords > (dialogueText ? 55 : 40)) audio = trimWords(audio, dialogueText ? 55 : 40);
 
@@ -618,6 +626,7 @@ ${isObserverMode ? `OBSERVER MODE: The script speaks to the viewer as "you". Do 
 
 MANDATORY scene fields:
 id, start, duration, description_ru, image_prompt_en, video_prompt_en, vo_ru, sfx, camera, transition, cut_energy, continuity_note, safety_note.
+LANGUAGE LOCK: all generator-facing prompt fields and technical locks must be English: image_prompt_en, video_prompt_en, sfx, camera, blocking, shot_role, cast_lock, location_lock, style_bible, grid_continuity, allowed_characters, allowed_objects, allowed_location and forbidden_visuals. Russian is allowed only in description_ru, vo_ru, script_line_ru, exact dialogue.text, and exact on_screen_text that must be visible in the image.
 ${isFilmMode ? `SHORT FILM extra scene fields:
 script_line_ru, dialogue, on_screen_text, blocking, shot_role.
 dialogue must be [] unless the script explicitly contains a spoken line for that beat.
@@ -756,7 +765,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
       forbidden_visuals: cleanPrompt(s.forbidden_visuals || s.forbiddenVisuals || s.forbidden || ""),
       story_action_en: sanitizeForGenerator(s.story_action_en || s.action_en || ""),
       action_en: sanitizeForGenerator(s.action_en || ""),
-      image_prompt_en: ensureImagePrompt(promptSource, raw.aspect_ratio || "9:16"),
+      image_prompt_en: ensureImagePrompt(promptSource, raw.aspect_ratio || "9:16", normalizeTextList(s.on_screen_text || s.text_on_screen || s.screen_text || [])),
       video_prompt_en: cleanPrompt(s.video_prompt_en || s.video_prompt || s.video || ""),
       vo_ru: s.vo_ru || s.voice || s.vo || "",
       dialogue: normalizeDialogue(s.dialogue || s.dialogues || s.lines || [], voiceLockSafe),
@@ -787,7 +796,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     const preWorldScene = {
       ...sourceScene,
       end: start + duration,
-      image_prompt_en: ensureImagePrompt(imagePrompt, raw.aspect_ratio || "9:16"),
+      image_prompt_en: ensureImagePrompt(imagePrompt, raw.aspect_ratio || "9:16", sourceScene.on_screen_text || []),
       video_prompt_en: enforceVideoPrompt(sourceScene, videoPrompt, target),
       negative_prompt: negativePrompt,
       target,

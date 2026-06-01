@@ -182,6 +182,7 @@ FORBIDDEN STYLE TOKENS (these make output WORSE, not better):
 
 Every image_prompt_en MUST:
 - Start with "SCENE PRIMARY FOCUS:"
+- Be written in English. Russian is allowed only for exact dialogue text or exact on-screen text that must visibly appear in the frame.
 - Include PRIMARY character full description verbatim from character_lock
 - Include supporting characters briefly if present
 - Define ONE clear subject focus
@@ -203,6 +204,7 @@ SFX TRANSFER: move graphic content from VISUAL to AUDIO. Visual stays clean.
 ═══════════════════════════════════════════════════════════════════════════
 
 Every video_prompt_en MUST (regardless of target):
+- Be written in English. Russian is allowed only for exact dialogue text or exact on-screen text that must remain visible/synchronized.
 - Restate PRIMARY character full description
 - Include camera motion language
 - Include physical reaction and environment interaction

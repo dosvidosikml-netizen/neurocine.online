@@ -2,6 +2,8 @@
 // NeuroCine old storyboard — world/audio/reference logic guard.
 // This layer prevents modern sounds/objects from being invented when the script world makes them impossible.
 
+import { toPromptEnglish } from "./promptLanguage";
+
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -152,7 +154,7 @@ function removeForbiddenAudio(text = "", profile, allowModernEmergency = false) 
   ];
 
   for (const [re, repl] of replacements) out = out.replace(re, repl);
-  return cleanText(out).replace(/,\s*,+/g, ",").replace(/\.\s*\./g, ".");
+  return toPromptEnglish(cleanText(out).replace(/,\s*,+/g, ",").replace(/\.\s*\./g, "."), { fallback: "clean physical SFX, silence between cues" });
 }
 
 export function buildWorldAudioBlock(frame = {}, storyboard = {}) {
@@ -172,7 +174,7 @@ export function buildWorldAudioBlock(frame = {}, storyboard = {}) {
 }
 
 function scriptLineFor(frame = {}) {
-  return cleanText(frame?.script_line_ru || frame?.script_line || frame?.vo_ru || "");
+  return toPromptEnglish(cleanText(frame?.script_line_ru || frame?.script_line || frame?.vo_ru || ""), { fallback: "current scripted beat" });
 }
 
 function buildSourceTruthRule(frame = {}, { compact = false } = {}) {
@@ -204,7 +206,7 @@ export function applyWorldBrainToFrame(frame = {}, storyboard = {}) {
 
 export function applyWorldBrainToVideoPrompt(prompt = "", frame = {}, storyboard = {}, options = {}) {
   const { profile, allowModernEmergency, block } = buildWorldAudioBlock(frame, storyboard);
-  const cleaned = removeForbiddenAudio(prompt, profile, allowModernEmergency);
+  const cleaned = toPromptEnglish(removeForbiddenAudio(prompt, profile, allowModernEmergency), { fallback: prompt });
   const sfx = removeForbiddenAudio(frame.sfx || profile.allowedAudio, profile, allowModernEmergency) || profile.allowedAudio;
   if (options.compact) {
     const guard = allowModernEmergency

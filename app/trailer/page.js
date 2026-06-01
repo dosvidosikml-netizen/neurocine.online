@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
 import { STYLE_PRESETS, getStyleProfile } from "../../engine/directorEngine_v4";
 import { splitScenesIntoParts, buildFlowCompactPartPrompt } from "../../engine/autoChainEngine";
+import { exactTextLine, promptListEnglish, toPromptEnglish } from "../../engine/promptLanguage";
 
 const DEFAULT_SCRIPT = `В каждом здании есть этаж, которого не должно существовать.
 Ночью, когда офис пустеет...
@@ -231,7 +232,7 @@ function cleanText(value = "") {
 }
 
 function cleanSfxText(value = "") {
-  return cleanText(value)
+  const cleaned = cleanText(value)
     .replace(/\broom tone\b/gi, "near-silence")
     .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
     .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
@@ -241,6 +242,7 @@ function cleanSfxText(value = "") {
     .replace(/\bгул\b/gi, "короткий физический щелчок")
     .replace(/\s+/g, " ")
     .trim();
+  return toPromptEnglish(cleaned, { fallback: "clean close physical SFX, silence between cues" });
 }
 
 function frameId(n) {
@@ -273,38 +275,31 @@ function cellOrderText(count = 0, cols = 2) {
 function formatDialogueLine(line) {
   if (typeof line === "string") return line;
   if (!line || typeof line !== "object") return "";
-  const speaker = line.speaker || line.character || "";
+  const speaker = line.speaker || line.character ? toPromptEnglish(line.speaker || line.character, { fallback: "Speaker" }) : "";
   const voice = line.voice_id ? ` [${line.voice_id}]` : "";
   const text = line.text || line.line || line.dialogue || "";
-  const delivery = line.delivery ? ` (${line.delivery})` : "";
+  const delivery = line.delivery ? ` (${toPromptEnglish(line.delivery, { fallback: "scripted delivery" })})` : "";
   return [speaker ? `${speaker}${voice}` : "", text ? `${text}${delivery}` : ""].filter(Boolean).join(": ");
 }
 
 function lockLine(item, fallback = "Lock") {
   if (!item || typeof item !== "object") return "";
-  const id = item.id || item.role || item.character || item.name || fallback;
+  const id = toPromptEnglish(item.id || item.role || item.character || item.name || fallback, { fallback });
   return [
     id,
     item.visual_identity || item.must_appear_as || item.description || item.voice_profile,
     item.wardrobe || item.delivery_arc,
     item.forbidden_changes ? `forbidden: ${item.forbidden_changes}` : "",
-  ].filter(Boolean).map(cleanText).join(" — ");
+  ].filter(Boolean).map((x) => toPromptEnglish(x, { fallback: "same locked production detail" })).join(" — ");
 }
 
 function locationLockLine(lock = {}) {
-  if (!lock || typeof lock !== "object") return cleanText(lock || "");
-  return Object.entries(lock).map(([key, value]) => value ? `${key}: ${cleanText(value)}` : "").filter(Boolean).join("; ");
+  if (!lock || typeof lock !== "object") return toPromptEnglish(lock || "", { fallback: "" });
+  return Object.entries(lock).map(([key, value]) => value ? `${key}: ${toPromptEnglish(value, { fallback: "same locked location detail" })}` : "").filter(Boolean).join("; ");
 }
 
 function promptList(value = "") {
-  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join("; ");
-  if (value && typeof value === "object") {
-    return Object.entries(value)
-      .map(([key, val]) => val ? `${key}: ${cleanText(val)}` : "")
-      .filter(Boolean)
-      .join("; ");
-  }
-  return cleanText(value || "");
+  return promptListEnglish(value, "");
 }
 
 function trimWords(text = "", max = 30) {
@@ -329,7 +324,7 @@ function buildFlowGrokContinuityFixPrompt({ storyboard, styleProfile, partScenes
   const castLock = (storyboard.cast_lock || []).map((item, i) => lockLine(item, `Cast ${i + 1}`)).filter(Boolean).join("\n");
   const characterLock = (storyboard.character_lock || []).map((item, i) => lockLine(item, `Character ${i + 1}`)).filter(Boolean).join("\n");
   const locationLock = locationLockLine(storyboard.location_lock || {});
-  const style = cleanText(storyboard.style_bible || storyboard.global_style_lock || styleProfile?.style_lock || "");
+  const style = toPromptEnglish(storyboard.style_bible || storyboard.global_style_lock || styleProfile?.style_lock || "", { fallback: "" });
   const previousRule = partIndex > 0
     ? "If a previous PART grid/reference is uploaded, use it only as visual DNA for cast identity, wardrobe, lighting family, lens language, color grade and production design. Do not copy the same compositions."
     : "This is PART 1. Establish the locked film identity clearly so later PARTS can continue it.";
@@ -345,6 +340,9 @@ CONTINUITY PRIORITY:
 3. Same lighting family, lens language, color grade, realism and horror tone.
 4. Source of truth = the frame descriptions in the PART prompt.
 5. Visual beats are stricter than style text: if Visual beat says no people, the cell must be empty.
+
+LANGUAGE LOCK:
+Use English for all technical instructions, cast/location/style locks, visual beats, allowed/forbidden lists and SFX. Russian may appear only as exact dialogue or exact visible on-screen text.
 
 CAST LOCK:
 ${castLock || characterLock || "Use the same recurring characters from the storyboard. Do not replace actors."}
@@ -373,13 +371,13 @@ Now follow the PART prompt exactly.`;
 
 function buildLockedFrameVideoPrompt({ scene, storyboard, styleProfile, frameLabelText, hasCrop }) {
   if (!scene) return "";
-  const scriptLine = cleanText(scene.script_line_ru || scene.vo_ru || scene.description_ru || "");
-  const visualBeat = cleanText(scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "");
-  const style = cleanText(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "");
+  const scriptLine = toPromptEnglish(scene.script_line_ru || scene.vo_ru || scene.description_ru || "", { fallback: "current scripted beat" });
+  const visualBeat = toPromptEnglish(scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "", { fallback: "literal shot from the selected storyboard frame" });
+  const style = toPromptEnglish(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "", { fallback: "" });
   const allowedCharacters = promptList(scene.allowed_characters);
   const allowedObjects = promptList(scene.allowed_objects);
   const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
-  const forbidden = cleanText(scene.forbidden_visuals || "");
+  const forbidden = toPromptEnglish(scene.forbidden_visuals || "", { fallback: "" });
   const dialogue = Array.isArray(scene.dialogue) && scene.dialogue.length
     ? scene.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
     : "";
@@ -390,6 +388,7 @@ function buildLockedFrameVideoPrompt({ scene, storyboard, styleProfile, frameLab
   const sourceLine = hasCrop
     ? "Use the uploaded 9:16 crop as the visual source."
     : "Use the selected storyboard frame/crop as the visual source when available.";
+  const exactVisibleText = exactTextLine(scene.on_screen_text || []);
 
   return `LOCKED FRAME VIDEO PROMPT — ${frameLabelText}
 
@@ -401,6 +400,7 @@ ${scriptLine}
 
 VISUAL BEAT:
 ${visualBeat}
+${exactVisibleText ? `\n${exactVisibleText}` : ""}
 
 CHARACTERS:
 ${characterLine}
@@ -703,6 +703,9 @@ dialogue, on_screen_text, blocking, shot_role, sfx, camera, transition, cut_ener
 continuity_note, safety_note, visual_beat_ru, visual_beat_en, allowed_characters, allowed_objects,
 allowed_location, forbidden_visuals.
 
+LANGUAGE LOCK:
+All generator-facing technical fields must be English: image_prompt_en, video_prompt_en, sfx, camera, blocking, shot_role, cast_lock, location_lock, style_bible, grid_continuity, visual_beat_en, allowed_characters, allowed_objects, allowed_location and forbidden_visuals. Russian is allowed only in description_ru, vo_ru, script_line_ru, exact dialogue.text and exact on_screen_text that must appear in the image.
+
 FRAME COUNT CONTROL:
 Return exactly ${expectedFrames} scenes.
 Scene durations may be 2-10 seconds, but total_duration must equal ${effectiveDuration}s.
@@ -757,6 +760,10 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
     const sceneDuration = frameDurations[i] || frameSeconds || 3;
     const sceneStart = runningStart;
     const safeSfx = cleanSfxText(visual.sfx);
+    const sourceEn = toPromptEnglish(source, { fallback: "current scripted beat" });
+    const exactVisibleText = exactTextLine(visual.on_screen_text || []);
+    const imageExactText = exactVisibleText ? ` ${exactVisibleText}.` : "";
+    const videoExactText = exactVisibleText ? ` ${exactVisibleText}.` : "";
     runningStart += sceneDuration;
     return {
       id: frameId(i + 1),
@@ -771,8 +778,8 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
       allowed_objects: visual.allowed_objects,
       allowed_location: visual.allowed_location,
       forbidden_visuals: visual.forbidden_visuals,
-      image_prompt_en: `SCENE PRIMARY FOCUS: ${visual.visual_en}. Source line: "${source}". Allowed characters: ${visual.allowed_characters.length ? visual.allowed_characters.join("; ") : "none unless explicitly visible in this beat"}. Allowed objects/location: ${visual.allowed_objects}; ${visual.allowed_location}. Style formula affects only lens, light, color, grain and texture; no new story content. ASPECT RATIO: ${aspectRatio}`,
-      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script: "${source}". Preserve uploaded frame. Animate only this visual beat: ${visual.visual_en}. No new characters, locations or objects. Camera: ${visual.camera}. Sound: clean close-mic ASMR SFX only; no background hum, drone, room tone, music or generic ambience. SFX: ${safeSfx}. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
+      image_prompt_en: `SCENE PRIMARY FOCUS: ${visual.visual_en}. Source line in English: "${sourceEn}".${imageExactText} Allowed characters: ${visual.allowed_characters.length ? visual.allowed_characters.join("; ") : "none unless explicitly visible in this beat"}. Allowed objects/location: ${visual.allowed_objects}; ${visual.allowed_location}. Style formula affects only lens, light, color, grain and texture; no new story content. ASPECT RATIO: ${aspectRatio}`,
+      video_prompt_en: `ANIMATE CURRENT FRAME: SOURCE OF TRUTH: script line. Script in English: "${sourceEn}".${videoExactText} Preserve uploaded frame. Animate only this visual beat: ${visual.visual_en}. No new characters, locations or objects. Camera: ${visual.camera}. Sound: clean close-mic ASMR SFX only; no background hum, drone, room tone, music or generic ambience. SFX: ${safeSfx}. Photorealistic 24fps. ${sceneDuration}s --motion 4`,
       vo_ru: source,
       dialogue: isDialogue && dialogueText ? [{ speaker: "Offscreen voice", voice_id: "voice_04", text: dialogueText, delivery: "low supernatural whisper" }] : [],
       on_screen_text: visual.on_screen_text,

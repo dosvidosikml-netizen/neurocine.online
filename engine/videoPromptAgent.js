@@ -3,6 +3,8 @@
 // Purpose: build clean image/video prompts with no recursive prompt bloat,
 // one Action block, one Audio block, one SFX block, and scene-logical primary sound cues.
 
+import { promptListEnglish, toPromptEnglish } from "./promptLanguage";
+
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -51,7 +53,7 @@ export function hasMinorContext(frame = {}, storyboard = {}) {
 }
 
 function cleanAudioCue(text = "") {
-  return cleanText(text)
+  const cleaned = cleanText(text)
     .replace(/\broom tone\b/gi, "near-silence")
     .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
     .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
@@ -79,6 +81,7 @@ function cleanAudioCue(text = "") {
     .replace(/no no/gi, "no")
     .replace(/\s+/g, " ")
     .trim();
+  return toPromptEnglish(cleaned, { fallback: "clean close physical SFX, silence between cues" });
 }
 
 function extractSection(text = "", label = "Audio") {
@@ -413,14 +416,14 @@ export function buildCharacterBlock(characterLock = [], { compact = false, omitN
   if (!Array.isArray(characterLock) || characterLock.length === 0) return "";
   const take = compact ? characterLock.slice(0, 1) : characterLock;
   return take.map((c, i) => {
-    const label = omitNames ? (Number(c.age) < 18 ? "the child" : `the character ${i + 1}`) : (c.name || `Character ${i + 1}`);
+    const label = omitNames ? (Number(c.age) < 18 ? "the child" : `the character ${i + 1}`) : toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
     const parts = [
       label,
       c.age ? `${c.age}y old` : null,
-      c.face_features || c.description,
-      c.hair,
-      c.clothing,
-      c.physical_condition,
+      toPromptEnglish(c.face_features || c.description || "", { fallback: "" }),
+      toPromptEnglish(c.hair || "", { fallback: "" }),
+      toPromptEnglish(c.clothing || "", { fallback: "" }),
+      toPromptEnglish(c.physical_condition || "", { fallback: "" }),
     ].filter(Boolean);
     return parts.join(", ");
   }).join(" | ");
@@ -471,17 +474,20 @@ function getFrameAction(frame = {}) {
   ];
   for (const value of preferred) {
     const cleaned = stripGeneratedPromptSections(value || "");
-    if (cleaned && cleaned.length > 12) return cleaned;
+    if (cleaned && cleaned.length > 12) return toPromptEnglish(cleaned, { fallback: "current visible action" });
   }
   return "";
 }
 
 function getScriptLine(frame = {}) {
-  return cleanText(frame.script_line_ru || frame.script_line || frame.vo_ru || "");
+  return toPromptEnglish(frame.script_line_ru || frame.script_line || frame.vo_ru || "", { fallback: "current scripted beat" });
 }
 
 function getVisualBeat(frame = {}) {
-  return cleanText(stripGeneratedPromptSections(
+  const visibleText = Array.isArray(frame.on_screen_text)
+    ? frame.on_screen_text.map(cleanText).filter(Boolean)
+    : cleanText(frame.on_screen_text || "") ? [cleanText(frame.on_screen_text)] : [];
+  return toPromptEnglish(stripGeneratedPromptSections(
     frame.visual_beat_en ||
     frame.visual_beat_ru ||
     frame.shot_visual_en ||
@@ -489,7 +495,7 @@ function getVisualBeat(frame = {}) {
     frame.visual_scene_en ||
     frame.visual_scene_ru ||
     ""
-  ));
+  ), { fallback: "literal storyboard shot from the current script beat", preserveRussian: visibleText });
 }
 
 function isDialogueMode(frame = {}, storyboard = {}) {
@@ -534,18 +540,11 @@ function getSourceTruthAction(frame = {}) {
 }
 
 function getSourceTruthVisual(frame = {}) {
-  return getVisualBeat(frame) || stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || getScriptLine(frame) || "");
+  return getVisualBeat(frame) || toPromptEnglish(stripGeneratedPromptSections(frame.image_prompt_en || frame.description_en || frame.description_ru || getScriptLine(frame) || ""), { fallback: "literal storyboard shot from the current script beat" });
 }
 
 function promptList(value = "") {
-  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join("; ");
-  if (value && typeof value === "object") {
-    return Object.entries(value)
-      .map(([key, val]) => val ? `${key}: ${cleanText(val)}` : "")
-      .filter(Boolean)
-      .join("; ");
-  }
-  return cleanText(value || "");
+  return promptListEnglish(value, "");
 }
 
 function compactVideoBeat(text = "", maxWords = 34) {
@@ -838,10 +837,15 @@ export function stripBannedWords(text = "") {
 export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {}, includeVo = false, target = "veo3" } = {}) {
   const minorSafe = hasMinorContext(frame, storyboard);
   const dialogueMode = isDialogueMode(frame, storyboard);
+  const dialogueText = dialogueToText(frame.dialogue, storyboard);
+  const visibleText = Array.isArray(frame.on_screen_text)
+    ? frame.on_screen_text.map(cleanText).filter(Boolean)
+    : cleanText(frame.on_screen_text || "") ? [cleanText(frame.on_screen_text)] : [];
   let out = stripBannedWords(text);
   out = stripNoVoiceGarbage(out, includeVo);
   out = sanitizeSensitiveMinorTerms(out, minorSafe);
   out = dedupeFinalPrompt(out);
+  out = toPromptEnglish(out, { fallback: out, preserveRussian: [dialogueText, ...visibleText].filter(Boolean) });
 
   if (!includeVo && !dialogueMode) {
     const hardNoVoice = "NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Clean close diegetic SFX only; no hum, drone, room tone or music.";
@@ -850,7 +854,6 @@ export function finalizePromptCleaners(text = "", { frame = {}, storyboard = {},
       out = `${out} No dialogue, no voiceover; clean close diegetic SFX only, no hum, drone, room tone or music.`;
     }
   } else if (dialogueMode) {
-    const dialogueText = dialogueToText(frame.dialogue, storyboard);
     const guard = dialogueText
       ? `Dialogue lock: use only the scripted line(s): ${dialogueText}. Match voice_id and delivery if provided. No extra speech, no narrator voiceover.`
       : "Dialogue lock: no spoken line in this shot. No improvised speech, no narrator voiceover.";
@@ -871,7 +874,12 @@ function ensureSfxLine(text = "", frame = {}, storyboard = {}) {
 
 export function buildFramePromptsForTarget({ frame, storyboard, target = "veo3", includeVo = false, promptMode = "pro", consistency = "ultra" }) {
   const imagePrompt = ensurePromptPrefix(
-    stripBannedWords(buildImagePrompt({ frame, storyboard, target })),
+    stripBannedWords(toPromptEnglish(buildImagePrompt({ frame, storyboard, target }), {
+      fallback: "documentary physical scene, one clear subject focus, natural light, film grain",
+      preserveRussian: Array.isArray(frame.on_screen_text)
+        ? frame.on_screen_text.map(cleanText).filter(Boolean)
+        : cleanText(frame.on_screen_text || "") ? [cleanText(frame.on_screen_text)] : [],
+    })),
     "SCENE PRIMARY FOCUS:"
   );
   const rawVideo = buildVideoPromptFor({ frame, storyboard, target, includeVo, promptMode, consistency });

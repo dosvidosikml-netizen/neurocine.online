@@ -3,12 +3,14 @@
 // v2.8: adds adjacent-frame continuity links, keeps same reveal/entity across neighboring cells,
 // and avoids feeding bloated video prompts back into PART image prompts.
 
+import { exactTextLine, promptListEnglish, toPromptEnglish } from "./promptLanguage";
+
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function cleanSfxText(value = "") {
-  return cleanText(value)
+  const cleaned = cleanText(value)
     .replace(/\broom tone\b/gi, "near-silence")
     .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
     .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
@@ -18,6 +20,7 @@ function cleanSfxText(value = "") {
     .replace(/\bгул\b/gi, "короткий физический щелчок")
     .replace(/\s+/g, " ")
     .trim();
+  return toPromptEnglish(cleaned, { fallback: "clean close physical SFX, silence between cues" });
 }
 
 function stripPromptPrefix(value = "") {
@@ -100,6 +103,10 @@ function sceneScriptLine(scene = {}) {
   return cleanText(scene.script_line_ru || scene.script_line || scene.vo_ru || "");
 }
 
+function sceneScriptLineEn(scene = {}) {
+  return toPromptEnglish(sceneScriptLine(scene), { fallback: "current scripted beat" });
+}
+
 function listField(value = "", fallback = "") {
   if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join("; ");
   if (value && typeof value === "object") {
@@ -113,14 +120,14 @@ function listField(value = "", fallback = "") {
 
 function sceneAllowedLine(scene = {}) {
   return [
-    scene.allowed_characters ? `characters: ${listField(scene.allowed_characters)}` : "",
-    scene.allowed_objects ? `objects: ${listField(scene.allowed_objects)}` : "",
-    scene.allowed_location ? `location: ${listField(scene.allowed_location)}` : "",
+    scene.allowed_characters ? `characters: ${promptListEnglish(scene.allowed_characters, "scripted characters only")}` : "",
+    scene.allowed_objects ? `objects: ${promptListEnglish(scene.allowed_objects, "scripted objects only")}` : "",
+    scene.allowed_location ? `location: ${promptListEnglish(scene.allowed_location, "scripted location only")}` : "",
   ].filter(Boolean).join(" | ");
 }
 
 function sceneForbiddenLine(scene = {}) {
-  return listField(scene.forbidden_visuals || scene.forbidden_objects || scene.forbidden || "");
+  return promptListEnglish(scene.forbidden_visuals || scene.forbidden_objects || scene.forbidden || "", "");
 }
 
 function getShotType(scene = {}, i = 0) {
@@ -217,36 +224,36 @@ function formatCastLock(storyboard = {}) {
       : [];
   return cast.map((c, i) => {
     const id = cleanText(c.id || `CHAR_${String(i + 1).padStart(2, "0")}`);
-    const role = cleanText(c.role || c.name || c.character || `Character ${i + 1}`);
-    const identity = cleanText(c.visual_identity || c.must_appear_as || c.description || "");
-    const wardrobe = cleanText(c.wardrobe || c.clothing || "");
-    const forbid = cleanText(c.forbidden_changes || "no actor redesign, no wardrobe drift, no age drift");
+    const role = toPromptEnglish(c.role || c.name || c.character || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
+    const identity = toPromptEnglish(c.visual_identity || c.must_appear_as || c.description || "", { fallback: "same actor identity, face, body type and emotional condition from first appearance" });
+    const wardrobe = toPromptEnglish(c.wardrobe || c.clothing || "", { fallback: "same wardrobe from first appearance" });
+    const forbid = toPromptEnglish(c.forbidden_changes || "no actor redesign, no wardrobe drift, no age drift", { fallback: "no actor redesign, no wardrobe drift, no age drift" });
     return `${id} / ${role}: ${[identity, wardrobe ? `wardrobe: ${wardrobe}` : "", `forbidden: ${forbid}`].filter(Boolean).join("; ")}`;
   }).filter(Boolean).join("\n");
 }
 
 function formatLocationLock(storyboard = {}) {
   const loc = storyboard.location_lock;
-  if (!loc || typeof loc !== "object") return cleanText(storyboard.world_lock || "same locked film location, era, materials, lighting and spatial logic");
+  if (!loc || typeof loc !== "object") return toPromptEnglish(storyboard.world_lock || "same locked film location, era, materials, lighting and spatial logic", { fallback: "same locked film location, era, materials, lighting and spatial logic" });
   return [
-    loc.main || loc.main_location || loc.location,
-    loc.materials ? `materials: ${loc.materials}` : "",
-    loc.lighting ? `lighting: ${loc.lighting}` : "",
-    loc.spatial_rules ? `spatial rules: ${loc.spatial_rules}` : "",
-    loc.forbidden ? `forbidden: ${loc.forbidden}` : "",
+    toPromptEnglish(loc.main || loc.main_location || loc.location || "", { fallback: "same locked location" }),
+    loc.materials ? `materials: ${toPromptEnglish(loc.materials, { fallback: "same materials" })}` : "",
+    loc.lighting ? `lighting: ${toPromptEnglish(loc.lighting, { fallback: "same lighting" })}` : "",
+    loc.spatial_rules ? `spatial rules: ${toPromptEnglish(loc.spatial_rules, { fallback: "same spatial logic" })}` : "",
+    loc.forbidden ? `forbidden: ${toPromptEnglish(loc.forbidden, { fallback: "no unrelated location redesign" })}` : "",
   ].filter(Boolean).map(cleanText).join("; ");
 }
 
 export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHero", strictLevel = "hard" } = {}) {
-  const sourceStyle = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
-  const world = cleanText(storyboard?.world_lock || storyboard?.project_type || "same cinematic universe");
+  const sourceStyle = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "", { fallback: "" });
+  const world = toPromptEnglish(storyboard?.world_lock || storyboard?.project_type || "same cinematic universe", { fallback: "same cinematic universe" });
   const chars = Array.isArray(storyboard?.character_lock) ? storyboard.character_lock : [];
   const trailerMode = isTrailerStoryboard(storyboard);
   const castLock = formatCastLock(storyboard);
   const locationLock = formatLocationLock(storyboard);
-  const styleBible = cleanText(storyboard?.style_bible || storyboard?.master_style || "");
+  const styleBible = toPromptEnglish(storyboard?.style_bible || storyboard?.master_style || "", { fallback: "" });
   const heroLine = chars.length
-    ? chars.map((c, i) => `${c.name || `Character ${i + 1}`}: ${cleanText([c.description, c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join("; "))}`).join("\n")
+    ? chars.map((c, i) => `${toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` })}: ${toPromptEnglish([c.description, c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join("; "), { fallback: "same locked character identity" })}`).join("\n")
     : "If the script repeats the same hero, keep the same face, proportions, clothing and emotional state whenever that hero appears. If the current frame is WORLD-only, do not force the hero into it.";
 
   return `AUTO-CHAIN STRICT ENGINE — SOURCE-OF-TRUTH MODE
@@ -348,16 +355,18 @@ export function buildAutoChainPartPrompt({
 
   const frameBlocks = partScenes.map((s, localIdx) => {
     const cellName = cellPositionName(localIdx, cols);
-    const sceneTxt = sceneText(s, { characterLock, appearanceMode });
-    const scriptLine = sceneScriptLine(s);
+    const sceneTxt = toPromptEnglish(sceneText(s, { characterLock, appearanceMode }), { fallback: "literal storyboard shot from the current script beat" });
+    const scriptLine = sceneScriptLineEn(s);
     const allowed = sceneAllowedLine(s);
     const forbidden = sceneForbiddenLine(s);
+    const exactText = exactTextLine(s.on_screen_text || []);
     return `${cellName.toUpperCase()}:
 ${frameRoleHint(localIdx, chainMode)}
 ${getContinuityLink(partScenes, localIdx)}
 MANDATORY VISUAL PREFIX: camera-photographed live-action image, NOT illustration, NOT 2D art, NOT painting, NOT concept art.
 SCRIPT LINE (SOURCE OF TRUTH): ${scriptLine || "use SCENARIO INPUT only; do not invent missing details"}
 VISUAL BEAT (STRICT): ${sceneTxt}
+${exactText}
 ${allowed ? `ALLOWED IN FRAME: ${allowed}` : "ALLOWED IN FRAME: only what the script line and visual beat explicitly name."}
 ${forbidden ? `FORBIDDEN IN FRAME: ${forbidden}` : "FORBIDDEN IN FRAME: new people, new props, new rooms, new era, new costumes, new story events."}
 VO MEANING: ${cleanText(s.vo_ru || "")}
@@ -425,18 +434,18 @@ export function buildAutoChainAllParts({
 
 export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero", includeVo = true } = {}) {
   const label = frameLabel(scene, 0);
-  const visual = sceneText(scene);
-  const motion = sceneMotion(scene);
-  const style = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
+  const visual = toPromptEnglish(sceneText(scene), { fallback: "literal storyboard shot from the current script beat" });
+  const motion = toPromptEnglish(sceneMotion(scene), { fallback: visual });
+  const style = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light", { fallback: "cinematic realism, 35mm film grain, natural light" });
 
   // Script line используется как визуальный якорь в любом режиме (не для аудио)
   const scriptAnchor = scene.vo_ru
-    ? `\nSCRIPT LINE (visual anchor): "${cleanText(scene.vo_ru)}"`
+    ? `\nSCRIPT LINE (visual anchor): "${toPromptEnglish(scene.vo_ru, { fallback: "current scripted beat" })}"`
     : "";
 
   // VO блок: если VO включён — даём смысловой якорь; если выключен — жёсткий запрет
   const voBlock = includeVo && scene.vo_ru
-    ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}`
+    ? `\nVO MEANING LOCK:\n${toPromptEnglish(scene.vo_ru, { fallback: "current scripted beat" })}`
     : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Clean close-mic diegetic ASMR SFX only; no background hum, drone, room tone, music or generic ambience.";
 
   return `ANIMATE CURRENT FRAME: ${label}
@@ -546,30 +555,32 @@ export function buildFlowCompactPartPrompt({
   const trailerMode = isTrailerStoryboard(storyboard);
   const castLock = formatCastLock(storyboard);
   const locationLock = formatLocationLock(storyboard);
-  const styleBible = cleanText(storyboard?.style_bible || storyboard?.master_style || "");
+  const styleBible = toPromptEnglish(storyboard?.style_bible || storyboard?.master_style || "", { fallback: "" });
   const chars = relevantCharacterLock.slice(0, 4).map((c, i) => {
-    const name = cleanText(c.name || `Character ${i + 1}`);
-    const desc = cleanText(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "));
+    const name = toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
+    const desc = toPromptEnglish(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "), { fallback: "same locked character identity" });
     return desc ? `${name} — ${desc}` : "";
   }).filter(Boolean).join("\n");
 
   const frames = partScenes.map((s, localIdx) => {
     const cellName = cellPositionName(localIdx, cols);
-    const text = sceneText(s, { characterLock, appearanceMode });
-    const scriptLine = sceneScriptLine(s);
+    const text = toPromptEnglish(sceneText(s, { characterLock, appearanceMode }), { fallback: "literal storyboard shot from the current script beat" });
+    const scriptLine = sceneScriptLineEn(s);
     const allowed = sceneAllowedLine(s);
     const forbidden = sceneForbiddenLine(s);
     const sfx = cleanSfxText(s.sfx || "clean close physical SFX, silence between cues");
+    const exactText = exactTextLine(s.on_screen_text || []);
     return `${cellName.toUpperCase()}
 Source line: "${scriptLine || text}"
 Visual beat: ${text}
+${exactText}
 ${allowed ? `Allowed in this cell: ${allowed}` : "Allowed in this cell: only what this source line and visual beat explicitly name."}
 ${forbidden ? `Forbidden in this cell: ${forbidden}` : "Forbidden in this cell: no extra actors, no new props, no new location, no new era, no new costumes, no new story event."}
 ${getContinuityLink(partScenes, localIdx)}
 SFX mood: ${sfx}`;
   }).join("\n\n");
 
-  const styleLock = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
+  const styleLock = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "", { fallback: "" });
   const chainLine = chainMode === "worldOnly"
     ? "WORLD ONLY — lock the same world, period, lighting family and realism; characters may change only when the scenario changes."
     : "WORLD + HERO — lock the world and keep recurring hero identity stable whenever the scenario includes that hero.";
@@ -593,6 +604,9 @@ SFX mood: ${sfx}`;
 
   return `STORYBOARD GRID PART ${partIndex + 1}
 ${gridInstruction}
+
+LANGUAGE LOCK:
+All generator instructions, character/location/style locks, source summaries, visual beats, allowed/forbidden lists and SFX notes must be English. Russian may appear only as exact dialogue or exact visible on-screen text explicitly listed as "Exact visible text to render".
 
 STYLE LOCK:
 ${styleLock || "dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, realistic skin and fabric, controlled night interior lighting, subtle 35mm film grain."}
