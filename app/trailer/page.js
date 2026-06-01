@@ -1320,6 +1320,50 @@ export default function TrailerStoryboardPage() {
     return `${fixPrompt}\n\n${partPrompt}`.trim();
   }
 
+  function buildLocalFramePrompt(scene, partIndex, localIndex, partLength) {
+    if (!scene) return "";
+    const scriptLine = toPromptEnglish(scene.script_line_ru || scene.vo_ru || scene.description_ru || "", { fallback: "current scripted beat" });
+    const visualBeat = toPromptEnglish(scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "", { fallback: "literal storyboard shot" });
+    const allowedCharacters = promptList(scene.allowed_characters);
+    const allowedObjects = promptList(scene.allowed_objects);
+    const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
+    const forbidden = toPromptEnglish(scene.forbidden_visuals || "", { fallback: "" });
+    const exactVisibleText = exactTextLine(scene.on_screen_text || []);
+    const style = compactStyleLine(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "");
+    const castLock = toPromptEnglish(formatCastLock(storyboard), { fallback: "" });
+    const locationLock = toPromptEnglish(formatLocationLock(storyboard), { fallback: "" });
+    const noPeopleRule = allowedCharacters
+      ? `Allowed characters in this frame only: ${allowedCharacters}. Preserve exact actor identity and wardrobe if visible.`
+      : "Allowed characters in this frame: none. Keep this frame empty of people, faces, silhouettes, hands, reflections and passersby.";
+
+    return `Generate ONE standalone vertical 9:16 cinematic frame, not a collage and not a storyboard sheet.
+This is PART ${partIndex + 1}, frame ${localIndex + 1} of ${partLength}. The app will assemble the grid later.
+
+SOURCE OF TRUTH:
+${scriptLine}
+
+VISUAL BEAT:
+${visualBeat}
+${exactVisibleText ? `\n${exactVisibleText}` : ""}
+
+FRAME RULES:
+${noPeopleRule}
+Allowed objects: ${allowedObjects || "only objects directly named by the source line and visual beat"}.
+Location: ${allowedLocation || "same locked office/elevator location"}.
+Forbidden: ${forbidden || "no extra actors, no new props, no new rooms, no new era, no captions, no UI, no watermark"}.
+
+CONTINUITY:
+Same trailer / short film as all other frames. Preserve cast identity only when a frame explicitly includes that character. Preserve office/elevator geography, lighting family, color grade and realism.
+${castLock ? `Cast lock reference: ${castLock}` : ""}
+${locationLock ? `Location lock reference: ${locationLock}` : ""}
+
+STYLE:
+${style || "photoreal cinematic documentary horror, real camera still, natural office practical light, realistic skin and fabric, restrained grain"}.
+
+FINAL CHECK:
+One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F04, no captions, no border, no title bar.`;
+  }
+
   function updateLocalRenderJob(partIndex, patch) {
     setLocalRenderJobs((prev) => ({
       ...prev,
@@ -1348,8 +1392,10 @@ export default function TrailerStoryboardPage() {
     setLocalCfg(preset.cfg || 6);
   }
 
-  function buildCurrentLocalPayload(prompt) {
-    return buildLocalRenderPayload({
+  function buildCurrentLocalPayload(prompt, partIndex = safePart) {
+    const part = parts[partIndex] || [];
+    const layout = gridLayoutFor(part.length || partSize);
+    const payload = buildLocalRenderPayload({
       prompt,
       provider: localRenderProvider,
       modelPreset: localModelPreset,
@@ -1361,6 +1407,20 @@ export default function TrailerStoryboardPage() {
       steps: localSteps,
       cfg: localCfg,
     });
+    if (part.length) {
+      payload.render_mode = "frames_grid";
+      payload.grid_cols = layout.cols;
+      payload.grid_rows = layout.rows;
+      payload.part_size = part.length;
+      payload.frames = part.map((scene, localIndex) => ({
+        id: scene.id || frameId(partIndex * partSize + localIndex + 1),
+        label: frameLabel(scene, partIndex * partSize + localIndex),
+        prompt: buildLocalFramePrompt(scene, partIndex, localIndex, part.length),
+        source_line: scene.script_line_ru || scene.vo_ru || scene.description_ru || "",
+        visual_beat: scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "",
+      }));
+    }
+    return payload;
   }
 
   async function copyLocalAgentCommand() {
@@ -1719,7 +1779,7 @@ export default function TrailerStoryboardPage() {
     updateLocalRenderJob(partIndex, { status: "rendering", message: "генерация на ПК..." });
     setStatus(`PART ${partIndex + 1}: отправляю промт на локальный ПК...`);
     try {
-      const payload = buildCurrentLocalPayload(prompt);
+      const payload = buildCurrentLocalPayload(prompt, partIndex);
       const result = await requestLocalPartImage({
         workerUrl: localWorkerUrl,
         provider: localRenderProvider,
@@ -1776,7 +1836,7 @@ export default function TrailerStoryboardPage() {
       jobs = indexes.map((partIndex) => {
         const part = parts[partIndex] || [];
         const prompt = buildPartPromptForIndex(partIndex, true);
-        const payload = buildCurrentLocalPayload(prompt);
+        const payload = buildCurrentLocalPayload(prompt, partIndex);
         payload.part_size = part.length;
         return {
           part_index: partIndex,
@@ -2138,6 +2198,7 @@ export default function TrailerStoryboardPage() {
                       <button disabled={localRenderBusy || !storyboard || !parts.length} onClick={generateAllPartsOnLocalPc}>Авто все PART</button>
                       <button disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={queueCurrentPartForLocalAgent}>В очередь PART</button>
                       <button disabled={localRenderBusy || !storyboard || !parts.length} onClick={queueAllPartsForLocalAgent}>В очередь всё</button>
+                      <button disabled={localRenderBusy || !localAgentToken} onClick={() => refreshLocalQueueJobs(false)}>Обновить очередь</button>
                       <button disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Команда агента</button>
                     </div>
                   </div>
@@ -2165,9 +2226,10 @@ export default function TrailerStoryboardPage() {
                   <label>ComfyUI workflow template для FLUX/кастомных графов<textarea className="compact-area" value={localWorkflowTemplate} onChange={(e) => setLocalWorkflowTemplate(e.target.value)} placeholder={'Опционально. Вставь workflow JSON и используй плейсхолдеры "__PROMPT__", "__NEGATIVE__", "__WIDTH__", "__HEIGHT__", "__STEPS__", "__CFG__", "__SEED__", "__CHECKPOINT__".'} /></label>
                   <label>Токен локального агента<input value={localAgentToken} onChange={(e) => setLocalAgentToken(e.target.value)} placeholder="будет создан автоматически" /></label>
                   <div className="pills">
-                    <span className="pill active">Вывод: {localImageWidth}×{localImageHeight}</span>
+                    <span className="pill active">Кадр: {localImageWidth}×{localImageHeight}</span>
                     <span className="pill">{activeLocalModelPreset.label}</span>
-                    <span className="pill">1 PART = 1 картинка-сетка</span>
+                    <span className="pill">кадры отдельно</span>
+                    <span className="pill">сборка сетки кодом</span>
                     <span className="pill">авто-вставка в блок</span>
                     <span className="pill">ComfyUI-ready</span>
                     <span className="pill">анимация следующим слоем</span>
