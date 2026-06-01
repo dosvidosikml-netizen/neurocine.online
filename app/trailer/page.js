@@ -1196,6 +1196,74 @@ async function requestLocalPartImage({ workerUrl, provider, payload, partIndex }
   }
 }
 
+function timeMs(value = "") {
+  const ms = Date.parse(value || "");
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function formatElapsedTime(ms = 0) {
+  const seconds = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function relativeTimeLabel(value = "", nowMs = Date.now()) {
+  const ms = timeMs(value);
+  if (!ms) return "нет данных";
+  const seconds = Math.max(0, Math.floor((nowMs - ms) / 1000));
+  if (seconds < 6) return "только что";
+  if (seconds < 60) return `${seconds}с назад`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}м назад`;
+  return `${Math.floor(minutes / 60)}ч назад`;
+}
+
+function queueVisualStatus(job = {}, queueJob = {}, hasGrid = false) {
+  if (job.status === "done" || queueJob.status === "done" || hasGrid) return "done";
+  if (job.status === "error" || queueJob.status === "failed") return "error";
+  if (job.status === "rendering" || queueJob.status === "running") return "rendering";
+  if (job.status === "queued" || queueJob.status === "queued") return "queued";
+  return "";
+}
+
+function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = Date.now(), fallbackMessage = "" }) {
+  const status = queueVisualStatus(job, queueJob, hasGrid);
+  const created = timeMs(queueJob.created_at);
+  const started = timeMs(queueJob.started_at) || (queueJob.status === "running" ? timeMs(queueJob.updated_at) : 0);
+  const completed = timeMs(queueJob.completed_at) || (status === "done" || status === "error" ? timeMs(queueJob.updated_at) : 0);
+  const base = started || created || timeMs(queueJob.updated_at);
+  const end = completed || nowMs;
+  const elapsed = base ? end - base : 0;
+  let stage = "ждёт";
+  let progress = hasGrid ? 100 : 0;
+
+  if (status === "queued") {
+    stage = "ждёт агента";
+    progress = Math.min(28, 6 + Math.floor(elapsed / 8000));
+  } else if (status === "rendering") {
+    stage = "агент рендерит";
+    progress = Math.min(94, 32 + Math.floor(elapsed / 5000));
+  } else if (status === "done") {
+    stage = "готово";
+    progress = 100;
+  } else if (status === "error") {
+    stage = "ошибка";
+    progress = 100;
+  }
+
+  return {
+    status,
+    stage,
+    progress,
+    elapsed: base ? formatElapsedTime(elapsed) : "0:00",
+    updated: relativeTimeLabel(queueJob.updated_at || queueJob.created_at, nowMs),
+    message: job.message || (queueJob.status ? `очередь: ${queueJob.status}` : fallbackMessage),
+  };
+}
+
 export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
@@ -1216,6 +1284,7 @@ export default function TrailerStoryboardPage() {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [scriptBusy, setScriptBusy] = useState(false);
+  const [queueClock, setQueueClock] = useState(Date.now());
   const [error, setError] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState("");
@@ -1480,6 +1549,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         }
       }
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
+      setQueueClock(Date.now());
       if (!quiet) setStatus(`Очередь обновлена: ${Object.keys(nextJobs).length} заданий`);
       if (!quiet) setLocalRenderNotice({ type: "success", message: `Очередь обновлена: ${Object.keys(nextJobs).length} заданий.` });
     } catch (e) {
@@ -1574,6 +1644,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localQueueJobs, localAgentToken]);
+
+  useEffect(() => {
+    const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
+    if (!active) return undefined;
+    const timer = window.setInterval(() => setQueueClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [localQueueJobs]);
 
   function restoreSavedDraft() {
     try {
@@ -2145,11 +2222,22 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .local-notice.success{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.30);color:#b7ffe3}
         .local-notice.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32);color:#ffb3bd}
         .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-        .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:8px 9px;font-size:12px;color:rgba(247,243,234,.70)}
+        .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:9px 10px;font-size:12px;color:rgba(247,243,234,.70);display:grid;gap:6px}
+        .job-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+        .job-top strong{color:#f7f3ea}
+        .job-top em{font-style:normal;font-size:11px;color:rgba(247,243,234,.58)}
+        .job-message{line-height:1.35}
+        .job-meta{font-size:11px;color:rgba(247,243,234,.48)}
+        .job-track{height:5px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+        .job-track span{display:block;height:100%;width:0%;border-radius:inherit;background:rgba(247,243,234,.30);transition:width .35s ease}
         .job.queued{border-color:rgba(255,196,112,.45);color:#ffdca6;background:rgba(74,50,17,.18)}
+        .job.queued .job-track span{background:#ffc470}
         .job.done{border-color:rgba(158,232,201,.40);color:#9ee8c9}
+        .job.done .job-track span{background:#9ee8c9}
         .job.rendering{border-color:rgba(227,52,79,.45);color:#ffd6dc}
+        .job.rendering .job-track span{background:#e3344f}
         .job.error{border-color:rgba(255,154,168,.50);color:#ff9aa8}
+        .job.error .job-track span{background:#ff9aa8}
         .uploadbox input[type="file"]{padding:9px;background:#0b0f17}
         .frame-select{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .frame-select button{min-height:42px;padding:8px;font-size:12px;background:#11151f;border:1px solid rgba(255,255,255,.13)}
@@ -2382,14 +2470,30 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                     {parts.length ? parts.map((part, i) => {
                       const job = localRenderJobs[i] || {};
                       const queueJob = localQueueJobs[i] || {};
+                      const hasGrid = Boolean(gridUploads[i]);
+                      const progress = queueProgressInfo({
+                        job,
+                        queueJob,
+                        hasGrid,
+                        nowMs: queueClock,
+                        fallbackMessage: hasGrid ? "сетка загружена" : `${part.length} кадр. ждёт`,
+                      });
                       return (
-                        <span key={i} className={`job ${job.status || queueJob.status || ""}`}>
-                          PART {i + 1}: {job.message || (queueJob.status ? `очередь: ${queueJob.status}` : gridUploads[i] ? "сетка загружена" : `${part.length} кадр. ждёт`)}
+                        <span key={i} className={`job ${progress.status}`}>
+                          <span className="job-top">
+                            <strong>PART {i + 1}</strong>
+                            <em>{progress.stage}</em>
+                          </span>
+                          <span className="job-message">{progress.message}</span>
+                          <span className="job-meta">
+                            Время: {progress.elapsed} · обновлено: {progress.updated}
+                          </span>
+                          <span className="job-track"><span style={{ width: `${progress.progress}%` }} /></span>
                         </span>
                       );
                     }) : <span className="job">Сначала создай JSON раскадровки</span>}
                   </div>
-                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Зелёные проверяют/обновляют состояние. Оранжевые “Только ПК” работают только когда сайт открыт на самом компьютере рядом с ComfyUI.</div>
+                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Страница сама обновляет очередь каждые 4 секунды, а таймер PART идёт каждую секунду. Оранжевые “Только ПК” работают только когда сайт открыт на самом компьютере рядом с ComfyUI.</div>
                 </div>
 
                 <div className="uploadbox">

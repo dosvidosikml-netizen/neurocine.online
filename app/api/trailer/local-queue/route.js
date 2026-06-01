@@ -34,6 +34,8 @@ function publicJob(row = {}) {
     image_data: row.image_data || "",
     updated_at: row.updated_at || row.created_at || "",
     created_at: row.created_at || "",
+    started_at: row.started_at || "",
+    completed_at: row.completed_at || "",
   };
 }
 
@@ -103,7 +105,7 @@ async function createJobs(req, body) {
     const { data, error } = await admin
       .from(TABLE)
       .insert(rows)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at");
+      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at");
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob) });
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
@@ -121,7 +123,7 @@ async function pollJobs(body) {
   if (admin) {
     const { data, error } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,prompt,negative_prompt,payload,created_at,updated_at")
+      .select("id,part_index,part_label,project_name,provider,status,prompt,negative_prompt,payload,created_at,updated_at,started_at,completed_at")
       .eq("agent_token", agentToken)
       .eq("status", "queued")
       .order("created_at", { ascending: true })
@@ -162,7 +164,7 @@ async function completeJob(body) {
       .update(patch)
       .eq("id", id)
       .eq("agent_token", agentToken)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at")
+      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at")
       .maybeSingle();
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", job: publicJob(data || {}) });
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -183,7 +185,7 @@ async function statusJobs(body) {
   if (admin) {
     const { data, error } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at")
+      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at")
       .eq("agent_token", agentToken)
       .in("id", ids);
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob) });
