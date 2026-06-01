@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "local-agent": "node scripts/neurocine-local-agent.mjs",
     "lint": "next lint"
   },
   "dependencies": {

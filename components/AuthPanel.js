@@ -116,6 +116,12 @@ export default function AuthPanel({ devMode = true, onModeToggle, onAccountChang
 
     bootAuth();
 
+    if (!isSupabaseConfigured || !supabase?.auth?.onAuthStateChange) {
+      return () => {
+        mounted = false;
+      };
+    }
+
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession || null);

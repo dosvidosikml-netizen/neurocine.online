@@ -56,11 +56,7 @@ export default function StudioHomePage() {
   function handleCreateToolSelect(tool) {
     if (!tool) return;
     const route = String(tool.route || "");
-    if (route.startsWith("/director")) {
-      window.location.href = route;
-      return;
-    }
-    if (route.startsWith("/series")) {
+    if (route.startsWith("/")) {
       window.location.href = route;
       return;
     }

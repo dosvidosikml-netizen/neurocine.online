@@ -3,8 +3,24 @@
 // v2.8: adds adjacent-frame continuity links, keeps same reveal/entity across neighboring cells,
 // and avoids feeding bloated video prompts back into PART image prompts.
 
+import { exactTextLine, promptListEnglish, toPromptEnglish } from "./promptLanguage";
+
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanSfxText(value = "") {
+  const cleaned = cleanText(value)
+    .replace(/\broom tone\b/gi, "near-silence")
+    .replace(/\b(background|ambient|electrical|ventilation|low)?\s*hum\b/gi, "isolated material tick")
+    .replace(/\bdrone bed\b|\bdrone\b/gi, "sparse silence")
+    .replace(/\b(subtle|generic|environmental)?\s*ambience\b/gi, "clean physical SFX")
+    .replace(/\bambient sound\b/gi, "clean physical SFX")
+    .replace(/фонов(ый|ого|ому|ым)?\s+гул/gi, "точный близкий физический звук")
+    .replace(/\bгул\b/gi, "короткий физический щелчок")
+    .replace(/\s+/g, " ")
+    .trim();
+  return toPromptEnglish(cleaned, { fallback: "clean close physical SFX, silence between cues" });
 }
 
 function stripPromptPrefix(value = "") {
@@ -30,10 +46,37 @@ function frameLabel(scene, index = 0) {
   return `F${String(frameNumber(scene, index)).padStart(2, "0")}`;
 }
 
-function sceneText(scene = {}, { characterLock = [], appearanceMode = "full" } = {}) {
-  const raw = stripPromptPrefix(
-    scene.image_prompt_en || scene.description_en || scene.description_ru || scene.vo_ru || ""
+function cellPositionName(index = 0, cols = 2) {
+  const col = index % Math.max(1, cols);
+  const row = Math.floor(index / Math.max(1, cols));
+  const vertical = row === 0 ? "upper" : row === 1 ? "lower" : `row ${row + 1}`;
+  const horizontal = col === 0 ? "left" : col === 1 ? "right" : `column ${col + 1}`;
+  return `${vertical}-${horizontal} cell`;
+}
+
+function cellOrderText(count = 0, cols = 2) {
+  return Array.from({ length: count }, (_, i) => cellPositionName(i, cols)).join(" -> ");
+}
+
+function visualBeatText(scene = {}) {
+  return stripPromptPrefix(
+    scene.visual_beat_en ||
+    scene.visual_beat_ru ||
+    scene.shot_visual_en ||
+    scene.shot_visual_ru ||
+    scene.visual_scene_en ||
+    scene.visual_scene_ru ||
+    scene.allowed_visual ||
+    scene.image_prompt_en ||
+    scene.description_en ||
+    scene.description_ru ||
+    scene.vo_ru ||
+    ""
   );
+}
+
+function sceneText(scene = {}, { characterLock = [], appearanceMode = "full" } = {}) {
+  const raw = visualBeatText(scene);
   if (appearanceMode === "minimal" && characterLock.length) {
     return removeKnownCharacterAppearance(raw, characterLock);
   }
@@ -45,6 +88,8 @@ function sceneMotion(scene = {}) {
     scene.story_action_en ||
     scene.action_en ||
     scene.motion ||
+    scene.visual_beat_en ||
+    scene.visual_beat_ru ||
     scene.action ||
     scene.description_en ||
     scene.description_ru ||
@@ -55,7 +100,34 @@ function sceneMotion(scene = {}) {
 }
 
 function sceneScriptLine(scene = {}) {
-  return cleanText(scene.vo_ru || scene.script_line_ru || scene.script_line || "");
+  return cleanText(scene.script_line_ru || scene.script_line || scene.vo_ru || "");
+}
+
+function sceneScriptLineEn(scene = {}) {
+  return toPromptEnglish(sceneScriptLine(scene), { fallback: "current scripted beat" });
+}
+
+function listField(value = "", fallback = "") {
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join("; ");
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, val]) => val ? `${key}: ${cleanText(val)}` : "")
+      .filter(Boolean)
+      .join("; ");
+  }
+  return cleanText(value || fallback);
+}
+
+function sceneAllowedLine(scene = {}) {
+  return [
+    scene.allowed_characters ? `characters: ${promptListEnglish(scene.allowed_characters, "scripted characters only")}` : "",
+    scene.allowed_objects ? `objects: ${promptListEnglish(scene.allowed_objects, "scripted objects only")}` : "",
+    scene.allowed_location ? `location: ${promptListEnglish(scene.allowed_location, "scripted location only")}` : "",
+  ].filter(Boolean).join(" | ");
+}
+
+function sceneForbiddenLine(scene = {}) {
+  return promptListEnglish(scene.forbidden_visuals || scene.forbidden_objects || scene.forbidden || "", "");
 }
 
 function getShotType(scene = {}, i = 0) {
@@ -99,13 +171,11 @@ function getRelevantCharacterLock(characterLock = [], partScenes = [], appearanc
   return relevant.length ? relevant : [];
 }
 
-function getContinuityLink(partScenes = [], localIdx = 0, partIndex = 0, partSize = 4) {
+function getContinuityLink(partScenes = [], localIdx = 0) {
   if (localIdx === 0) {
     return "CONTINUITY LINK: establish the first literal state of this event. If later frames stay in the same beat, preserve the same subject/entity and environment unless the scenario explicitly changes them.";
   }
-  const prev = partScenes[localIdx - 1];
-  const prevLabel = frameLabel(prev, partIndex * partSize + localIdx - 1);
-  return `CONTINUITY LINK: if this frame continues the reveal or action from ${prevLabel}, preserve the same subject/entity, same environment and same event. Change only angle, distance, lens, emphasis or foreground layer unless the SCENARIO INPUT explicitly introduces a new subject.`;
+  return "CONTINUITY LINK: if this frame continues the reveal or action from the previous cell, preserve the same subject/entity, same environment and same event. Change only angle, distance, lens, emphasis or foreground layer unless the SCENARIO INPUT explicitly introduces a new subject.";
 }
 
 const LEGACY_LIVE_ACTION_STYLE_LOCK = `CRITICAL VISUAL RULE — OLD NEUROCINE LIVE-ACTION LOOK:
@@ -122,21 +192,68 @@ Do not create a parchment page, drawn card, comic panel, sketch board, illustrat
 Grid borders are allowed only as simple thin black separators between photographic frames.`;
 
 const HARD_NEGATIVE_VISUAL_LOCK = `NEGATIVE VISUAL LOCK — REJECT IF PRESENT:
-NO parchment background, NO paper texture, NO old manuscript look, NO beige canvas, NO drawn storyboard, NO painted storyboard, NO illustration, NO concept art, NO 2D art, NO cartoon, NO anime, NO comic style, NO sketch, NO painterly brush strokes, NO digital painting look, NO fantasy poster, NO stylized rendering, NO clean fantasy armor, NO modern objects, NO modern clothes, NO subtitles, NO UI, NO watermark, NO decorative captions, NO extra text except the requested frame labels.`;
+NO parchment background, NO paper texture, NO old manuscript look, NO beige canvas, NO drawn storyboard, NO painted storyboard, NO illustration, NO concept art, NO 2D art, NO cartoon, NO anime, NO comic style, NO sketch, NO painterly brush strokes, NO digital painting look, NO fantasy poster, NO stylized rendering, NO clean fantasy armor, NO modern objects, NO modern clothes, NO subtitles, NO UI, NO watermark, NO decorative captions, NO visible cell identifiers, NO non-story text overlays.`;
 
 export function splitScenesIntoParts(scenes = [], partSize = 4) {
   const size = Math.max(1, Number(partSize) || 4);
   const parts = [];
   for (let i = 0; i < scenes.length; i += size) parts.push(scenes.slice(i, i + size));
+  if (parts.length > 1 && parts[parts.length - 1].length === 1 && parts[parts.length - 2].length > 2) {
+    const moved = parts[parts.length - 2].pop();
+    parts[parts.length - 1].unshift(moved);
+  }
   return parts;
 }
 
+function isTrailerStoryboard(storyboard = {}) {
+  const mode = String(storyboard?.export_meta?.mode || storyboard?.mode || "").toLowerCase();
+  return mode === "trailer" || mode === "trailer_storyboard" || mode === "film_trailer";
+}
+
+function formatCastLock(storyboard = {}) {
+  const cast = Array.isArray(storyboard.cast_lock) && storyboard.cast_lock.length
+    ? storyboard.cast_lock
+    : Array.isArray(storyboard.character_lock)
+      ? storyboard.character_lock.map((c, i) => ({
+          id: c.id || `CHAR_${String(i + 1).padStart(2, "0")}`,
+          role: c.role || c.name || `Character ${i + 1}`,
+          visual_identity: [c.description, c.face_features, c.hair, c.physical_condition].filter(Boolean).join("; "),
+          wardrobe: c.clothing || "",
+          forbidden_changes: c.forbidden_changes || "no different actor, no different age, no different face, no different wardrobe unless the script explicitly changes it",
+        }))
+      : [];
+  return cast.map((c, i) => {
+    const id = cleanText(c.id || `CHAR_${String(i + 1).padStart(2, "0")}`);
+    const role = toPromptEnglish(c.role || c.name || c.character || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
+    const identity = toPromptEnglish(c.visual_identity || c.must_appear_as || c.description || "", { fallback: "same actor identity, face, body type and emotional condition from first appearance" });
+    const wardrobe = toPromptEnglish(c.wardrobe || c.clothing || "", { fallback: "same wardrobe from first appearance" });
+    const forbid = toPromptEnglish(c.forbidden_changes || "no actor redesign, no wardrobe drift, no age drift", { fallback: "no actor redesign, no wardrobe drift, no age drift" });
+    return `${id} / ${role}: ${[identity, wardrobe ? `wardrobe: ${wardrobe}` : "", `forbidden: ${forbid}`].filter(Boolean).join("; ")}`;
+  }).filter(Boolean).join("\n");
+}
+
+function formatLocationLock(storyboard = {}) {
+  const loc = storyboard.location_lock;
+  if (!loc || typeof loc !== "object") return toPromptEnglish(storyboard.world_lock || "same locked film location, era, materials, lighting and spatial logic", { fallback: "same locked film location, era, materials, lighting and spatial logic" });
+  return [
+    toPromptEnglish(loc.main || loc.main_location || loc.location || "", { fallback: "same locked location" }),
+    loc.materials ? `materials: ${toPromptEnglish(loc.materials, { fallback: "same materials" })}` : "",
+    loc.lighting ? `lighting: ${toPromptEnglish(loc.lighting, { fallback: "same lighting" })}` : "",
+    loc.spatial_rules ? `spatial rules: ${toPromptEnglish(loc.spatial_rules, { fallback: "same spatial logic" })}` : "",
+    loc.forbidden ? `forbidden: ${toPromptEnglish(loc.forbidden, { fallback: "no unrelated location redesign" })}` : "",
+  ].filter(Boolean).map(cleanText).join("; ");
+}
+
 export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHero", strictLevel = "hard" } = {}) {
-  const sourceStyle = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
-  const world = cleanText(storyboard?.world_lock || storyboard?.project_type || "same cinematic universe");
+  const sourceStyle = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "", { fallback: "" });
+  const world = toPromptEnglish(storyboard?.world_lock || storyboard?.project_type || "same cinematic universe", { fallback: "same cinematic universe" });
   const chars = Array.isArray(storyboard?.character_lock) ? storyboard.character_lock : [];
+  const trailerMode = isTrailerStoryboard(storyboard);
+  const castLock = formatCastLock(storyboard);
+  const locationLock = formatLocationLock(storyboard);
+  const styleBible = toPromptEnglish(storyboard?.style_bible || storyboard?.master_style || "", { fallback: "" });
   const heroLine = chars.length
-    ? chars.map((c, i) => `${c.name || `Character ${i + 1}`}: ${cleanText([c.description, c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join("; "))}`).join("\n")
+    ? chars.map((c, i) => `${toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` })}: ${toPromptEnglish([c.description, c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join("; "), { fallback: "same locked character identity" })}`).join("\n")
     : "If the script repeats the same hero, keep the same face, proportions, clothing and emotional state whenever that hero appears. If the current frame is WORLD-only, do not force the hero into it.";
 
   return `AUTO-CHAIN STRICT ENGINE — SOURCE-OF-TRUTH MODE
@@ -162,7 +279,21 @@ ${sourceStyle || "Use the old NeuroCine dark historical documentary thriller loo
 WORLD LOCK:
 All frames exist in the SAME cinematic universe.
 World identity: ${world}
-Maintain the same historical period, environment logic, lighting family, color grading, texture density, lens language and documentary realism across all generated PARTS.
+Maintain the same scripted period, environment logic, lighting family, color grading, texture density, lens language and documentary realism across all generated PARTS.
+${trailerMode ? `
+TRAILER / FILM CONTINUITY LOCK:
+This is not a new storyboard. This PART is a continuation of the same film plan.
+CAST LOCK:
+${castLock || heroLine}
+
+LOCATION LOCK:
+${locationLock}
+
+STYLE BIBLE:
+${styleBible || sourceStyle || "same locked cinematic style, same lens language, same color grade, same production design"}
+
+Do not redesign actors between PARTS. Do not replace the office/elevator/corridor with a new location. Do not change wardrobe, age, face, body type or role unless the script explicitly says so.
+` : ""}
 
 HERO / CHARACTER LOCK:
 ${heroLine}
@@ -176,6 +307,9 @@ Reference images must not introduce new story objects, locations, wardrobe, era 
 Do NOT copy the same composition into every new frame.
 Do NOT make every cell a portrait of the reference hero.
 New frames must follow their own scenario descriptions.
+
+STYLE FORMULA:
+Style controls only lens, camera behavior, color grade, contrast, grain, texture and lighting quality. Style cannot add characters, props, locations, era, weather, costumes, signs or plot events.
 
 ${HARD_NEGATIVE_VISUAL_LOCK}`;
 }
@@ -220,39 +354,40 @@ export function buildAutoChainPartPrompt({
     : "";
 
   const frameBlocks = partScenes.map((s, localIdx) => {
-    const globalIdx = partIndex * partSize + localIdx;
-    const label = frameLabel(s, globalIdx);
-    const sceneTxt = sceneText(s, { characterLock, appearanceMode });
-    const scriptLine = sceneScriptLine(s);
-    return `${label}:
+    const cellName = cellPositionName(localIdx, cols);
+    const sceneTxt = toPromptEnglish(sceneText(s, { characterLock, appearanceMode }), { fallback: "literal storyboard shot from the current script beat" });
+    const scriptLine = sceneScriptLineEn(s);
+    const allowed = sceneAllowedLine(s);
+    const forbidden = sceneForbiddenLine(s);
+    const exactText = exactTextLine(s.on_screen_text || []);
+    return `${cellName.toUpperCase()}:
 ${frameRoleHint(localIdx, chainMode)}
-${getContinuityLink(partScenes, localIdx, partIndex, partSize)}
+${getContinuityLink(partScenes, localIdx)}
 MANDATORY VISUAL PREFIX: camera-photographed live-action image, NOT illustration, NOT 2D art, NOT painting, NOT concept art.
 SCRIPT LINE (SOURCE OF TRUTH): ${scriptLine || "use SCENARIO INPUT only; do not invent missing details"}
-SCENARIO INPUT (STRICT): ${sceneTxt}
+VISUAL BEAT (STRICT): ${sceneTxt}
+${exactText}
+${allowed ? `ALLOWED IN FRAME: ${allowed}` : "ALLOWED IN FRAME: only what the script line and visual beat explicitly name."}
+${forbidden ? `FORBIDDEN IN FRAME: ${forbidden}` : "FORBIDDEN IN FRAME: new people, new props, new rooms, new era, new costumes, new story events."}
 VO MEANING: ${cleanText(s.vo_ru || "")}
 SHOT TYPE: ${getShotType(s, localIdx)}
-COMPOSITION RULE: visualize only the described action/subject/environment from SCRIPT LINE + SCENARIO INPUT; keep cinematic composition but do not add new story events, props, locations, weather or characters.
-SFX NOTE: ${cleanText(s.sfx || "")}`;
+COMPOSITION RULE: visualize only the described action/subject/environment from SCRIPT LINE + VISUAL BEAT; keep cinematic composition but do not add new story events, props, locations, weather or characters.
+SFX NOTE: ${cleanSfxText(s.sfx || "")}`;
   }).join("\n\n");
 
   return `STORYBOARD GRID PART ${partIndex + 1} — AUTO-CHAIN STRICT CONTINUATION
-FRAMES: F${String(start).padStart(2, "0")}–F${String(end).padStart(2, "0")} of ${totalScenes || storyboard?.scenes?.length || end} total
+FRAME COUNT: ${partScenes.length} of ${totalScenes || storyboard?.scenes?.length || end} total
 
 REFERENCE INPUT:
 ${refText}
 This PART must continue the same project, but each frame must follow its own scenario input.
+${isTrailerStoryboard(storyboard) ? "TRAILER MODE: generate this as one segment of the same locked film trailer. Treat previous and next PARTS as the same production, not separate concepts." : ""}
 ${appearanceNote}
 FORMAT:
 ${cols} columns × ${rows} rows — exactly ${partScenes.length} equal cells.
 Each cell format: ${aspect}${aspect === "9:16" ? " portrait" : ""}.
-Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to ${aspect}.
-Use simple black separators between frames. Do NOT use parchment, beige paper, decorative background, or illustrated page layout.
-
-FRAME LABELS:
-${partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i)).join(", ")} only.
-Small white text, top-left corner of each cell.
-No other text.
+${isTrailerStoryboard(storyboard) && partScenes.length === 4 && aspect === "9:16" ? "GEOMETRY LOCK: output ONE single vertical 9:16 image canvas divided into exactly 2x2 equal quadrants; each quadrant is a vertical 9:16 frame. NO nested grids, NO horizontal thumbnails, NO rounded cards, NO gallery/contact-sheet layout, NO black outer background." : `Overall image: natural grid canvas made of photographic frames, do NOT force the overall canvas to ${aspect}.`}
+Use simple thin black separators between cells. Do NOT use parchment, beige paper, decorative background, illustrated page layout, visible identifiers, captions, UI, watermark or non-story text overlays.
 
 ${buildWorldLock({ storyboard, styleProfile, chainMode, strictLevel })}
 
@@ -279,10 +414,10 @@ ${frameBlocks}
 
 FINAL CHECK:
 Exactly ${partScenes.length} frames.
-Every frame matches its SCENARIO INPUT only.
+Every frame matches its VISUAL BEAT only.
 Same old NeuroCine live-action style across all cells.
 Recurring hero identity remains consistent only where the scenario includes the hero.
-No parchment. No illustration. No concept art. No extra text except frame labels.`;
+No parchment. No illustration. No concept art. No visible identifiers or non-story text overlays.`;
 }
 
 export function buildAutoChainAllParts({
@@ -299,19 +434,19 @@ export function buildAutoChainAllParts({
 
 export function buildAutoVideoPrompt(scene = {}, { storyboard, styleProfile, chainMode = "worldHero", includeVo = true } = {}) {
   const label = frameLabel(scene, 0);
-  const visual = sceneText(scene);
-  const motion = sceneMotion(scene);
-  const style = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light");
+  const visual = toPromptEnglish(sceneText(scene), { fallback: "literal storyboard shot from the current script beat" });
+  const motion = toPromptEnglish(sceneMotion(scene), { fallback: visual });
+  const style = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "cinematic realism, 35mm film grain, natural light", { fallback: "cinematic realism, 35mm film grain, natural light" });
 
   // Script line используется как визуальный якорь в любом режиме (не для аудио)
   const scriptAnchor = scene.vo_ru
-    ? `\nSCRIPT LINE (visual anchor): "${cleanText(scene.vo_ru)}"`
+    ? `\nSCRIPT LINE (visual anchor): "${toPromptEnglish(scene.vo_ru, { fallback: "current scripted beat" })}"`
     : "";
 
   // VO блок: если VO включён — даём смысловой якорь; если выключен — жёсткий запрет
   const voBlock = includeVo && scene.vo_ru
-    ? `\nVO MEANING LOCK:\n${cleanText(scene.vo_ru)}`
-    : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Ambient SFX and environmental sound only.";
+    ? `\nVO MEANING LOCK:\n${toPromptEnglish(scene.vo_ru, { fallback: "current scripted beat" })}`
+    : "\nAUDIO: NO SPEECH. NO HUMAN VOICES. NO NARRATION. NO DIALOGUE. NO VOICEOVER. Clean close-mic diegetic ASMR SFX only; no background hum, drone, room tone, music or generic ambience.";
 
   return `ANIMATE CURRENT FRAME: ${label}
 ${scriptAnchor}
@@ -340,7 +475,7 @@ CINEMATOGRAPHY:
 camera-photographed live-action cinematic realism, documentary physical reality, natural imperfections, 35mm anamorphic, Kodak Vision3 500T grain. ${style}
 ${voBlock}
 SFX:
-${cleanText(scene.sfx || "subtle environmental ambience")}
+${cleanSfxText(scene.sfx || "clean close physical SFX, silence between cues")}
 
 RESTRICTIONS:
 No subtitles, no UI, no watermark, no modern objects unless explicitly present in the scenario. No illustration, no painting, no stylized look.${!includeVo ? " No spoken words, no voiceover, no dialogue audio of any kind." : ""}`;
@@ -383,7 +518,13 @@ export function buildAutoChainJson({
         script_line_ru: sceneScriptLine(s),
         sfx: s.sfx || "",
         image_prompt_en: s.image_prompt_en || "",
-        video_prompt_en: s.video_prompt_en || ""
+        video_prompt_en: s.video_prompt_en || "",
+        visual_beat_en: s.visual_beat_en || "",
+        visual_beat_ru: s.visual_beat_ru || "",
+        allowed_characters: s.allowed_characters || "",
+        allowed_objects: s.allowed_objects || "",
+        allowed_location: s.allowed_location || "",
+        forbidden_visuals: s.forbidden_visuals || ""
       }))
     }))
   };
@@ -396,11 +537,11 @@ export function buildFlowCompactPartPrompt({
 } = {}) {
   if (!partScenes.length) return "";
   const characterLock = storyboard?.character_lock || [];
-  const start = frameNumber(partScenes[0], partIndex * partSize);
-  const end = frameNumber(partScenes[partScenes.length - 1], partIndex * partSize + partScenes.length - 1);
-  const labels = partScenes.map((s, i) => frameLabel(s, partIndex * partSize + i)).join(", ");
   const isFirstPart = partIndex === 0;
   const aspect = storyboard?.aspect_ratio || "9:16";
+  const cols = partScenes.length <= 2 ? partScenes.length : 2;
+  const rows = Math.ceil(partScenes.length / cols);
+  const orderText = cellOrderText(partScenes.length, cols);
 
   const refLine = isFirstPart
     ? "Use Hero Anchor only if uploaded for recurring identity. No Previous PART exists yet."
@@ -411,22 +552,35 @@ export function buildFlowCompactPartPrompt({
         : "Use Previous PART only for world/style DNA. Do not copy compositions.";
 
   const relevantCharacterLock = getRelevantCharacterLock(characterLock, partScenes, appearanceMode);
+  const trailerMode = isTrailerStoryboard(storyboard);
+  const castLock = formatCastLock(storyboard);
+  const locationLock = formatLocationLock(storyboard);
+  const styleBible = toPromptEnglish(storyboard?.style_bible || storyboard?.master_style || "", { fallback: "" });
   const chars = relevantCharacterLock.slice(0, 4).map((c, i) => {
-    const name = cleanText(c.name || `Character ${i + 1}`);
-    const desc = cleanText(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "));
+    const name = toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
+    const desc = toPromptEnglish(c.description || [c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join(", "), { fallback: "same locked character identity" });
     return desc ? `${name} — ${desc}` : "";
   }).filter(Boolean).join("\n");
 
   const frames = partScenes.map((s, localIdx) => {
-    const label = frameLabel(s, partIndex * partSize + localIdx);
-    const text = sceneText(s, { characterLock, appearanceMode });
-    const sfx = cleanText(s.sfx || "subtle ambience");
-    return `${label} — ${text}\n${getContinuityLink(partScenes, localIdx, partIndex, partSize)}\nSFX mood: ${sfx}`;
+    const cellName = cellPositionName(localIdx, cols);
+    const text = toPromptEnglish(sceneText(s, { characterLock, appearanceMode }), { fallback: "literal storyboard shot from the current script beat" });
+    const scriptLine = sceneScriptLineEn(s);
+    const allowed = sceneAllowedLine(s);
+    const forbidden = sceneForbiddenLine(s);
+    const sfx = cleanSfxText(s.sfx || "clean close physical SFX, silence between cues");
+    const exactText = exactTextLine(s.on_screen_text || []);
+    return `${cellName.toUpperCase()}
+Source line: "${scriptLine || text}"
+Visual beat: ${text}
+${exactText}
+${allowed ? `Allowed in this cell: ${allowed}` : "Allowed in this cell: only what this source line and visual beat explicitly name."}
+${forbidden ? `Forbidden in this cell: ${forbidden}` : "Forbidden in this cell: no extra actors, no new props, no new location, no new era, no new costumes, no new story event."}
+${getContinuityLink(partScenes, localIdx)}
+SFX mood: ${sfx}`;
   }).join("\n\n");
 
-  const cols = partScenes.length <= 2 ? partScenes.length : 2;
-  const rows = Math.ceil(partScenes.length / cols);
-  const styleLock = cleanText(styleProfile?.style_lock || storyboard?.global_style_lock || "");
+  const styleLock = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "", { fallback: "" });
   const chainLine = chainMode === "worldOnly"
     ? "WORLD ONLY — lock the same world, period, lighting family and realism; characters may change only when the scenario changes."
     : "WORLD + HERO — lock the world and keep recurring hero identity stable whenever the scenario includes that hero.";
@@ -435,15 +589,47 @@ export function buildFlowCompactPartPrompt({
     : strictLevel === "soft"
       ? "SOFT — cinematic polish is allowed, but never contradict the scenario."
       : "HARD — strict to the scenario; cinematic framing is allowed without adding plot content.";
+  const trailerGeometryLock = trailerMode
+    ? partScenes.length === 4 && aspect === "9:16"
+      ? "GEOMETRY LOCK: create ONE SINGLE vertical 9:16 output image. Inside this one 9:16 canvas arrange exactly four cinematic scenes as a strict 2x2 collage: two scenes on top, two scenes below. Fill the canvas edge-to-edge. Use thin black separators only. NO nested grids inside any cell, NO contact sheet, NO storyboard thumbnail sheet, NO long vertical strip, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background."
+      : `GEOMETRY LOCK: create ONE SINGLE output image containing exactly ${partScenes.length} equal cells in the listed ${cols}x${rows} layout. Fill the output edge-to-edge. Use thin black separators only. NO nested grids inside any cell, NO contact sheet, NO storyboard thumbnail sheet, NO long vertical strip, NO horizontal panels, NO rounded app cards, NO gallery layout, NO black outer background.`
+    : "";
 
-  return `STORYBOARD GRID PART ${partIndex + 1} — ${labels}
-Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators. Frame labels only: ${labels} in small white text top-left. No other text, no subtitles, no UI, no watermark.
+  const gridInstruction = trailerMode
+    ? `Generate exactly ${partScenes.length} live-action cinematic scenes in a clean ${cols}×${rows} collage (${cols} columns × ${rows} rows). ${trailerGeometryLock} Cell order for story reading only: ${orderText}. Do not draw any cell names, identifiers, numbering, captions, title bars, UI, watermark or non-story text.`
+    : `Generate exactly ${partScenes.length} live-action cinematic frames in a clean ${cols}×${rows} grid (${cols} columns × ${rows} rows). Each cell format is ${aspect}${aspect === "9:16" ? " vertical portrait" : ""}. Use thin black separators only. Do not draw cell names, identifiers, numbering, captions, subtitles, UI or watermark.`;
+  const trailerFinalCheck = trailerMode
+    ? `Exactly ${partScenes.length} clean unlabeled scenes inside one single ${aspect} output image. Follow the cell order ${orderText} for reading only, but do not draw any names, numbers, captions, title bars, UI, watermark or non-story text. No nested mosaics, no horizontal thumbnail strips, no app-gallery cards. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`
+    : `Exactly ${partScenes.length} frames. Follow each frame literally. Do not draw visible identifiers or captions. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
+
+  return `STORYBOARD GRID PART ${partIndex + 1}
+${gridInstruction}
+
+LANGUAGE LOCK:
+All generator instructions, character/location/style locks, source summaries, visual beats, allowed/forbidden lists and SFX notes must be English. Russian may appear only as exact dialogue or exact visible on-screen text explicitly listed as "Exact visible text to render".
 
 STYLE LOCK:
-${styleLock || "dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, cold overcast light, realistic skin and fabric, dirty hands, smoke, mud, damp stone, shallow depth of field, subtle 35mm film grain."}
+${styleLock || "dark cinematic documentary realism, camera-photographed live-action film stills, natural imperfections, realistic skin and fabric, controlled night interior lighting, subtle 35mm film grain."}
+${trailerMode ? `
+TRAILER PRODUCTION LOCK:
+This PART belongs to the same trailer storyboard as all other PARTS.
+CAST LOCK:
+${castLock || "Use the same recurring characters from character_lock; do not redesign actors."}
+
+LOCATION LOCK:
+${locationLock}
+
+STYLE BIBLE:
+${styleBible || styleLock || "same film style, same lens language, same lighting family, same production design"}
+
+If this is an odd-count storyboard, the final PART may contain fewer cells. That is intentional. Generate exactly the listed cell order, no missing cells, no extra cells, and no visible identifiers.
+` : ""}
 
 MANDATORY VISUAL TYPE:
 camera-photographed live-action film stills, natural imperfections, realistic skin and fabric, physical documentary realism. Not illustration, not painting, not concept art, not parchment, not fantasy art.
+
+STYLE FORMULA:
+Style controls only lens, camera behavior, color grade, contrast, grain, texture and lighting quality. Style cannot add characters, props, locations, era, weather, costumes, signs or plot events. If style text conflicts with the source line, ignore that style token.
 
 CHAIN MODE:
 ${chainLine}
@@ -453,12 +639,12 @@ ${strictLine}
 
 CONTINUITY:
 ${refLine}
-Smart continuity: preserve atmosphere, lighting family, color grade and historical world texture, but every frame must be a new shot with a different composition, camera angle and focal point.
+Smart continuity: preserve atmosphere, lighting family, color grade and scripted world texture, but every frame must be a new shot with a different composition, camera angle and focal point.
 If adjacent frames describe the same reveal or subject, keep it as the same exact entity and same event while only changing the shot design.
 
 ${chars ? `CHARACTER LOCK:\n${chars}\nUse this only as identity reference when a frame explicitly includes that character. Do NOT insert every locked character into every cell.\n\n` : ""}FRAMES:
 ${frames}
 
 FINAL CHECK:
-Exactly ${partScenes.length} frames. ${labels} only. Follow each frame literally. No new plot events, animals, modern objects or extra characters unless described. Character Lock is not a cast list for every frame. Same cinematic world, different composition in every cell.`;
+${trailerFinalCheck}`;
 }

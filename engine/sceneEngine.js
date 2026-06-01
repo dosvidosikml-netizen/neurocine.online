@@ -72,18 +72,21 @@ export const STYLE_LOCKS = {
     `${ULTRA_REALISM} Analog Kodak Portra 400 film grain — warm highlights, desaturated shadows, natural skin tones, soft halation on light sources, slight gate weave, organic imperfection, golden-hour key light, no subtitles, no UI, no watermark`,
   mysticHorror:
     `${ULTRA_REALISM} Atmospheric horror documentary — fog dense enough to obscure mid-ground, candle and oil-lamp practical key lights flickering, deep cold blue ambient shadow fill, faces partially obscured, breath visible, damp stone and mossy wood texture, restrained framing avoiding direct shock, no subtitles, no UI, no watermark`,
+
+  // ── HORROR SUBGENRES (Horror Style Pack) ──
   ghostSupernatural:
-    `${ULTRA_REALISM} Nocturnal supernatural ghost horror — cold teal-and-black grade, moonlit fog layers, pale breath in freezing air, wet stone and rotting wood, candle flicker exposing only fragments of faces, long empty corridors, translucent motion implied by disturbed dust and fabric, no jump-scare gore, restrained dread, no subtitles, no UI, no watermark`,
+    `${ULTRA_REALISM} Nocturnal supernatural ghost horror — single cold practical light source (bare bulb, moonlight through blinds, phone screen glow), hard directional falloff into near-black, thin cold air haze, faint volumetric light shafts, oppressive negative space, an unseen presence implied just outside the light, cold teal-and-black grade with moonlit blue rim, deep readable shadow pockets, no visible CGI ghost, no glowing eyes, no subtitles, no UI, no watermark`,
   foundFootage:
-    `${ULTRA_REALISM} Found footage horror realism — handheld consumer camera instability, imperfect autofocus hunting, on-camera LED falloff, crushed hallway corners but visible noise texture, accidental framing, documentary panic without stylization, timestamp-free raw footage feel, dirty lens smears, no subtitles, no UI, no watermark`,
+    `${ULTRA_REALISM} Found-footage horror — handheld camcorder realism, slight camera shake and micro motion blur, harsh on-camera light with hot core and total-black falloff, optional night-vision infrared look (monochrome green, only subject retinas catching light), VHS/digicam artifacts: scanlines, chroma bleed, compression blocks, corner date-time stamp, low-resolution charm, heavy shadow grain, cheap-lens vignette, no clean cinematic grade, no tripod-smooth framing, no subtitles, no UI, no watermark`,
   psychologicalDread:
-    `${ULTRA_REALISM} Psychological dread thriller — oppressive stillness, uncanny domestic realism, muted sickly beige-green palette, subtle asymmetry in rooms, claustrophobic lens compression, faces half-lit by practical lamps, long pauses, invisible threat implied through body language and negative space, no subtitles, no UI, no watermark`,
+    `${ULTRA_REALISM} Psychological clinical dread — sterile cold interiors, uneasy near-symmetry, subtly wrong geometry, fluorescent overhead light with green-cyan cast, long static framing, excessive empty space around the subject, sickly skin tone, a quiet sense of being watched, desaturated institutional palette, no warm light, no gore, no obvious creature, no subtitles, no UI, no watermark`,
   folkHorror:
-    `${ULTRA_REALISM} Folk horror ritual realism — isolated rural landscape, damp soil, old wooden icons, handmade masks, candlelit procession, overcast sky, moss-covered stone, animal-bone charms, linen and wool texture, ancient village dread without fantasy glow, no subtitles, no UI, no watermark`,
+    `${ULTRA_REALISM} Folk horror daylight dread — overcast or low golden rural daylight, earthy organic world, weathered wood and wet soil, fog in the tree line, ritual objects, dread hidden inside a calm bright pastoral landscape, isolation and wrongness, muted greens and browns, deep wet natural shadows, restrained saturation, no night scene, no neon, no modern objects, no subtitles, no UI, no watermark`,
   grimeSlasher:
-    `${ULTRA_REALISM} Grime slasher realism — filthy industrial corridors, sodium vapor light, wet concrete, scratched metal doors, bloodless threat through silhouettes and sharp objects kept mostly off-frame, sweaty skin pores, dirty fabric, harsh handheld proximity, no glamour, no gore focus, no subtitles, no UI, no watermark`,
+    `${ULTRA_REALISM} Gritty grindhouse slasher realism — dirty derelict interiors, flickering practical bulbs, hard raking light across grime and rust, sweat-soaked terrified subject, dust and debris, claustrophobic tight framing, threat implied through shadow and reaction not explicit gore, dirty amber-and-black grade, deep crushed blacks, no clean set, no glamour, no graphic mutilation, no subtitles, no UI, no watermark`,
   liminalUncanny:
-    `${ULTRA_REALISM} Liminal uncanny backrooms realism — empty fluorescent interiors, yellowed walls, damp carpet texture, buzzing practical ceiling lights, impossible depth created by repeated corridors, no monsters shown, scale disorientation, sterile office decay, subtle perspective wrongness, no subtitles, no UI, no watermark`,
+    `${ULTRA_REALISM} Liminal-space uncanny horror — empty mundane interiors (corridors, stairwells, waiting rooms), buzzing fluorescent tubes, wrong sense of scale, repeating patterns, eerie stillness, no people or one tiny distant figure, flat yellow-green fluorescent wash, even near-shadowless light, slight overexposure, dated wallpaper and carpet tones, the feeling of a place that should not be entered, no dramatic lighting, no monster, no subtitles, no UI, no watermark`,
+
   scifiAtmospheric:
     `${ULTRA_REALISM} Hard sci-fi atmospheric realism — practical lab and spacecraft lighting with cool teal LED accents, volumetric haze in beam paths, brushed metal and matte composite surface texture, condensation on cold surfaces, slightly desaturated palette, anamorphic flare on bright sources, no subtitles, no UI, no watermark`,
   fantasyEpic:
@@ -366,6 +369,30 @@ export function buildLocalStoryboard(options = {}) {
   return fallbackStoryboard(options);
 }
 
+export function storyboardToProjectJson(storyboard = {}, extras = {}) {
+  const scenes = Array.isArray(storyboard?.scenes)
+    ? storyboard.scenes
+    : Array.isArray(storyboard?.frames)
+      ? storyboard.frames
+      : [];
+  return {
+    neurocine_project_snapshot: true,
+    version: "sceneEngine-project-export-v1",
+    exported_at: new Date().toISOString(),
+    project_name: storyboard?.project_name || storyboard?.title || extras?.projectName || "NeuroCine Project",
+    script: extras?.script || storyboard?.script || storyboard?.full_script || "",
+    storyboard: {
+      ...storyboard,
+      scenes,
+    },
+    director: extras?.director || {},
+    export_meta: {
+      ...(storyboard?.export_meta || {}),
+      ...(extras?.export_meta || {}),
+    },
+  };
+}
+
 export default {
   STYLE_LOCKS,
   VIDEO_LOCK,
@@ -374,5 +401,6 @@ export default {
   getDurationPlan,
   inferSceneCount,
   normalizeStoryboard,
-  buildLocalStoryboard
+  buildLocalStoryboard,
+  storyboardToProjectJson
 };

@@ -8,6 +8,7 @@ function getActiveKey() {
   const hash = window.location.hash || "";
 
   if (path.startsWith("/projects")) return "projects";
+  if (path.startsWith("/trailer")) return "trailer";
   if (path.startsWith("/storyboard")) return "storyboard";
   if (path.startsWith("/studio") && hash.includes("studio-package")) return "pack";
   if (path.startsWith("/studio")) return "studio";
@@ -278,8 +279,8 @@ export default function MobileBottomNav({ onCreate }) {
     if (typeof window !== "undefined") window.location.href = "/storyboard#storyboard";
   }
 
-  function goPack() {
-    if (typeof window !== "undefined") window.location.href = "/studio#studio-package";
+  function goTrailer() {
+    if (typeof window !== "undefined") window.location.href = "/trailer";
   }
 
   return (
@@ -290,7 +291,7 @@ export default function MobileBottomNav({ onCreate }) {
         <button className={active === "projects" ? "is-active" : ""} type="button" onClick={goProjects}><NeuroOrbIcon variant="cyan" /><b>Проекты</b></button>
         <button className="nc-create-plus" type="button" onClick={onCreate} aria-label="Создать">+</button>
         <button className={active === "storyboard" ? "is-active" : ""} type="button" onClick={goStoryboard}><NeuroOrbIcon variant="violet" /><b>Кадры</b></button>
-        <button className={active === "pack" ? "is-active" : ""} type="button" onClick={goPack}><NeuroOrbIcon variant="gold" /><b>Пакет</b></button>
+        <button className={active === "trailer" ? "is-active" : ""} type="button" onClick={goTrailer}><NeuroOrbIcon variant="gold" /><b>Трейлер</b></button>
       </nav>
     </>
   );

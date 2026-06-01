@@ -88,6 +88,7 @@ export default function AccountCenter() {
           </div>
           <nav className="nc-account-nav">
             <a href="/storyboard">Студия раскадровки</a>
+            <a href="/trailer">Трейлер</a>
             <a href="/projects">Библиотека проектов</a>
             <a href="/director/control-room">Консоль режиссёра</a>
           </nav>

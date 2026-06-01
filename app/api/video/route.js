@@ -12,6 +12,7 @@ import {
 } from "../../../engine/videoPromptAgent";
 import { normalizeTarget } from "../../../engine/sceneEngine_v2";
 import { applyWorldBrainToVideoPrompt, buildWorldAudioBlock } from "../../../engine/storyboardWorldBrain";
+import { buildAmbientBed } from "../../../engine/ambientBedEngine";
 import { requireSignedInAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageEvent, usageMeta } from "../../../lib/usageLogger";
 
@@ -128,6 +129,7 @@ export async function POST(req) {
     const finalVideo = normalizePromptPrefix(sanitizeNoVoVideoPrompt(worldSafeVideo, includeVo), "ANIMATE CURRENT FRAME:");
     const noVoLeakDetected = !includeVo && hasNoVoLeak(finalVideo);
     const dominantSfx = readDominantSfx(finalVideo, frame.sfx || body?.analysis?.sfx || worldAudio.profile.allowedAudio);
+    const ambientBed = buildAmbientBed({ frame: { ...frame, sfx: dominantSfx }, storyboard });
 
     const finalNegative = [NEGATIVE_PROMPT_BASE, worldAudio.profile.forbiddenAudio, worldAudio.profile.forbiddenObjects]
       .filter(Boolean).join(", ").replace(/\s+/g, " ").trim();
@@ -152,6 +154,7 @@ export async function POST(req) {
       video_prompt_en: finalVideo,
       image_prompt_en: imagePrompt,
       sfx: dominantSfx,
+      ambient_bed: ambientBed,
       world_audio: worldAudio,
       negative_prompt: finalNegative,
       validation,
@@ -170,6 +173,7 @@ export async function POST(req) {
         selected_style: storyboard.selected_style || storyboard.selected_style_label || "",
         world_profile: worldAudio.profile.id,
         sfx_embedded_in_video_prompt: true,
+        ambient_bed_emitted: true,
         vo_dialogue_enabled: includeVo,
         no_vo_clean: !noVoLeakDetected,
         analysis_disabled: true,

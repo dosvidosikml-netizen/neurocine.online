@@ -6,6 +6,7 @@
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
+import { buildScenarioContext } from "../../../lib/scenarioContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ const SYS = (voiceList) => `You are a PRO TTS Director. Output ONLY valid JSON (
 {
   "scene": "Short location/atmosphere for TTS booth — 5-8 words, English. Examples: The Dark History Vault. / Underground Interrogation Room.",
   "context": "Directing note — pacing and emotional arc in English, 1-2 sentences.",
-  "voice_id": "Pick the single best voice ID from: ${voiceList}. Match to genre and mood.",
+  "voice_id": "Pick the single best voice ID from: ${voiceList}. Match to the genre, visual style and the storyboard emotional arc described in SCENARIO CONTEXT.",
   "voice_reason": "1 sentence in Russian why this voice fits this specific content.",
   "script_google": "Rewrite the FULL script with Google AI Studio emotion tags. Available: [intrigue] [desire] [shock] [information] [inspiration] [confident] [sad] [whisper] [aggressive] [calm]. Tag every 1-3 sentences. Preserve EXACT original language. Do NOT cut or summarize.",
   "script_elevenlabs": "Rewrite the FULL script with ElevenLabs SSML-style tags. Use: <break time='0.5s'/>, <prosody rate='slow'>, <emphasis level='strong'>. Preserve ALL original text.",
@@ -46,13 +47,16 @@ export async function POST(req) {
     const script = String(body.script || "").trim();
     const genre = String(body.genre || "ИСТОРИЯ").trim();
     const topic = String(body.topic || "").trim();
+    const storyboard = body.storyboard || null;
+    const styleProfile = body.styleProfile || body.style_profile || null;
+    const scenarioCtx = buildScenarioContext({ topic, script, genre, storyboard, styleProfile });
     if (!script || script.length < 20) return Response.json({ error: "Сценарий слишком короткий" }, { status: 400 });
 
     const voiceList = GOOGLE_VOICES.map(v => `${v.id} (${v.desc})`).join(", ");
     const r = await callOpenRouter({
       taskType: TASK_TYPES.SCRIPT_WRITING,
       systemPrompt: SYS(voiceList),
-      userMessage: `Жанр: ${genre}. Тема: ${topic || "Видео"}.\nСценарий:\n${script}`,
+      userMessage: `${scenarioCtx.contextBlock}\n\nСценарий:\n${script}`,
       maxTokensOverride: 4500,
       responseFormat: { type: "json_object" },
       apiKeyOverride: accessGuard.apiKey,

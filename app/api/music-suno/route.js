@@ -4,6 +4,7 @@
 import { callOpenRouter, TASK_TYPES } from "../../../lib/modelRouter";
 import { requireOpenRouterAccess, guardErrorJson } from "../../../lib/apiAccess";
 import { logUsageFromGuard, usageMeta } from "../../../lib/usageLogger";
+import { buildScenarioContext } from "../../../lib/scenarioContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +51,8 @@ export async function POST(req) {
     const script = String(body.script || "").trim();
     const musicMode = String(body.musicMode || "cinematic_thriller").trim();
     const storyboard = body.storyboard || null;
+    const styleProfile = body.styleProfile || body.style_profile || null;
+    const scenarioCtx = buildScenarioContext({ topic, script, genre, storyboard, styleProfile });
 
     const moodHints = storyboard?.scenes?.slice(0, 10).map(s =>
       `${s.beat_type || ""}: ${s.description_ru || s.visual || ""} (sfx: ${s.sfx || ""})`
@@ -57,7 +60,7 @@ export async function POST(req) {
     const totalDur = storyboard?.total_duration || storyboard?.scenes?.reduce?.((a, s) => a + Number(s.duration || 0), 0) || 60;
     const modeDesc = MODE_MAP[musicMode] || MODE_MAP.cinematic_thriller;
 
-    const userMsg = `Тема: ${topic || "(не задана)"}\nЖанр: ${genre}\nДлительность ролика: ${totalDur}с\nМузыкальный режим: ${musicMode} — ${modeDesc}\n\nСценарий:\n${script.slice(0, 5000) || "(не задан)"}\n\nАтмосфера storyboard:\n${moodHints || "(нет storyboard)"}\n\nСобери production-ready Suno instrumental prompt.`;
+    const userMsg = `Тема: ${topic || "(не задана)"}\nЖанр: ${genre}\nВизуальный стиль: ${[scenarioCtx.styleLabel, scenarioCtx.styleEssence].filter(Boolean).join(" — ") || "(не задан)"}\nДлительность ролика: ${totalDur}с\nМузыкальный режим: ${musicMode} — ${modeDesc}\n\nСценарий:\n${script.slice(0, 5000) || "(не задан)"}\n\nАтмосфера storyboard:\n${moodHints || "(нет storyboard)"}\n\nСобери production-ready Suno instrumental prompt.`;
 
     const r = await callOpenRouter({
       taskType: TASK_TYPES.LIGHT_TASK,

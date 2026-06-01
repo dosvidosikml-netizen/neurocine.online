@@ -3,6 +3,7 @@
 // Генерит storyboard для роликов длиннее 3 минут разбивкой на chunks по ~90с.
 // Между chunks передаётся:
 //   - character_lock (verbatim)
+//   - voice_lock (verbatim, short_film only)
 //   - last_scene_context (для continuity)
 //   - global_style_lock (для consistency)
 //   - act_position (hook / build / climax / outro для нарратива)
@@ -16,8 +17,9 @@
 //   1. split duration → chunks по 90с
 //   2. для каждого chunk генерим mini-storyboard через тот же LLM
 //   3. character_lock берём из ПЕРВОГО chunk и передаём дальше verbatim
-//   4. last-scene context передаётся между chunks для continuity первого кадра
-//   5. склеиваем сцены, переиндексируем frame_01..frame_NN
+//   4. voice_lock берём из ПЕРВОГО chunk и передаём дальше verbatim
+//   5. last-scene context передаётся между chunks для continuity первого кадра
+//   6. склеиваем сцены, переиндексируем frame_01..frame_NN
 
 import { getDurationPreset, detectObserverMode } from "./sceneEngine_v2";
 
@@ -122,7 +124,14 @@ export function buildChunkUserPrompt({
   mode = "safe",
   target = "veo3",
   aspectRatio = "9:16",
+  targetScenes = null,
+  frameSeconds = 3,
+  timingMode = "manual",
   characterLockFromPrev = null,
+  voiceLockFromPrev = null,
+  castLockFromPrev = null,
+  locationLockFromPrev = null,
+  styleBibleFromPrev = null,
   lastSceneFromPrev = null,
   globalStyleLock = null,
 }) {
@@ -134,8 +143,16 @@ export function buildChunkUserPrompt({
   else if (progressPct < 90) actPosition = "CLIMAX (пик эмоционального напряжения)";
   else actPosition = "OUTRO + ВОПРОС (переворот + открытый вопрос для комментариев)";
 
-  const targetScenes = Math.round(chunkDuration / 3);
+  const forcedScenes = Number(targetScenes);
+  const safeTargetScenes = Number.isFinite(forcedScenes) && forcedScenes > 0
+    ? Math.max(1, Math.round(forcedScenes))
+    : Math.max(1, Math.round(chunkDuration / 3));
+  const safeFrameSeconds = Math.max(2, Math.min(10, Number(frameSeconds) || 3));
+  const safeTimingMode = String(timingMode || "manual").toLowerCase() === "auto" ? "auto_script_scan" : "manual_exact";
   const isObserverMode = detectObserverMode(globalScript);
+  const normalizedMode = String(mode || "").toLowerCase();
+  const isShortFilm = normalizedMode === "short_film" || normalizedMode === "trailer";
+  const isTrailer = normalizedMode === "trailer";
 
   const observerBlock = isObserverMode
     ? `
@@ -149,11 +166,25 @@ character_lock должен быть ПУСТЫМ [] или содержать �
     : "";
 
   const continuityBlock = chunkIndex === 0
-    ? `Это ПЕРВЫЙ chunk из ${totalChunks}. Создай детальный character_lock с описанием персонажей. Зафиксируй global_style_lock — он будет переиспользован во всех следующих chunks.`
+    ? `Это ПЕРВЫЙ chunk из ${totalChunks}. Создай детальный character_lock с описанием персонажей.${isShortFilm ? " Создай voice_lock для всех говорящих персонажей." : ""}${isTrailer ? " Создай cast_lock, location_lock, style_bible и grid_continuity для всего фильма." : ""} Зафиксируй global_style_lock — он будет переиспользован во всех следующих chunks.`
     : `Это chunk ${chunkIndex + 1} из ${totalChunks}.
 
 CHARACTER LOCK (НЕ МЕНЯЙ — сохрани verbatim из предыдущих chunks):
 ${JSON.stringify(characterLockFromPrev, null, 2)}
+${isShortFilm ? `
+VOICE LOCK (НЕ МЕНЯЙ — сохрани voice_id verbatim из предыдущих chunks):
+${JSON.stringify(voiceLockFromPrev, null, 2)}
+` : ""}
+${isTrailer ? `
+CAST LOCK (НЕ МЕНЯЙ — сохрани verbatim):
+${JSON.stringify(castLockFromPrev, null, 2)}
+
+LOCATION LOCK (НЕ МЕНЯЙ — сохрани verbatim):
+${JSON.stringify(locationLockFromPrev, null, 2)}
+
+STYLE BIBLE (НЕ МЕНЯЙ — сохрани verbatim):
+${styleBibleFromPrev || "(не задан)"}
+` : ""}
 
 GLOBAL STYLE LOCK (НЕ МЕНЯЙ):
 ${globalStyleLock || "(не задан — используй стандартный документальный)"}
@@ -165,7 +196,29 @@ ${JSON.stringify(lastSceneFromPrev, null, 2)}
 - Первый кадр этого chunk должен ВИЗУАЛЬНО продолжать последнюю сцену предыдущего chunk
 - Если персонаж был в локации X — продолжай в X (или явно покажи переход)
 - Эмоциональный тон должен наследоваться от предыдущего chunk
-- Используй character_lock из предыдущих chunks ДОСЛОВНО — не перефразируй`;
+- Используй character_lock из предыдущих chunks ДОСЛОВНО — не перефразируй${isShortFilm ? "\n- Используй voice_lock из предыдущих chunks ДОСЛОВНО — не меняй voice_id" : ""}`;
+
+  const shortFilmBlock = isShortFilm ? `
+
+SHORT FILM / DIALOGUE MODE:
+- Treat this chunk as screenplay coverage, not narrator VO.
+- Preserve exact character dialogue in scene.dialogue; do not invent lines.
+- Create/reuse root voice_lock for speaking characters; each dialogue object must include the same voice_id for that speaker across all chunks.
+- Preserve visible text/cards/signs/displays in scene.on_screen_text.
+- Include scene.script_line_ru, scene.blocking and scene.shot_role for every scene.
+- Use cinematic coverage: establishing, insert, OTS, shot/reverse-shot, reaction, reveal, chase, climax, final_sting.
+- Do not create narrator VO from dialogue.
+` : "";
+
+  const trailerBlock = isTrailer ? `
+
+TRAILER STORYBOARD MODE:
+- Treat the full input as one film/trailer up to 10 minutes, split into chunks only for model limits.
+- Preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
+- Each chunk must continue the same production design, not restart a new concept.
+- Odd and custom frame counts are valid. Do not add extra frames to fill a perfect 2x2 grid.
+- For grid export, PARTS may end with any remaining cell count when needed.
+` : "";
 
   return `Generate storyboard JSON для CHUNK ${chunkIndex + 1} of ${totalChunks} большого long-form ролика.
 
@@ -179,10 +232,13 @@ CONTENT MODE: ${mode}
 VIDEO TARGET: ${target}
 ASPECT RATIO: ${aspectRatio}
 
-Target scenes для этого chunk: ${targetScenes} (MANDATORY).
-Каждая сцена 2-4 секунды.
+Target scenes для этого chunk: ${safeTargetScenes} (MANDATORY).
+Timing mode: ${safeTimingMode}. Preferred average: ${safeFrameSeconds}s per frame.
+Каждая сцена 2-${isTrailer ? 10 : 4} секунды.
 total_duration JSON для chunk = ${chunkDuration}.
 ${observerBlock}
+${shortFilmBlock}
+${trailerBlock}
 ${continuityBlock}
 
 ОБЩИЙ СЦЕНАРИЙ (для контекста — что было до этого chunk и что будет после):
@@ -200,13 +256,23 @@ Return JSON only.`;
  */
 export function mergeChunks(chunkResults, totalDuration) {
   if (!chunkResults || chunkResults.length === 0) {
-    return { scenes: [], character_lock: [], total_duration: 0, errors: ["No chunk results"] };
+    return { scenes: [], character_lock: [], voice_lock: [], total_duration: 0, errors: ["No chunk results"] };
   }
 
   const errors = [];
 
   // character_lock из первого chunk — он самый детальный
   const characterLock = chunkResults[0]?.character_lock || [];
+  const voiceLock = chunkResults[0]?.voice_lock || [];
+  const castLock = chunkResults[0]?.cast_lock || [];
+  const locationLock = chunkResults[0]?.location_lock || {};
+  const styleBible = chunkResults[0]?.style_bible || "";
+  const gridContinuity = chunkResults[0]?.grid_continuity || "";
+  const voiceByCharacter = new Map(
+    (Array.isArray(voiceLock) ? voiceLock : [])
+      .map((item) => [String(item.character || item.name || item.speaker || "").trim().toLowerCase(), item.voice_id])
+      .filter(([key, voiceId]) => key && voiceId)
+  );
 
   // global_style_lock — из первого chunk
   const globalStyleLock = chunkResults[0]?.global_style_lock || "";
@@ -235,8 +301,17 @@ export function mergeChunks(chunkResults, totalDuration) {
 
     scenes.forEach((s) => {
       const dur = Number(s.duration) || 3;
+      const dialogue = Array.isArray(s.dialogue)
+        ? s.dialogue.map((line) => {
+            if (!line || typeof line !== "object") return line;
+            const speaker = String(line.speaker || line.character || "").trim();
+            const voiceId = voiceByCharacter.get(speaker.toLowerCase()) || line.voice_id;
+            return voiceId ? { ...line, speaker: line.speaker || speaker, voice_id: voiceId } : line;
+          })
+        : s.dialogue;
       allScenes.push({
         ...s,
+        dialogue,
         id: `frame_${String(frameCounter).padStart(2, "0")}`,
         start: runningStart,
         chunk_index: chunkIdx, // для дебага
@@ -261,6 +336,11 @@ export function mergeChunks(chunkResults, totalDuration) {
     global_style_lock: globalStyleLock,
     global_video_lock: globalVideoLock,
     character_lock: characterLock,
+    voice_lock: voiceLock,
+    cast_lock: castLock,
+    location_lock: locationLock,
+    style_bible: styleBible,
+    grid_continuity: gridContinuity,
     postprocess,
     scenes: allScenes,
     errors,

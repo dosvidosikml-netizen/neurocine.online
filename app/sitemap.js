@@ -4,6 +4,7 @@ const routes = [
   "",
   "/studio",
   "/storyboard",
+  "/trailer",
   "/cartoon",
   "/series",
 ];

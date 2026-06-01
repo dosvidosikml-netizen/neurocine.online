@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import {
   PROJECT_TYPES, STYLE_PRESETS,
   build2KPrompt, buildStoryGridPrompt, buildChunkGridPrompt,
@@ -42,13 +43,42 @@ function gridCols(n) { return n <= 8 ? 2 : 3; }
 function partGridCols(n) { const count = Math.max(1, Number(n) || 1); return count <= 2 ? count : 2; }
 function gridRows(n, cols = gridCols(n)) { return Math.max(1, Math.ceil(Math.max(1, Number(n) || 1) / Math.max(1, cols))); }
 function partCellLabel(i) { return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i] || String(i + 1); }
+function sceneGlobalIndex(scene, scenes = [], fallback = 0) {
+  const byRef = scenes.indexOf(scene);
+  if (byRef >= 0) return byRef;
+  const byId = scene?.id ? scenes.findIndex((s) => s?.id === scene.id) : -1;
+  if (byId >= 0) return byId;
+  const n = Number(String(scene?.id || "").match(/\d+/)?.[0] || 0);
+  return n > 0 ? n - 1 : fallback;
+}
 
 /* ─── Flow/VEO TXT export ─── */
+function formatVoiceLockLine(v) {
+  if (!v || typeof v !== "object") return "";
+  const character = v.character || v.name || v.speaker || "";
+  const label = `${character}${v.voice_id ? ` [${v.voice_id}]` : ""}`.trim();
+  return [label, v.voice_profile || v.profile || v.description, v.delivery_arc || v.delivery].filter(Boolean).join(" — ");
+}
+
+function formatDialogueLine(line) {
+  if (typeof line === "string") return line;
+  if (!line || typeof line !== "object") return "";
+  const speaker = line.speaker || line.character || "";
+  const voice = line.voice_id ? ` [${line.voice_id}]` : "";
+  const text = line.text || line.line || line.dialogue || "";
+  const delivery = line.delivery ? ` (${line.delivery})` : "";
+  return [speaker ? `${speaker}${voice}` : "", text ? `${text}${delivery}` : ""].filter(Boolean).join(": ");
+}
+
 function buildFlowTxt(storyboard, styleProfile) {
   if (!storyboard) return "";
   const sb = storyboard;
   const chars = (sb.character_lock || [])
     .map(c => `${c.name} — ${c.description}`)
+    .join("\n");
+  const voices = (sb.voice_lock || [])
+    .map(formatVoiceLockLine)
+    .filter(Boolean)
     .join("\n");
   const lines = [
     `STORYBOARD GRID — ${sb.project_name || "NeuroCine Project"}`,
@@ -56,11 +86,16 @@ function buildFlowTxt(storyboard, styleProfile) {
     `STYLE LOCK: ${styleProfile?.style_lock || sb.global_style_lock || ""}`,
     "",
     chars ? `CHARACTER LOCK:\n${chars}` : "",
+    voices ? `VOICE LOCK:\n${voices}` : "",
     "",
   ].filter(l => l !== null);
 
   (sb.scenes || []).forEach(s => {
     const vis = (s.image_prompt_en || "").replace(/^SCENE PRIMARY FOCUS:\s*/i, "").trim();
+    const dialogue = Array.isArray(s.dialogue)
+      ? s.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+      : (s.dialogue || "");
+    const screenText = Array.isArray(s.on_screen_text) ? s.on_screen_text.join(" / ") : (s.on_screen_text || "");
     // strip SFX from video_prompt_en for ANIMATION field
     const anim = (s.video_prompt_en || "")
       .replace(/^ANIMATE CURRENT FRAME:\s*/i, "")
@@ -70,6 +105,10 @@ function buildFlowTxt(storyboard, styleProfile) {
       `FRAME ${String(s.id || "").replace("frame_", "").padStart(2, "0")} / ${s.start ?? "?"}–${s.end ?? "?"}s`,
       `VISUAL: ${vis}`,
       `ANIMATION: ${anim}`,
+      `SOURCE: ${s.script_line_ru || s.vo_ru || ""}`,
+      `DIALOGUE: ${dialogue}`,
+      `ON SCREEN: ${screenText}`,
+      `BLOCKING: ${s.blocking || ""}`,
       `VO: ${s.vo_ru || ""}`,
       `SFX: ${s.sfx || ""}`,
       ""
@@ -381,12 +420,14 @@ function ProjectSetupPanelV40({
   clearTopicOnly, clearScriptOnly, clearSetupText, clearEverything,
   authLocked = false,
 }) {
-  const durationOptions = [30, 45, 60, 90, 120, 180, 300, 600];
+  const durationOptions = [30, 45, 60, 87, 90, 120, 180, 300, 600];
   const formatOptions = ["9:16", "16:9", "1:1", "4:5"];
   const modeOptions = [
     { id: "safe",          label: "Safe",          hint: "документально, без жёстких кадров" },
     { id: "raw",           label: "Raw",           hint: "меньше смягчения, больше фактуры" },
     { id: "script_strict", label: "📜 По сценарию", hint: "строго по тексту — AI не выдумывает действия" },
+    { id: "short_film",    label: "🎭 Short Film", hint: "сцены, диалоги, blocking, титры и reaction shots" },
+    { id: "trailer",       label: "🎬 Trailer", hint: "film locks, cast continuity, grid parts, до 10 минут" },
   ];
   const targetOptions = [
     { id: "veo3", label: "Veo 3", hint: "native audio, 8s shot logic" },
@@ -475,7 +516,7 @@ function ProjectSetupPanelV40({
             <div className="setup-pills-v40">
               {durationOptions.map((v) => (
                 <button key={v} className={Number(duration) === v ? "active" : ""} onClick={() => setDuration(v)} disabled={authLocked} type="button">
-                  {v < 60 ? `${v}с` : v === 60 ? "60с" : v < 300 ? `${v / 60}м` : `${v / 60}м`}
+                  {v === 87 ? "87с · 29к" : v < 60 ? `${v}с` : v === 60 ? "60с" : v < 300 ? `${v / 60}м` : `${v / 60}м`}
                 </button>
               ))}
             </div>
@@ -550,13 +591,16 @@ function ProjectSetupPanelV40({
 
 /* ─── main page ─── */
 export default function StudioPage() {
+  const pathname = usePathname();
+  const isTrailerRoute = String(pathname || "").startsWith("/trailer");
+  const defaultStoryboardMode = isTrailerRoute ? "trailer" : "safe";
 
   /* STEP 1 — Script */
-  const [projectName, setProjectName] = useState("NeuroCine Project");
+  const [projectName, setProjectName] = useState(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project");
   const [topic, setTopic]             = useState("");
   const [projectType, setProjectType] = useState("film");
   const [stylePreset, setStylePreset] = useState("cinematic");
-  const [duration, setDuration]       = useState(60);
+  const [duration, setDuration]       = useState(isTrailerRoute ? 87 : 60);
   const [aspectRatio, setAspect]      = useState("9:16");
   const [tone, setTone]               = useState("cinematic documentary thriller");
   const [script, setScript]           = useState("");
@@ -569,7 +613,7 @@ export default function StudioPage() {
   const [sbBusy, setSbBusy]   = useState(false);
   const [sbStat, setSbStat]   = useState("");
   const [jsonIn, setJsonIn]   = useState("");
-  const [sbMode, setSbMode]   = useState("safe");
+  const [sbMode, setSbMode]   = useState(defaultStoryboardMode);
   const [target, setTarget]   = useState("veo3"); // "veo3" | "grok" — целевая видео-модель
   const [validation, setValidation] = useState(null);
 
@@ -633,8 +677,10 @@ export default function StudioPage() {
     setAccount(prev => prev ? { ...prev, profile: { ...(prev.profile || {}), ...patch } } : prev);
   }, []);
   const storageOwnerId = account?.session?.user?.id || (account ? "guest" : "");
-  const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_TEXT, storageOwnerId) : "", [storageOwnerId]);
-  const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(BASE_KEY_IMGS, storageOwnerId) : "", [storageOwnerId]);
+  const draftTextBase = isTrailerRoute ? `${BASE_KEY_TEXT}:trailer` : BASE_KEY_TEXT;
+  const draftImgsBase = isTrailerRoute ? `${BASE_KEY_IMGS}:trailer` : BASE_KEY_IMGS;
+  const KEY_TEXT = useMemo(() => storageOwnerId ? scopedDraftKey(draftTextBase, storageOwnerId) : "", [storageOwnerId, draftTextBase]);
+  const KEY_IMGS = useMemo(() => storageOwnerId ? scopedDraftKey(draftImgsBase, storageOwnerId) : "", [storageOwnerId, draftImgsBase]);
   const t = UI_TEXT[uiLang] || UI_TEXT.ru;
   const [showRu, setShowRu]             = useState(false);
   const [showFrameRu, setShowFrameRu]   = useState(false);
@@ -729,7 +775,7 @@ export default function StudioPage() {
   const activeChunkScenes = chunks[activeChunk] || [];
 
   const autoParts = useMemo(() => splitScenesIntoParts(scenes, autoPartSize), [scenes, autoPartSize]);
-  const autoPartScenes = useMemo(() => scenes.slice(autoPartIndex * autoPartSize, autoPartIndex * autoPartSize + autoPartSize), [scenes, autoPartIndex, autoPartSize]);
+  const autoPartScenes = useMemo(() => autoParts[autoPartIndex] || [], [autoParts, autoPartIndex]);
   // Собираем CHARACTER OVERRIDE блок для движка
   const charOverrideBlock = charOverrideEnabled ? (() => {
     const mods = Object.entries(charModifiers).filter(([,v])=>v).map(([k]) => {
@@ -876,11 +922,11 @@ ${lines.join("\n")}` : "";
 
     // Always reset visible workspace before loading the draft for the current account.
     // This prevents admin/user/browser-account leakage after logout/login.
-    setProjectName("NeuroCine Project");
+    setProjectName(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project");
     setTopic("");
     setProjectType("film");
     setStylePreset("cinematic");
-    setDuration(60);
+    setDuration(isTrailerRoute ? 87 : 60);
     setAspect("9:16");
     setTone("cinematic documentary thriller");
     setScript("");
@@ -889,7 +935,7 @@ ${lines.join("\n")}` : "";
     setSbBusy(false);
     setSbStat("");
     setJsonIn("");
-    setSbMode("safe");
+    setSbMode(defaultStoryboardMode);
     setTarget("veo3");
     setValidation(null);
     setSBusy(false);
@@ -954,7 +1000,7 @@ ${lines.join("\n")}` : "";
 
     setSnapshotStatus(text?.local_save_warning ? "⚠ Локальный черновик загружен без тяжёлых prompt packs. Для полного сохранения используй Cloud Projects." : text ? "✓ Локальный черновик этого аккаунта загружен" : "");
     setHydrated(true);
-  }, [storageOwnerId, KEY_TEXT, KEY_IMGS]);
+  }, [storageOwnerId, KEY_TEXT, KEY_IMGS, isTrailerRoute, defaultStoryboardMode, liveAllowed]);
 
   /* ── AUTOSAVE WRITE (text) ── */
   useEffect(() => {
@@ -1052,15 +1098,15 @@ ${lines.join("\n")}` : "";
   }
 
   function clearEverything() {
-    setProjectName("NeuroCine Project");
+    setProjectName(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project");
     setTopic("");
     setTone("cinematic documentary thriller");
     setProjectType("film");
     setStylePreset("cinematic");
-    setDuration(60);
+    setDuration(isTrailerRoute ? 87 : 60);
     setAspect("9:16");
     setTarget("veo3");
-    setSbMode("safe");
+    setSbMode(defaultStoryboardMode);
     setScript("");
     setScriptValidation(null);
     setJsonIn("");
@@ -1548,9 +1594,14 @@ ${lines.join("\n")}` : "";
     downloadTextFile(JSON.stringify(obj, null, 2), safeFileName(projectName) + ".json", "application/json;charset=utf-8");
   }
   function exportTxt() {
-    const lines = [`NEUROCINE — ${projectName}\n\nСЦЕНАРИЙ:\n${script}\n\n--- STORYBOARD ---\n`];
+    const voiceLock = (storyboard?.voice_lock || []).map(formatVoiceLockLine).filter(Boolean).join("\n");
+    const lines = [`NEUROCINE — ${projectName}\n\nСЦЕНАРИЙ:\n${script}\n\n${voiceLock ? `--- VOICE LOCK ---\n${voiceLock}\n\n` : ""}--- STORYBOARD ---\n`];
     scenes.forEach(s => {
-      lines.push(`\n[${s.id}] ${s.start}s–${s.end ?? "?"}s | ${s.beat_type}\nVO: ${s.vo_ru}\nIMAGE: ${s.image_prompt_en}\nVIDEO: ${s.video_prompt_en}\nSFX: ${s.sfx}\n`);
+      const dialogue = Array.isArray(s.dialogue)
+        ? s.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+        : (s.dialogue || "");
+      const screenText = Array.isArray(s.on_screen_text) ? s.on_screen_text.join(" / ") : (s.on_screen_text || "");
+      lines.push(`\n[${s.id}] ${s.start}s–${s.end ?? "?"}s | ${s.beat_type || s.shot_role || "frame"}\nSOURCE: ${s.script_line_ru || s.vo_ru || ""}\nDIALOGUE: ${dialogue}\nON SCREEN: ${screenText}\nBLOCKING: ${s.blocking || ""}\nVO: ${s.vo_ru || ""}\nIMAGE: ${s.image_prompt_en}\nVIDEO: ${s.video_prompt_en}\nSFX: ${s.sfx}\n`);
     });
     downloadTextFile(lines.join(""), safeFileName(projectName) + ".txt");
   }
@@ -1559,14 +1610,19 @@ ${lines.join("\n")}` : "";
     downloadTextFile(txt, safeFileName(projectName) + "-flow-veo.txt");
   }
   function copyAllVo() {
-    const all = scenes.map(s => `[${s.id}] ${s.vo_ru || ""}`).join("\n\n");
+    const all = scenes.map((s) => {
+      const dialogue = Array.isArray(s.dialogue)
+        ? s.dialogue.map(formatDialogueLine).filter(Boolean).join(" / ")
+        : (s.dialogue || "");
+      return `[${s.id}] ${dialogue || s.vo_ru || ""}`;
+    }).join("\n\n");
     navigator.clipboard.writeText(all);
   }
 
   function clearAll() {
     localStorage.removeItem(KEY_TEXT); localStorage.removeItem(KEY_IMGS);
-    setScript(""); setTopic(""); setProjectName("NeuroCine Project"); setJsonIn("");
-    setSStat(""); setSbMode("safe"); setScriptValidation(null);
+    setScript(""); setTopic(""); setProjectName(isTrailerRoute ? "NeuroCine Trailer Project" : "NeuroCine Project"); setJsonIn("");
+    setSStat(""); setSbMode(defaultStoryboardMode); setScriptValidation(null);
     setSnapshotStatus("");
     resetStoryboardOutputs({ keepAnchors: false });
   }
@@ -1694,6 +1750,11 @@ ${lines.join("\n")}` : "";
 
   const handleCreateToolSelect = useCallback((tool) => {
     if (!tool) return;
+    const route = String(tool.route || "");
+    if (route.startsWith("/")) {
+      window.location.href = route;
+      return;
+    }
     const anchor = tool.anchor || String(tool.route || "").split("#")[1] || "setup";
     navigateToStudioAnchor(anchor);
     const label = tool.status === "active"
@@ -2391,9 +2452,29 @@ ${lines.join("\n")}` : "";
                   >
                     ⚡ Raw
                   </button>
+                  <button
+                    className={`btn${sbMode === "short_film" ? " btn-red" : ""}`}
+                    onClick={() => setSbMode("short_film")}
+                    style={{ flex: 1 }}
+                  >
+                    🎭 Film
+                  </button>
+                  <button
+                    className={`btn${sbMode === "trailer" ? " btn-red" : ""}`}
+                    onClick={() => setSbMode("trailer")}
+                    style={{ flex: 1 }}
+                  >
+                    🎬 Trailer
+                  </button>
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
-                  {sbMode === "safe" ? "Safe — документальный стиль, без жёсткого контента" : "Raw — сильная камера, интенсивная атмосфера, кинематографичнее"}
+                  {sbMode === "trailer"
+                    ? "Trailer — full frame plan, cast/location/style locks, balanced PART grids"
+                    : sbMode === "short_film"
+                    ? "Short Film — сценарные сцены, точные диалоги, blocking, титры и reaction shots"
+                    : sbMode === "safe"
+                      ? "Safe — документальный стиль, без жёсткого контента"
+                      : "Raw — сильная камера, интенсивная атмосфера, кинематографичнее"}
                 </div>
               </div>
 
@@ -2467,7 +2548,7 @@ ${lines.join("\n")}` : "";
                   <button className="btn btn-sm" onClick={exportJson}>⬇ .json</button>
                   <button className="btn btn-sm" onClick={exportTxt}>⬇ .txt</button>
                   <button className="btn btn-sm btn-red" onClick={exportFlow}>⬇ Flow/VEO</button>
-                  <button className="btn btn-sm" onClick={copyAllVo} title="Копировать все VO для TTS">📋 Все VO</button>
+                  <button className="btn btn-sm" onClick={copyAllVo} title="Копировать VO/диалоги для TTS с voice_id">📋 VO/Dialogues</button>
                 </div>
               )}
             </div>
@@ -2478,6 +2559,11 @@ ${lines.join("\n")}` : "";
                   {storyboard ? (
                     <>
                       <div style={{ color: "#22c55e", fontWeight: 900, marginBottom: 8 }}>✓ Storyboard JSON готов · {scenes.length} кадров</div>
+                      {Array.isArray(storyboard?.voice_lock) && storyboard.voice_lock.length > 0 && (
+                        <div style={{ fontSize: 12, marginBottom: 8 }}>
+                          Voice lock: {storyboard.voice_lock.map(v => `${v.character || v.name || "Character"}${v.voice_id ? ` [${v.voice_id}]` : ""}`).join(" · ")}
+                        </div>
+                      )}
                       Дальше работа идёт в блоке 03: FRAME GRID PROMPT → PART-сетка {autoPartGridLabel} → {autoPartCellLabels.join("/") || "кадр"} → video prompt из JSON.
                     </>
                   ) : (
@@ -2590,7 +2676,7 @@ ${lines.join("\n")}` : "";
                         <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${autoPartCols}, 1fr)`, gridTemplateRows: `repeat(${autoPartRows}, 1fr)` }}>
                           {autoPartScenes.map((s, localIdx) => {
                             const label = partCellLabel(localIdx);
-                            const globalIdx = autoPartIndex * autoPartSize + localIdx;
+                            const globalIdx = sceneGlobalIndex(s, scenes, localIdx);
                             const selected = frameIdx === globalIdx;
                             return (
                               <button
@@ -2650,7 +2736,7 @@ ${lines.join("\n")}` : "";
                       <div className="brow" style={{ marginBottom: 12 }}>
                         {autoPartScenes.map((s, localIdx) => {
                           const label = partCellLabel(localIdx);
-                          const globalIdx = autoPartIndex * autoPartSize + localIdx;
+                          const globalIdx = sceneGlobalIndex(s, scenes, localIdx);
                           const selected = frameIdx === globalIdx;
                           return (
                             <button
@@ -2751,7 +2837,7 @@ ${lines.join("\n")}` : "";
                         />
                         <div className="frame-card" style={{ marginTop: 12 }}>
                           <div className="frame-card-title">{curFrame.id}</div>
-                          <div className="frame-card-meta">PART {autoPartIndex + 1} · {curFrame.start ?? "?"}–{curFrame.end ?? "?"}s · {curFrame.beat_type || "frame"}</div>
+                          <div className="frame-card-meta">PART {autoPartIndex + 1} · {curFrame.start ?? "?"}–{curFrame.end ?? "?"}s · {curFrame.shot_role || curFrame.beat_type || "frame"}</div>
                           <button className="mini-toggle" onClick={() => setShowFrameRu(v => !v)}>
                             Описание RU {showFrameRu ? "▲" : "▼"}
                           </button>
@@ -2759,6 +2845,34 @@ ${lines.join("\n")}` : "";
                             <div className="frame-card-row">
                               <div className="frame-card-lbl">Описание</div>
                               <div className="frame-card-val">{curFrame.description_ru || curFrame.vo_ru || "—"}</div>
+                            </div>
+                          )}
+                          {curFrame.script_line_ru && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">Source</div>
+                              <div className="frame-card-val">{curFrame.script_line_ru}</div>
+                            </div>
+                          )}
+                          {Array.isArray(curFrame.dialogue) && curFrame.dialogue.length > 0 && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">Dialogue</div>
+                              <div className="frame-card-val">
+                                {curFrame.dialogue.map((line, i) => (
+                                  <div key={i}>{formatDialogueLine(line)}</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {Array.isArray(curFrame.on_screen_text) && curFrame.on_screen_text.length > 0 && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">On screen</div>
+                              <div className="frame-card-val">{curFrame.on_screen_text.join(" / ")}</div>
+                            </div>
+                          )}
+                          {curFrame.blocking && (
+                            <div className="frame-card-row">
+                              <div className="frame-card-lbl">Blocking</div>
+                              <div className="frame-card-val">{curFrame.blocking}</div>
                             </div>
                           )}
                           {curFrame.sfx && (
@@ -2884,6 +2998,7 @@ ${lines.join("\n")}` : "";
             script={script}
             genre={projectType}
             storyboard={storyboard}
+            styleProfile={styleProfile}
             lang={uiLang}
             devMode={effectiveDevMode}
             isSignedIn={isSignedIn}

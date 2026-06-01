@@ -96,6 +96,15 @@ generate scenes → SAFETY CONTROL → SCENE SCORING → AUTO-CHECK → output J
 mode parameter:
 - "safe" → GPT SAFE MODE (default): documentary phrasing, no explicit gore, no exposed body
 - "raw"  → GROK RAW MODE: stronger camera, intensity, atmosphere — still non-erotic, non-fetishized
+- "short_film" → SHORT FILM / DIALOGUE MODE: screenplay coverage with scripted dialogue, blocking, inserts, reaction shots and visible text fields
+- "trailer" → TRAILER STORYBOARD MODE: full film/trailer frame plan with cast_lock, location_lock, style_bible, grid continuity and long-form continuity up to 10 minutes
+
+TRAILER MODE PACING LAW:
+The opening PART must be a hook mini-arc, not a literal line-by-line dump.
+Compress abstract setup into one concrete hook image, introduce human stake by frame 2,
+show the inciting anomaly by frame 3, and show the first danger/trap/consequence by frame 4
+when those beats exist in the script. Use only exact source lines from the script; combine adjacent
+source lines in script_line_ru when needed, but never invent new story content.
 
 In SAFE mode, replace risky phrasing automatically:
   blood → "dark traces on fabric"
@@ -119,15 +128,16 @@ These models have DIFFERENT prompt expectations. You must adapt.
 - Order: shot type → subject → action → environment → camera → lighting → color → realism → audio
 - Camera movement MUST include explicit timing: "slow 2-second push-in", "static 3-second hold"
 - AUDIO BLOCK IS MANDATORY in video_prompt_en:
-    "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
-- Veo 3 generates native synchronized sound — use ambience and SFX only by default
+    "Audio: clean close-mic diegetic ASMR only, silence between cues. SFX: [specific visible physical details]. No background hum, drone, room tone, music, dialogue or voiceover."
+- Veo 3 generates native synchronized sound — use sparse silence and exact SFX only by default, never generic ambience
+- EXCEPTION: in mode="short_film", dialogue is allowed only when copied exactly from scene.dialogue. Use "Dialogue: exact scripted line only..." and still forbid improvised speech / narrator VO. Preserve voice_id from voice_lock for every speaking character.
 
 ## GROK IMAGINE PROMPT FORMAT
 - video_prompt_en: compact 40-80 words
 - VISUAL HOOK FIRST: first 8-12 words must be the strongest image
 - Use stylistic references instead of timing: "shot like a Roger Deakins documentary fragment"
 - Single action only — Grok breaks on multi-step actions
-- No Audio block needed inside prompt — audio is layered separately
+- No long Audio block needed inside prompt, but SFX must still say clean close-mic physical cues only; no hum, drone, room tone or music
 - Negative prompt has less weight in Grok — emphasize quality in positive prompt
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -172,6 +182,7 @@ FORBIDDEN STYLE TOKENS (these make output WORSE, not better):
 
 Every image_prompt_en MUST:
 - Start with "SCENE PRIMARY FOCUS:"
+- Be written in English. Russian is allowed only for exact dialogue text or exact on-screen text that must visibly appear in the frame.
 - Include PRIMARY character full description verbatim from character_lock
 - Include supporting characters briefly if present
 - Define ONE clear subject focus
@@ -193,20 +204,21 @@ SFX TRANSFER: move graphic content from VISUAL to AUDIO. Visual stays clean.
 ═══════════════════════════════════════════════════════════════════════════
 
 Every video_prompt_en MUST (regardless of target):
+- Be written in English. Russian is allowed only for exact dialogue text or exact on-screen text that must remain visible/synchronized.
 - Restate PRIMARY character full description
 - Include camera motion language
 - Include physical reaction and environment interaction
 - End EXACTLY with: "Maintain EXACT same character appearance, face, clothing, and condition as previous frame."
 
 VEO 3 specific:
-- Mandatory Audio block: "Audio: [ambience]. SFX: [details]. No dialogue, no voiceover."
+- Mandatory Audio block: "Audio: clean close-mic diegetic ASMR only, silence between cues. SFX: [specific visible physical details]. No background hum, drone, room tone, music, dialogue or voiceover."
 - Explicit timing on camera movement
 - Length: 60-120 words
 
 GROK specific:
 - Visual hook first 8-12 words
 - Stylistic reference (e.g., "shot like a Christopher Doyle Hong Kong night scene")
-- No Audio block inside prompt
+- No long Audio block inside prompt; include compact SFX and forbid hum/drone/room tone/music
 - Length: 40-80 words
 
 Safe mode action verbs: jerks, collapses, recoils, stumbles, struggles, loses balance,
@@ -223,14 +235,36 @@ vo_ru:
 - never include vo_ru, VO meaning, narration, speech, or dialogue inside image_prompt_en/video_prompt_en by default
 - documentary / trailer tone
 
+mode="short_film" exception:
+- Treat the script as screenplay, not narrator VO.
+- Put character speech in scene.dialogue as exact scripted lines.
+- Create root voice_lock for every speaking character: character, voice_id, voice_profile, delivery_arc.
+- Every scene.dialogue object must include speaker, voice_id, text, delivery. Reuse the same voice_id for that speaker from first frame to last.
+- Put visible titles, elevator panel text, photo captions and final title cards in scene.on_screen_text.
+- Add scene.script_line_ru, scene.blocking and scene.shot_role.
+- Do not invent any spoken line, caption, rule, location or character not present in the script.
+
+mode="trailer" exception:
+- Treat the script as one locked film/trailer production, not separate grids.
+- Create root cast_lock, location_lock, style_bible and grid_continuity.
+- Keep exact requested frame count even when odd, for example 27, 29, 31 or any custom count. Final grid PART may contain any remaining cell count; never add filler frames just to make a perfect 2x2.
+- For long format up to 10 minutes, preserve cast/location/style/voice locks across chunks.
+- Narrator VO stays in vo_ru. Character dialogue or supernatural whispers go in scene.dialogue with stable voice_id.
+- Never redesign recurring actors, wardrobe, office/elevator/corridor design, or supernatural rules between frames unless explicitly scripted.
+
 ═══════════════════════════════════════════════════════════════════════════
 # DURATION CONTROL — STRICT
 ═══════════════════════════════════════════════════════════════════════════
-For duration 30/60/90/120/180 seconds:
+For classic duration 30/60/90/120/180 seconds without custom target_scene_count:
 - target_scenes = duration / 3 (MANDATORY)
 - average scene duration = 3 seconds
 - each scene duration MUST be 2, 3, or 4 — NEVER 5+
 - total_duration MUST equal requested duration exactly
+
+If request includes target_scene_count / frame_seconds:
+- target_scene_count is authoritative
+- frame_seconds may be 2-10 seconds in trailer mode
+- total_duration MUST still equal requested duration exactly
 
 If running out of story content: add B-roll detail shots, reaction cutaways,
 atmospheric inserts. NEVER stretch a single scene beyond 4 seconds.
@@ -248,6 +282,7 @@ If any scene < 8 → rewrite until 8+.
 - valid JSON only, no markdown
 - one focus per frame
 - character_lock injected verbatim into every image_prompt and video_prompt
+- in mode="short_film", voice_lock exists and every dialogue line reuses the matching voice_id
 - image_prompt_en starts with "SCENE PRIMARY FOCUS:"
 - video_prompt_en ends with EXACT continuity sentence
 - NO banned style tokens (cinematic, 8k, masterpiece, perfect, etc.)
@@ -278,6 +313,32 @@ If broken → rewrite until valid.
       "physical_condition": "condition description"
     }
   ],
+  "voice_lock": [
+    {
+      "character": "Character Name",
+      "voice_id": "voice_01",
+      "voice_profile": "stable vocal identity and timbre",
+      "delivery_arc": "performance change across the story"
+    }
+  ],
+  "cast_lock": [
+    {
+      "id": "CHAR_01",
+      "role": "recurring character role",
+      "visual_identity": "same actor identity from first appearance to final frame",
+      "wardrobe": "locked clothing unless explicitly changed by script",
+      "forbidden_changes": "no different actor, no wardrobe drift, no age drift"
+    }
+  ],
+  "location_lock": {
+    "main": "recurring film location",
+    "materials": "locked materials and production design",
+    "lighting": "locked lighting family",
+    "spatial_rules": "how rooms/corridors/elevator connect",
+    "forbidden": "locations/designs that must not appear"
+  },
+  "style_bible": "locked trailer style, lens language, color grade, lighting, genre rhythm",
+  "grid_continuity": "PART 1 establishes locks; PART 2+ reuse locks and previous PART visual DNA; final PART can contain any remaining frame count",
   "postprocess": { "upscale": "x2", "final_upscale": "x4", "model": "real-esrgan", "provider": "replicate" },
   "scenes": [
     {
@@ -289,7 +350,11 @@ If broken → rewrite until valid.
       "image_prompt_en": "SCENE PRIMARY FOCUS: ...",
       "video_prompt_en": "...Maintain EXACT same character appearance, face, clothing, and condition as previous frame.",
       "vo_ru": "Текст диктора",
-      "sfx": "scene-matched ambience",
+      "dialogue": [{ "speaker": "Character Name", "voice_id": "voice_01", "text": "Exact scripted line", "delivery": "short performance note" }],
+      "on_screen_text": [],
+      "blocking": "",
+      "shot_role": "",
+      "sfx": "clean close physical SFX, silence between cues",
       "camera": "static medium shot",
       "transition": "cut",
       "cut_energy": "medium",
@@ -370,6 +435,26 @@ function extractJson(text = "") {
   throw new Error("Модель вернула неполный JSON — попробуйте ещё раз или уменьшите длительность видео");
 }
 
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function distributeTargetScenes(totalScenes, chunks = []) {
+  const total = Number(totalScenes);
+  if (!Number.isFinite(total) || total <= 0 || !chunks.length) return chunks.map(() => null);
+  const wanted = Math.max(1, Math.round(total));
+  const totalDuration = chunks.reduce((sum, chunk) => sum + Number(chunk.duration || 0), 0) || 1;
+  let assigned = 0;
+  return chunks.map((chunk, index) => {
+    if (index === chunks.length - 1) return Math.max(1, wanted - assigned);
+    const count = Math.max(1, Math.round((wanted * Number(chunk.duration || 0)) / totalDuration));
+    assigned += count;
+    return count;
+  });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // POST handler
 // ────────────────────────────────────────────────────────────────────────────
@@ -384,6 +469,13 @@ export async function POST(req) {
     const projectName = body.project_name || "NeuroCine Project";
     const mode = normalizeMode(body.mode || "safe");
     const target = normalizeTarget(body.target || "veo3");
+    const targetScenesRaw = body.target_scene_count ?? body.frame_count ?? body.frames;
+    const minScenesForDuration = Math.max(1, Math.ceil(duration / 10));
+    const maxScenesForDuration = Math.max(minScenesForDuration, Math.ceil(duration / 2));
+    const targetScenes = Number(targetScenesRaw) > 0 ? clampNumber(targetScenesRaw, minScenesForDuration, Math.min(300, maxScenesForDuration), null) : null;
+    const frameSeconds = clampNumber(body.frame_seconds ?? body.frame_duration_sec ?? body.frame_duration, 2, 10, 3);
+    const timingMode = String(body.timing_mode || body.timingMode || "").toLowerCase() === "auto" ? "auto" : "manual";
+    const storyboardTiming = { targetScenes, frameSeconds, timingMode };
 
     if (!script || script.length < 10) {
       return NextResponse.json({ error: "Сценарий слишком короткий." }, { status: 400 });
@@ -394,7 +486,7 @@ export async function POST(req) {
       return NextResponse.json({ error: accessGuard.message || "LIVE доступ закрыт", apiError: true, accessDenied: true }, { status: accessGuard.status || 403 });
     }
     const apiKeyOverride = accessGuard.apiKey;
-    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/storyboard", success: true, modelUsed: "storyboard_requested", metadata: usageMeta(body, { stream: body.stream === true, duration, target, mode }) });
+    await logUsageFromGuard(accessGuard, { req, endpoint: "/api/storyboard", success: true, modelUsed: "storyboard_requested", metadata: usageMeta(body, { stream: body.stream === true, duration, target, mode, targetScenes, frameSeconds, timingMode }) });
 
     // ── SSE STREAMING — всегда включён при stream: true ──────────────────────
     // Render рвёт соединение через ~100с если сервер молчит.
@@ -454,6 +546,7 @@ export async function POST(req) {
             if (isLongForm) {
               // ── Long-form: чанки по 90с ────────────────────────────────
               const chunks = getChunkPlan(duration);
+              const chunkSceneCounts = distributeTargetScenes(targetScenes, chunks);
               const scriptChunks = splitScriptForChunks(script, chunks);
               send("started", {
                 total_chunks: chunks.length,
@@ -469,6 +562,10 @@ export async function POST(req) {
 
               const chunkResults = [];
               let characterLockFromPrev = null;
+              let voiceLockFromPrev = null;
+              let castLockFromPrev = null;
+              let locationLockFromPrev = null;
+              let styleBibleFromPrev = null;
               let lastSceneFromPrev = null;
               let globalStyleLock = null;
               let lastModelUsed = null;
@@ -484,13 +581,15 @@ export async function POST(req) {
                   chunkDuration: ch.duration, chunkStart: ch.start,
                   totalDuration: duration, scriptForChunk: scriptChunks[i] || "",
                   globalScript: script, mode, target, aspectRatio,
-                  characterLockFromPrev, lastSceneFromPrev, globalStyleLock,
+                  targetScenes: chunkSceneCounts[i], frameSeconds, timingMode,
+                  characterLockFromPrev, voiceLockFromPrev, castLockFromPrev,
+                  locationLockFromPrev, styleBibleFromPrev, lastSceneFromPrev, globalStyleLock,
                 });
 
                 const result = await callOpenRouter({
                   taskType: TASK_TYPES.STORYBOARD_GENERATION,
                   systemPrompt: SYSTEM_PROMPT, userMessage: chunkUserMessage,
-                  temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+                  temperatureOverride: mode === "raw" ? 0.55 : mode === "trailer" ? 0.42 : mode === "short_film" ? 0.45 : 0.3,
                   responseFormat: { type: "json_object" },
                   appTitle: `NeuroCine Long-Form Chunk ${i + 1}/${chunks.length}`,
                   apiKeyOverride,
@@ -505,12 +604,20 @@ export async function POST(req) {
                 }
 
                 const parsedChunk = extractJson(result.content);
-                const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target);
+                const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target, { targetScenes: chunkSceneCounts[i], frameSeconds, timingMode });
                 if (i > 0 && characterLockFromPrev) normalizedChunk.character_lock = characterLockFromPrev;
+                if (i > 0 && voiceLockFromPrev) normalizedChunk.voice_lock = voiceLockFromPrev;
+                if (i > 0 && castLockFromPrev) normalizedChunk.cast_lock = castLockFromPrev;
+                if (i > 0 && locationLockFromPrev) normalizedChunk.location_lock = locationLockFromPrev;
+                if (i > 0 && styleBibleFromPrev) normalizedChunk.style_bible = styleBibleFromPrev;
                 if (globalStyleLock) normalizedChunk.global_style_lock = globalStyleLock;
 
                 chunkResults.push(normalizedChunk);
                 characterLockFromPrev = normalizedChunk.character_lock || characterLockFromPrev;
+                voiceLockFromPrev = normalizedChunk.voice_lock || voiceLockFromPrev;
+                castLockFromPrev = normalizedChunk.cast_lock || castLockFromPrev;
+                locationLockFromPrev = normalizedChunk.location_lock || locationLockFromPrev;
+                styleBibleFromPrev = normalizedChunk.style_bible || styleBibleFromPrev;
                 globalStyleLock = normalizedChunk.global_style_lock || globalStyleLock;
                 lastSceneFromPrev = extractLastSceneContext(normalizedChunk);
                 lastModelUsed = result.model_used;
@@ -522,7 +629,7 @@ export async function POST(req) {
 
               send("merging", { message: "Склеиваю chunks в единый storyboard JSON" });
               const mergedRaw = mergeChunks(chunkResults, duration);
-              const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target);
+              const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target, storyboardTiming);
               sbMerged.project_name = projectName;
               sbMerged.aspect_ratio = aspectRatio || sbMerged.aspect_ratio;
               const valMerged = validateStoryboard(sbMerged, mode, target);
@@ -540,11 +647,11 @@ export async function POST(req) {
                 return;
               }
 
-              const userInput = buildStoryboardUserPrompt({ script, duration, mode, target, aspectRatio });
+              const userInput = buildStoryboardUserPrompt({ script, duration, mode, target, aspectRatio, targetScenes, frameSeconds, timingMode });
               const result = await callOpenRouter({
                 taskType: TASK_TYPES.STORYBOARD_GENERATION,
                 systemPrompt: SYSTEM_PROMPT, userMessage: userInput,
-                temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+                temperatureOverride: mode === "raw" ? 0.55 : mode === "trailer" ? 0.42 : mode === "short_film" ? 0.45 : 0.3,
                 responseFormat: { type: "json_object" },
                 appTitle: "NeuroCine Storyboard Engine v2.2",
                 apiKeyOverride,
@@ -561,7 +668,7 @@ export async function POST(req) {
               }
 
               const parsed = extractJson(result.content);
-              const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target);
+              const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, storyboardTiming);
               storyboard.project_name = projectName;
               storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
               const validation = validateStoryboard(storyboard, mode, target);
@@ -618,6 +725,9 @@ export async function POST(req) {
       mode,
       target,
       aspectRatio,
+      targetScenes,
+      frameSeconds,
+      timingMode,
     });
 
     // Через modelRouter — STORYBOARD_GENERATION task с правильными defaults
@@ -625,7 +735,7 @@ export async function POST(req) {
       taskType: TASK_TYPES.STORYBOARD_GENERATION,
       systemPrompt: SYSTEM_PROMPT,
       userMessage: userInput,
-      temperatureOverride: mode === "raw" ? 0.55 : 0.3,
+      temperatureOverride: mode === "raw" ? 0.55 : mode === "trailer" ? 0.42 : mode === "short_film" ? 0.45 : 0.3,
       responseFormat: { type: "json_object" },
       appTitle: "NeuroCine Storyboard Engine v2.2",
       apiKeyOverride,
@@ -650,7 +760,7 @@ export async function POST(req) {
     }
 
     const parsed = extractJson(result.content);
-    const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target);
+    const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, storyboardTiming);
 
     storyboard.project_name = projectName;
     storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
