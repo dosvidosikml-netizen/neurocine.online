@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 const DEFAULT_NEGATIVE = "text, subtitles, captions, watermark, UI, logo, frame labels, numbers, contact sheet, gallery cards, nested grid, comic, illustration, painting, cartoon, anime, CGI, render, plastic skin";
+const DEFAULT_COMFY_PYTHON = process.platform === "win32"
+  ? "C:\\Users\\Admin\\AI\\ComfyUI\\.venv\\Scripts\\python.exe"
+  : "python3";
 
 function arg(name, fallback = "") {
   const flag = `--${name}`;
@@ -42,6 +49,87 @@ function normalizeImage(value) {
   return `data:image/png;base64,${raw}`;
 }
 
+function dataUrlToBuffer(value) {
+  const raw = String(value || "");
+  const base64 = raw.includes(",") ? raw.split(",").pop() : raw;
+  return Buffer.from(base64, "base64");
+}
+
+function runProcess(command, args = [], options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { ...options, windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => { stdout += chunk.toString(); });
+    child.stderr?.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(stderr || stdout || `${command} exited with code ${code}`));
+    });
+  });
+}
+
+async function composeGridWithPillow({ images, cols, rows, cellWidth, cellHeight, pythonBinary }) {
+  if (!images.length) throw new Error("No frame images to compose");
+  const tempRoot = await mkdir(path.join(tmpdir(), `neurocine-grid-${Date.now()}-${Math.random().toString(36).slice(2)}`), { recursive: true });
+  const manifestPath = path.join(tempRoot, "manifest.json");
+  const scriptPath = path.join(tempRoot, "compose_grid.py");
+  const outputPath = path.join(tempRoot, "grid.png");
+  try {
+    const files = [];
+    for (let i = 0; i < images.length; i += 1) {
+      const file = path.join(tempRoot, `frame_${String(i + 1).padStart(2, "0")}.png`);
+      await writeFile(file, dataUrlToBuffer(images[i]));
+      files.push(file);
+    }
+    await writeFile(manifestPath, JSON.stringify({
+      files,
+      output: outputPath,
+      cols,
+      rows,
+      cell_width: cellWidth,
+      cell_height: cellHeight,
+    }));
+    await writeFile(scriptPath, `
+import json
+import sys
+from PIL import Image
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+cols = int(data["cols"])
+rows = int(data["rows"])
+cell_w = int(data["cell_width"])
+cell_h = int(data["cell_height"])
+canvas = Image.new("RGB", (cols * cell_w, rows * cell_h), (0, 0, 0))
+
+for idx, file in enumerate(data["files"]):
+    if idx >= cols * rows:
+        break
+    img = Image.open(file).convert("RGB")
+    scale = max(cell_w / img.width, cell_h / img.height)
+    resized = img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))), Image.Resampling.LANCZOS)
+    left = max(0, (resized.width - cell_w) // 2)
+    top = max(0, (resized.height - cell_h) // 2)
+    crop = resized.crop((left, top, left + cell_w, top + cell_h))
+    x = (idx % cols) * cell_w
+    y = (idx // cols) * cell_h
+    canvas.paste(crop, (x, y))
+
+canvas.save(data["output"], "PNG", optimize=True)
+`, "utf8");
+    await runProcess(pythonBinary, [scriptPath, manifestPath]);
+    const buffer = await readFile(outputPath);
+    return `data:image/png;base64,${buffer.toString("base64")}`;
+  } catch (e) {
+    throw new Error(`Grid compose failed: ${e.message}. Install/keep Pillow in ComfyUI venv or pass --python to the local agent.`);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 function buildComfyWorkflow(payload = {}, checkpoint) {
   const width = Number(payload.width || 936);
   const height = Number(payload.height || 1664);
@@ -74,7 +162,7 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
       },
     },
     "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
-    "9": { class_type: "SaveImage", inputs: { filename_prefix: "neurocine_trailer_part", images: ["8", 0] } },
+    "9": { class_type: "SaveImage", inputs: { filename_prefix: payload.filename_prefix || "neurocine_trailer_part", images: ["8", 0] } },
   };
   let modelRef = ["4", 0];
   let clipRef = ["4", 1];
@@ -163,15 +251,68 @@ async function renderNeurocineWorker({ baseUrl, payload, partIndex }) {
   return image;
 }
 
+async function renderPayloadWithProvider({ provider, workerUrl, payload, partIndex, checkpoint }) {
+  if (provider === "automatic1111") return renderAutomatic1111({ baseUrl: workerUrl, payload });
+  if (provider === "neurocine-worker") return renderNeurocineWorker({ baseUrl: workerUrl, payload, partIndex });
+  return renderComfy({ baseUrl: workerUrl, payload, checkpoint });
+}
+
+async function renderFrameGrid(job, config, payload) {
+  const frames = Array.isArray(payload.frames) ? payload.frames.filter((frame) => frame?.prompt) : [];
+  if (!frames.length) throw new Error("Frame-by-frame grid mode needs payload.frames");
+  const cols = Math.max(1, Math.min(4, Number(payload.grid_cols || (frames.length <= 2 ? frames.length : 2)) || 2));
+  const rows = Math.max(1, Math.ceil(frames.length / cols));
+  const cellWidth = Math.max(256, Math.round(Number(payload.width || 936)));
+  const cellHeight = Math.max(384, Math.round(Number(payload.height || 1664)));
+  const rendered = [];
+
+  for (let i = 0; i < frames.length; i += 1) {
+    const frame = frames[i];
+    const framePayload = {
+      ...payload,
+      prompt: frame.prompt,
+      width: cellWidth,
+      height: cellHeight,
+      seed: -1,
+      filename_prefix: `neurocine_trailer_part_${String(job.part_index + 1).padStart(2, "0")}_frame_${String(i + 1).padStart(2, "0")}`,
+    };
+    delete framePayload.frames;
+    delete framePayload.workflow;
+    rendered.push(await renderPayloadWithProvider({
+      provider: config.provider,
+      workerUrl: config.workerUrl,
+      payload: framePayload,
+      partIndex: job.part_index,
+      checkpoint: config.checkpoint,
+    }));
+  }
+
+  return composeGridWithPillow({
+    images: rendered,
+    cols,
+    rows,
+    cellWidth,
+    cellHeight,
+    pythonBinary: config.python,
+  });
+}
+
 async function renderJob(job, config) {
   const payload = {
     ...(job.payload || {}),
     prompt: job.prompt,
     negative_prompt: job.negative_prompt || job.payload?.negative_prompt || DEFAULT_NEGATIVE,
   };
-  if (config.provider === "automatic1111") return renderAutomatic1111({ baseUrl: config.workerUrl, payload });
-  if (config.provider === "neurocine-worker") return renderNeurocineWorker({ baseUrl: config.workerUrl, payload, partIndex: job.part_index });
-  return renderComfy({ baseUrl: config.workerUrl, payload, checkpoint: config.checkpoint });
+  if (payload.render_mode === "frames_grid" && Array.isArray(payload.frames) && payload.frames.length) {
+    return renderFrameGrid(job, config, payload);
+  }
+  return renderPayloadWithProvider({
+    provider: config.provider,
+    workerUrl: config.workerUrl,
+    payload,
+    partIndex: job.part_index,
+    checkpoint: config.checkpoint,
+  });
 }
 
 async function pollQueue(config) {
@@ -206,6 +347,7 @@ async function main() {
     provider,
     workerUrl: cleanBaseUrl(arg("worker", defaultWorker), defaultWorker),
     checkpoint: arg("checkpoint", "sd_xl_base_1.0.safetensors"),
+    python: arg("python", process.env.COMFYUI_PYTHON || process.env.PYTHON || DEFAULT_COMFY_PYTHON),
     intervalMs: Math.max(1000, Number(arg("interval", "3000")) || 3000),
   };
 
@@ -216,6 +358,7 @@ async function main() {
 
   console.log(`[NeuroCine Agent] site=${config.siteUrl}`);
   console.log(`[NeuroCine Agent] provider=${config.provider} worker=${config.workerUrl}`);
+  console.log(`[NeuroCine Agent] grid composer python=${config.python}`);
   console.log("[NeuroCine Agent] ждёт задания...");
 
   while (true) {
