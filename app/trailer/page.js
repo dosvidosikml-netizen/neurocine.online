@@ -6,29 +6,7 @@ import { STYLE_PRESETS, getStyleProfile } from "../../engine/directorEngine_v4";
 import { splitScenesIntoParts, buildFlowCompactPartPrompt } from "../../engine/autoChainEngine";
 import { exactTextLine, promptListEnglish, toPromptEnglish } from "../../engine/promptLanguage";
 
-const DEFAULT_SCRIPT = `В каждом здании есть этаж, которого не должно существовать.
-Ночью, когда офис пустеет...
-и последний лифт почему-то стоит открытым...
-лучше не заходить внутрь.
-Трое сотрудников задержались после работы.
-На панели лифта появилась кнопка: -1.
-Лифт начал ехать вниз слишком долго.
-На дисплее появилась надпись: Не смотрите в угол.
-Но они посмотрели.
-В углу лифта стоял человек.
-Когда двери открылись, перед ними оказался тот же офис.
-Но что-то было неправильно.
-Коридоры становились длиннее.
-На старой фотографии были они сами.
-Подпись гласила: Пропали без вести. 2006 год.
-Вдалеке снова появился тот человек.
-Лифт забирает только тех, кто уже должен был исчезнуть.
-Когда двери лифта наконец открылись, внутри не было кабины.
-Только чёрная пустота.
-Внутри стояла его копия.
-Она улыбнулась и сказала: Ты уже нажимал эту кнопку.
-Лифт на минус первый.
-Следующий этаж... твой.`;
+const DEFAULT_SCRIPT = "";
 
 const MIN_TOTAL_DURATION = 2;
 const MAX_TOTAL_DURATION = 600;
@@ -1219,7 +1197,7 @@ async function requestLocalPartImage({ workerUrl, provider, payload, partIndex }
 }
 
 export default function TrailerStoryboardPage() {
-  const [projectName, setProjectName] = useState("Лифт на минус первый");
+  const [projectName, setProjectName] = useState("");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [duration, setDuration] = useState(87);
   const [frameSeconds, setFrameSeconds] = useState(3);
@@ -1520,8 +1498,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         return;
       }
       const draft = JSON.parse(raw);
-      if (draft.projectName) setProjectName(draft.projectName);
-      if (draft.script) setScript(draft.script);
+      if (draft.projectName !== undefined) setProjectName(draft.projectName);
+      if (draft.script !== undefined) setScript(draft.script);
       if (draft.duration) setDuration(Number(draft.duration));
       if (draft.frameSeconds) setFrameSeconds(Number(draft.frameSeconds));
       if (typeof draft.autoTiming === "boolean") setAutoTiming(draft.autoTiming);
