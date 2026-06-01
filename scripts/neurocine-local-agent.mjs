@@ -30,16 +30,63 @@ function cleanBaseUrl(value, fallback) {
 }
 
 async function fetchJson(url, options = {}, timeoutMs = 600000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || json.detail || `HTTP ${res.status}`);
-    return json;
-  } finally {
-    clearTimeout(timer);
+  return fetchJsonWithRetry(url, options, timeoutMs, 4);
+}
+
+function isTransientFetchError(error = {}) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("fetch failed")
+    || message.includes("aborted")
+    || message.includes("network")
+    || message.includes("timeout")
+    || message.includes("http 429")
+    || message.includes("http 500")
+    || message.includes("http 502")
+    || message.includes("http 503")
+    || message.includes("http 504");
+}
+
+async function fetchJsonWithRetry(url, options = {}, timeoutMs = 600000, attempts = 4) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || json.detail || `HTTP ${res.status}`);
+      return json;
+    } catch (e) {
+      lastError = e;
+      if (!isTransientFetchError(e) || attempt >= attempts) throw e;
+      await sleep(Math.min(1200 * attempt, 5000));
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw lastError || new Error("fetch failed");
+}
+
+async function fetchDataUrlWithRetry(url, timeoutMs = 120000, attempts = 4) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const contentType = res.headers.get("content-type") || "image/png";
+      const buffer = Buffer.from(await res.arrayBuffer());
+      return `data:${contentType};base64,${buffer.toString("base64")}`;
+    } catch (e) {
+      lastError = e;
+      if (!isTransientFetchError(e) || attempt >= attempts) throw e;
+      await sleep(Math.min(1200 * attempt, 5000));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError || new Error("image fetch failed");
 }
 
 function normalizeImage(value) {
@@ -222,11 +269,7 @@ async function renderComfy({ baseUrl, payload, checkpoint }) {
     subfolder: image.subfolder || "",
     type: image.type || "output",
   });
-  const res = await fetch(`${baseUrl}/view?${params.toString()}`);
-  if (!res.ok) throw new Error(`ComfyUI image download failed: HTTP ${res.status}`);
-  const contentType = res.headers.get("content-type") || "image/png";
-  const buffer = Buffer.from(await res.arrayBuffer());
-  return `data:${contentType};base64,${buffer.toString("base64")}`;
+  return fetchDataUrlWithRetry(`${baseUrl}/view?${params.toString()}`, 120000, 4);
 }
 
 async function renderAutomatic1111({ baseUrl, payload }) {
