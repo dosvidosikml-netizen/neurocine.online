@@ -1207,6 +1207,7 @@ export default function TrailerStoryboardPage() {
   const [localWorkerUrl, setLocalWorkerUrl] = useState(DEFAULT_LOCAL_WORKER_URL);
   const [localRenderProvider, setLocalRenderProvider] = useState(DEFAULT_LOCAL_RENDER_PROVIDER);
   const [localRenderBusy, setLocalRenderBusy] = useState(false);
+  const [localRenderAction, setLocalRenderAction] = useState("");
   const [localRenderJobs, setLocalRenderJobs] = useState({});
   const [localAgentToken, setLocalAgentToken] = useState("");
   const [localQueueJobs, setLocalQueueJobs] = useState({});
@@ -1433,6 +1434,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   async function refreshLocalQueueJobs(quiet = false) {
     const entries = Object.values(localQueueJobs || {}).filter((job) => job?.id);
     if (!entries.length || !localAgentToken) return;
+    if (!quiet) setLocalRenderAction("refresh");
     try {
       const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
         method: "POST",
@@ -1452,13 +1454,18 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         } else if (job.status === "failed") {
           updateLocalRenderJob(job.part_index, { status: "error", message: job.error || "ошибка агента" });
         } else {
-          updateLocalRenderJob(job.part_index, { status: job.status === "running" ? "rendering" : "", message: job.status === "running" ? "агент рендерит..." : "в очереди" });
+          updateLocalRenderJob(job.part_index, {
+            status: job.status === "running" ? "rendering" : "queued",
+            message: job.status === "running" ? "агент рендерит..." : "в очереди",
+          });
         }
       }
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
       if (!quiet) setStatus(`Очередь обновлена: ${Object.keys(nextJobs).length} заданий`);
     } catch (e) {
       if (!quiet) setError(`Не удалось обновить очередь: ${e.message}`);
+    } finally {
+      if (!quiet) setLocalRenderAction("");
     }
   }
 
@@ -1640,6 +1647,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalWorkerUrl(DEFAULT_LOCAL_WORKER_URL);
     setLocalRenderProvider(DEFAULT_LOCAL_RENDER_PROVIDER);
     setLocalRenderBusy(false);
+    setLocalRenderAction("");
     setLocalRenderJobs({});
     setLocalAgentToken(makeLocalAgentToken());
     setLocalQueueJobs({});
@@ -1753,6 +1761,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   async function checkLocalRenderWorker() {
     setError("");
     setLocalRenderBusy(true);
+    setLocalRenderAction("check");
     setStatus("Проверяю локальный генератор на ПК...");
     try {
       const result = await requestLocalWorkerHealth({ workerUrl: localWorkerUrl, provider: localRenderProvider });
@@ -1761,6 +1770,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setError(`Локальный генератор не отвечает: ${e.message}. Запусти WebUI/Forge с --api или NeuroCine worker на этом адресе.`);
     } finally {
       setLocalRenderBusy(false);
+      setLocalRenderAction("");
     }
   }
 
@@ -1771,7 +1781,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setError("Сначала создай storyboard JSON и выбери PART.");
       return false;
     }
-    if (!keepQueueBusy) setLocalRenderBusy(true);
+    if (!keepQueueBusy) {
+      setLocalRenderBusy(true);
+      setLocalRenderAction("direct-current");
+    }
     setError("");
     setActivePart(partIndex);
     setSelectedFrameIndex(0);
@@ -1795,7 +1808,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setError(`PART ${partIndex + 1}: ${e.message || "локальная генерация не удалась"}`);
       return false;
     } finally {
-      if (!keepQueueBusy) setLocalRenderBusy(false);
+      if (!keepQueueBusy) {
+        setLocalRenderBusy(false);
+        setLocalRenderAction("");
+      }
     }
   }
 
@@ -1809,6 +1825,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       return;
     }
     setLocalRenderBusy(true);
+    setLocalRenderAction("direct-all");
     setError("");
     let done = 0;
     try {
@@ -1820,11 +1837,15 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setStatus(`Локальная очередь завершена: ${done}/${parts.length} PART готово.`);
     } finally {
       setLocalRenderBusy(false);
+      setLocalRenderAction("");
     }
   }
 
   async function queuePartsForLocalAgent(partIndexes = []) {
+    const actionName = partIndexes.length === 1 ? "queue-current" : "queue-all";
+    setLocalRenderAction(actionName);
     if (!parts.length || !storyboard) {
+      setLocalRenderAction("");
       setError("Сначала создай storyboard JSON.");
       return;
     }
@@ -1848,10 +1869,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         };
       }).filter((job) => job.prompt);
     } catch (e) {
+      setLocalRenderAction("");
       setError(`Ошибка настроек модели/workflow: ${e.message}`);
       return;
     }
     if (!jobs.length) {
+      setLocalRenderAction("");
       setError("Не удалось собрать PART-промты для очереди.");
       return;
     }
@@ -1859,6 +1882,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalRenderBusy(true);
     setError("");
     setStatus(`Создаю очередь для локального агента: ${jobs.length} PART...`);
+    indexes.forEach((partIndex) => {
+      updateLocalRenderJob(partIndex, { status: "queued", message: "ставлю в очередь..." });
+    });
     try {
       const authToken = await getAuthToken();
       if (!authToken) throw new Error("Для облачной очереди нужно войти через Google.");
@@ -1879,14 +1905,18 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       const nextJobs = {};
       for (const job of data.jobs || []) {
         nextJobs[job.part_index] = job;
-        updateLocalRenderJob(job.part_index, { status: "", message: "в очереди агента" });
+        updateLocalRenderJob(job.part_index, { status: "queued", message: "в очереди агента" });
       }
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
       setStatus(`Очередь создана: ${Object.keys(nextJobs).length} PART. Запусти Local Agent на ПК.`);
     } catch (e) {
+      indexes.forEach((partIndex) => {
+        updateLocalRenderJob(partIndex, { status: "error", message: "очередь не создана" });
+      });
       setError(`Очередь не создана: ${e.message}`);
     } finally {
       setLocalRenderBusy(false);
+      setLocalRenderAction("");
     }
   }
 
@@ -2002,6 +2032,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         button{border:0;border-radius:6px;padding:11px 13px;background:#242936;color:#f7f3ea;font-weight:900;cursor:pointer}
         button.primary{background:#e3344f;color:white}
         button.danger{background:#3a121b;color:#ffb3bd;border:1px solid rgba(227,52,79,.35)}
+        button.action-queue{background:#e3344f;color:#fff;border:1px solid rgba(255,179,189,.35);box-shadow:0 0 0 1px rgba(227,52,79,.18)}
+        button.action-check,button.action-refresh{background:#173a31;color:#b7ffe3;border:1px solid rgba(158,232,201,.32)}
+        button.action-direct{background:#4a3211;color:#ffdca6;border:1px solid rgba(255,196,112,.32)}
+        button.action-service{background:#191f2b;color:#d8def0;border:1px solid rgba(255,255,255,.12)}
+        button.is-working{filter:saturate(1.25);box-shadow:0 0 0 2px rgba(255,255,255,.14),0 0 24px rgba(227,52,79,.28)}
         button:disabled{opacity:.55;cursor:not-allowed}
         .pills{display:flex;gap:8px;flex-wrap:wrap}
         .pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);padding:8px 10px;border-radius:999px;font-size:12px}
@@ -2024,6 +2059,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .compact-area{min-height:86px}
         .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
         .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:8px 9px;font-size:12px;color:rgba(247,243,234,.70)}
+        .job.queued{border-color:rgba(255,196,112,.45);color:#ffdca6;background:rgba(74,50,17,.18)}
         .job.done{border-color:rgba(158,232,201,.40);color:#9ee8c9}
         .job.rendering{border-color:rgba(227,52,79,.45);color:#ffd6dc}
         .job.error{border-color:rgba(255,154,168,.50);color:#ff9aa8}
@@ -2191,15 +2227,25 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="prompt-head">
                     <h2>05 · Авто-генерация на локальном ПК</h2>
                     <div className="buttons">
-                      <button disabled={localRenderBusy} onClick={checkLocalRenderWorker}>Проверить ПК</button>
-                      <button className="primary" disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={generateCurrentPartOnLocalPc}>
-                        {localRenderBusy ? "Генерация..." : "Сгенерировать PART"}
+                      <button className={`action-check${localRenderAction === "check" ? " is-working" : ""}`} disabled={localRenderBusy} onClick={checkLocalRenderWorker}>
+                        {localRenderAction === "check" ? "Проверяю ПК..." : "Проверить ПК"}
                       </button>
-                      <button disabled={localRenderBusy || !storyboard || !parts.length} onClick={generateAllPartsOnLocalPc}>Авто все PART</button>
-                      <button disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={queueCurrentPartForLocalAgent}>В очередь PART</button>
-                      <button disabled={localRenderBusy || !storyboard || !parts.length} onClick={queueAllPartsForLocalAgent}>В очередь всё</button>
-                      <button disabled={localRenderBusy || !localAgentToken} onClick={() => refreshLocalQueueJobs(false)}>Обновить очередь</button>
-                      <button disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Команда агента</button>
+                      <button className={`action-direct${localRenderAction === "direct-current" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={generateCurrentPartOnLocalPc}>
+                        {localRenderAction === "direct-current" ? "Генерация PART..." : "Только ПК: PART"}
+                      </button>
+                      <button className={`action-direct${localRenderAction === "direct-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length} onClick={generateAllPartsOnLocalPc}>
+                        {localRenderAction === "direct-all" ? "Генерация всех..." : "Только ПК: все PART"}
+                      </button>
+                      <button className={`action-queue${localRenderAction === "queue-current" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={queueCurrentPartForLocalAgent}>
+                        {localRenderAction === "queue-current" ? "Ставлю PART..." : "В очередь PART"}
+                      </button>
+                      <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length} onClick={queueAllPartsForLocalAgent}>
+                        {localRenderAction === "queue-all" ? "Ставлю всё..." : "В очередь всё"}
+                      </button>
+                      <button className={`action-refresh${localRenderAction === "refresh" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={() => refreshLocalQueueJobs(false)}>
+                        {localRenderAction === "refresh" ? "Обновляю..." : "Обновить очередь"}
+                      </button>
+                      <button className="action-service" disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Команда агента</button>
                     </div>
                   </div>
                   <div className="row">
@@ -2247,7 +2293,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       );
                     }) : <span className="job">Сначала создай JSON раскадровки</span>}
                   </div>
-                  <div className="hint">Кнопки “Сгенерировать PART/Авто все PART” работают, когда сайт и генератор доступны друг другу напрямую. Кнопки “В очередь” нужны для телефона/удалённого сайта: сайт создаёт задания, а Local Agent на ПК забирает их и возвращает картинки.</div>
+                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Зелёные проверяют/обновляют состояние. Оранжевые “Только ПК” работают только когда сайт открыт на самом компьютере рядом с ComfyUI.</div>
                 </div>
 
                 <div className="uploadbox">
