@@ -413,6 +413,43 @@ function locationLockLine(lock = {}) {
   return Object.entries(lock).map(([key, value]) => value ? `${key}: ${toPromptEnglish(value, { fallback: "same locked location detail" })}` : "").filter(Boolean).join("; ");
 }
 
+function formatCastLock(storyboard = {}) {
+  const sourceCast = Array.isArray(storyboard?.cast_lock) && storyboard.cast_lock.length
+    ? storyboard.cast_lock
+    : Array.isArray(storyboard?.character_lock)
+      ? storyboard.character_lock.map((character, i) => ({
+          id: character.id || `CHAR_${String(i + 1).padStart(2, "0")}`,
+          role: character.role || character.name || character.character || `Character ${i + 1}`,
+          visual_identity: [character.description, character.face_features, character.hair, character.physical_condition].filter(Boolean).join("; "),
+          wardrobe: character.wardrobe || character.clothing || "",
+          forbidden_changes: character.forbidden_changes || "no different actor, no age drift, no face drift, no wardrobe drift unless the script explicitly changes it",
+        }))
+      : [];
+  return sourceCast.map((item, i) => {
+    if (!item || typeof item !== "object") return "";
+    const id = cleanText(item.id || `CHAR_${String(i + 1).padStart(2, "0")}`);
+    const role = toPromptEnglish(item.role || item.name || item.character || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
+    const identity = toPromptEnglish(item.visual_identity || item.must_appear_as || item.description || "", { fallback: "same actor identity, face, body type and emotional condition from first appearance" });
+    const wardrobe = toPromptEnglish(item.wardrobe || item.clothing || "", { fallback: "same wardrobe from first appearance" });
+    const forbidden = toPromptEnglish(item.forbidden_changes || "no actor redesign, no wardrobe drift, no age drift", { fallback: "no actor redesign, no wardrobe drift, no age drift" });
+    return `${id} / ${role}: ${[identity, wardrobe ? `wardrobe: ${wardrobe}` : "", `forbidden: ${forbidden}`].filter(Boolean).join("; ")}`;
+  }).filter(Boolean).join("\n");
+}
+
+function formatLocationLock(storyboard = {}) {
+  const location = storyboard?.location_lock;
+  if (!location || typeof location !== "object") {
+    return toPromptEnglish(storyboard?.world_lock || "same locked film location, materials, lighting and spatial logic", { fallback: "same locked film location, materials, lighting and spatial logic" });
+  }
+  return [
+    toPromptEnglish(location.main || location.main_location || location.location || "", { fallback: "same locked location" }),
+    location.materials ? `materials: ${toPromptEnglish(location.materials, { fallback: "same materials" })}` : "",
+    location.lighting ? `lighting: ${toPromptEnglish(location.lighting, { fallback: "same lighting" })}` : "",
+    location.spatial_rules ? `spatial rules: ${toPromptEnglish(location.spatial_rules, { fallback: "same spatial logic" })}` : "",
+    location.forbidden ? `forbidden: ${toPromptEnglish(location.forbidden, { fallback: "no unrelated location redesign" })}` : "",
+  ].filter(Boolean).map(cleanText).join("; ");
+}
+
 function promptList(value = "") {
   return promptListEnglish(value, "");
 }
