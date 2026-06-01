@@ -1264,6 +1264,42 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
   };
 }
 
+function agentHealthInfo(agent = null, nowMs = Date.now()) {
+  const lastSeen = agent?.last_seen_at || agent?.updated_at || "";
+  const lastMs = timeMs(lastSeen);
+  const ageMs = lastMs ? Math.max(0, nowMs - lastMs) : Infinity;
+  const online = Boolean(lastMs && ageMs < 25000);
+  const provider = agent?.provider === "automatic1111"
+    ? "Forge/A1111"
+    : agent?.provider === "neurocine-worker"
+      ? "NeuroCine worker"
+      : "ComfyUI";
+
+  if (!online) {
+    return {
+      status: "offline",
+      title: "ПК агент: нет связи",
+      detail: lastMs
+        ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Проверь, запущена ли команда агента на ПК.`
+        : "Сайт ещё не видел Local Agent с этим токеном.",
+    };
+  }
+
+  if (agent?.worker_ok === true) {
+    return {
+      status: "online",
+      title: "ПК агент онлайн",
+      detail: `${provider} отвечает. Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}.`,
+    };
+  }
+
+  return {
+    status: "warn",
+    title: "ПК агент онлайн, генератор не отвечает",
+    detail: `${provider}: ${agent?.worker_error || "нет ответа"}. Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}.`,
+  };
+}
+
 export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
@@ -1297,6 +1333,7 @@ export default function TrailerStoryboardPage() {
   const [localRenderJobs, setLocalRenderJobs] = useState({});
   const [localAgentToken, setLocalAgentToken] = useState("");
   const [localQueueJobs, setLocalQueueJobs] = useState({});
+  const [localAgentStatus, setLocalAgentStatus] = useState(null);
   const [localModelPreset, setLocalModelPreset] = useState(DEFAULT_LOCAL_MODEL_PRESET);
   const defaultLocalModel = LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
   const [localCheckpoint, setLocalCheckpoint] = useState(defaultLocalModel.checkpoint);
@@ -1379,6 +1416,7 @@ export default function TrailerStoryboardPage() {
       : base;
   }, [localAgentToken, localRenderProvider, localWorkerUrl, localCheckpoint, defaultLocalModel.checkpoint]);
   const activeLocalModelPreset = LOCAL_MODEL_PRESETS[localModelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+  const localAgentHealth = useMemo(() => agentHealthInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
 
   function buildPartPromptForIndex(partIndex, includeFix = true) {
     const part = parts[partIndex] || [];
@@ -1520,7 +1558,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
 
   async function refreshLocalQueueJobs(quiet = false) {
     const entries = Object.values(localQueueJobs || {}).filter((job) => job?.id);
-    if (!entries.length || !localAgentToken) return;
+    if (!localAgentToken) return;
     if (!quiet) setLocalRenderAction("refresh");
     if (!quiet) setLocalRenderNotice({ type: "working", message: "Обновляю очередь агента..." });
     try {
@@ -1533,6 +1571,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           ids: entries.map((job) => job.id),
         }),
       }, 30000);
+      if (data.agent !== undefined) setLocalAgentStatus(data.agent || null);
       const nextJobs = {};
       for (const job of data.jobs || []) {
         nextJobs[job.part_index] = job;
@@ -1638,8 +1677,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
 
   useEffect(() => {
     const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
-    if (!active || !localAgentToken) return undefined;
-    const timer = window.setInterval(() => refreshLocalQueueJobs(true), 4000);
+    if (!localAgentToken) return undefined;
+    const timer = window.setInterval(() => refreshLocalQueueJobs(true), active ? 4000 : 8000);
     refreshLocalQueueJobs(true);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1647,10 +1686,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
 
   useEffect(() => {
     const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
-    if (!active) return undefined;
+    const hasAgentStatus = Boolean(localAgentStatus?.last_seen_at || localAgentStatus?.updated_at);
+    if (!active && !hasAgentStatus) return undefined;
     const timer = window.setInterval(() => setQueueClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [localQueueJobs]);
+  }, [localQueueJobs, localAgentStatus]);
 
   function restoreSavedDraft() {
     try {
@@ -1750,6 +1790,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalRenderJobs({});
     setLocalAgentToken(makeLocalAgentToken());
     setLocalQueueJobs({});
+    setLocalAgentStatus(null);
     setLocalModelPreset(DEFAULT_LOCAL_MODEL_PRESET);
     setLocalCheckpoint(defaultLocalModel.checkpoint);
     setLocalLoras("");
@@ -2221,6 +2262,15 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .local-notice.working{border-color:rgba(255,196,112,.45);background:rgba(74,50,17,.20);color:#ffdca6}
         .local-notice.success{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.30);color:#b7ffe3}
         .local-notice.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32);color:#ffb3bd}
+        .agent-health{border:1px solid rgba(255,255,255,.12);background:#10131b;border-radius:6px;padding:10px 12px;display:grid;gap:4px}
+        .agent-health strong{font-size:13px}
+        .agent-health span{font-size:12px;line-height:1.45;color:rgba(247,243,234,.64)}
+        .agent-health.online{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.22)}
+        .agent-health.online strong{color:#b7ffe3}
+        .agent-health.warn{border-color:rgba(255,196,112,.48);background:rgba(74,50,17,.24)}
+        .agent-health.warn strong{color:#ffdca6}
+        .agent-health.offline{border-color:rgba(255,154,168,.45);background:rgba(58,18,27,.22)}
+        .agent-health.offline strong{color:#ffb3bd}
         .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
         .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:9px 10px;font-size:12px;color:rgba(247,243,234,.70);display:grid;gap:6px}
         .job-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -2431,6 +2481,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   </div>
                   <div className={`local-notice ${localRenderNotice.type || "idle"}`}>
                     {localRenderNotice.message}
+                  </div>
+                  <div className={`agent-health ${localAgentHealth.status}`}>
+                    <strong>{localAgentHealth.title}</strong>
+                    <span>{localAgentHealth.detail}</span>
                   </div>
                   <div className="row">
                     <label>Адрес локального генератора<input value={localWorkerUrl} onChange={(e) => setLocalWorkerUrl(e.target.value)} placeholder={DEFAULT_LOCAL_WORKER_URL} /></label>

@@ -39,6 +39,21 @@ function publicJob(row = {}) {
   };
 }
 
+function publicAgent(row = {}) {
+  const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+  const lastSeenAt = row.updated_at || row.created_at || "";
+  const workerOk = payload.worker_ok === true;
+  return {
+    online: Boolean(lastSeenAt),
+    provider: payload.provider || row.provider || "comfyui",
+    worker_url: payload.worker_url || "",
+    worker_ok: workerOk,
+    worker_error: payload.worker_error || row.error || "",
+    last_seen_at: lastSeenAt,
+    updated_at: row.updated_at || "",
+  };
+}
+
 function insertMemory(rows = []) {
   const saved = rows.map((row) => {
     const next = {
@@ -52,6 +67,30 @@ function insertMemory(rows = []) {
     return next;
   });
   return saved;
+}
+
+function memoryHeartbeat(agentToken, patch = null) {
+  const existing = Array.from(memoryStore.values()).find((row) => row.agent_token === agentToken && row.status === "agent_heartbeat");
+  if (!patch) return existing ? publicAgent(existing) : null;
+  const next = existing
+    ? { ...existing, ...patch, updated_at: nowIso() }
+    : {
+        id: randomUUID(),
+        user_id: null,
+        agent_token: agentToken,
+        project_name: "NeuroCine Local Agent",
+        part_index: -1,
+        part_label: "AGENT HEARTBEAT",
+        status: "agent_heartbeat",
+        prompt: "__heartbeat__",
+        negative_prompt: "",
+        image_data: "",
+        created_at: nowIso(),
+        updated_at: nowIso(),
+        ...patch,
+      };
+  memoryStore.set(next.id, next);
+  return publicAgent(next);
 }
 
 function listMemory({ agentToken, ids = [], limit = 10, pendingOnly = false }) {
@@ -175,11 +214,101 @@ async function completeJob(body) {
   return NextResponse.json({ ok: true, mode: "memory", job: publicJob(row) });
 }
 
+async function getAgentStatus(agentToken) {
+  if (!agentToken) return null;
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .select("id,agent_token,project_name,part_index,part_label,provider,status,payload,error,created_at,updated_at")
+      .eq("agent_token", agentToken)
+      .eq("status", "agent_heartbeat")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error && data) return publicAgent(data);
+    if (error && !isMissingTableError(error)) throw error;
+  }
+  return memoryHeartbeat(agentToken);
+}
+
+async function heartbeatAgent(body) {
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+
+  const payload = {
+    provider: String(body.provider || "comfyui").slice(0, 40),
+    worker_url: String(body.worker_url || body.workerUrl || "").slice(0, 400),
+    worker_ok: body.worker_ok === true || body.workerOk === true,
+    worker_error: String(body.worker_error || body.workerError || "").slice(0, 800),
+    agent_version: String(body.agent_version || body.agentVersion || "local-agent").slice(0, 80),
+  };
+  const patch = {
+    provider: payload.provider,
+    payload,
+    error: payload.worker_ok ? "" : payload.worker_error,
+    completed_at: null,
+    started_at: nowIso(),
+  };
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data: existing, error: selectError } = await admin
+      .from(TABLE)
+      .select("id")
+      .eq("agent_token", agentToken)
+      .eq("status", "agent_heartbeat")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (selectError && !isMissingTableError(selectError)) return NextResponse.json({ ok: false, error: selectError.message }, { status: 500 });
+
+    if (existing?.id) {
+      const { data, error } = await admin
+        .from(TABLE)
+        .update({ ...patch, updated_at: nowIso() })
+        .eq("id", existing.id)
+        .eq("agent_token", agentToken)
+        .select("id,agent_token,project_name,part_index,part_label,provider,status,payload,error,created_at,updated_at")
+        .maybeSingle();
+      if (!error) return NextResponse.json({ ok: true, mode: "supabase", agent: publicAgent(data || {}) });
+      if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    } else {
+      const { data, error } = await admin
+        .from(TABLE)
+        .insert({
+          user_id: null,
+          agent_token: agentToken,
+          project_name: "NeuroCine Local Agent",
+          part_index: -1,
+          part_label: "AGENT HEARTBEAT",
+          provider: payload.provider,
+          status: "agent_heartbeat",
+          prompt: "__heartbeat__",
+          negative_prompt: "",
+          payload,
+          image_data: "",
+          error: payload.worker_ok ? "" : payload.worker_error,
+          started_at: nowIso(),
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        })
+        .select("id,agent_token,project_name,part_index,part_label,provider,status,payload,error,created_at,updated_at")
+        .maybeSingle();
+      if (!error) return NextResponse.json({ ok: true, mode: "supabase", agent: publicAgent(data || {}) });
+      if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+  }
+
+  const agent = memoryHeartbeat(agentToken, patch);
+  return NextResponse.json({ ok: true, mode: "memory", agent });
+}
+
 async function statusJobs(body) {
   const agentToken = cleanToken(body.agent_token || body.agentToken);
   const ids = (Array.isArray(body.ids) ? body.ids : []).map((x) => String(x || "").trim()).filter(Boolean);
   if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
-  if (!ids.length) return NextResponse.json({ ok: true, jobs: [] });
+  if (!ids.length) return NextResponse.json({ ok: true, jobs: [], agent: await getAgentStatus(agentToken) });
 
   const admin = createAdminSupabase();
   if (admin) {
@@ -188,11 +317,11 @@ async function statusJobs(body) {
       .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at")
       .eq("agent_token", agentToken)
       .in("id", ids);
-    if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob) });
+    if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob), agent: await getAgentStatus(agentToken) });
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, mode: "memory", jobs: listMemory({ agentToken, ids, limit: ids.length }).map(publicJob) });
+  return NextResponse.json({ ok: true, mode: "memory", jobs: listMemory({ agentToken, ids, limit: ids.length }).map(publicJob), agent: await getAgentStatus(agentToken) });
 }
 
 export async function POST(req) {
@@ -202,6 +331,8 @@ export async function POST(req) {
     if (action === "create") return createJobs(req, body);
     if (action === "poll") return pollJobs(body);
     if (action === "complete") return completeJob(body);
+    if (action === "heartbeat") return heartbeatAgent(body);
+    if (action === "agent_status") return NextResponse.json({ ok: true, agent: await getAgentStatus(cleanToken(body.agent_token || body.agentToken)) });
     if (action === "status") return statusJobs(body);
     return NextResponse.json({ ok: false, error: "Неизвестное действие очереди." }, { status: 400 });
   } catch (e) {

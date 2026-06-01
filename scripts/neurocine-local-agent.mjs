@@ -381,6 +381,48 @@ async function completeQueueJob(config, job, result) {
   }, 120000);
 }
 
+async function fetchOk(url, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { method: "GET", signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return { ok: true, error: "" };
+  } catch (e) {
+    return { ok: false, error: e.message || "worker offline" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function checkWorkerStatus(config) {
+  if (config.provider === "automatic1111") {
+    return fetchOk(`${config.workerUrl}/sdapi/v1/options`, 5000);
+  }
+  if (config.provider === "neurocine-worker") {
+    return fetchOk(`${config.workerUrl}/health`, 5000);
+  }
+  return fetchOk(`${config.workerUrl}/system_stats`, 5000);
+}
+
+async function sendHeartbeat(config, workerStatus = null) {
+  const worker = workerStatus || await checkWorkerStatus(config);
+  const heartbeat = await fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "heartbeat",
+      agent_token: config.token,
+      provider: config.provider,
+      worker_url: config.workerUrl,
+      worker_ok: worker.ok,
+      worker_error: worker.error,
+      agent_version: "neurocine-local-agent-v1",
+    }),
+  }, 15000);
+  return { heartbeat, worker };
+}
+
 async function main() {
   const provider = arg("provider", "comfyui");
   const defaultWorker = provider === "automatic1111" ? "http://127.0.0.1:7860" : "http://127.0.0.1:8188";
@@ -392,6 +434,7 @@ async function main() {
     checkpoint: arg("checkpoint", "sd_xl_base_1.0.safetensors"),
     python: arg("python", process.env.COMFYUI_PYTHON || process.env.PYTHON || DEFAULT_COMFY_PYTHON),
     intervalMs: Math.max(1000, Number(arg("interval", "3000")) || 3000),
+    heartbeatMs: Math.max(5000, Number(arg("heartbeat", "8000")) || 8000),
   };
 
   if (!config.token) {
@@ -403,9 +446,29 @@ async function main() {
   console.log(`[NeuroCine Agent] provider=${config.provider} worker=${config.workerUrl}`);
   console.log(`[NeuroCine Agent] grid composer python=${config.python}`);
   console.log("[NeuroCine Agent] ждёт задания...");
+  let lastHeartbeatAt = 0;
+  let lastWorkerStatus = { ok: false, error: "worker status not checked yet" };
 
   while (true) {
     try {
+      if (Date.now() - lastHeartbeatAt >= config.heartbeatMs) {
+        lastWorkerStatus = await checkWorkerStatus(config);
+        try {
+          const hb = await sendHeartbeat(config, lastWorkerStatus);
+          const agent = hb?.heartbeat?.agent || {};
+          const workerOk = agent.worker_ok ? "worker online" : `worker offline${agent.worker_error ? `: ${agent.worker_error}` : ""}`;
+          console.log(`[NeuroCine Agent] heartbeat: ${workerOk}`);
+        } catch (heartbeatError) {
+          console.error(`[NeuroCine Agent] heartbeat error: ${heartbeatError.message}`);
+        }
+        lastHeartbeatAt = Date.now();
+      }
+
+      if (!lastWorkerStatus.ok) {
+        await sleep(config.intervalMs);
+        continue;
+      }
+
       const queue = await pollQueue(config);
       const jobs = Array.isArray(queue.jobs) ? queue.jobs : [];
       if (!jobs.length) {
