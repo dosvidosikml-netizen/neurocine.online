@@ -45,6 +45,121 @@ const QUICK_PRESETS = [
 ];
 
 const TRAILER_DRAFT_KEY = "neurocine.trailerStoryboardDraft.v1";
+const LOCAL_WORKER_URLS = {
+  comfyui: "http://127.0.0.1:8188",
+  automatic1111: "http://127.0.0.1:7860",
+  "neurocine-worker": "http://127.0.0.1:8787",
+};
+const DEFAULT_LOCAL_RENDER_PROVIDER = "comfyui";
+const DEFAULT_LOCAL_WORKER_URL = LOCAL_WORKER_URLS[DEFAULT_LOCAL_RENDER_PROVIDER];
+const LOCAL_IMAGE_WIDTH = 936;
+const LOCAL_IMAGE_HEIGHT = 1664;
+const LOCAL_IMAGE_NEGATIVE = [
+  "text",
+  "subtitles",
+  "captions",
+  "watermark",
+  "UI",
+  "logo",
+  "frame labels",
+  "F01",
+  "F02",
+  "F03",
+  "F04",
+  "numbers",
+  "contact sheet",
+  "gallery cards",
+  "nested grid",
+  "comic",
+  "illustration",
+  "painting",
+  "cartoon",
+  "anime",
+  "CGI",
+  "render",
+  "plastic skin",
+].join(", ");
+const LOCAL_MODEL_PRESETS = {
+  sdxlProduction: {
+    label: "SDXL production реализм",
+    family: "sdxl",
+    checkpoint: "sd_xl_base_1.0.safetensors",
+    width: 936,
+    height: 1664,
+    steps: 28,
+    cfg: 6,
+    sampler: "dpmpp_2m",
+    a1111Sampler: "DPM++ 2M Karras",
+    scheduler: "karras",
+    note: "Рабочий режим для RTX 3060 12GB: стабильный, LoRA-ready, хороший для трейлерных PART-сеток.",
+  },
+  sdxlCinema: {
+    label: "SDXL cinematic checkpoint",
+    family: "sdxl",
+    checkpoint: "juggernautXL_v9Rundiffusionphoto2.safetensors",
+    width: 936,
+    height: 1664,
+    steps: 30,
+    cfg: 5.5,
+    sampler: "dpmpp_2m",
+    a1111Sampler: "DPM++ 2M Karras",
+    scheduler: "karras",
+    note: "Поставь реальное имя cinematic/photoreal checkpoint из папки ComfyUI/models/checkpoints.",
+  },
+  sdxlFastDraft: {
+    label: "SDXL быстрый черновик",
+    family: "sdxl",
+    checkpoint: "sd_xl_base_1.0.safetensors",
+    width: 768,
+    height: 1360,
+    steps: 18,
+    cfg: 5,
+    sampler: "dpmpp_2m",
+    a1111Sampler: "DPM++ 2M Karras",
+    scheduler: "karras",
+    note: "Быстро проверить логику кадров перед дорогим качеством.",
+  },
+  fluxQuality: {
+    label: "FLUX quality workflow",
+    family: "flux",
+    checkpoint: "flux1-dev-fp8.safetensors",
+    width: 768,
+    height: 1360,
+    steps: 22,
+    cfg: 1,
+    sampler: "euler",
+    a1111Sampler: "Euler",
+    scheduler: "simple",
+    note: "Топ-понимание промпта, но нужен ComfyUI workflow template с плейсхолдерами.",
+  },
+  fluxFast: {
+    label: "FLUX fast workflow",
+    family: "flux",
+    checkpoint: "flux1-schnell-fp8.safetensors",
+    width: 768,
+    height: 1360,
+    steps: 8,
+    cfg: 1,
+    sampler: "euler",
+    a1111Sampler: "Euler",
+    scheduler: "simple",
+    note: "Быстрые пробы FLUX, тоже через workflow template.",
+  },
+  custom: {
+    label: "Свой checkpoint / workflow",
+    family: "sdxl",
+    checkpoint: "",
+    width: 936,
+    height: 1664,
+    steps: 24,
+    cfg: 6,
+    sampler: "dpmpp_2m",
+    a1111Sampler: "DPM++ 2M Karras",
+    scheduler: "karras",
+    note: "Ручной режим: укажи checkpoint, LoRA и параметры сам.",
+  },
+};
+const DEFAULT_LOCAL_MODEL_PRESET = "sdxlProduction";
 
 const STYLE_LABELS_RU = {
   cinematic: "Кино-документальный",
@@ -894,6 +1009,178 @@ function renderGridCrop({ upload, frameIndex, frameCount, inset = 0, onDone }) {
   return () => { cancelled = true; };
 }
 
+function cleanLocalWorkerUrl(value) {
+  const raw = String(value || DEFAULT_LOCAL_WORKER_URL).trim();
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw || "127.0.0.1:7860"}`;
+  return withScheme.replace(/\/+$/, "") || DEFAULT_LOCAL_WORKER_URL;
+}
+
+function makeLocalAgentToken() {
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `agent_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeLocalImageData(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("data:image/")) return raw;
+  return `data:image/png;base64,${raw}`;
+}
+
+function escapeJsonStringContent(value) {
+  return JSON.stringify(String(value ?? "")).slice(1, -1);
+}
+
+function parseLocalLoras(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(/[,\|]/).map((x) => x.trim()).filter(Boolean);
+      const colonMatch = parts.length === 1 ? parts[0].match(/^(.+?):([0-9.]+)(?::([0-9.]+))?$/) : null;
+      const name = colonMatch ? colonMatch[1].trim() : parts[0];
+      const modelStrength = Number(colonMatch ? colonMatch[2] : parts[1]);
+      const clipStrength = Number(colonMatch ? (colonMatch[3] || colonMatch[2]) : (parts[2] || parts[1]));
+      return {
+        name,
+        strength_model: Number.isFinite(modelStrength) ? modelStrength : 0.65,
+        strength_clip: Number.isFinite(clipStrength) ? clipStrength : Number.isFinite(modelStrength) ? modelStrength : 0.65,
+      };
+    })
+    .filter((x) => x.name);
+}
+
+function workflowTemplateToJson(template, payload) {
+  const raw = String(template || "").trim();
+  if (!raw) return null;
+  const filled = raw
+    .replaceAll("__PROMPT__", escapeJsonStringContent(payload.prompt || ""))
+    .replaceAll("__NEGATIVE__", escapeJsonStringContent(payload.negative_prompt || ""))
+    .replaceAll("__WIDTH__", String(payload.width || LOCAL_IMAGE_WIDTH))
+    .replaceAll("__HEIGHT__", String(payload.height || LOCAL_IMAGE_HEIGHT))
+    .replaceAll("__STEPS__", String(payload.steps || 24))
+    .replaceAll("__CFG__", String(payload.cfg_scale || 6))
+    .replaceAll("__SEED__", String(Number(payload.seed) >= 0 ? payload.seed : Math.floor(Math.random() * 999999999)))
+    .replaceAll("__CHECKPOINT__", escapeJsonStringContent(payload.checkpoint || ""));
+  return JSON.parse(filled);
+}
+
+function buildLocalRenderPayload({
+  prompt,
+  provider,
+  modelPreset,
+  checkpoint,
+  loraText,
+  workflowTemplate,
+  width,
+  height,
+  steps,
+  cfg,
+}) {
+  const preset = LOCAL_MODEL_PRESETS[modelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+  const payload = {
+    prompt,
+    negative_prompt: LOCAL_IMAGE_NEGATIVE,
+    model_preset: modelPreset,
+    model_family: preset.family || "sdxl",
+    checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
+    width: clampNumber(width, 512, 1536, preset.width || LOCAL_IMAGE_WIDTH),
+    height: clampNumber(height, 768, 2048, preset.height || LOCAL_IMAGE_HEIGHT),
+    steps: clampNumber(steps, 4, 60, preset.steps || 24),
+    cfg_scale: clampNumber(cfg, 1, 12, preset.cfg || 6),
+    sampler_name: provider === "automatic1111" ? (preset.a1111Sampler || "DPM++ 2M Karras") : (preset.sampler || "dpmpp_2m"),
+    scheduler: preset.scheduler || "karras",
+    batch_size: 1,
+    n_iter: 1,
+    seed: -1,
+    loras: parseLocalLoras(loraText),
+  };
+  const workflow = workflowTemplateToJson(workflowTemplate, payload);
+  if (workflow) payload.workflow = workflow;
+  return payload;
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 600000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || json.detail || `HTTP ${res.status}`);
+    return json;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function requestLocalWorkerHealth({ workerUrl, provider }) {
+  const url = cleanLocalWorkerUrl(workerUrl);
+  const endpoint = provider === "automatic1111"
+    ? `${url}/sdapi/v1/sd-models`
+    : provider === "comfyui"
+      ? `${url}/system_stats`
+      : `${url}/health`;
+  try {
+    const data = await fetchJsonWithTimeout(endpoint, { method: "GET" }, 12000);
+    return { ok: true, mode: "direct", data };
+  } catch (directError) {
+    const data = await fetchJsonWithTimeout("/api/trailer/local-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "health", workerUrl: url, provider, direct_error: directError.message }),
+    }, 12000);
+    return { ok: true, mode: "proxy", data };
+  }
+}
+
+async function requestLocalPartImage({ workerUrl, provider, payload, partIndex }) {
+  const url = cleanLocalWorkerUrl(workerUrl);
+  const finalPayload = payload || {};
+
+  try {
+    if (provider === "automatic1111") {
+      const data = await fetchJsonWithTimeout(`${url}/sdapi/v1/txt2img`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalPayload),
+      });
+      const image = normalizeLocalImageData(data.images?.[0]);
+      if (!image) throw new Error("Automatic1111 не вернул изображение");
+      return { image, mode: "direct", provider };
+    }
+
+    if (provider === "comfyui") {
+      const data = await fetchJsonWithTimeout("/api/trailer/local-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "render", workerUrl: url, provider, payload: finalPayload, partIndex }),
+      });
+      const image = normalizeLocalImageData(data.image || data.data_url || data.dataUrl);
+      if (!image) throw new Error("ComfyUI не вернул изображение");
+      return { image, mode: "proxy", provider };
+    }
+
+    const data = await fetchJsonWithTimeout(`${url}/render-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...finalPayload, part_index: partIndex }),
+    });
+    const image = normalizeLocalImageData(data.image || data.data_url || data.dataUrl || data.images?.[0]);
+    if (!image) throw new Error("Локальный worker не вернул изображение");
+    return { image, mode: "direct", provider };
+  } catch (directError) {
+    const data = await fetchJsonWithTimeout("/api/trailer/local-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "render", workerUrl: url, provider, payload: finalPayload, partIndex, direct_error: directError.message }),
+    });
+    const image = normalizeLocalImageData(data.image || data.data_url || data.dataUrl);
+    if (!image) throw new Error(data.error || "Локальный proxy не вернул изображение");
+    return { image, mode: "proxy", provider };
+  }
+}
+
 export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("Лифт на минус первый");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
@@ -917,6 +1204,21 @@ export default function TrailerStoryboardPage() {
   const [draftReady, setDraftReady] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState("");
   const [showMasterPrompt, setShowMasterPrompt] = useState(false);
+  const [localWorkerUrl, setLocalWorkerUrl] = useState(DEFAULT_LOCAL_WORKER_URL);
+  const [localRenderProvider, setLocalRenderProvider] = useState(DEFAULT_LOCAL_RENDER_PROVIDER);
+  const [localRenderBusy, setLocalRenderBusy] = useState(false);
+  const [localRenderJobs, setLocalRenderJobs] = useState({});
+  const [localAgentToken, setLocalAgentToken] = useState("");
+  const [localQueueJobs, setLocalQueueJobs] = useState({});
+  const [localModelPreset, setLocalModelPreset] = useState(DEFAULT_LOCAL_MODEL_PRESET);
+  const defaultLocalModel = LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+  const [localCheckpoint, setLocalCheckpoint] = useState(defaultLocalModel.checkpoint);
+  const [localLoras, setLocalLoras] = useState("");
+  const [localWorkflowTemplate, setLocalWorkflowTemplate] = useState("");
+  const [localImageWidth, setLocalImageWidth] = useState(defaultLocalModel.width);
+  const [localImageHeight, setLocalImageHeight] = useState(defaultLocalModel.height);
+  const [localSteps, setLocalSteps] = useState(defaultLocalModel.steps);
+  const [localCfg, setLocalCfg] = useState(defaultLocalModel.cfg);
 
   const styleProfile = useMemo(() => getStyleProfile("film", stylePreset), [stylePreset]);
   const scenes = useMemo(() => (Array.isArray(storyboard?.scenes) ? storyboard.scenes : []), [storyboard]);
@@ -981,6 +1283,124 @@ export default function TrailerStoryboardPage() {
     frameLabelText: frameLabel(selectedScene, safeFrameIndex),
     hasCrop: Boolean(croppedFrame),
   }), [selectedScene, storyboard, styleProfile, safeFrameIndex, croppedFrame]);
+  const localAgentCommand = useMemo(() => {
+    const site = typeof window !== "undefined" ? window.location.origin : "https://www.neurocine.online";
+    const token = localAgentToken || "PASTE_AGENT_TOKEN";
+    const base = `npm run local-agent -- --site "${site}" --token "${token}" --provider ${localRenderProvider} --worker "${cleanLocalWorkerUrl(localWorkerUrl)}"`;
+    return localRenderProvider === "comfyui"
+      ? `${base} --checkpoint "${localCheckpoint || defaultLocalModel.checkpoint}"`
+      : base;
+  }, [localAgentToken, localRenderProvider, localWorkerUrl, localCheckpoint, defaultLocalModel.checkpoint]);
+  const activeLocalModelPreset = LOCAL_MODEL_PRESETS[localModelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+
+  function buildPartPromptForIndex(partIndex, includeFix = true) {
+    const part = parts[partIndex] || [];
+    if (!storyboard || !part.length) return "";
+    const layout = gridLayoutFor(part.length || partSize);
+    const partPrompt = buildFlowCompactPartPrompt({
+      storyboard,
+      styleProfile,
+      partScenes: part,
+      partIndex,
+      totalScenes: scenes.length,
+      partSize,
+      chainMode: "worldHero",
+      strictLevel: "maximum",
+      referenceMode: partIndex === 0 ? "heroOnly" : "heroAndPrevious",
+      appearanceMode: "full",
+    });
+    if (!includeFix) return partPrompt;
+    const fixPrompt = buildFlowGrokContinuityFixPrompt({
+      storyboard,
+      styleProfile,
+      partScenes: part,
+      partIndex,
+      gridLayout: layout,
+    });
+    return `${fixPrompt}\n\n${partPrompt}`.trim();
+  }
+
+  function updateLocalRenderJob(partIndex, patch) {
+    setLocalRenderJobs((prev) => ({
+      ...prev,
+      [partIndex]: { ...(prev[partIndex] || {}), ...patch },
+    }));
+  }
+
+  function changeLocalRenderProvider(nextProvider) {
+    const next = nextProvider || DEFAULT_LOCAL_RENDER_PROVIDER;
+    setLocalRenderProvider(next);
+    setLocalWorkerUrl((prev) => {
+      const current = cleanLocalWorkerUrl(prev);
+      const known = Object.values(LOCAL_WORKER_URLS).map(cleanLocalWorkerUrl);
+      return !prev || known.includes(current) ? (LOCAL_WORKER_URLS[next] || DEFAULT_LOCAL_WORKER_URL) : prev;
+    });
+  }
+
+  function applyLocalModelPreset(nextPreset) {
+    const presetKey = nextPreset || DEFAULT_LOCAL_MODEL_PRESET;
+    const preset = LOCAL_MODEL_PRESETS[presetKey] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+    setLocalModelPreset(presetKey);
+    if (preset.checkpoint) setLocalCheckpoint(preset.checkpoint);
+    setLocalImageWidth(preset.width || LOCAL_IMAGE_WIDTH);
+    setLocalImageHeight(preset.height || LOCAL_IMAGE_HEIGHT);
+    setLocalSteps(preset.steps || 24);
+    setLocalCfg(preset.cfg || 6);
+  }
+
+  function buildCurrentLocalPayload(prompt) {
+    return buildLocalRenderPayload({
+      prompt,
+      provider: localRenderProvider,
+      modelPreset: localModelPreset,
+      checkpoint: localCheckpoint,
+      loraText: localLoras,
+      workflowTemplate: localWorkflowTemplate,
+      width: localImageWidth,
+      height: localImageHeight,
+      steps: localSteps,
+      cfg: localCfg,
+    });
+  }
+
+  async function copyLocalAgentCommand() {
+    const token = localAgentToken || makeLocalAgentToken();
+    if (!localAgentToken) setLocalAgentToken(token);
+    await navigator.clipboard.writeText(localAgentCommand.replace("PASTE_AGENT_TOKEN", token));
+    setStatus("Команда локального агента скопирована");
+  }
+
+  async function refreshLocalQueueJobs(quiet = false) {
+    const entries = Object.values(localQueueJobs || {}).filter((job) => job?.id);
+    if (!entries.length || !localAgentToken) return;
+    try {
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "status",
+          agent_token: localAgentToken,
+          ids: entries.map((job) => job.id),
+        }),
+      }, 30000);
+      const nextJobs = {};
+      for (const job of data.jobs || []) {
+        nextJobs[job.part_index] = job;
+        if (job.status === "done" && job.image_data) {
+          setGridUploads((prev) => ({ ...prev, [job.part_index]: job.image_data }));
+          updateLocalRenderJob(job.part_index, { status: "done", message: "агент вернул сетку" });
+        } else if (job.status === "failed") {
+          updateLocalRenderJob(job.part_index, { status: "error", message: job.error || "ошибка агента" });
+        } else {
+          updateLocalRenderJob(job.part_index, { status: job.status === "running" ? "rendering" : "", message: job.status === "running" ? "агент рендерит..." : "в очереди" });
+        }
+      }
+      setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
+      if (!quiet) setStatus(`Очередь обновлена: ${Object.keys(nextJobs).length} заданий`);
+    } catch (e) {
+      if (!quiet) setError(`Не удалось обновить очередь: ${e.message}`);
+    }
+  }
 
   useEffect(() => {
     try {
@@ -1005,8 +1425,21 @@ export default function TrailerStoryboardPage() {
       if (Number.isFinite(Number(draft.activePart))) setActivePart(Number(draft.activePart));
       if (Number.isFinite(Number(draft.selectedFrameIndex))) setSelectedFrameIndex(Number(draft.selectedFrameIndex));
       if (Number.isFinite(Number(draft.cropInset))) setCropInset(Number(draft.cropInset));
+      if (draft.localWorkerUrl) setLocalWorkerUrl(draft.localWorkerUrl);
+      if (draft.localRenderProvider) setLocalRenderProvider(draft.localRenderProvider);
+      if (draft.localModelPreset) setLocalModelPreset(draft.localModelPreset);
+      if (draft.localCheckpoint !== undefined) setLocalCheckpoint(draft.localCheckpoint);
+      if (draft.localLoras !== undefined) setLocalLoras(draft.localLoras);
+      if (draft.localWorkflowTemplate !== undefined) setLocalWorkflowTemplate(draft.localWorkflowTemplate);
+      if (Number.isFinite(Number(draft.localImageWidth))) setLocalImageWidth(Number(draft.localImageWidth));
+      if (Number.isFinite(Number(draft.localImageHeight))) setLocalImageHeight(Number(draft.localImageHeight));
+      if (Number.isFinite(Number(draft.localSteps))) setLocalSteps(Number(draft.localSteps));
+      if (Number.isFinite(Number(draft.localCfg))) setLocalCfg(Number(draft.localCfg));
+      setLocalAgentToken(draft.localAgentToken || makeLocalAgentToken());
+      if (draft.localQueueJobs && typeof draft.localQueueJobs === "object") setLocalQueueJobs(draft.localQueueJobs);
       if (draft.lastSavedAt) setLastSavedAt(draft.lastSavedAt);
     } catch {}
+    setLocalAgentToken((prev) => prev || makeLocalAgentToken());
     setDraftReady(true);
   }, []);
 
@@ -1016,7 +1449,9 @@ export default function TrailerStoryboardPage() {
     const payload = {
       projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
       aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart,
-      selectedFrameIndex, gridUploads, lastSavedAt: savedAt,
+      selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset,
+      localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight,
+      localSteps, localCfg, localAgentToken, localQueueJobs, lastSavedAt: savedAt,
     };
     try {
       window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
@@ -1027,7 +1462,7 @@ export default function TrailerStoryboardPage() {
         setLastSavedAt(savedAt);
       } catch {}
     }
-  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart, selectedFrameIndex, gridUploads]);
+  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart, selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset, localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight, localSteps, localCfg, localAgentToken, localQueueJobs]);
 
   useEffect(() => {
     if (!currentGridUpload || !partScenes.length) {
@@ -1042,6 +1477,15 @@ export default function TrailerStoryboardPage() {
       onDone: setCroppedFrame,
     });
   }, [currentGridUpload, safeFrameIndex, partScenes.length, cropInset]);
+
+  useEffect(() => {
+    const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
+    if (!active || !localAgentToken) return undefined;
+    const timer = window.setInterval(() => refreshLocalQueueJobs(true), 4000);
+    refreshLocalQueueJobs(true);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localQueueJobs, localAgentToken]);
 
   function restoreSavedDraft() {
     try {
@@ -1061,6 +1505,18 @@ export default function TrailerStoryboardPage() {
       if (draft.target) setTarget(draft.target);
       if (draft.stylePreset) setStylePreset(draft.stylePreset);
       if (draft.partSize) setPartSize(Number(draft.partSize));
+      if (draft.localWorkerUrl) setLocalWorkerUrl(draft.localWorkerUrl);
+      if (draft.localRenderProvider) setLocalRenderProvider(draft.localRenderProvider);
+      if (draft.localModelPreset) setLocalModelPreset(draft.localModelPreset);
+      if (draft.localCheckpoint !== undefined) setLocalCheckpoint(draft.localCheckpoint);
+      if (draft.localLoras !== undefined) setLocalLoras(draft.localLoras);
+      if (draft.localWorkflowTemplate !== undefined) setLocalWorkflowTemplate(draft.localWorkflowTemplate);
+      if (Number.isFinite(Number(draft.localImageWidth))) setLocalImageWidth(Number(draft.localImageWidth));
+      if (Number.isFinite(Number(draft.localImageHeight))) setLocalImageHeight(Number(draft.localImageHeight));
+      if (Number.isFinite(Number(draft.localSteps))) setLocalSteps(Number(draft.localSteps));
+      if (Number.isFinite(Number(draft.localCfg))) setLocalCfg(Number(draft.localCfg));
+      setLocalAgentToken(draft.localAgentToken || makeLocalAgentToken());
+      setLocalQueueJobs(draft.localQueueJobs && typeof draft.localQueueJobs === "object" ? draft.localQueueJobs : {});
       setStoryboard(draft.storyboard?.scenes ? draft.storyboard : null);
       setGridUploads(draft.gridUploads && typeof draft.gridUploads === "object" ? draft.gridUploads : {});
       setActivePart(Number.isFinite(Number(draft.activePart)) ? Number(draft.activePart) : 0);
@@ -1078,7 +1534,9 @@ export default function TrailerStoryboardPage() {
     const payload = {
       projectName, script, duration, frameSeconds, autoTiming, customFrameCount,
       aspectRatio, target, stylePreset, partSize, cropInset, storyboard, activePart,
-      selectedFrameIndex, gridUploads, lastSavedAt: savedAt,
+      selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset,
+      localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight,
+      localSteps, localCfg, localAgentToken, localQueueJobs, lastSavedAt: savedAt,
     };
     try {
       window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
@@ -1119,6 +1577,20 @@ export default function TrailerStoryboardPage() {
     setCroppedFrame("");
     setCropInset(0);
     setStoryboard(null);
+    setLocalWorkerUrl(DEFAULT_LOCAL_WORKER_URL);
+    setLocalRenderProvider(DEFAULT_LOCAL_RENDER_PROVIDER);
+    setLocalRenderBusy(false);
+    setLocalRenderJobs({});
+    setLocalAgentToken(makeLocalAgentToken());
+    setLocalQueueJobs({});
+    setLocalModelPreset(DEFAULT_LOCAL_MODEL_PRESET);
+    setLocalCheckpoint(defaultLocalModel.checkpoint);
+    setLocalLoras("");
+    setLocalWorkflowTemplate("");
+    setLocalImageWidth(defaultLocalModel.width);
+    setLocalImageHeight(defaultLocalModel.height);
+    setLocalSteps(defaultLocalModel.steps);
+    setLocalCfg(defaultLocalModel.cfg);
     setError("");
     setLastSavedAt("");
     setShowMasterPrompt(false);
@@ -1216,6 +1688,154 @@ export default function TrailerStoryboardPage() {
     const sb = buildLocalTrailerStoryboard({ script, duration: effectiveDuration, aspectRatio, stylePreset, target, targetFrames: expectedFrames, frameSeconds, timingMode });
     setStoryboard(sb);
     setStatus(`Локальный тест: ${sb.scenes.length} кадров, ${splitScenesIntoParts(sb.scenes, partSize).length} PART. Сохранено локально.`);
+  }
+
+  async function checkLocalRenderWorker() {
+    setError("");
+    setLocalRenderBusy(true);
+    setStatus("Проверяю локальный генератор на ПК...");
+    try {
+      const result = await requestLocalWorkerHealth({ workerUrl: localWorkerUrl, provider: localRenderProvider });
+      setStatus(`Локальный ПК доступен (${result.mode === "direct" ? "напрямую из браузера" : "через локальный proxy"}).`);
+    } catch (e) {
+      setError(`Локальный генератор не отвечает: ${e.message}. Запусти WebUI/Forge с --api или NeuroCine worker на этом адресе.`);
+    } finally {
+      setLocalRenderBusy(false);
+    }
+  }
+
+  async function generatePartGridOnLocalPc(partIndex, keepQueueBusy = false) {
+    const part = parts[partIndex] || [];
+    const prompt = buildPartPromptForIndex(partIndex, true);
+    if (!storyboard || !part.length || !prompt) {
+      setError("Сначала создай storyboard JSON и выбери PART.");
+      return false;
+    }
+    if (!keepQueueBusy) setLocalRenderBusy(true);
+    setError("");
+    setActivePart(partIndex);
+    setSelectedFrameIndex(0);
+    setCroppedFrame("");
+    updateLocalRenderJob(partIndex, { status: "rendering", message: "генерация на ПК..." });
+    setStatus(`PART ${partIndex + 1}: отправляю промт на локальный ПК...`);
+    try {
+      const payload = buildCurrentLocalPayload(prompt);
+      const result = await requestLocalPartImage({
+        workerUrl: localWorkerUrl,
+        provider: localRenderProvider,
+        payload,
+        partIndex,
+      });
+      setGridUploads((prev) => ({ ...prev, [partIndex]: result.image }));
+      updateLocalRenderJob(partIndex, { status: "done", message: result.mode === "direct" ? "готово напрямую" : "готово через proxy" });
+      setStatus(`PART ${partIndex + 1}: сетка с локального ПК вставлена в блок.`);
+      return true;
+    } catch (e) {
+      updateLocalRenderJob(partIndex, { status: "error", message: e.message || "ошибка" });
+      setError(`PART ${partIndex + 1}: ${e.message || "локальная генерация не удалась"}`);
+      return false;
+    } finally {
+      if (!keepQueueBusy) setLocalRenderBusy(false);
+    }
+  }
+
+  async function generateCurrentPartOnLocalPc() {
+    await generatePartGridOnLocalPc(safePart);
+  }
+
+  async function generateAllPartsOnLocalPc() {
+    if (!parts.length) {
+      setError("Сначала создай storyboard JSON.");
+      return;
+    }
+    setLocalRenderBusy(true);
+    setError("");
+    let done = 0;
+    try {
+      for (let i = 0; i < parts.length; i += 1) {
+        const ok = await generatePartGridOnLocalPc(i, true);
+        if (!ok) break;
+        done += 1;
+      }
+      setStatus(`Локальная очередь завершена: ${done}/${parts.length} PART готово.`);
+    } finally {
+      setLocalRenderBusy(false);
+    }
+  }
+
+  async function queuePartsForLocalAgent(partIndexes = []) {
+    if (!parts.length || !storyboard) {
+      setError("Сначала создай storyboard JSON.");
+      return;
+    }
+    const token = localAgentToken || makeLocalAgentToken();
+    if (!localAgentToken) setLocalAgentToken(token);
+    const indexes = partIndexes.length ? partIndexes : parts.map((_, i) => i);
+    let jobs = [];
+    try {
+      jobs = indexes.map((partIndex) => {
+        const part = parts[partIndex] || [];
+        const prompt = buildPartPromptForIndex(partIndex, true);
+        const payload = buildCurrentLocalPayload(prompt);
+        payload.part_size = part.length;
+        return {
+          part_index: partIndex,
+          part_label: `PART ${partIndex + 1}`,
+          provider: localRenderProvider,
+          prompt,
+          negative_prompt: payload.negative_prompt,
+          payload,
+        };
+      }).filter((job) => job.prompt);
+    } catch (e) {
+      setError(`Ошибка настроек модели/workflow: ${e.message}`);
+      return;
+    }
+    if (!jobs.length) {
+      setError("Не удалось собрать PART-промты для очереди.");
+      return;
+    }
+
+    setLocalRenderBusy(true);
+    setError("");
+    setStatus(`Создаю очередь для локального агента: ${jobs.length} PART...`);
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) throw new Error("Для облачной очереди нужно войти через Google.");
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          action: "create",
+          agent_token: token,
+          project_name: projectName || storyboard.project_name || "NeuroCine Trailer",
+          provider: localRenderProvider,
+          jobs,
+        }),
+      }, 30000);
+      const nextJobs = {};
+      for (const job of data.jobs || []) {
+        nextJobs[job.part_index] = job;
+        updateLocalRenderJob(job.part_index, { status: "", message: "в очереди агента" });
+      }
+      setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
+      setStatus(`Очередь создана: ${Object.keys(nextJobs).length} PART. Запусти Local Agent на ПК.`);
+    } catch (e) {
+      setError(`Очередь не создана: ${e.message}`);
+    } finally {
+      setLocalRenderBusy(false);
+    }
+  }
+
+  async function queueCurrentPartForLocalAgent() {
+    await queuePartsForLocalAgent([safePart]);
+  }
+
+  async function queueAllPartsForLocalAgent() {
+    await queuePartsForLocalAgent(parts.map((_, i) => i));
   }
 
   async function copyPrompt() {
@@ -1338,6 +1958,15 @@ export default function TrailerStoryboardPage() {
         .prompt-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
         .prompt-head h2{margin:0}
         .uploadbox{border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.16);border-radius:8px;padding:12px;display:grid;gap:10px}
+        .local-render{border-color:rgba(158,232,201,.24);background:linear-gradient(135deg,rgba(47,119,95,.12),rgba(0,0,0,.16))}
+        .hint{font-size:12px;line-height:1.45;color:rgba(247,243,234,.62)}
+        .param-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .compact-area{min-height:86px}
+        .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+        .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:8px 9px;font-size:12px;color:rgba(247,243,234,.70)}
+        .job.done{border-color:rgba(158,232,201,.40);color:#9ee8c9}
+        .job.rendering{border-color:rgba(227,52,79,.45);color:#ffd6dc}
+        .job.error{border-color:rgba(255,154,168,.50);color:#ff9aa8}
         .uploadbox input[type="file"]{padding:9px;background:#0b0f17}
         .frame-select{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .frame-select button{min-height:42px;padding:8px;font-size:12px;background:#11151f;border:1px solid rgba(255,255,255,.13)}
@@ -1359,7 +1988,7 @@ export default function TrailerStoryboardPage() {
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
         .mono.master{max-height:360px;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;background:#0b0f17}
-        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.param-grid{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
 
       <div className="wrap">
@@ -1498,9 +2127,70 @@ export default function TrailerStoryboardPage() {
                   <div className="mono">{selectedPrompt || "Сначала создай или выбери PART."}</div>
                 </div>
 
+                <div className="uploadbox local-render">
+                  <div className="prompt-head">
+                    <h2>05 · Авто-генерация на локальном ПК</h2>
+                    <div className="buttons">
+                      <button disabled={localRenderBusy} onClick={checkLocalRenderWorker}>Проверить ПК</button>
+                      <button className="primary" disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={generateCurrentPartOnLocalPc}>
+                        {localRenderBusy ? "Генерация..." : "Сгенерировать PART"}
+                      </button>
+                      <button disabled={localRenderBusy || !storyboard || !parts.length} onClick={generateAllPartsOnLocalPc}>Авто все PART</button>
+                      <button disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={queueCurrentPartForLocalAgent}>В очередь PART</button>
+                      <button disabled={localRenderBusy || !storyboard || !parts.length} onClick={queueAllPartsForLocalAgent}>В очередь всё</button>
+                      <button disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Команда агента</button>
+                    </div>
+                  </div>
+                  <div className="row">
+                    <label>Адрес локального генератора<input value={localWorkerUrl} onChange={(e) => setLocalWorkerUrl(e.target.value)} placeholder={DEFAULT_LOCAL_WORKER_URL} /></label>
+                    <label>Движок<select value={localRenderProvider} onChange={(e) => changeLocalRenderProvider(e.target.value)}>
+                      <option value="comfyui">ComfyUI API</option>
+                      <option value="automatic1111">Automatic1111 / Forge API</option>
+                      <option value="neurocine-worker">NeuroCine local worker</option>
+                    </select></label>
+                  </div>
+                  <div className="row">
+                    <label>Пресет качества<select value={localModelPreset} onChange={(e) => applyLocalModelPreset(e.target.value)}>
+                      {Object.entries(LOCAL_MODEL_PRESETS).map(([key, preset]) => <option key={key} value={key}>{preset.label}</option>)}
+                    </select></label>
+                    <label>Checkpoint / модель<input value={localCheckpoint} onChange={(e) => setLocalCheckpoint(e.target.value)} placeholder="имя файла из ComfyUI/models/checkpoints" /></label>
+                  </div>
+                  <div className="param-grid">
+                    <label>Ширина<input type="number" min="512" max="1536" value={localImageWidth} onChange={(e) => setLocalImageWidth(clampNumber(e.target.value, 512, 1536, localImageWidth))} /></label>
+                    <label>Высота<input type="number" min="768" max="2048" value={localImageHeight} onChange={(e) => setLocalImageHeight(clampNumber(e.target.value, 768, 2048, localImageHeight))} /></label>
+                    <label>Steps<input type="number" min="4" max="60" value={localSteps} onChange={(e) => setLocalSteps(clampNumber(e.target.value, 4, 60, localSteps))} /></label>
+                    <label>CFG<input type="number" min="1" max="12" step="0.5" value={localCfg} onChange={(e) => setLocalCfg(clampNumber(e.target.value, 1, 12, localCfg))} /></label>
+                  </div>
+                  <label>LoRA, по одной строке<textarea className="compact-area" value={localLoras} onChange={(e) => setLocalLoras(e.target.value)} placeholder={"cinematic_horror_lora.safetensors:0.65\nsame_actor_face_lora.safetensors:0.55"} /></label>
+                  <label>ComfyUI workflow template для FLUX/кастомных графов<textarea className="compact-area" value={localWorkflowTemplate} onChange={(e) => setLocalWorkflowTemplate(e.target.value)} placeholder={'Опционально. Вставь workflow JSON и используй плейсхолдеры "__PROMPT__", "__NEGATIVE__", "__WIDTH__", "__HEIGHT__", "__STEPS__", "__CFG__", "__SEED__", "__CHECKPOINT__".'} /></label>
+                  <label>Токен локального агента<input value={localAgentToken} onChange={(e) => setLocalAgentToken(e.target.value)} placeholder="будет создан автоматически" /></label>
+                  <div className="pills">
+                    <span className="pill active">Вывод: {localImageWidth}×{localImageHeight}</span>
+                    <span className="pill">{activeLocalModelPreset.label}</span>
+                    <span className="pill">1 PART = 1 картинка-сетка</span>
+                    <span className="pill">авто-вставка в блок</span>
+                    <span className="pill">ComfyUI-ready</span>
+                    <span className="pill">анимация следующим слоем</span>
+                  </div>
+                  <div className="hint">{activeLocalModelPreset.note}</div>
+                  <div className="mono master">{localAgentCommand}</div>
+                  <div className="joblist">
+                    {parts.length ? parts.map((part, i) => {
+                      const job = localRenderJobs[i] || {};
+                      const queueJob = localQueueJobs[i] || {};
+                      return (
+                        <span key={i} className={`job ${job.status || queueJob.status || ""}`}>
+                          PART {i + 1}: {job.message || (queueJob.status ? `очередь: ${queueJob.status}` : gridUploads[i] ? "сетка загружена" : `${part.length} кадр. ждёт`)}
+                        </span>
+                      );
+                    }) : <span className="job">Сначала создай JSON раскадровки</span>}
+                  </div>
+                  <div className="hint">Кнопки “Сгенерировать PART/Авто все PART” работают, когда сайт и генератор доступны друг другу напрямую. Кнопки “В очередь” нужны для телефона/удалённого сайта: сайт создаёт задания, а Local Agent на ПК забирает их и возвращает картинки.</div>
+                </div>
+
                 <div className="uploadbox">
                   <div className="prompt-head">
-                    <h2>05 · Загрузка сетки и кроп</h2>
+                    <h2>06 · Загрузка сетки и кроп</h2>
                     <button disabled={!currentGridUpload || !selectedScene} onClick={cropSelectedFrame}>Обрезать выбранный кадр</button>
                   </div>
                   <input type="file" accept="image/*" onChange={(e) => uploadPartGrid(e.target.files?.[0])} />
