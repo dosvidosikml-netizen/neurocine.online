@@ -26,6 +26,8 @@ const TRAILER_DRAFT_KEY = "neurocine.trailerStoryboardDraft.v1";
 const TRAILER_AGENT_TOKEN_KEY = "neurocine.trailerLocalAgentToken.v1";
 const MAX_CHARACTER_REFS = 5;
 const MAX_LOCATION_REFS = 3;
+const REF_JOB_BASE = -1000;
+const REF_JOB_KIND_OFFSETS = { character: 0, location: 100, style: 200 };
 const LOCAL_WORKER_URLS = {
   comfyui: "http://127.0.0.1:8188",
   automatic1111: "http://127.0.0.1:7860",
@@ -189,6 +191,8 @@ function emptyProductionCharacter(i = 0) {
     negative: "no different actor, no face drift, no age drift, no wardrobe drift unless the script explicitly changes it",
     reference: "",
     referenceName: "",
+    referencePrompt: "",
+    sourceContext: "",
   };
 }
 
@@ -202,6 +206,8 @@ function emptyProductionLocation(i = 0) {
     negative: "no unrelated location, no new room, no new era, no redesign unless the script explicitly changes it",
     reference: "",
     referenceName: "",
+    referencePrompt: "",
+    sourceContext: "",
   };
 }
 
@@ -376,6 +382,23 @@ function referenceLabelFromFile(name = "", fallback = "reference") {
     .replace(/\s+/g, " ")
     .trim();
   return base || fallback;
+}
+
+function normalizeTextKey(value = "") {
+  return cleanText(value).toLowerCase().replace(/ё/g, "е");
+}
+
+function referenceJobIndex(kind = "character", index = 0) {
+  return REF_JOB_BASE - (REF_JOB_KIND_OFFSETS[kind] || 0) - Math.max(0, Number(index) || 0);
+}
+
+function decodeReferenceJobIndex(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw > REF_JOB_BASE) return null;
+  const n = Math.abs(raw - REF_JOB_BASE);
+  if (n >= REF_JOB_KIND_OFFSETS.style) return { kind: "style", index: 0 };
+  if (n >= REF_JOB_KIND_OFFSETS.location) return { kind: "location", index: n - REF_JOB_KIND_OFFSETS.location };
+  return { kind: "character", index: n };
 }
 
 function cleanSfxText(value = "") {
@@ -646,25 +669,91 @@ function productionBibleSeedText(bible = {}) {
   });
 }
 
+function sourceSentences(script = "") {
+  return String(script || "")
+    .split(/(?<=[.!?…])\s+|\n+/)
+    .map(cleanText)
+    .filter(Boolean);
+}
+
+function contextForPattern(sentences = [], pattern = null, fallback = "") {
+  if (!pattern) return fallback;
+  return sentences.filter((line) => pattern.test(line)).slice(0, 3).join(" / ") || fallback;
+}
+
+function styleLineForReference(normalized = {}) {
+  return cleanText([
+    normalized.style?.lock || "",
+    normalized.style?.negative ? `Avoid: ${normalized.style.negative}` : "",
+  ].filter(Boolean).join(". "));
+}
+
+function buildCharacterReferencePrompt(item = {}, normalized = {}) {
+  const context = toPromptEnglish(item.sourceContext || "", { fallback: "scripted character from this trailer" });
+  const identity = toPromptEnglish(item.identity || "", { fallback: "stable actor face, body type, hair, age impression and emotional condition inferred from the script" });
+  const wardrobe = toPromptEnglish(item.wardrobe || "", { fallback: "script-supported wardrobe only; no costume drift" });
+  const style = styleLineForReference(normalized);
+  return cleanText(`Create one clean 9:16 photoreal character reference image for the same film. Single actor only, full body visible, neutral standing pose, face readable, hands visible, no action, no weapon unless the script says this character always carries it. Character: ${item.name || item.id || "script character"}. Role: ${item.role || "script character"}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style || "real camera photoreal cinematic realism, practical lighting, natural skin texture, fabric detail"}. No captions, no labels, no UI, no watermark, no collage, no extra people, no unrelated props, no new location.`);
+}
+
+function buildLocationReferencePrompt(item = {}, normalized = {}) {
+  const context = toPromptEnglish(item.sourceContext || "", { fallback: "scripted recurring location from this trailer" });
+  const description = toPromptEnglish(item.description || "", { fallback: "script-supported production design and geography only" });
+  const materials = toPromptEnglish(item.materials || "", { fallback: "script-supported materials only" });
+  const lighting = toPromptEnglish(item.lighting || "", { fallback: "physically plausible practical light only" });
+  const style = styleLineForReference(normalized);
+  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film. No actors, no monster, no extra props beyond the script. Location: ${item.name || item.id || "script location"}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style || "real camera photoreal cinematic realism, practical lighting, tactile surfaces"}. No captions, no labels, no UI, no watermark, no collage, no text unless the script explicitly says a sign/text is visible.`);
+}
+
+function buildStyleReferencePrompt(normalized = {}, script = "") {
+  const context = toPromptEnglish(sourceSentences(script).slice(0, 5).join(" / "), { fallback: "same trailer world" });
+  const style = styleLineForReference(normalized);
+  return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style || "real camera cinematic photorealism, practical lighting, realistic skin/fabric/surface texture"}. Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
+}
+
 function extractProductionBibleFromScript(script = "", currentBible = {}, { stylePreset = "", styleProfile = null } = {}) {
   const normalized = normalizeProductionBible(currentBible, { stylePreset, styleProfile });
   const text = cleanText(script);
-  const stop = new Set(["Фара", "На", "Внутри", "Из", "За", "Она", "Они", "Он", "Когда", "Белый", "Артём", "Лена"]);
-  const names = [...new Set((text.match(/\b[А-ЯЁ][а-яё]{2,}\b/g) || []).filter((name) => !stop.has(name)))];
-  if (/лена/i.test(text) && !names.includes("Лена")) names.unshift("Лена");
-  if (/арт[её]м/i.test(text) && !names.includes("Артём")) names.push("Артём");
-  if (/человек в маске|высокий человек|бензопил|фартук/i.test(text)) names.push("Человек в маске");
-  const uniqueNames = [...new Set(names)].slice(0, MAX_CHARACTER_REFS);
+  const sentences = sourceSentences(script);
+  const stop = new Set(["Фара", "На", "Внутри", "Из", "За", "Она", "Они", "Он", "Когда", "Белый", "Свет", "Дверь", "Лампа", "Здесь", "Беги", "Не", "Ты", "Лифт", "Следующий"]);
+  const candidates = [];
+  function addCandidate(name, role, pattern) {
+    const cleanName = cleanText(name);
+    if (!cleanName || candidates.some((item) => normalizeTextKey(item.name) === normalizeTextKey(cleanName))) return;
+    candidates.push({ name: cleanName, role: cleanText(role), pattern });
+  }
+  for (const name of (text.match(/\b[А-ЯЁ][а-яё]{2,}\b/g) || [])) {
+    if (!stop.has(name)) addCandidate(name, "script character", new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+  if (/лена/i.test(text)) addCandidate("Лена", "main protagonist", /лена/i);
+  if (/арт[её]м/i.test(text)) addCandidate("Артём", "second protagonist", /арт[её]м/i);
+  if (/девушк/i.test(text)) addCandidate("Девушка", "female protagonist", /девушк/i);
+  if (/брат/i.test(text)) addCandidate("Брат", "male protagonist / brother", /брат/i);
+  if (/трое\s+сотрудник|сотрудник/i.test(text)) {
+    addCandidate("Сотрудник 1", "office employee protagonist", /сотрудник|трое/i);
+    addCandidate("Сотрудник 2", "office employee protagonist", /сотрудник|трое/i);
+    addCandidate("Сотрудник 3", "office employee protagonist", /сотрудник|трое/i);
+  }
+  if (/мясник|человек в маске|высокий человек|бензопил|фартук/i.test(text)) addCandidate("Мясник", "masked antagonist", /мясник|человек в маске|высокий человек|бензопил|фартук/i);
+  if (/копи[яию]|двойник/i.test(text)) addCandidate("Двойник", "duplicate / supernatural copy", /копи[яию]|двойник/i);
+  const uniqueCandidates = candidates.slice(0, MAX_CHARACTER_REFS);
   const characters = Array.from({ length: MAX_CHARACTER_REFS }, (_, i) => {
     const existing = normalized.characters[i] || emptyProductionCharacter(i);
-    const name = uniqueNames[i] || existing.name || "";
-    const role = name === "Человек в маске" ? "антагонист / угроза" : name ? "персонаж сценария" : existing.role;
-    return {
+    const candidate = uniqueCandidates[i] || {};
+    const name = candidate.name || existing.name || "";
+    const role = candidate.role || (name ? "script character" : existing.role);
+    const sourceContext = existing.sourceContext || contextForPattern(sentences, candidate.pattern, name ? text.slice(0, 260) : "");
+    const next = {
       ...existing,
       name,
       role: existing.role || role,
       identity: existing.identity || (name ? `${name}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames` : ""),
       wardrobe: existing.wardrobe || (name ? "use only wardrobe described by script or first generated reference; no costume drift" : ""),
+      sourceContext,
+    };
+    return {
+      ...next,
+      referencePrompt: existing.referencePrompt || (name ? buildCharacterReferencePrompt(next, normalized) : ""),
     };
   });
   const locationHints = [
@@ -678,28 +767,34 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   ];
   const foundLocations = [];
   for (const [re, name, description] of locationHints) {
-    if (re.test(text) && !foundLocations.some((item) => item.name === name)) foundLocations.push({ name, description });
+    if (re.test(text) && !foundLocations.some((item) => item.name === name)) foundLocations.push({ name, description, pattern: re });
   }
   const locations = Array.from({ length: MAX_LOCATION_REFS }, (_, i) => {
     const existing = normalized.locations[i] || emptyProductionLocation(i);
     const found = foundLocations[i] || {};
-    return {
+    const next = {
       ...existing,
       name: existing.name || found.name || "",
       description: existing.description || found.description || "",
       materials: existing.materials || (found.name ? "use only script-supported surfaces, grime, metal, tile, wood, plastic, fabric and practical props" : ""),
       lighting: existing.lighting || (found.name ? "practical light from script and physically plausible fixtures; no random stylized glow" : ""),
+      sourceContext: existing.sourceContext || contextForPattern(sentences, found.pattern, found.name ? text.slice(0, 300) : ""),
+    };
+    return {
+      ...next,
+      referencePrompt: existing.referencePrompt || (next.name ? buildLocationReferencePrompt(next, normalized) : ""),
     };
   });
+  const styleNext = {
+    ...normalized.style,
+    lock: normalized.style.lock || styleProfile?.style_lock || STYLE_PRESETS[stylePreset]?.lock || "",
+  };
   return {
     ...normalized,
     autoGenerated: true,
     characters,
     locations,
-    style: {
-      ...normalized.style,
-      lock: normalized.style.lock || styleProfile?.style_lock || STYLE_PRESETS[stylePreset]?.lock || "",
-    },
+    style: { ...styleNext, referencePrompt: normalized.style.referencePrompt || buildStyleReferencePrompt({ ...normalized, style: styleNext }, script) },
   };
 }
 
@@ -1920,6 +2015,94 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     }));
   }
 
+  function applyReferenceJobImage(job = {}) {
+    const ref = decodeReferenceJobIndex(job.part_index);
+    if (!ref || !job.image_data) return false;
+    const referenceName = `${job.part_label || "AUTO REF"}.jpg`;
+    setProductionBible((prev) => {
+      const next = normalizeProductionBible(prev, { stylePreset, styleProfile });
+      if (ref.kind === "character") {
+        next.characters = next.characters.map((item, i) => i === ref.index ? { ...item, reference: job.image_data, referenceName } : item);
+      } else if (ref.kind === "location") {
+        next.locations = next.locations.map((item, i) => i === ref.index ? { ...item, reference: job.image_data, referenceName } : item);
+      } else if (ref.kind === "style") {
+        next.style = { ...next.style, reference: job.image_data, referenceName };
+      }
+      return next;
+    });
+    updateLocalRenderJob(job.part_index, { status: "done", message: "auto ref загружен" });
+    return true;
+  }
+
+  function buildReferenceLocalPayload(prompt, meta = {}) {
+    const payload = buildLocalRenderPayload({
+      prompt,
+      provider: localRenderProvider,
+      modelPreset: localModelPreset,
+      checkpoint: localCheckpoint,
+      loraText: localLoras,
+      workflowTemplate: localWorkflowTemplate,
+      width: localImageWidth,
+      height: localImageHeight,
+      steps: localSteps,
+      cfg: localCfg,
+    });
+    payload.render_mode = "reference";
+    payload.reference_kind = meta.kind;
+    payload.reference_index = meta.index;
+    payload.reference_id = meta.id || "";
+    payload.production_bible = stripProductionBibleImages(meta.bible || lockedProductionBible);
+    payload.seed = stableSeedFromText(`${projectName || "trailer"}|${script}|auto-reference|${meta.kind}|${meta.index}|${prompt}`);
+    payload.filename_prefix = `neurocine_${meta.kind || "ref"}_${meta.index || 0}`;
+    return payload;
+  }
+
+  function buildReferenceJobs(bibleOverride = null) {
+    const normalized = normalizeProductionBible(bibleOverride || lockedProductionBible, { stylePreset, styleProfile });
+    const jobs = [];
+    (Array.isArray(normalized.characters) ? normalized.characters : []).forEach((item, index) => {
+      if (!cleanText(item?.name || item?.role || item?.identity || item?.referenceName || item?.referencePrompt)) return;
+      const prompt = item.referencePrompt || buildCharacterReferencePrompt(item, normalized);
+      if (!prompt || item.reference) return;
+      const payload = buildReferenceLocalPayload(prompt, { kind: "character", index, id: item.id, bible: normalized });
+      jobs.push({
+        part_index: referenceJobIndex("character", index),
+        part_label: `REF CHAR ${index + 1}`,
+        provider: localRenderProvider,
+        prompt,
+        negative_prompt: payload.negative_prompt,
+        payload,
+      });
+    });
+    (Array.isArray(normalized.locations) ? normalized.locations : []).forEach((item, index) => {
+      if (!cleanText(item?.name || item?.description || item?.referenceName || item?.referencePrompt)) return;
+      const prompt = item.referencePrompt || buildLocationReferencePrompt(item, normalized);
+      if (!prompt || item.reference) return;
+      const payload = buildReferenceLocalPayload(prompt, { kind: "location", index, id: item.id, bible: normalized });
+      jobs.push({
+        part_index: referenceJobIndex("location", index),
+        part_label: `REF LOC ${index + 1}`,
+        provider: localRenderProvider,
+        prompt,
+        negative_prompt: payload.negative_prompt,
+        payload,
+      });
+    });
+    const stylePrompt = normalized.style?.referencePrompt || buildStyleReferencePrompt(normalized, script);
+    if (stylePrompt && !normalized.style?.reference) {
+      const payload = buildReferenceLocalPayload(stylePrompt, { kind: "style", index: 0, id: "STYLE", bible: normalized });
+      jobs.push({
+        part_index: referenceJobIndex("style", 0),
+        part_label: "REF STYLE",
+        provider: localRenderProvider,
+        prompt: stylePrompt,
+        negative_prompt: payload.negative_prompt,
+        payload,
+      });
+    }
+    return jobs;
+  }
+
   function changeLocalRenderProvider(nextProvider) {
     const next = nextProvider || DEFAULT_LOCAL_RENDER_PROVIDER;
     setLocalRenderProvider(next);
@@ -2028,7 +2211,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       const nextJobs = {};
       for (const job of data.jobs || []) {
         nextJobs[job.part_index] = job;
-        if (job.status === "done" && job.image_data) {
+        if (job.status === "done" && job.image_data && applyReferenceJobImage(job)) {
+          // Reference image was applied to production bible.
+        } else if (job.status === "done" && job.image_data) {
           setGridUploads((prev) => ({ ...prev, [job.part_index]: job.image_data }));
           updateLocalRenderJob(job.part_index, { status: "done", message: "агент вернул сетку" });
         } else if (job.status === "failed") {
@@ -2280,6 +2465,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setStoryboard(null);
     setGridUploads({});
     setCroppedFrame("");
+    await queueReferencesForLocalAgent(next, { quiet: true, skipWithoutAuth: true });
     await generateTrailer(next);
   }
 
@@ -2695,6 +2881,75 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     }
   }
 
+  async function queueReferencesForLocalAgent(bibleOverride = null, options = {}) {
+    const quiet = Boolean(options.quiet);
+    const skipWithoutAuth = Boolean(options.skipWithoutAuth);
+    const normalized = normalizeProductionBible(
+      bibleOverride || (filledProductionCharacters(lockedProductionBible).length || filledProductionLocations(lockedProductionBible).length
+        ? lockedProductionBible
+        : extractProductionBibleFromScript(script || projectName, lockedProductionBible, { stylePreset, styleProfile })),
+      { stylePreset, styleProfile }
+    );
+    setProductionBible(normalized);
+    const jobs = buildReferenceJobs(normalized);
+    if (!jobs.length) {
+      if (!quiet) {
+        setStatus("Auto refs уже готовы или сценарий не дал героев/локаций.");
+        setLocalRenderNotice({ type: "success", message: "Auto refs уже готовы или нечего ставить в очередь." });
+      }
+      return false;
+    }
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (localAgentToken !== token) setLocalAgentToken(token);
+    if (!quiet) {
+      setLocalRenderAction("queue-refs");
+      setLocalRenderNotice({ type: "working", message: `Ставлю auto refs в очередь: ${jobs.length} заданий...` });
+    }
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        if (skipWithoutAuth) return false;
+        throw new Error("Для облачной очереди refs нужно войти через Google.");
+      }
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          action: "create",
+          agent_token: token,
+          project_name: projectName || "NeuroCine Trailer",
+          provider: localRenderProvider,
+          jobs,
+        }),
+      }, 30000);
+      const nextJobs = {};
+      for (const job of data.jobs || []) {
+        nextJobs[job.part_index] = job;
+        updateLocalRenderJob(job.part_index, { status: "queued", message: "auto ref в очереди" });
+      }
+      setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
+      const inserted = Number.isFinite(Number(data.inserted_count)) ? Number(data.inserted_count) : Object.keys(nextJobs).length;
+      const skipped = Math.max(0, Number(data.skipped_duplicate_count || 0));
+      const duplicateNote = skipped ? ` Уже в работе: ${skipped} refs.` : "";
+      if (!quiet) {
+        setStatus(`Auto refs в очереди: ${inserted} новых.${duplicateNote}`);
+        setLocalRenderNotice({ type: "success", message: `Auto refs в очереди: ${inserted} новых.${duplicateNote}` });
+      }
+      return true;
+    } catch (e) {
+      if (!quiet) {
+        setError(`Auto refs не поставлены в очередь: ${e.message}`);
+        setLocalRenderNotice({ type: "error", message: `Auto refs не поставлены в очередь: ${e.message}` });
+      }
+      return false;
+    } finally {
+      if (!quiet) setLocalRenderAction("");
+    }
+  }
+
   async function queueCurrentPartForLocalAgent() {
     await queuePartsForLocalAgent([safePart]);
   }
@@ -2972,6 +3227,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                 <div className="buttons">
                   <button type="button" onClick={autoBuildProductionBible} disabled={busy || scriptBusy || (script.trim().length < 3 && projectName.trim().length < 3)}>Собрать из сценария</button>
                   <button type="button" className="primary" onClick={autoBuildAndGenerate} disabled={busy || scriptBusy || script.trim().length < 10}>Авто всё</button>
+                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={() => queueReferencesForLocalAgent()} disabled={busy || scriptBusy || localRenderAction === "queue-refs" || script.trim().length < 10}>В очередь refs</button>
                   <button type="button" className="danger" onClick={resetProductionBible} disabled={busy || scriptBusy}>Очистить библию</button>
                 </div>
               </div>
@@ -2990,7 +3246,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="ref-card" key={character.id || i}>
                     <div className="ref-card-head">
                       <strong>{character.id || `CHAR_${i + 1}`}</strong>
-                      <span>{character.referenceName || "референс не загружен"}</span>
+                      <span>{character.referenceName || localRenderJobs[referenceJobIndex("character", i)]?.message || "референс не загружен"}</span>
                     </div>
                     <div className="ref-preview">
                       {character.reference ? <img src={character.reference} alt={`Референс ${character.name || character.id}`} /> : null}
@@ -3017,7 +3273,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="ref-card" key={location.id || i}>
                     <div className="ref-card-head">
                       <strong>{location.id || `LOC_${i + 1}`}</strong>
-                      <span>{location.referenceName || "референс не загружен"}</span>
+                      <span>{location.referenceName || localRenderJobs[referenceJobIndex("location", i)]?.message || "референс не загружен"}</span>
                     </div>
                     <div className="ref-preview">
                       {location.reference ? <img src={location.reference} alt={`Референс ${location.name || location.id}`} /> : null}
@@ -3044,6 +3300,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   {lockedProductionBible.style?.reference ? <img src={lockedProductionBible.style.reference} alt="Референс стиля" /> : null}
                   <input type="file" accept="image/*" onChange={(e) => uploadProductionReference("style", 0, e.target.files?.[0])} />
                   <button type="button" disabled={!lockedProductionBible.style?.reference} onClick={() => clearProductionReference("style")}>Убрать style ref</button>
+                  <span>{lockedProductionBible.style?.referenceName || localRenderJobs[referenceJobIndex("style", 0)]?.message || "style ref не загружен"}</span>
                 </div>
                 <details className="ref-details">
                   <summary>Тонкая настройка</summary>
