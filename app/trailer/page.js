@@ -369,6 +369,15 @@ function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function referenceLabelFromFile(name = "", fallback = "reference") {
+  const base = String(name || "")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return base || fallback;
+}
+
 function cleanSfxText(value = "") {
   const cleaned = cleanText(value)
     .replace(/\broom tone\b/gi, "near-silence")
@@ -580,13 +589,28 @@ function formatProductionBibleForPrompt(bible = {}, { includeReferences = true }
   const charLines = characters.length
     ? characters.map((item, i) => {
       const ref = includeReferences && item.referenceName ? ` reference uploaded: ${item.referenceName};` : "";
-      return `${item.id || `CHAR_${String(i + 1).padStart(2, "0")}`} ${item.name || item.role || `Character ${i + 1}`}: role=${item.role || "scripted role"}; identity=${item.identity || "infer only from script and locked reference"}; wardrobe=${item.wardrobe || "scripted wardrobe only"};${ref} forbidden=${item.negative || "no redesign"}`;
+      const identity = item.identity || (item.referenceName
+        ? "use uploaded reference as the actor face/body identity anchor; infer only missing details from the script"
+        : "infer only from script and first generated appearance");
+      const wardrobe = item.wardrobe || (item.referenceName
+        ? "use reference wardrobe only when the script does not specify wardrobe; script wardrobe always wins"
+        : "scripted wardrobe only");
+      return `${item.id || `CHAR_${String(i + 1).padStart(2, "0")}`} ${item.name || item.role || `Character ${i + 1}`}: role=${item.role || "scripted role"}; identity=${identity}; wardrobe=${wardrobe};${ref} forbidden=${item.negative || "no redesign"}`;
     }).join("\n")
     : "No manual character references. Extract cast from the script and create stable cast_lock.";
   const locLines = locations.length
     ? locations.map((item, i) => {
       const ref = includeReferences && item.referenceName ? ` reference uploaded: ${item.referenceName};` : "";
-      return `${item.id || `LOC_${String(i + 1).padStart(2, "0")}`} ${item.name || `Location ${i + 1}`}: description=${item.description || "scripted location only"}; materials=${item.materials || "scripted materials only"}; lighting=${item.lighting || "physically plausible practical light only"};${ref} forbidden=${item.negative || "no redesign"}`;
+      const description = item.description || (item.referenceName
+        ? "use uploaded reference as location design anchor; script geography and source line always win"
+        : "scripted location only");
+      const materials = item.materials || (item.referenceName
+        ? "use visible reference materials only if compatible with the script"
+        : "scripted materials only");
+      const lighting = item.lighting || (item.referenceName
+        ? "use reference lighting family only if compatible with the selected style and script"
+        : "physically plausible practical light only");
+      return `${item.id || `LOC_${String(i + 1).padStart(2, "0")}`} ${item.name || `Location ${i + 1}`}: description=${description}; materials=${materials}; lighting=${lighting};${ref} forbidden=${item.negative || "no redesign"}`;
     }).join("\n")
     : "No manual location references. Extract recurring locations from the script and lock them.";
   return `PRODUCTION BIBLE LOCK:
@@ -2247,7 +2271,16 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setStoryboard(null);
     setGridUploads({});
     setCroppedFrame("");
-    setStatus("Библия проекта собрана. Проверь персонажей, локации и стиль, потом генерируй JSON.");
+    setStatus("Библия проекта собрана автоматически. Ручные поля необязательны: можно сразу генерировать JSON.");
+  }
+
+  async function autoBuildAndGenerate() {
+    const next = extractProductionBibleFromScript(script || projectName, productionBible, { stylePreset, styleProfile });
+    setProductionBible(next);
+    setStoryboard(null);
+    setGridUploads({});
+    setCroppedFrame("");
+    await generateTrailer(next);
   }
 
   function resetProductionBible() {
@@ -2288,10 +2321,38 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     reader.onload = () => {
       const reference = String(reader.result || "");
       const referenceName = file.name || "reference image";
-      if (kind === "character") updateProductionCharacter(index, { reference, referenceName });
-      if (kind === "location") updateProductionLocation(index, { reference, referenceName });
+      const label = referenceLabelFromFile(referenceName);
+      if (kind === "character") {
+        setProductionBible((prev) => {
+          const next = normalizeProductionBible(prev, { stylePreset, styleProfile });
+          const current = next.characters[index] || emptyProductionCharacter(index);
+          next.characters = next.characters.map((item, i) => i === index ? {
+            ...item,
+            reference,
+            referenceName,
+            name: item.name || label,
+            role: item.role || "script character",
+          } : item);
+          if (!next.characters[index]) next.characters[index] = { ...current, reference, referenceName, name: current.name || label, role: current.role || "script character" };
+          return next;
+        });
+      }
+      if (kind === "location") {
+        setProductionBible((prev) => {
+          const next = normalizeProductionBible(prev, { stylePreset, styleProfile });
+          const current = next.locations[index] || emptyProductionLocation(index);
+          next.locations = next.locations.map((item, i) => i === index ? {
+            ...item,
+            reference,
+            referenceName,
+            name: item.name || label,
+          } : item);
+          if (!next.locations[index]) next.locations[index] = { ...current, reference, referenceName, name: current.name || label };
+          return next;
+        });
+      }
       if (kind === "style") updateProductionStyle({ reference, referenceName });
-      setStatus(`Референс загружен: ${referenceName}`);
+      setStatus(`Референс загружен: ${referenceName}. Текстовые поля можно не заполнять.`);
     };
     reader.readAsDataURL(file);
   }
@@ -2353,16 +2414,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     }
   }
 
-  async function generateTrailer() {
+  async function generateTrailer(productionBibleOverride = null) {
     setBusy(true);
     setError("");
     setStatus("Готовлю запрос на трейлерную раскадровку...");
     setActivePart(0);
     setSelectedFrameIndex(0);
     setCroppedFrame("");
-    const requestBible = filledProductionCharacters(lockedProductionBible).length || filledProductionLocations(lockedProductionBible).length
-      ? lockedProductionBible
-      : extractProductionBibleFromScript(script, lockedProductionBible, { stylePreset, styleProfile });
+    const baseBible = productionBibleOverride || lockedProductionBible;
+    const requestBible = filledProductionCharacters(baseBible).length || filledProductionLocations(baseBible).length
+      ? baseBible
+      : extractProductionBibleFromScript(script, baseBible, { stylePreset, styleProfile });
     if (requestBible !== lockedProductionBible) setProductionBible(requestBible);
 
     try {
@@ -2830,6 +2892,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .ref-preview{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .ref-preview img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.12)}
         .ref-preview span{font-size:11px;color:rgba(247,243,234,.58);text-transform:none;letter-spacing:0}
+        .ref-details{border-top:1px solid rgba(255,255,255,.08);padding-top:8px;display:grid;gap:8px}
+        .ref-details summary{cursor:pointer;color:#b7ffe3;font-size:12px;font-weight:900;list-style:none}
+        .ref-details summary::-webkit-details-marker{display:none}
+        .ref-details summary:before{content:"+";display:inline-grid;place-items:center;width:18px;height:18px;margin-right:7px;border-radius:999px;background:rgba(158,232,201,.13);color:#b7ffe3}
+        .ref-details[open] summary:before{content:"-"}
+        .ref-details[open]{gap:10px}
         .lockbox div,.frame{font-size:13px;color:rgba(247,243,234,.76);line-height:1.45}
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
@@ -2903,6 +2971,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                 <h2>02 · Библия проекта / референсы</h2>
                 <div className="buttons">
                   <button type="button" onClick={autoBuildProductionBible} disabled={busy || scriptBusy || (script.trim().length < 3 && projectName.trim().length < 3)}>Собрать из сценария</button>
+                  <button type="button" className="primary" onClick={autoBuildAndGenerate} disabled={busy || scriptBusy || script.trim().length < 10}>Авто всё</button>
                   <button type="button" className="danger" onClick={resetProductionBible} disabled={busy || scriptBusy}>Очистить библию</button>
                 </div>
               </div>
@@ -2911,7 +2980,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                 <span className="pill">{filledProductionLocations(lockedProductionBible).length} локац.</span>
                 <span className="pill">{lockedProductionBible.style?.referenceName ? "style ref" : "style text"}</span>
                 <span className="pill">до 5 героев</span>
+                <span className="pill">поля необязательны</span>
               </div>
+              <div className="hint">Быстрый режим: нажми “Собрать из сценария” или просто загрузи референсы. Пустые поля не ломают генерацию: система использует сценарий, выбранный стиль и загруженные референсы как anchors.</div>
 
               <h3>Персонажи</h3>
               <div className="ref-grid">
@@ -2921,18 +2992,21 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       <strong>{character.id || `CHAR_${i + 1}`}</strong>
                       <span>{character.referenceName || "референс не загружен"}</span>
                     </div>
-                    <div className="mini-row">
-                      <label>Имя<input value={character.name || ""} onChange={(e) => updateProductionCharacter(i, { name: e.target.value })} placeholder="Лена" /></label>
-                      <label>Роль<input value={character.role || ""} onChange={(e) => updateProductionCharacter(i, { role: e.target.value })} placeholder="главная героиня" /></label>
-                    </div>
-                    <label>Внешность / identity lock<textarea className="compact-area" value={character.identity || ""} onChange={(e) => updateProductionCharacter(i, { identity: e.target.value })} placeholder="лицо, возраст, волосы, телосложение, состояние, эмоция" /></label>
-                    <label>Одежда / wardrobe lock<textarea className="compact-area" value={character.wardrobe || ""} onChange={(e) => updateProductionCharacter(i, { wardrobe: e.target.value })} placeholder="одежда от первого появления до финала" /></label>
-                    <label>Запреты<textarea className="compact-area" value={character.negative || ""} onChange={(e) => updateProductionCharacter(i, { negative: e.target.value })} /></label>
                     <div className="ref-preview">
                       {character.reference ? <img src={character.reference} alt={`Референс ${character.name || character.id}`} /> : null}
                       <input type="file" accept="image/*" onChange={(e) => uploadProductionReference("character", i, e.target.files?.[0])} />
                       <button type="button" disabled={!character.reference} onClick={() => clearProductionReference("character", i)}>Убрать ref</button>
                     </div>
+                    <details className="ref-details">
+                      <summary>Тонкая настройка</summary>
+                      <div className="mini-row">
+                        <label>Имя<input value={character.name || ""} onChange={(e) => updateProductionCharacter(i, { name: e.target.value })} placeholder="Лена" /></label>
+                        <label>Роль<input value={character.role || ""} onChange={(e) => updateProductionCharacter(i, { role: e.target.value })} placeholder="главная героиня" /></label>
+                      </div>
+                      <label>Внешность / identity lock<textarea className="compact-area" value={character.identity || ""} onChange={(e) => updateProductionCharacter(i, { identity: e.target.value })} placeholder="необязательно: лицо, возраст, волосы, телосложение" /></label>
+                      <label>Одежда / wardrobe lock<textarea className="compact-area" value={character.wardrobe || ""} onChange={(e) => updateProductionCharacter(i, { wardrobe: e.target.value })} placeholder="необязательно: если сценарий не задаёт одежду" /></label>
+                      <label>Запреты<textarea className="compact-area" value={character.negative || ""} onChange={(e) => updateProductionCharacter(i, { negative: e.target.value })} /></label>
+                    </details>
                   </div>
                 ))}
               </div>
@@ -2945,36 +3019,42 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       <strong>{location.id || `LOC_${i + 1}`}</strong>
                       <span>{location.referenceName || "референс не загружен"}</span>
                     </div>
-                    <div className="mini-row">
-                      <label>Название<input value={location.name || ""} onChange={(e) => updateProductionLocation(i, { name: e.target.value })} placeholder="старая бойня" /></label>
-                      <label>Свет<input value={location.lighting || ""} onChange={(e) => updateProductionLocation(i, { lighting: e.target.value })} placeholder="тёплая мигающая лампа, синий холод" /></label>
-                    </div>
-                    <label>Описание<textarea className="compact-area" value={location.description || ""} onChange={(e) => updateProductionLocation(i, { description: e.target.value })} placeholder="что это за место, география, что где находится" /></label>
-                    <label>Материалы<textarea className="compact-area" value={location.materials || ""} onChange={(e) => updateProductionLocation(i, { materials: e.target.value })} placeholder="ржавый металл, плитка, крюки, пластик, кровь/следы только если в сценарии" /></label>
-                    <label>Запреты<textarea className="compact-area" value={location.negative || ""} onChange={(e) => updateProductionLocation(i, { negative: e.target.value })} /></label>
                     <div className="ref-preview">
                       {location.reference ? <img src={location.reference} alt={`Референс ${location.name || location.id}`} /> : null}
                       <input type="file" accept="image/*" onChange={(e) => uploadProductionReference("location", i, e.target.files?.[0])} />
                       <button type="button" disabled={!location.reference} onClick={() => clearProductionReference("location", i)}>Убрать ref</button>
                     </div>
+                    <details className="ref-details">
+                      <summary>Тонкая настройка</summary>
+                      <div className="mini-row">
+                        <label>Название<input value={location.name || ""} onChange={(e) => updateProductionLocation(i, { name: e.target.value })} placeholder="старая бойня" /></label>
+                        <label>Свет<input value={location.lighting || ""} onChange={(e) => updateProductionLocation(i, { lighting: e.target.value })} placeholder="тёплая мигающая лампа" /></label>
+                      </div>
+                      <label>Описание<textarea className="compact-area" value={location.description || ""} onChange={(e) => updateProductionLocation(i, { description: e.target.value })} placeholder="необязательно: география, что где находится" /></label>
+                      <label>Материалы<textarea className="compact-area" value={location.materials || ""} onChange={(e) => updateProductionLocation(i, { materials: e.target.value })} placeholder="необязательно: ржавый металл, плитка, крюки" /></label>
+                      <label>Запреты<textarea className="compact-area" value={location.negative || ""} onChange={(e) => updateProductionLocation(i, { negative: e.target.value })} /></label>
+                    </details>
                   </div>
                 ))}
               </div>
 
               <h3>Стиль</h3>
               <div className="ref-card">
-                <label>Style lock<textarea className="compact-area" value={lockedProductionBible.style?.lock || ""} onChange={(e) => updateProductionStyle({ lock: e.target.value })} placeholder="камера, свет, цвет, фактура, реализм" /></label>
-                <label>Style negative<textarea className="compact-area" value={lockedProductionBible.style?.negative || ""} onChange={(e) => updateProductionStyle({ negative: e.target.value })} placeholder="что стилю запрещено добавлять" /></label>
                 <div className="ref-preview">
                   {lockedProductionBible.style?.reference ? <img src={lockedProductionBible.style.reference} alt="Референс стиля" /> : null}
                   <input type="file" accept="image/*" onChange={(e) => uploadProductionReference("style", 0, e.target.files?.[0])} />
                   <button type="button" disabled={!lockedProductionBible.style?.reference} onClick={() => clearProductionReference("style")}>Убрать style ref</button>
                 </div>
+                <details className="ref-details">
+                  <summary>Тонкая настройка</summary>
+                  <label>Style lock<textarea className="compact-area" value={lockedProductionBible.style?.lock || ""} onChange={(e) => updateProductionStyle({ lock: e.target.value })} placeholder="необязательно: камера, свет, цвет, фактура, реализм" /></label>
+                  <label>Style negative<textarea className="compact-area" value={lockedProductionBible.style?.negative || ""} onChange={(e) => updateProductionStyle({ negative: e.target.value })} placeholder="что стилю запрещено добавлять" /></label>
+                </details>
               </div>
             </div>
 
             <div className="buttons">
-              <button className="primary" disabled={busy || scriptBusy || script.trim().length < 10} onClick={generateTrailer}>{busy ? "Генерация..." : "Сгенерировать JSON"}</button>
+              <button className="primary" disabled={busy || scriptBusy || script.trim().length < 10} onClick={() => generateTrailer()}>{busy ? "Генерация..." : "Сгенерировать JSON"}</button>
               <button disabled={busy || scriptBusy || script.trim().length < 10} onClick={buildLocalPreview}>Локальный тест</button>
               <button disabled={!storyboard} onClick={downloadJson}>Скачать JSON</button>
               <button disabled={busy || scriptBusy} onClick={saveDraftNow}>Сохранить</button>
