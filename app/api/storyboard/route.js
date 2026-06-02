@@ -100,11 +100,12 @@ mode parameter:
 - "trailer" → TRAILER STORYBOARD MODE: full film/trailer frame plan with cast_lock, location_lock, style_bible, grid continuity and long-form continuity up to 10 minutes
 
 TRAILER MODE PACING LAW:
-The opening PART must be a hook mini-arc, not a literal line-by-line dump.
-Compress abstract setup into one concrete hook image, introduce human stake by frame 2,
-show the inciting anomaly by frame 3, and show the first danger/trap/consequence by frame 4
-when those beats exist in the script. Use only exact source lines from the script; combine adjacent
-source lines in script_line_ru when needed, but never invent new story content.
+The opening PART must be a source-ordered hook, not a jump-cut to later danger.
+Use the earliest concrete visual beats in script order. Compress only abstract opening narration
+that has no direct visible subject/action. Do not jump ahead to a later antagonist, weapon, chase,
+trap, injury, monster, double, reveal or climax. Human stake, anomaly and danger may appear early
+only when their exact source lines occur early. For a 4-frame PART, frames 1-4 must cover the first
+four meaningful source beats in order, with adjacent abstract lines combined only when needed.
 
 In SAFE mode, replace risky phrasing automatically:
   blood → "dark traces on fabric"
@@ -584,6 +585,7 @@ export async function POST(req) {
                   totalDuration: duration, scriptForChunk: scriptChunks[i] || "",
                   globalScript: script, mode, target, aspectRatio,
                   targetScenes: chunkSceneCounts[i], frameSeconds, timingMode,
+                  style,
                   productionBible,
                   characterLockFromPrev, voiceLockFromPrev, castLockFromPrev,
                   locationLockFromPrev, styleBibleFromPrev, lastSceneFromPrev, globalStyleLock,
@@ -737,6 +739,7 @@ export async function POST(req) {
       targetScenes,
       frameSeconds,
       timingMode,
+      style,
       productionBible,
     });
 

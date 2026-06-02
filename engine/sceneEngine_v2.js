@@ -561,7 +561,7 @@ function getCutEnergy(scene = {}, index = 0) {
   return index % 3 === 2 ? "low" : "medium";
 }
 
-export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16", targetScenes = null, frameSeconds = 3, timingMode = "fixed", productionBible = null } = {}) {
+export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16", targetScenes = null, frameSeconds = 3, timingMode = "fixed", style = "", productionBible = null } = {}) {
   const d = Number(duration) || 60;
   const normalizedMode = normalizeMode(mode);
   const normalizedTarget = normalizeTarget(target);
@@ -588,6 +588,9 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
   const isTrailer = normalizedMode === "trailer";
   const isFilmMode = isShortFilm || isTrailer;
   const productionBibleBlock = formatProductionBibleLock(productionBible);
+  const selectedStyleBlock = cleanPrompt(style)
+    ? `SELECTED UI STYLE PRESET: ${cleanPrompt(style)}. Use this as the global visual style preset unless a stricter production_bible.style.lock is provided. Style affects lens, lighting, color, grain, texture and realism only; it cannot add story objects, locations, costumes, eras or threats.`
+    : "";
 
   return `Generate production storyboard JSON for NeuroCine.
 Output ONLY valid JSON. No markdown.
@@ -598,6 +601,7 @@ DURATION: ${effectiveDuration}s. Generate EXACTLY ${preset.targetScenes} scenes.
 ${hasForcedScenes ? `CUSTOM FRAME COUNT IS AUTHORITATIVE: output exactly ${preset.targetScenes} frames/scenes, even if this is 27, 29, 31 or any other non-grid number. Do not round to a 2x2 grid.` : ""}
 ${timingLabel === "auto_script_scan" ? "AUTO TIMING: scan the script for meaningful beats, dialogue lines, reveals, inserts and reaction shots, then assign those beats across the requested frames without inventing new story content." : ""}
 ASPECT RATIO: ${aspectRatio}.
+${selectedStyleBlock}
 ${productionBibleBlock}
 ${isScriptStrict ? `
 STRICT SCRIPT DISTRIBUTION — MANDATORY:
@@ -633,18 +637,13 @@ Every trailer scene must include visual_beat_ru, visual_beat_en, allowed_charact
 If a script line is abstract, make a minimal concrete shot from the already established locked location. Do NOT add people before they are introduced.
 For multiple generated variants of the same PART, keep identical story content and vary only camera angle, focal length, distance, foreground layer or composition.
 
-TRAILER HOOK PACING — NON-NEGOTIABLE:
-The first PART must sell the movie premise immediately. Do NOT spend the first 4 frames on only empty establishing shots or abstract narration.
-Compress abstract opening lines into ONE concrete hook frame. A trailer frame may combine 2-3 exact adjacent source lines in script_line_ru when needed to form one strong beat; never paraphrase them as new story.
-If the script introduces recurring protagonists anywhere in the first act, they must appear by frame 2 unless the script explicitly delays all people.
-If the script contains an inciting anomaly/prop/sign/button/display/discovery, it must appear by frame 3.
-Frame 4 must show the first consequence, choice, trap, threat, or irreversible movement into danger if such a beat exists in the script.
-For a 4-frame PART, use this mini-arc:
-1. HOOK IMAGE: the core location/anomaly/premise in one concrete shot.
-2. HUMAN STAKE: the recurring cast or victim group introduced by the script.
-3. INCITING DETAIL: the object/sign/display/action that makes the situation wrong.
-4. FIRST DANGER: the choice/trap/descent/reaction that makes escape uncertain.
-Opening scenes may jump forward within the script to these key beats, but must preserve story order inside the selected hook beats.
+TRAILER OPENING SOURCE-ORDER LAW — NON-NEGOTIABLE:
+The first PART must sell the movie premise while preserving script order.
+Frames 1-4 must cover the earliest meaningful source beats in order. Combine adjacent abstract lines only when they have no direct visible subject/action.
+Do NOT jump forward to a later antagonist, weapon, chase, trap, threat, injury, supernatural reveal, double, monster, or climax to make the hook more exciting.
+If first source beats are concrete, such as a sign, gate, mask on hook, named character action, room, prop insert, vehicle light, door, corridor or display, use those beats literally.
+Human stake, anomaly and danger may appear in frames 2-4 only when their source lines occur before or at that frame's selected source beat.
+For a 4-frame PART, use a source-ordered mini-arc: 1 earliest hook image, 2 next scripted human/location/object beat, 3 next scripted inciting detail, 4 next scripted consequence/danger only if it is next in the script.
 After the hook PART, continue covering the remaining story beats in order without losing the full scenario arc.
 ` : ""}
 VISUAL FIDELITY — MANDATORY FOR ALL MODES:

@@ -280,72 +280,36 @@ function lineMatches(line = "", patterns = []) {
   return patterns.some((pattern) => pattern.test(value));
 }
 
-function findBeatIndex(lines = [], patterns = [], used = new Set(), start = 0) {
-  for (let i = Math.max(0, start); i < lines.length; i += 1) {
-    if (!used.has(i) && lineMatches(lines[i], patterns)) return i;
-  }
-  for (let i = 0; i < lines.length; i += 1) {
-    if (!used.has(i) && lineMatches(lines[i], patterns)) return i;
-  }
-  return -1;
-}
-
-function findNextUnusedIndex(lines = [], used = new Set(), start = 0) {
-  for (let i = Math.max(0, start); i < lines.length; i += 1) if (!used.has(i)) return i;
-  for (let i = 0; i < lines.length; i += 1) if (!used.has(i)) return i;
-  return -1;
-}
-
 function buildTrailerBeatPlan(lines = [], totalFrames = 1) {
   const cleanLines = lines.map(cleanText).filter(Boolean);
   if (!cleanLines.length) return ["Trailer beat"];
 
-  const used = new Set();
   const plan = [];
   const max = Math.max(1, Math.round(Number(totalFrames) || 1));
-  const characterPatterns = [/трое\s+сотрудник/, /сотрудник/, /геро/, /девушк/, /парень/];
-  const anomalyPatterns = [/-1/, /минус\s+перв/, /кнопк/, /панел/, /диспле/, /надпись/, /не\s+смотрите/];
-  const dangerPatterns = [/еха|едет|спуск|вниз|слишком\s+долго/, /стоп/, /красн/, /посмотрел/, /углу/, /человек/];
-  const openElevatorPatterns = [/лифт.*открыт/, /стоит\s+открыт/, /заходить\s+внутр/];
 
-  function pushSource(source, indices = []) {
-    if (!source || plan.length >= max) return;
-    plan.push(source);
-    indices.forEach((i) => used.add(i));
-  }
+  const openingCount = Math.min(max, 4, cleanLines.length);
+  for (let i = 0; i < openingCount; i += 1) plan.push(cleanLines[i]);
 
-  const castIndex = findBeatIndex(cleanLines, characterPatterns, used);
-  const searchUntil = castIndex >= 0 ? castIndex : cleanLines.length;
-  let hookEnd = -1;
-  for (let i = 0; i < searchUntil; i += 1) {
-    if (lineMatches(cleanLines[i], openElevatorPatterns)) hookEnd = i;
-  }
-  if (hookEnd < 0) hookEnd = Math.min(searchUntil - 1, 0);
-  if (hookEnd < 0) hookEnd = 0;
-  const hookStart = 0;
-  const hookIndices = [];
-  for (let i = hookStart; i <= hookEnd; i += 1) hookIndices.push(i);
-  pushSource(hookIndices.map((i) => cleanLines[i]).join(" / "), hookIndices);
-
-  if (max >= 2) {
-    const idx = castIndex >= 0 && !used.has(castIndex) ? castIndex : findNextUnusedIndex(cleanLines, used, hookEnd + 1);
-    if (idx >= 0) pushSource(cleanLines[idx], [idx]);
-  }
-
-  if (max >= 3) {
-    const idx = findBeatIndex(cleanLines, anomalyPatterns, used, Math.max(0, castIndex + 1));
-    const fallback = idx >= 0 ? idx : findNextUnusedIndex(cleanLines, used, castIndex + 1);
-    if (fallback >= 0) pushSource(cleanLines[fallback], [fallback]);
-  }
-
-  if (max >= 4) {
-    const idx = findBeatIndex(cleanLines, dangerPatterns, used, 0);
-    const fallback = idx >= 0 ? idx : findNextUnusedIndex(cleanLines, used, 0);
-    if (fallback >= 0) pushSource(cleanLines[fallback], [fallback]);
-  }
-
-  for (let i = 0; i < cleanLines.length && plan.length < max; i += 1) {
-    if (!used.has(i)) pushSource(cleanLines[i], [i]);
+  const remainingSlots = max - plan.length;
+  const remainingLines = cleanLines.slice(openingCount);
+  if (remainingSlots > 0 && remainingLines.length > 0) {
+    if (remainingSlots >= remainingLines.length) {
+      plan.push(...remainingLines);
+    } else {
+      const picked = new Set();
+      for (let slot = 0; slot < remainingSlots; slot += 1) {
+        const idx = remainingSlots === 1
+          ? remainingLines.length - 1
+          : Math.round((slot / (remainingSlots - 1)) * (remainingLines.length - 1));
+        if (!picked.has(idx)) {
+          plan.push(remainingLines[idx]);
+          picked.add(idx);
+        }
+      }
+      for (let i = 0; plan.length < max && i < remainingLines.length; i += 1) {
+        if (!picked.has(i)) plan.push(remainingLines[i]);
+      }
+    }
   }
 
   while (plan.length < max) {
@@ -1226,18 +1190,17 @@ All generator-facing technical fields must be English: image_prompt_en, video_pr
 FRAME COUNT CONTROL:
 Return exactly ${expectedFrames} scenes.
 Scene durations may be 2-10 seconds, but total_duration must equal ${effectiveDuration}s.
-If timing mode is auto, split the script into meaningful trailer beats: hook image, human stake, inciting anomaly, first danger, inserts, reactions, reveals, chase/action beats, climax and final sting.
+If timing mode is auto, split the script into meaningful trailer beats in source order: opening hook, first concrete location/object beats, first character actions, inciting anomaly, inserts, reactions, reveals, chase/action beats, climax and final sting.
 If a script beat needs multiple frames, continue the same beat visually without adding new story content.
 
-TRAILER HOOK PACING:
-- The first PART must sell the premise immediately. Do not spend the first 4 frames only on empty establishing shots or abstract narration.
-- Compress abstract opening narration into ONE concrete hook frame.
+TRAILER OPENING SOURCE-ORDER LAW:
+- The first PART must sell the premise while preserving script order.
+- Frames 1-4 must cover the earliest meaningful source beats in order.
+- Compress adjacent abstract opening narration only when it has no direct visible subject/action.
 - A scene.script_line_ru may combine 2-3 exact adjacent source lines with " / " when needed to form a strong trailer beat. Do not invent or paraphrase new story.
-- If recurring protagonists are introduced in the first act, they should appear early, but never before their source line.
-- If the script contains an inciting anomaly/prop/sign/button/display/discovery, it should appear by frame 3 when source order allows it.
-- Frame 4 must show the first consequence, choice, trap, threat, or irreversible movement into danger if such a beat exists.
-- For a 4-frame PART, use this mini-arc: 1) HOOK IMAGE, 2) HUMAN STAKE, 3) INCITING DETAIL, 4) FIRST DANGER.
-- Hook pacing never overrides source order or first-appearance rules.
+- Do not jump forward to a later antagonist, weapon, chase, trap, threat, injury, supernatural reveal, double, monster or climax to make the hook more exciting.
+- If the first source beats are concrete, such as a sign, gate, mask on hook, named character action, room, prop insert, vehicle light, door, corridor or display, use those beats literally.
+- Human stake, anomaly and danger may appear early only when their exact source lines occur early.
 - After the first PART, continue covering the remaining scenario beats in story order.
 
 VISUAL BEAT RULES:
@@ -1332,7 +1295,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
     cast_lock: bibleLocks.cast_lock,
     location_lock: bibleLocks.location_lock,
     style_bible: cleanText([bibleLocks.style_bible, style].filter(Boolean).join(". ")),
-    grid_continuity: "PART 1 must work as a trailer hook mini-arc: hook image, human stake, inciting anomaly, first danger. PART 2+ continues the same film using cast_lock, location_lock, style_bible, visual_beat fields and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
+    grid_continuity: "PART 1 follows the first meaningful source beats in script order and must not jump ahead to a later antagonist, weapon, threat, reveal or climax. PART 2+ continues the same film using cast_lock, location_lock, style_bible, visual_beat fields and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
     scenes,
     export_meta: { mode: "trailer", target, trailer_mode: true, local_preview: true, target_scene_count: totalFrames, frame_seconds: frameSeconds, timing_mode: timingMode },
   };

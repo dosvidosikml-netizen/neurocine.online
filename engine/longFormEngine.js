@@ -127,6 +127,7 @@ export function buildChunkUserPrompt({
   targetScenes = null,
   frameSeconds = 3,
   timingMode = "manual",
+  style = "",
   productionBible = null,
   characterLockFromPrev = null,
   voiceLockFromPrev = null,
@@ -154,6 +155,9 @@ export function buildChunkUserPrompt({
   const normalizedMode = String(mode || "").toLowerCase();
   const isShortFilm = normalizedMode === "short_film" || normalizedMode === "trailer";
   const isTrailer = normalizedMode === "trailer";
+  const selectedStyleBlock = String(style || "").trim()
+    ? `SELECTED UI STYLE PRESET: ${String(style).trim()}. Use this as the global visual style preset unless a stricter production_bible.style.lock is provided. Style affects lens, lighting, color, grain, texture and realism only; it cannot add story objects, locations, costumes, eras or threats.`
+    : "";
   const productionBibleBlock = productionBible && typeof productionBible === "object" && productionBible.enabled !== false
     ? `
 
@@ -252,6 +256,7 @@ TRAILER STORYBOARD MODE:
 - Treat the full input as one film/trailer up to 10 minutes, split into chunks only for model limits.
 - Preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
 - Each chunk must continue the same production design, not restart a new concept.
+- In chunk 1, the first PART must follow the earliest meaningful source beats in script order. Do not jump ahead to a later antagonist, weapon, chase, threat, injury, reveal or climax.
 - Odd and custom frame counts are valid. Do not add extra frames to fill a perfect 2x2 grid.
 - For grid export, PARTS may end with any remaining cell count when needed.
 ` : "";
@@ -267,6 +272,7 @@ CHUNK INFO:
 CONTENT MODE: ${mode}
 VIDEO TARGET: ${target}
 ASPECT RATIO: ${aspectRatio}
+${selectedStyleBlock}
 
 Target scenes для этого chunk: ${safeTargetScenes} (MANDATORY).
 Timing mode: ${safeTimingMode}. Preferred average: ${safeFrameSeconds}s per frame.
