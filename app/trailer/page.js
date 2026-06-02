@@ -1237,27 +1237,35 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
   const base = started || created || timeMs(queueJob.updated_at);
   const end = completed || nowMs;
   const elapsed = base ? end - base : 0;
+  const realProgress = Number(queueJob.progress ?? job.progress);
+  const hasRealProgress = Number.isFinite(realProgress) && realProgress >= 0;
   let stage = "ждёт";
-  let progress = hasGrid ? 100 : 0;
+  let progress = hasGrid ? 100 : (hasRealProgress ? clampNumber(realProgress, 0, 100, 0) : 0);
+  let showTrack = hasGrid || hasRealProgress;
 
   if (status === "queued") {
     stage = "ждёт агента";
-    progress = Math.min(28, 6 + Math.floor(elapsed / 8000));
+    progress = hasRealProgress ? progress : 0;
+    showTrack = hasRealProgress;
   } else if (status === "rendering") {
     stage = "агент рендерит";
-    progress = Math.min(94, 32 + Math.floor(elapsed / 5000));
+    progress = hasRealProgress ? Math.min(99, Math.max(1, progress)) : 0;
+    showTrack = hasRealProgress;
   } else if (status === "done") {
     stage = "готово";
     progress = 100;
+    showTrack = true;
   } else if (status === "error") {
     stage = "ошибка";
-    progress = 100;
+    progress = 0;
+    showTrack = false;
   }
 
   return {
     status,
     stage,
     progress,
+    showTrack,
     elapsed: base ? formatElapsedTime(elapsed) : "0:00",
     updated: relativeTimeLabel(queueJob.updated_at || queueJob.created_at, nowMs),
     message: job.message || (queueJob.status ? `очередь: ${queueJob.status}` : fallbackMessage),
@@ -2278,6 +2286,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .job-top em{font-style:normal;font-size:11px;color:rgba(247,243,234,.58)}
         .job-message{line-height:1.35}
         .job-meta{font-size:11px;color:rgba(247,243,234,.48)}
+        .job-wait{font-size:11px;color:rgba(247,243,234,.42)}
         .job-track{height:5px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
         .job-track span{display:block;height:100%;width:0%;border-radius:inherit;background:rgba(247,243,234,.30);transition:width .35s ease}
         .job.queued{border-color:rgba(255,196,112,.45);color:#ffdca6;background:rgba(74,50,17,.18)}
@@ -2542,12 +2551,16 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                           <span className="job-meta">
                             Время: {progress.elapsed} · обновлено: {progress.updated}
                           </span>
-                          <span className="job-track"><span style={{ width: `${progress.progress}%` }} /></span>
+                          {progress.showTrack ? (
+                            <span className="job-track"><span style={{ width: `${progress.progress}%` }} /></span>
+                          ) : (
+                            <span className="job-wait">Прогресс появится только когда агент пришлёт реальные данные.</span>
+                          )}
                         </span>
                       );
                     }) : <span className="job">Сначала создай JSON раскадровки</span>}
                   </div>
-                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Страница сама обновляет очередь каждые 4 секунды, а таймер PART идёт каждую секунду. Оранжевые “Только ПК” работают только когда сайт открыт на самом компьютере рядом с ComfyUI.</div>
+                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Страница сама обновляет очередь каждые 4 секунды, а таймер PART идёт каждую секунду. Полоса прогресса не рисуется по времени: она появится только при реальных данных от агента или готовой сетке.</div>
                 </div>
 
                 <div className="uploadbox">
