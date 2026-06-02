@@ -325,6 +325,52 @@ function normalizeLocationLock(value = {}) {
   };
 }
 
+function formatProductionBibleLock(productionBible = null) {
+  if (!productionBible || typeof productionBible !== "object" || productionBible.enabled === false) return "";
+  const characters = Array.isArray(productionBible.characters)
+    ? productionBible.characters.filter((item) => item && typeof item === "object" && cleanPrompt(item.name || item.role || item.identity || item.referenceName))
+    : [];
+  const locations = Array.isArray(productionBible.locations)
+    ? productionBible.locations.filter((item) => item && typeof item === "object" && cleanPrompt(item.name || item.description || item.referenceName))
+    : [];
+  const style = productionBible.style && typeof productionBible.style === "object" ? productionBible.style : {};
+  const charLines = characters.length
+    ? characters.map((item, i) => {
+      const id = cleanPrompt(item.id || `CHAR_${String(i + 1).padStart(2, "0")}`);
+      return `${id}: name=${cleanPrompt(item.name || "") || "script character"}; role=${cleanPrompt(item.role || "") || "scripted role"}; identity=${cleanPrompt(item.identity || "") || "infer from script/reference"}; wardrobe=${cleanPrompt(item.wardrobe || "") || "scripted wardrobe only"}; reference=${item.referenceName ? cleanPrompt(item.referenceName) : "none"}; forbidden=${cleanPrompt(item.negative || item.forbidden_changes || "") || "no redesign"}`;
+    }).join("\n")
+    : "No manual cast references. Extract cast from script and lock stable identity.";
+  const locLines = locations.length
+    ? locations.map((item, i) => {
+      const id = cleanPrompt(item.id || `LOC_${String(i + 1).padStart(2, "0")}`);
+      return `${id}: name=${cleanPrompt(item.name || "") || "scripted location"}; description=${cleanPrompt(item.description || "") || "infer from script"}; materials=${cleanPrompt(item.materials || "") || "script-supported materials only"}; lighting=${cleanPrompt(item.lighting || "") || "physically plausible practical light"}; reference=${item.referenceName ? cleanPrompt(item.referenceName) : "none"}; forbidden=${cleanPrompt(item.negative || "") || "no redesign"}`;
+    }).join("\n")
+    : "No manual location references. Extract locations from script and lock recurring geography.";
+  return `
+PRODUCTION BIBLE LOCK — USE BEFORE STORYBOARD:
+This bible is the continuity source before scene generation. Use it to create root cast_lock, location_lock, style_bible and scene-level allowed/forbidden fields.
+Reference uploads are anchors only; they must not introduce unscripted objects, locations, actions, costumes, eras or threats.
+
+CAST INPUT:
+${charLines}
+
+LOCATION INPUT:
+${locLines}
+
+STYLE INPUT:
+Selected style: ${cleanPrompt(style.label || style.preset || "") || "selected UI style"}
+Style lock: ${cleanPrompt(style.lock || "") || "use selected style preset"}
+Style reference: ${style.referenceName ? cleanPrompt(style.referenceName) : "none"}
+Style forbidden: ${cleanPrompt(style.negative || "") || "no style drift"}
+
+PRODUCTION BIBLE RULES:
+- Cast lock is identity continuity, not a command to put every character in every frame.
+- Characters may appear only after the current script line introduces or directly implies them.
+- Location/style references preserve look and geography only; they cannot add new plot content.
+- If model creativity conflicts with this bible or with script_line_ru, script_line_ru wins first, this bible wins second, style text wins last.
+`;
+}
+
 function findVoiceIdForSpeaker(speaker = "", voiceLock = []) {
   const key = voiceLockKey(speaker);
   if (!key) return "";
@@ -515,7 +561,7 @@ function getCutEnergy(scene = {}, index = 0) {
   return index % 3 === 2 ? "low" : "medium";
 }
 
-export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16", targetScenes = null, frameSeconds = 3, timingMode = "fixed" } = {}) {
+export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "safe", target = "veo3", aspectRatio = "9:16", targetScenes = null, frameSeconds = 3, timingMode = "fixed", productionBible = null } = {}) {
   const d = Number(duration) || 60;
   const normalizedMode = normalizeMode(mode);
   const normalizedTarget = normalizeTarget(target);
@@ -541,6 +587,7 @@ export function buildStoryboardUserPrompt({ script = "", duration = 60, mode = "
   const isShortFilm = normalizedMode === "short_film";
   const isTrailer = normalizedMode === "trailer";
   const isFilmMode = isShortFilm || isTrailer;
+  const productionBibleBlock = formatProductionBibleLock(productionBible);
 
   return `Generate production storyboard JSON for NeuroCine.
 Output ONLY valid JSON. No markdown.
@@ -551,6 +598,7 @@ DURATION: ${effectiveDuration}s. Generate EXACTLY ${preset.targetScenes} scenes.
 ${hasForcedScenes ? `CUSTOM FRAME COUNT IS AUTHORITATIVE: output exactly ${preset.targetScenes} frames/scenes, even if this is 27, 29, 31 or any other non-grid number. Do not round to a 2x2 grid.` : ""}
 ${timingLabel === "auto_script_scan" ? "AUTO TIMING: scan the script for meaningful beats, dialogue lines, reveals, inserts and reaction shots, then assign those beats across the requested frames without inventing new story content." : ""}
 ASPECT RATIO: ${aspectRatio}.
+${productionBibleBlock}
 ${isScriptStrict ? `
 STRICT SCRIPT DISTRIBUTION — MANDATORY:
 Split the script text into EXACTLY ${preset.targetScenes} sequential segments (one per scene).
@@ -727,6 +775,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
   const voiceLockSafe = normalizeVoiceLock(raw.voice_lock, inputScenes);
   const castLockSafe = normalizeCastLock(raw.cast_lock, characterLockSafe);
   const locationLockSafe = normalizeLocationLock(raw.location_lock || raw.world_location_lock || raw.location);
+  const productionBibleSafe = raw.production_bible || timing?.productionBible || timing?.production_bible || null;
 
   const storyboardMeta = {
     project_name: raw.project_name || "NeuroCine Storyboard",
@@ -740,6 +789,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     voice_lock: voiceLockSafe,
     cast_lock: castLockSafe,
     location_lock: locationLockSafe,
+    ...(productionBibleSafe ? { production_bible: productionBibleSafe } : {}),
     style_bible: raw.style_bible || raw.master_style || raw.global_style_lock || DEFAULT_STYLE_LOCK,
     ...(target === "grok" && raw.master_style ? { master_style: raw.master_style } : {}),
   };
@@ -837,6 +887,7 @@ export function normalizeStoryboard(raw = {}, requestedDuration = 60, requestedM
     global_video_lock: raw.global_video_lock || DEFAULT_VIDEO_LOCK,
     global_negative_prompt: NEGATIVE_PROMPT_BASE,
     world_audio_lock: "Audio and SFX must be physically possible for the script era, location and visible objects. No modern sirens/alarms unless explicitly scripted or visible.",
+    ...(productionBibleSafe ? { production_bible: productionBibleSafe } : {}),
     character_lock: characterLockSafe,
     voice_lock: filmMode ? voiceLockSafe : (Array.isArray(raw.voice_lock) ? voiceLockSafe : []),
     ...(mode === "trailer" ? {

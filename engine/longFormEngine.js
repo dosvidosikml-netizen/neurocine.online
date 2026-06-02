@@ -127,6 +127,7 @@ export function buildChunkUserPrompt({
   targetScenes = null,
   frameSeconds = 3,
   timingMode = "manual",
+  productionBible = null,
   characterLockFromPrev = null,
   voiceLockFromPrev = null,
   castLockFromPrev = null,
@@ -153,6 +154,41 @@ export function buildChunkUserPrompt({
   const normalizedMode = String(mode || "").toLowerCase();
   const isShortFilm = normalizedMode === "short_film" || normalizedMode === "trailer";
   const isTrailer = normalizedMode === "trailer";
+  const productionBibleBlock = productionBible && typeof productionBible === "object" && productionBible.enabled !== false
+    ? `
+
+PRODUCTION BIBLE LOCK:
+Use this bible as continuity source before writing this chunk. Reference uploads are anchors only; they must not add unscripted story content.
+${JSON.stringify({
+  characters: Array.isArray(productionBible.characters) ? productionBible.characters.map((item) => item ? {
+    id: item.id,
+    name: item.name,
+    role: item.role,
+    identity: item.identity,
+    wardrobe: item.wardrobe,
+    referenceName: item.referenceName,
+    negative: item.negative,
+  } : null).filter(Boolean) : [],
+  locations: Array.isArray(productionBible.locations) ? productionBible.locations.map((item) => item ? {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    materials: item.materials,
+    lighting: item.lighting,
+    referenceName: item.referenceName,
+    negative: item.negative,
+  } : null).filter(Boolean) : [],
+  style: productionBible.style ? {
+    label: productionBible.style.label,
+    lock: productionBible.style.lock,
+    referenceName: productionBible.style.referenceName,
+    negative: productionBible.style.negative,
+  } : {},
+}, null, 2)}
+
+Rules: cast lock is identity continuity, not a command to show every character in every frame. Script line wins first, production bible wins second, style text wins last.
+`
+    : "";
 
   const observerBlock = isObserverMode
     ? `
@@ -237,6 +273,7 @@ Timing mode: ${safeTimingMode}. Preferred average: ${safeFrameSeconds}s per fram
 Каждая сцена 2-${isTrailer ? 10 : 4} секунды.
 total_duration JSON для chunk = ${chunkDuration}.
 ${observerBlock}
+${productionBibleBlock}
 ${shortFilmBlock}
 ${trailerBlock}
 ${continuityBlock}
@@ -267,6 +304,7 @@ export function mergeChunks(chunkResults, totalDuration) {
   const castLock = chunkResults[0]?.cast_lock || [];
   const locationLock = chunkResults[0]?.location_lock || {};
   const styleBible = chunkResults[0]?.style_bible || "";
+  const productionBible = chunkResults[0]?.production_bible || null;
   const gridContinuity = chunkResults[0]?.grid_continuity || "";
   const voiceByCharacter = new Map(
     (Array.isArray(voiceLock) ? voiceLock : [])
@@ -339,6 +377,7 @@ export function mergeChunks(chunkResults, totalDuration) {
     voice_lock: voiceLock,
     cast_lock: castLock,
     location_lock: locationLock,
+    ...(productionBible ? { production_bible: productionBible } : {}),
     style_bible: styleBible,
     grid_continuity: gridContinuity,
     postprocess,

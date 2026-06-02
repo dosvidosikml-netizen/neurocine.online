@@ -469,6 +469,7 @@ export async function POST(req) {
     const projectName = body.project_name || "NeuroCine Project";
     const mode = normalizeMode(body.mode || "safe");
     const target = normalizeTarget(body.target || "veo3");
+    const productionBible = body.production_bible && typeof body.production_bible === "object" ? body.production_bible : null;
     const targetScenesRaw = body.target_scene_count ?? body.frame_count ?? body.frames;
     const minScenesForDuration = Math.max(1, Math.ceil(duration / 10));
     const maxScenesForDuration = Math.max(minScenesForDuration, Math.ceil(duration / 2));
@@ -556,6 +557,7 @@ export async function POST(req) {
               if (!apiKeyOverride) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
+                if (productionBible) local.production_bible = productionBible;
                 send("done", { storyboard: local, mode: "local_fallback_longform", target, validation: { ok: true, errors: [] } });
                 return;
               }
@@ -582,6 +584,7 @@ export async function POST(req) {
                   totalDuration: duration, scriptForChunk: scriptChunks[i] || "",
                   globalScript: script, mode, target, aspectRatio,
                   targetScenes: chunkSceneCounts[i], frameSeconds, timingMode,
+                  productionBible,
                   characterLockFromPrev, voiceLockFromPrev, castLockFromPrev,
                   locationLockFromPrev, styleBibleFromPrev, lastSceneFromPrev, globalStyleLock,
                 });
@@ -604,7 +607,7 @@ export async function POST(req) {
                 }
 
                 const parsedChunk = extractJson(result.content);
-                const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target, { targetScenes: chunkSceneCounts[i], frameSeconds, timingMode });
+                const normalizedChunk = normalizeStoryboard(parsedChunk, ch.duration, mode, result.model_used, target, { targetScenes: chunkSceneCounts[i], frameSeconds, timingMode, productionBible });
                 if (i > 0 && characterLockFromPrev) normalizedChunk.character_lock = characterLockFromPrev;
                 if (i > 0 && voiceLockFromPrev) normalizedChunk.voice_lock = voiceLockFromPrev;
                 if (i > 0 && castLockFromPrev) normalizedChunk.cast_lock = castLockFromPrev;
@@ -629,9 +632,10 @@ export async function POST(req) {
 
               send("merging", { message: "Склеиваю chunks в единый storyboard JSON" });
               const mergedRaw = mergeChunks(chunkResults, duration);
-              const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target, storyboardTiming);
+              const sbMerged = normalizeStoryboard(mergedRaw, duration, mode, lastModelUsed || "long_form_merge", target, { ...storyboardTiming, productionBible });
               sbMerged.project_name = projectName;
               sbMerged.aspect_ratio = aspectRatio || sbMerged.aspect_ratio;
+              if (productionBible) sbMerged.production_bible = productionBible;
               const valMerged = validateStoryboard(sbMerged, mode, target);
               send("done", { storyboard: sbMerged, mode: "api_longform", target, validation: valMerged, model_used: lastModelUsed });
 
@@ -643,11 +647,12 @@ export async function POST(req) {
               if (!apiKeyOverride) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const local = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
+                if (productionBible) local.production_bible = productionBible;
                 send("done", { storyboard: local, mode: "local_fallback", target, validation: { ok: true, errors: [] } });
                 return;
               }
 
-              const userInput = buildStoryboardUserPrompt({ script, duration, mode, target, aspectRatio, targetScenes, frameSeconds, timingMode });
+              const userInput = buildStoryboardUserPrompt({ script, duration, mode, target, aspectRatio, targetScenes, frameSeconds, timingMode, productionBible });
               const result = await callOpenRouter({
                 taskType: TASK_TYPES.STORYBOARD_GENERATION,
                 systemPrompt: SYSTEM_PROMPT, userMessage: userInput,
@@ -663,14 +668,16 @@ export async function POST(req) {
               if (!result.ok) {
                 const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
                 const sbFallback = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
+                if (productionBible) sbFallback.production_bible = productionBible;
                 send("done", { storyboard: sbFallback, mode: `api_error_fallback: ${result.error}`, target });
                 return;
               }
 
               const parsed = extractJson(result.content);
-              const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, storyboardTiming);
+              const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, { ...storyboardTiming, productionBible });
               storyboard.project_name = projectName;
               storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
+              if (productionBible) storyboard.production_bible = productionBible;
               const validation = validateStoryboard(storyboard, mode, target);
               send("done", { storyboard, mode: "api", target, validation, model_used: result.model_used });
             }
@@ -681,6 +688,7 @@ export async function POST(req) {
             try {
               const { buildLocalStoryboard } = await import("../../../engine/sceneEngine");
               const sbCatch = buildLocalStoryboard({ script, duration, aspectRatio, style, projectName });
+              if (productionBible) sbCatch.production_bible = productionBible;
               send("done", { storyboard: sbCatch, mode: "catch_fallback", error: e.message, target });
             } catch {
               send("error", { message: e.message || "Storyboard error" });
@@ -716,6 +724,7 @@ export async function POST(req) {
         style,
         projectName,
       });
+      if (productionBible) storyboard.production_bible = productionBible;
       return NextResponse.json({ storyboard, mode: "local_fallback", target });
     }
 
@@ -728,6 +737,7 @@ export async function POST(req) {
       targetScenes,
       frameSeconds,
       timingMode,
+      productionBible,
     });
 
     // Через modelRouter — STORYBOARD_GENERATION task с правильными defaults
@@ -751,6 +761,7 @@ export async function POST(req) {
         style,
         projectName,
       });
+      if (productionBible) storyboard.production_bible = productionBible;
       return NextResponse.json({
         storyboard,
         mode: `api_error_fallback: ${result.error}`,
@@ -760,10 +771,11 @@ export async function POST(req) {
     }
 
     const parsed = extractJson(result.content);
-    const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, storyboardTiming);
+    const storyboard = normalizeStoryboard(parsed, duration, mode, result.model_used, target, { ...storyboardTiming, productionBible });
 
     storyboard.project_name = projectName;
     storyboard.aspect_ratio = aspectRatio || storyboard.aspect_ratio;
+    if (productionBible) storyboard.production_bible = productionBible;
 
     const validation = validateStoryboard(storyboard, mode, target);
 
@@ -784,6 +796,7 @@ export async function POST(req) {
         style: body.style || "cinematic",
         projectName: body.project_name || "NeuroCine Project",
       });
+      if (body.production_bible && typeof body.production_bible === "object") storyboard.production_bible = body.production_bible;
       return NextResponse.json({
         storyboard,
         mode: "catch_fallback",
