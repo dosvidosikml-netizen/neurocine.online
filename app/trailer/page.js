@@ -23,6 +23,7 @@ const QUICK_PRESETS = [
 ];
 
 const TRAILER_DRAFT_KEY = "neurocine.trailerStoryboardDraft.v1";
+const TRAILER_AGENT_TOKEN_KEY = "neurocine.trailerLocalAgentToken.v1";
 const LOCAL_WORKER_URLS = {
   comfyui: "http://127.0.0.1:8188",
   automatic1111: "http://127.0.0.1:7860",
@@ -1072,6 +1073,21 @@ function makeLocalAgentToken() {
   return `agent_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function getPersistentLocalAgentToken(fallback = "") {
+  if (typeof window === "undefined") return String(fallback || "").trim() || "PASTE_AGENT_TOKEN";
+  const saved = String(window.localStorage.getItem(TRAILER_AGENT_TOKEN_KEY) || "").trim();
+  const next = saved || String(fallback || "").trim() || makeLocalAgentToken();
+  window.localStorage.setItem(TRAILER_AGENT_TOKEN_KEY, next);
+  return next;
+}
+
+function savePersistentLocalAgentToken(value = "") {
+  const token = String(value || "").trim();
+  if (!token || typeof window === "undefined") return token;
+  window.localStorage.setItem(TRAILER_AGENT_TOKEN_KEY, token);
+  return token;
+}
+
 function normalizeLocalImageData(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -1344,7 +1360,7 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
       title: "ПК агент: нет связи",
       detail: lastMs
         ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Проверь, запущена ли команда агента на ПК.`
-        : "Сайт ещё не видел Local Agent с этим токеном.",
+        : "Сайт ещё не видел Local Agent с этим токеном. Нажми “Команда агента” и запусти её на ПК для этого токена.",
     };
   }
 
@@ -1615,11 +1631,18 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   }
 
   async function copyLocalAgentCommand() {
-    const token = localAgentToken || makeLocalAgentToken();
-    if (!localAgentToken) setLocalAgentToken(token);
-    await navigator.clipboard.writeText(localAgentCommand.replace("PASTE_AGENT_TOKEN", token));
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (localAgentToken !== token) setLocalAgentToken(token);
+    const command = localAgentCommand
+      .replace(localAgentToken || "PASTE_AGENT_TOKEN", token)
+      .replace("PASTE_AGENT_TOKEN", token);
+    await navigator.clipboard.writeText(command);
     setStatus("Команда локального агента скопирована");
     setLocalRenderNotice({ type: "success", message: "Команда агента скопирована. Запусти её на ПК, если агент ещё не работает." });
+  }
+
+  function changeLocalAgentToken(value) {
+    setLocalAgentToken(savePersistentLocalAgentToken(value));
   }
 
   async function refreshLocalQueueJobs(quiet = false) {
@@ -1669,6 +1692,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     try {
       const raw = window.localStorage.getItem(TRAILER_DRAFT_KEY);
       if (!raw) {
+        setLocalAgentToken(getPersistentLocalAgentToken());
         setDraftReady(true);
         return;
       }
@@ -1699,11 +1723,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (Number.isFinite(Number(draft.localImageHeight))) setLocalImageHeight(Number(draft.localImageHeight));
       if (Number.isFinite(Number(draft.localSteps))) setLocalSteps(Number(draft.localSteps));
       if (Number.isFinite(Number(draft.localCfg))) setLocalCfg(Number(draft.localCfg));
-      setLocalAgentToken(draft.localAgentToken || makeLocalAgentToken());
+      setLocalAgentToken(getPersistentLocalAgentToken(draft.localAgentToken));
       if (draft.localQueueJobs && typeof draft.localQueueJobs === "object") setLocalQueueJobs(draft.localQueueJobs);
       if (draft.lastSavedAt) setLastSavedAt(draft.lastSavedAt);
     } catch {}
-    setLocalAgentToken((prev) => prev || makeLocalAgentToken());
+    setLocalAgentToken((prev) => getPersistentLocalAgentToken(prev));
     setDraftReady(true);
   }, []);
 
@@ -1718,6 +1742,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       localSteps, localCfg, localAgentToken, localQueueJobs, lastSavedAt: savedAt,
     };
     try {
+      savePersistentLocalAgentToken(localAgentToken);
       window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
       setLastSavedAt(savedAt);
     } catch {
@@ -1788,7 +1813,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (Number.isFinite(Number(draft.localImageHeight))) setLocalImageHeight(Number(draft.localImageHeight));
       if (Number.isFinite(Number(draft.localSteps))) setLocalSteps(Number(draft.localSteps));
       if (Number.isFinite(Number(draft.localCfg))) setLocalCfg(Number(draft.localCfg));
-      setLocalAgentToken(draft.localAgentToken || makeLocalAgentToken());
+      setLocalAgentToken(getPersistentLocalAgentToken(draft.localAgentToken));
       setLocalQueueJobs(draft.localQueueJobs && typeof draft.localQueueJobs === "object" ? draft.localQueueJobs : {});
       setStoryboard(draft.storyboard?.scenes ? draft.storyboard : null);
       setGridUploads(draft.gridUploads && typeof draft.gridUploads === "object" ? draft.gridUploads : {});
@@ -1856,7 +1881,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalRenderAction("");
     setLocalRenderNotice({ type: "idle", message: "Проект очищен. Создай storyboard JSON, потом ставь PART в очередь." });
     setLocalRenderJobs({});
-    setLocalAgentToken(makeLocalAgentToken());
+    setLocalAgentToken(getPersistentLocalAgentToken(localAgentToken));
     setLocalQueueJobs({});
     setLocalAgentStatus(null);
     setLocalModelPreset(DEFAULT_LOCAL_MODEL_PRESET);
@@ -2114,8 +2139,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setLocalRenderNotice({ type: "error", message: "Сначала создай storyboard JSON, потом ставь PART в очередь." });
       return;
     }
-    const token = localAgentToken || makeLocalAgentToken();
-    if (!localAgentToken) setLocalAgentToken(token);
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (localAgentToken !== token) setLocalAgentToken(token);
     const indexes = partIndexes.length ? partIndexes : parts.map((_, i) => i);
     let jobs = [];
     try {
@@ -2586,7 +2611,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   </div>
                   <label>LoRA, по одной строке<textarea className="compact-area" value={localLoras} onChange={(e) => setLocalLoras(e.target.value)} placeholder={"cinematic_horror_lora.safetensors:0.65\nsame_actor_face_lora.safetensors:0.55"} /></label>
                   <label>ComfyUI workflow template для FLUX/кастомных графов<textarea className="compact-area" value={localWorkflowTemplate} onChange={(e) => setLocalWorkflowTemplate(e.target.value)} placeholder={'Опционально. Вставь workflow JSON и используй плейсхолдеры "__PROMPT__", "__NEGATIVE__", "__WIDTH__", "__HEIGHT__", "__STEPS__", "__CFG__", "__SEED__", "__CHECKPOINT__".'} /></label>
-                  <label>Токен локального агента<input value={localAgentToken} onChange={(e) => setLocalAgentToken(e.target.value)} placeholder="будет создан автоматически" /></label>
+                  <label>Токен локального агента<input value={localAgentToken} onChange={(e) => changeLocalAgentToken(e.target.value)} placeholder="будет создан автоматически" /></label>
                   <div className="pills">
                     <span className="pill active">Кадр: {localImageWidth}×{localImageHeight}</span>
                     <span className="pill">{activeLocalModelPreset.label}</span>
@@ -2629,7 +2654,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       );
                     }) : <span className="job">Сначала создай JSON раскадровки</span>}
                   </div>
-                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Страница сама обновляет очередь каждые 4 секунды, а таймер PART идёт каждую секунду. Полоса прогресса не рисуется по времени: она появится только при реальных данных от агента или готовой сетке.</div>
+                  <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Страница сама обновляет очередь каждые 4 секунды, а таймер PART идёт каждую секунду. Токен агента теперь постоянный между проектами; если сайт пишет “нет связи”, запусти команду агента именно с этим токеном.</div>
                 </div>
 
                 <div className="uploadbox">
