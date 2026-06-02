@@ -736,6 +736,7 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   }
   if (/мясник|человек в маске|высокий человек|бензопил|фартук/i.test(text)) addCandidate("Мясник", "masked antagonist", /мясник|человек в маске|высокий человек|бензопил|фартук/i);
   if (/копи[яию]|двойник/i.test(text)) addCandidate("Двойник", "duplicate / supernatural copy", /копи[яию]|двойник/i);
+  if (!candidates.length && text.length > 30) addCandidate("Главный персонаж", "script protagonist inferred from scenario", /./);
   const uniqueCandidates = candidates.slice(0, MAX_CHARACTER_REFS);
   const characters = Array.from({ length: MAX_CHARACTER_REFS }, (_, i) => {
     const existing = normalized.characters[i] || emptyProductionCharacter(i);
@@ -768,6 +769,13 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   const foundLocations = [];
   for (const [re, name, description] of locationHints) {
     if (re.test(text) && !foundLocations.some((item) => item.name === name)) foundLocations.push({ name, description, pattern: re });
+  }
+  if (!foundLocations.length && text.length > 30) {
+    foundLocations.push({
+      name: "Основная локация",
+      description: "primary scripted location inferred from the scenario; preserve only geography and props described by source lines",
+      pattern: /./,
+    });
   }
   const locations = Array.from({ length: MAX_LOCATION_REFS }, (_, i) => {
     const existing = normalized.locations[i] || emptyProductionLocation(i);
@@ -1821,6 +1829,8 @@ export default function TrailerStoryboardPage() {
   const [cropInset, setCropInset] = useState(0);
   const [storyboard, setStoryboard] = useState(null);
   const [status, setStatus] = useState("");
+  const [bibleAction, setBibleAction] = useState("");
+  const [bibleNotice, setBibleNotice] = useState({ type: "idle", message: "Нажми “Собрать из сценария”: система заполнит героев, локации и ref-prompts автоматически." });
   const [busy, setBusy] = useState(false);
   const [scriptBusy, setScriptBusy] = useState(false);
   const [queueClock, setQueueClock] = useState(Date.now());
@@ -2447,24 +2457,56 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setError("");
     setLastSavedAt("");
     setShowMasterPrompt(false);
+    setBibleAction("");
+    setBibleNotice({ type: "idle", message: "Проект очищен. Вставь сценарий и нажми “Собрать из сценария”." });
     setStatus("Всё очищено: сценарий, раскадровка, PART-сетки, кроп и локальное сохранение");
   }
 
   function autoBuildProductionBible() {
-    const next = extractProductionBibleFromScript(script || projectName, productionBible, { stylePreset, styleProfile });
+    const source = cleanText(script || projectName);
+    if (source.length < 3) {
+      setBibleAction("empty");
+      setBibleNotice({ type: "error", message: "Сначала вставь сценарий или тему. Сейчас системе нечего разбирать." });
+      setStatus("Сначала вставь сценарий или тему");
+      return;
+    }
+    setBibleAction("working");
+    const next = extractProductionBibleFromScript(source, productionBible, { stylePreset, styleProfile });
+    const charCount = filledProductionCharacters(next).length;
+    const locCount = filledProductionLocations(next).length;
     setProductionBible(next);
     setStoryboard(null);
     setGridUploads({});
     setCroppedFrame("");
-    setStatus("Библия проекта собрана автоматически. Ручные поля необязательны: можно сразу генерировать JSON.");
+    if (!charCount && !locCount) {
+      setBibleAction("empty");
+      setBibleNotice({ type: "error", message: "Авто-разбор сработал, но герои/локации не найдены. Проверь, что в поле сценария есть полный текст, а не только название." });
+      setStatus("Авто-разбор не нашёл героев/локации");
+      return;
+    }
+    setBibleAction("done");
+    setBibleNotice({ type: "success", message: `Собрано: ${charCount} персонаж., ${locCount} локац. Можно жать “В очередь refs” или “Авто всё”.` });
+    setStatus(`Библия проекта собрана: ${charCount} персонаж., ${locCount} локац. Ручные поля необязательны.`);
   }
 
   async function autoBuildAndGenerate() {
-    const next = extractProductionBibleFromScript(script || projectName, productionBible, { stylePreset, styleProfile });
+    const source = cleanText(script || projectName);
+    if (source.length < 10) {
+      setBibleAction("empty");
+      setBibleNotice({ type: "error", message: "Для “Авто всё” нужен сценарий, не только пустая тема." });
+      setStatus("Для “Авто всё” нужен сценарий");
+      return;
+    }
+    setBibleAction("working");
+    const next = extractProductionBibleFromScript(source, productionBible, { stylePreset, styleProfile });
+    const charCount = filledProductionCharacters(next).length;
+    const locCount = filledProductionLocations(next).length;
     setProductionBible(next);
     setStoryboard(null);
     setGridUploads({});
     setCroppedFrame("");
+    setBibleAction("done");
+    setBibleNotice({ type: "success", message: `Авто собрало: ${charCount} персонаж., ${locCount} локац. Запускаю refs/storyboard.` });
     await queueReferencesForLocalAgent(next, { quiet: true, skipWithoutAuth: true });
     await generateTrailer(next);
   }
@@ -2474,6 +2516,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setStoryboard(null);
     setGridUploads({});
     setCroppedFrame("");
+    setBibleAction("");
+    setBibleNotice({ type: "idle", message: "Библия очищена. Нажми “Собрать из сценария” для нового проекта." });
     setStatus("Библия проекта очищена");
   }
 
@@ -2538,6 +2582,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         });
       }
       if (kind === "style") updateProductionStyle({ reference, referenceName });
+      setBibleNotice({ type: "success", message: `Референс загружен: ${referenceName}. Текстовые поля можно не заполнять.` });
       setStatus(`Референс загружен: ${referenceName}. Текстовые поля можно не заполнять.`);
     };
     reader.readAsDataURL(file);
@@ -2895,6 +2940,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if (!jobs.length) {
       if (!quiet) {
         setStatus("Auto refs уже готовы или сценарий не дал героев/локаций.");
+        setBibleNotice({ type: "success", message: "Auto refs уже готовы или нечего ставить в очередь." });
         setLocalRenderNotice({ type: "success", message: "Auto refs уже готовы или нечего ставить в очередь." });
       }
       return false;
@@ -2903,6 +2949,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if (localAgentToken !== token) setLocalAgentToken(token);
     if (!quiet) {
       setLocalRenderAction("queue-refs");
+      setBibleNotice({ type: "working", message: `Ставлю auto refs в очередь: ${jobs.length} заданий...` });
       setLocalRenderNotice({ type: "working", message: `Ставлю auto refs в очередь: ${jobs.length} заданий...` });
     }
     try {
@@ -2936,12 +2983,14 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       const duplicateNote = skipped ? ` Уже в работе: ${skipped} refs.` : "";
       if (!quiet) {
         setStatus(`Auto refs в очереди: ${inserted} новых.${duplicateNote}`);
+        setBibleNotice({ type: "success", message: `Auto refs в очереди: ${inserted} новых.${duplicateNote}` });
         setLocalRenderNotice({ type: "success", message: `Auto refs в очереди: ${inserted} новых.${duplicateNote}` });
       }
       return true;
     } catch (e) {
       if (!quiet) {
         setError(`Auto refs не поставлены в очередь: ${e.message}`);
+        setBibleNotice({ type: "error", message: `Auto refs не поставлены в очередь: ${e.message}` });
         setLocalRenderNotice({ type: "error", message: `Auto refs не поставлены в очередь: ${e.message}` });
       }
       return false;
@@ -3033,6 +3082,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     a.click();
     URL.revokeObjectURL(url);
   }
+  const bibleBuildLabel = bibleAction === "working"
+    ? "Собираю..."
+    : bibleAction === "done"
+      ? "Собрано"
+      : bibleAction === "empty"
+        ? "Не найдено"
+        : "Собрать из сценария";
   return (
     <main className="trailer-page">
       <style jsx>{`
@@ -3092,6 +3148,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .local-notice.success{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.30);color:#b7ffe3}
         .local-notice.warn{border-color:rgba(255,196,112,.48);background:rgba(74,50,17,.24);color:#ffdca6}
         .local-notice.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32);color:#ffb3bd}
+        .bible-notice{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);border-radius:6px;padding:10px 12px;font-size:13px;font-weight:800;color:rgba(247,243,234,.82)}
+        .bible-notice.working{border-color:rgba(255,196,112,.45);background:rgba(74,50,17,.20);color:#ffdca6}
+        .bible-notice.success{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.30);color:#b7ffe3}
+        .bible-notice.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32);color:#ffb3bd}
         .agent-health{border:1px solid rgba(255,255,255,.12);background:#10131b;border-radius:6px;padding:10px 12px;display:grid;gap:4px}
         .agent-health strong{font-size:13px}
         .agent-health span{font-size:12px;line-height:1.45;color:rgba(247,243,234,.64)}
@@ -3225,7 +3285,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
               <div className="prompt-head">
                 <h2>02 · Библия проекта / референсы</h2>
                 <div className="buttons">
-                  <button type="button" onClick={autoBuildProductionBible} disabled={busy || scriptBusy || (script.trim().length < 3 && projectName.trim().length < 3)}>Собрать из сценария</button>
+                  <button type="button" className={`${bibleAction === "working" ? "action-direct is-working" : bibleAction === "done" ? "action-check" : bibleAction === "empty" ? "danger" : ""}`} onClick={autoBuildProductionBible} disabled={busy || scriptBusy || (script.trim().length < 3 && projectName.trim().length < 3)}>{bibleBuildLabel}</button>
                   <button type="button" className="primary" onClick={autoBuildAndGenerate} disabled={busy || scriptBusy || script.trim().length < 10}>Авто всё</button>
                   <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={() => queueReferencesForLocalAgent()} disabled={busy || scriptBusy || localRenderAction === "queue-refs" || script.trim().length < 10}>В очередь refs</button>
                   <button type="button" className="danger" onClick={resetProductionBible} disabled={busy || scriptBusy}>Очистить библию</button>
@@ -3238,6 +3298,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                 <span className="pill">до 5 героев</span>
                 <span className="pill">поля необязательны</span>
               </div>
+              <div className={`bible-notice ${bibleNotice.type || "idle"}`}>{bibleNotice.message}</div>
               <div className="hint">Быстрый режим: нажми “Собрать из сценария” или просто загрузи референсы. Пустые поля не ломают генерацию: система использует сценарий, выбранный стиль и загруженные референсы как anchors.</div>
 
               <h3>Персонажи</h3>
