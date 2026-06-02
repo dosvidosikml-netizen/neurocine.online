@@ -6,7 +6,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const DEFAULT_NEGATIVE = "text, subtitles, captions, watermark, UI, logo, frame labels, numbers, contact sheet, gallery cards, nested grid, comic, illustration, painting, cartoon, anime, CGI, render, plastic skin";
+const DEFAULT_NEGATIVE = "bad hands, bad anatomy, deformed hands, deformed fingers, extra fingers, missing fingers, bad face, face asymmetry, eyes asymmetry, deformed eyes, deformed mouth, ugly, deformed, low quality, lowres, overprocessed, oversmoothed skin, airbrushed skin, beauty retouching, fashion editorial, glossy glamour lighting, text, subtitles, captions, watermark, UI, logo, frame labels, numbers, contact sheet, gallery cards, nested grid, comic, illustration, painting, cartoon, anime, CGI, render, plastic skin";
 const DEFAULT_COMFY_PYTHON = process.platform === "win32"
   ? "C:\\Users\\Admin\\AI\\ComfyUI\\.venv\\Scripts\\python.exe"
   : "python3";
@@ -307,6 +307,10 @@ async function renderFrameGrid(job, config, payload) {
   const rows = Math.max(1, Math.ceil(frames.length / cols));
   const cellWidth = Math.max(256, Math.round(Number(payload.width || 936)));
   const cellHeight = Math.max(384, Math.round(Number(payload.height || 1664)));
+  const requestedSeed = Number(payload.identity_seed ?? payload.seed);
+  const baseSeed = Number.isFinite(requestedSeed) && requestedSeed >= 0
+    ? Math.floor(requestedSeed)
+    : Math.floor(Math.random() * 999999999);
   const rendered = [];
 
   for (let i = 0; i < frames.length; i += 1) {
@@ -316,7 +320,7 @@ async function renderFrameGrid(job, config, payload) {
       prompt: frame.prompt,
       width: cellWidth,
       height: cellHeight,
-      seed: -1,
+      seed: baseSeed,
       filename_prefix: `neurocine_trailer_part_${String(job.part_index + 1).padStart(2, "0")}_frame_${String(i + 1).padStart(2, "0")}`,
     };
     delete framePayload.frames;
@@ -431,7 +435,7 @@ async function main() {
     token: arg("token", ""),
     provider,
     workerUrl: cleanBaseUrl(arg("worker", defaultWorker), defaultWorker),
-    checkpoint: arg("checkpoint", "sd_xl_base_1.0.safetensors"),
+    checkpoint: arg("checkpoint", "RealVisXL_V5.0_fp16.safetensors"),
     python: arg("python", process.env.COMFYUI_PYTHON || process.env.PYTHON || DEFAULT_COMFY_PYTHON),
     intervalMs: Math.max(1000, Number(arg("interval", "3000")) || 3000),
     heartbeatMs: Math.max(5000, Number(arg("heartbeat", "8000")) || 8000),

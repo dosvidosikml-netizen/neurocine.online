@@ -33,6 +33,30 @@ const DEFAULT_LOCAL_WORKER_URL = LOCAL_WORKER_URLS[DEFAULT_LOCAL_RENDER_PROVIDER
 const LOCAL_IMAGE_WIDTH = 936;
 const LOCAL_IMAGE_HEIGHT = 1664;
 const LOCAL_IMAGE_NEGATIVE = [
+  "bad hands",
+  "bad anatomy",
+  "deformed hands",
+  "deformed fingers",
+  "extra fingers",
+  "missing fingers",
+  "bad face",
+  "face asymmetry",
+  "eyes asymmetry",
+  "deformed eyes",
+  "deformed mouth",
+  "open mouth",
+  "ugly",
+  "deformed",
+  "low quality",
+  "normal quality",
+  "lowres",
+  "low detail",
+  "overprocessed",
+  "oversmoothed skin",
+  "airbrushed skin",
+  "beauty retouching",
+  "fashion editorial",
+  "glossy glamour lighting",
   "text",
   "subtitles",
   "captions",
@@ -59,30 +83,43 @@ const LOCAL_IMAGE_NEGATIVE = [
 ].join(", ");
 const LOCAL_MODEL_PRESETS = {
   sdxlProduction: {
-    label: "SDXL production реализм",
+    label: "RealVisXL production реализм",
+    family: "sdxl",
+    checkpoint: "RealVisXL_V5.0_fp16.safetensors",
+    width: 936,
+    height: 1664,
+    steps: 42,
+    cfg: 5,
+    sampler: "dpmpp_sde",
+    a1111Sampler: "DPM++ SDE Karras",
+    scheduler: "karras",
+    note: "Рекомендуемый photoreal checkpoint. Нужен файл RealVisXL_V5.0_fp16.safetensors в ComfyUI/models/checkpoints.",
+  },
+  sdxlCinema: {
+    label: "Juggernaut XL cinema realism",
+    family: "sdxl",
+    checkpoint: "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+    width: 936,
+    height: 1664,
+    steps: 38,
+    cfg: 5,
+    sampler: "dpmpp_2m",
+    a1111Sampler: "DPM++ 2M Karras",
+    scheduler: "karras",
+    note: "Сильный cinematic photoreal checkpoint, хорош для киношных людей и интерьеров.",
+  },
+  sdxlBaseDebug: {
+    label: "SDXL base debug, не realism",
     family: "sdxl",
     checkpoint: "sd_xl_base_1.0.safetensors",
     width: 936,
     height: 1664,
-    steps: 28,
+    steps: 24,
     cfg: 6,
     sampler: "dpmpp_2m",
     a1111Sampler: "DPM++ 2M Karras",
     scheduler: "karras",
-    note: "Рабочий режим для RTX 3060 12GB: стабильный, LoRA-ready, хороший для трейлерных PART-сеток.",
-  },
-  sdxlCinema: {
-    label: "SDXL cinematic checkpoint",
-    family: "sdxl",
-    checkpoint: "juggernautXL_v9Rundiffusionphoto2.safetensors",
-    width: 936,
-    height: 1664,
-    steps: 30,
-    cfg: 5.5,
-    sampler: "dpmpp_2m",
-    a1111Sampler: "DPM++ 2M Karras",
-    scheduler: "karras",
-    note: "Поставь реальное имя cinematic/photoreal checkpoint из папки ComfyUI/models/checkpoints.",
+    note: "Только технический тест. Для реализма и постоянных персонажей не использовать.",
   },
   sdxlFastDraft: {
     label: "SDXL быстрый черновик",
@@ -95,7 +132,7 @@ const LOCAL_MODEL_PRESETS = {
     sampler: "dpmpp_2m",
     a1111Sampler: "DPM++ 2M Karras",
     scheduler: "karras",
-    note: "Быстро проверить логику кадров перед дорогим качеством.",
+    note: "Быстро проверить логику кадров перед дорогим качеством. Не подходит для финального реализма.",
   },
   fluxQuality: {
     label: "FLUX quality workflow",
@@ -1042,6 +1079,24 @@ function normalizeLocalImageData(value) {
   return `data:image/png;base64,${raw}`;
 }
 
+function stableSeedFromText(value = "") {
+  const text = String(value || "neurocine-trailer");
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash) % 999999999;
+}
+
+function migrateSavedCheckpoint(presetKey, checkpoint) {
+  const raw = String(checkpoint ?? "").trim();
+  if (presetKey === "sdxlProduction" && (!raw || raw === "sd_xl_base_1.0.safetensors")) {
+    return LOCAL_MODEL_PRESETS.sdxlProduction.checkpoint;
+  }
+  return checkpoint;
+}
+
 function escapeJsonStringContent(value) {
   return JSON.stringify(String(value ?? "")).slice(1, -1);
 }
@@ -1425,6 +1480,7 @@ export default function TrailerStoryboardPage() {
   }, [localAgentToken, localRenderProvider, localWorkerUrl, localCheckpoint, defaultLocalModel.checkpoint]);
   const activeLocalModelPreset = LOCAL_MODEL_PRESETS[localModelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
   const localAgentHealth = useMemo(() => agentHealthInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
+  const usesBaseCheckpoint = /(^|[\\/])sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim()) || /^sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim());
 
   function buildPartPromptForIndex(partIndex, includeFix = true) {
     const part = parts[partIndex] || [];
@@ -1540,6 +1596,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       steps: localSteps,
       cfg: localCfg,
     });
+    payload.identity_seed = stableSeedFromText(`${projectName || storyboard?.project_name || "trailer"}|${script}|${storyboard?.character_lock ? JSON.stringify(storyboard.character_lock) : ""}`);
+    payload.seed = payload.identity_seed;
     if (part.length) {
       payload.render_mode = "frames_grid";
       payload.grid_cols = layout.cols;
@@ -1632,8 +1690,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (Number.isFinite(Number(draft.cropInset))) setCropInset(Number(draft.cropInset));
       if (draft.localWorkerUrl) setLocalWorkerUrl(draft.localWorkerUrl);
       if (draft.localRenderProvider) setLocalRenderProvider(draft.localRenderProvider);
-      if (draft.localModelPreset) setLocalModelPreset(draft.localModelPreset);
-      if (draft.localCheckpoint !== undefined) setLocalCheckpoint(draft.localCheckpoint);
+      const savedPreset = draft.localModelPreset || DEFAULT_LOCAL_MODEL_PRESET;
+      if (draft.localModelPreset) setLocalModelPreset(savedPreset);
+      if (draft.localCheckpoint !== undefined) setLocalCheckpoint(migrateSavedCheckpoint(savedPreset, draft.localCheckpoint));
       if (draft.localLoras !== undefined) setLocalLoras(draft.localLoras);
       if (draft.localWorkflowTemplate !== undefined) setLocalWorkflowTemplate(draft.localWorkflowTemplate);
       if (Number.isFinite(Number(draft.localImageWidth))) setLocalImageWidth(Number(draft.localImageWidth));
@@ -1720,8 +1779,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (draft.partSize) setPartSize(Number(draft.partSize));
       if (draft.localWorkerUrl) setLocalWorkerUrl(draft.localWorkerUrl);
       if (draft.localRenderProvider) setLocalRenderProvider(draft.localRenderProvider);
-      if (draft.localModelPreset) setLocalModelPreset(draft.localModelPreset);
-      if (draft.localCheckpoint !== undefined) setLocalCheckpoint(draft.localCheckpoint);
+      const savedPreset = draft.localModelPreset || DEFAULT_LOCAL_MODEL_PRESET;
+      if (draft.localModelPreset) setLocalModelPreset(savedPreset);
+      if (draft.localCheckpoint !== undefined) setLocalCheckpoint(migrateSavedCheckpoint(savedPreset, draft.localCheckpoint));
       if (draft.localLoras !== undefined) setLocalLoras(draft.localLoras);
       if (draft.localWorkflowTemplate !== undefined) setLocalWorkflowTemplate(draft.localWorkflowTemplate);
       if (Number.isFinite(Number(draft.localImageWidth))) setLocalImageWidth(Number(draft.localImageWidth));
@@ -2115,8 +2175,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         updateLocalRenderJob(job.part_index, { status: "queued", message: "в очереди агента" });
       }
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
-      setStatus(`Очередь создана: ${Object.keys(nextJobs).length} PART. Запусти Local Agent на ПК.`);
-      setLocalRenderNotice({ type: "success", message: `Очередь создана: ${Object.keys(nextJobs).length} PART. Local Agent на ПК должен забрать задания.` });
+      const inserted = Number.isFinite(Number(data.inserted_count)) ? Number(data.inserted_count) : Object.keys(nextJobs).length;
+      const skipped = Math.max(0, Number(data.skipped_duplicate_count || 0));
+      const duplicateNote = skipped ? ` Уже в работе: ${skipped} PART, дубль не создан.` : "";
+      setStatus(`Очередь создана: ${inserted} новых PART.${duplicateNote} Local Agent на ПК должен забрать задания.`);
+      setLocalRenderNotice({ type: "success", message: `Очередь создана: ${inserted} новых PART.${duplicateNote}` });
     } catch (e) {
       indexes.forEach((partIndex) => {
         updateLocalRenderJob(partIndex, { status: "error", message: "очередь не создана" });
@@ -2269,6 +2332,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .local-notice{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);border-radius:6px;padding:10px 12px;font-size:13px;font-weight:800;color:rgba(247,243,234,.82)}
         .local-notice.working{border-color:rgba(255,196,112,.45);background:rgba(74,50,17,.20);color:#ffdca6}
         .local-notice.success{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.30);color:#b7ffe3}
+        .local-notice.warn{border-color:rgba(255,196,112,.48);background:rgba(74,50,17,.24);color:#ffdca6}
         .local-notice.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32);color:#ffb3bd}
         .agent-health{border:1px solid rgba(255,255,255,.12);background:#10131b;border-radius:6px;padding:10px 12px;display:grid;gap:4px}
         .agent-health strong{font-size:13px}
@@ -2491,6 +2555,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className={`local-notice ${localRenderNotice.type || "idle"}`}>
                     {localRenderNotice.message}
                   </div>
+                  {usesBaseCheckpoint ? (
+                    <div className="local-notice warn">
+                      Сейчас выбран SDXL Base. Это debug-модель, она даёт разные лица и слабый реализм. Для финала выбери RealVisXL/Juggernaut checkpoint.
+                    </div>
+                  ) : null}
                   <div className={`agent-health ${localAgentHealth.status}`}>
                     <strong>{localAgentHealth.title}</strong>
                     <span>{localAgentHealth.detail}</span>

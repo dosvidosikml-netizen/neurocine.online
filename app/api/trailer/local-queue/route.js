@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TABLE = "trailer_local_jobs";
+const ACTIVE_JOB_STATUSES = ["queued", "running"];
 const memoryStore = globalThis.__neurocineTrailerLocalJobs || new Map();
 globalThis.__neurocineTrailerLocalJobs = memoryStore;
 
@@ -109,6 +110,33 @@ function updateMemory(id, agentToken, patch = {}) {
   return next;
 }
 
+function jobDedupeKey(row = {}) {
+  return [
+    cleanToken(row.agent_token),
+    String(row.project_name || "").trim().toLowerCase(),
+    String(row.provider || "comfyui").trim().toLowerCase(),
+    Number(row.part_index || 0),
+  ].join("|");
+}
+
+function uniqueRowsByPart(rows = []) {
+  const seen = new Set();
+  const unique = [];
+  for (const row of rows) {
+    const key = jobDedupeKey(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+  return unique;
+}
+
+function activeMemoryDuplicates(agentToken, rows = []) {
+  const wanted = new Set(rows.map(jobDedupeKey));
+  return Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && ACTIVE_JOB_STATUSES.includes(row.status) && wanted.has(jobDedupeKey(row)));
+}
+
 async function createJobs(req, body) {
   const account = await getServerAccount(req);
   if (!account.ok) {
@@ -120,7 +148,7 @@ async function createJobs(req, body) {
   if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
   if (!jobs.length) return NextResponse.json({ ok: false, error: "Нет заданий для очереди." }, { status: 400 });
 
-  const rows = jobs.map((job, index) => ({
+  const rows = uniqueRowsByPart(jobs.map((job, index) => ({
     user_id: account.user?.id || null,
     agent_token: agentToken,
     project_name: String(body.project_name || job.project_name || "NeuroCine Trailer").slice(0, 200),
@@ -135,22 +163,56 @@ async function createJobs(req, body) {
     image_data: "",
     created_at: nowIso(),
     updated_at: nowIso(),
-  })).filter((row) => row.prompt);
+  })).filter((row) => row.prompt));
 
   if (!rows.length) return NextResponse.json({ ok: false, error: "В заданиях нет prompt." }, { status: 400 });
 
   const admin = createAdminSupabase();
   if (admin) {
-    const { data, error } = await admin
+    const partIndexes = [...new Set(rows.map((row) => row.part_index))];
+    const { data: existing, error: existingError } = await admin
       .from(TABLE)
-      .insert(rows)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at");
-    if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob) });
-    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at,agent_token")
+      .eq("agent_token", agentToken)
+      .in("status", ACTIVE_JOB_STATUSES)
+      .in("part_index", partIndexes);
+    if (existingError && !isMissingTableError(existingError)) return NextResponse.json({ ok: false, error: existingError.message }, { status: 500 });
+
+    if (!existingError) {
+      const existingByKey = new Map((existing || []).map((row) => [jobDedupeKey(row), row]));
+      const rowsToInsert = rows.filter((row) => !existingByKey.has(jobDedupeKey(row)));
+      const skipped = rows.length - rowsToInsert.length;
+      if (!rowsToInsert.length) {
+        const jobsOut = rows.map((row) => existingByKey.get(jobDedupeKey(row))).filter(Boolean).map(publicJob);
+        return NextResponse.json({ ok: true, mode: "supabase", jobs: jobsOut, inserted_count: 0, skipped_duplicate_count: skipped });
+      }
+
+      const { data, error } = await admin
+        .from(TABLE)
+        .insert(rowsToInsert)
+        .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at,agent_token");
+      if (!error) {
+        const inserted = data || [];
+        const allByKey = new Map([...existingByKey, ...inserted.map((row) => [jobDedupeKey(row), row])]);
+        const jobsOut = rows.map((row) => allByKey.get(jobDedupeKey(row))).filter(Boolean).map(publicJob);
+        return NextResponse.json({ ok: true, mode: "supabase", jobs: jobsOut, inserted_count: inserted.length, skipped_duplicate_count: skipped });
+      }
+      if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
   }
 
-  const saved = insertMemory(rows);
-  return NextResponse.json({ ok: true, mode: "memory", jobs: saved.map(publicJob) });
+  const existing = activeMemoryDuplicates(agentToken, rows);
+  const existingByKey = new Map(existing.map((row) => [jobDedupeKey(row), row]));
+  const rowsToInsert = rows.filter((row) => !existingByKey.has(jobDedupeKey(row)));
+  const saved = insertMemory(rowsToInsert);
+  const allByKey = new Map([...existingByKey, ...saved.map((row) => [jobDedupeKey(row), row])]);
+  return NextResponse.json({
+    ok: true,
+    mode: "memory",
+    jobs: rows.map((row) => allByKey.get(jobDedupeKey(row))).filter(Boolean).map(publicJob),
+    inserted_count: saved.length,
+    skipped_duplicate_count: rows.length - rowsToInsert.length,
+  });
 }
 
 async function pollJobs(body) {

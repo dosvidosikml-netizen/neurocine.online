@@ -44,7 +44,7 @@ function buildDefaultComfyWorkflow(payload = {}) {
   const seed = Number.isFinite(Number(payload.seed)) && Number(payload.seed) >= 0
     ? Math.floor(Number(payload.seed))
     : Math.floor(Math.random() * 999999999);
-  const checkpoint = String(payload.checkpoint || payload.ckpt_name || "sd_xl_base_1.0.safetensors");
+  const checkpoint = String(payload.checkpoint || payload.ckpt_name || "RealVisXL_V5.0_fp16.safetensors");
   if (String(payload.model_family || "sdxl").toLowerCase() === "flux") {
     throw new Error("FLUX требует ComfyUI workflow template. Вставь workflow JSON с плейсхолдерами в интерфейсе.");
   }
