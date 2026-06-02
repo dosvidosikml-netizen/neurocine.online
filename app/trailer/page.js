@@ -470,6 +470,55 @@ function promptList(value = "") {
   return promptListEnglish(value, "");
 }
 
+function scriptLineHasAny(source = "", patterns = []) {
+  const text = cleanText(source).toLowerCase();
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function isElevatorTrailerLine(source = "") {
+  return scriptLineHasAny(source, [
+    /лифт/, /офис/, /сотрудник/, /этаж/, /минус/, /не смотрите в угол/, /пропали без вести/, /диспле/, /кнопк/,
+  ]);
+}
+
+function scriptLineAllowsThreat(source = "") {
+  return scriptLineHasAny(source, [
+    /человек в маске/, /высокий человек/, /из шторы выходит/, /фартуке/, /бензопил/, /пила /, /пилой/, /маске уже рядом/, /новой кожи/,
+    /corner man/, /masked man/, /killer/, /butcher/,
+  ]);
+}
+
+function scriptLineIsEmptyMaskBeat(source = "") {
+  return scriptLineHasAny(source, [/пустая кожаная маска/, /маска.*крюк/, /hook.*mask/, /empty.*mask/]) && !scriptLineAllowsThreat(source);
+}
+
+function deriveFrameCharactersFromScript(source = "", fallback = "") {
+  const text = cleanText(source).toLowerCase();
+  const names = [];
+  if (/лена|lena/.test(text)) names.push("Lena");
+  if (/арт[её]м|artem|artyom/.test(text)) names.push("Artem");
+  if (scriptLineAllowsThreat(text)) names.push("masked butcher man");
+  if (names.length) return [...new Set(names)].join("; ");
+  if (/они|их|им|она |он |they|them|she |he /.test(text)) return fallback;
+  return "";
+}
+
+function deriveFrameForbiddenVisuals({ source = "", visualBeat = "", allowedCharacters = "", baseForbidden = "" }) {
+  const combined = `${source} ${visualBeat}`;
+  const forbidden = [baseForbidden].filter(Boolean);
+  if (!allowedCharacters) {
+    forbidden.push("people, faces, bodies, hands, silhouettes, reflections of people, passersby");
+  }
+  if (!scriptLineAllowsThreat(combined)) {
+    forbidden.push("masked man, hooded man, killer, butcher, apron man, chainsaw, person wearing a mask, threat reveal, later-story antagonist");
+  }
+  if (scriptLineIsEmptyMaskBeat(combined)) {
+    forbidden.push("person wearing the mask, face behind the mask, body attached to the mask");
+  }
+  forbidden.push("story events from later script lines, new rooms, new props, new costumes, new era");
+  return [...new Set(forbidden.join("; ").split(";").map((x) => cleanText(x)).filter(Boolean))].join("; ");
+}
+
 function trimWords(text = "", max = 30) {
   const words = cleanText(text).split(/\s+/).filter(Boolean);
   return words.length > max ? `${words.slice(0, max).join(" ")}...` : words.join(" ");
@@ -504,7 +553,7 @@ Continue the exact same film world from previous frames.
 
 CONTINUITY PRIORITY:
 1. Same cast identity, faces, body types, wardrobe and emotional condition.
-2. Same office/elevator/corridor location design and spatial logic.
+2. Same scripted location design, materials and spatial logic.
 3. Same lighting family, lens language, color grade, realism and horror tone.
 4. Source of truth = the frame descriptions in the PART prompt.
 5. Visual beats are stricter than style text: if Visual beat says no people, the cell must be empty.
@@ -525,7 +574,9 @@ FLOW/GROK RULES:
 - ${previousRule}
 - Do not invent a new style, new actors, new costumes, new rooms, new props, new time period or new supernatural rules.
 - Style is only lens/color/lighting/mood. Style cannot add objects that are not in the script.
-- Do not introduce characters before their first scripted appearance. Empty office/elevator beats must stay empty.
+- Do not introduce characters before their first scripted appearance. Empty location/object beats must stay empty.
+- Cast lock is an identity reference only, not a subject list. Render a locked character only when the current cell explicitly allows that character.
+- Do not advance to later story beats inside an earlier PART cell. If the antagonist, weapon or reveal appears later in the script, keep it forbidden until that exact source line.
 - For repeated variants of this PART, keep the same story content and change only composition, lens, distance, angle or foreground layer.
 - Generate ONE single vertical 9:16 output image, not multiple gallery cards and not a contact sheet.
 - Arrange exactly ${partScenes.length} scenes inside that one canvas as a strict ${gridLayout.cols}×${gridLayout.rows} collage.
@@ -627,6 +678,48 @@ function buildTrailerVisualBeat(source = "", previousState = {}) {
   const hasScriptedOfficePeople = /люди|работник|лицом к стене|повернули головы/.test(l);
   const noPeople = !hasEmployees && !hasCornerMan && !hasDuplicate && !hasScriptedOfficePeople;
   const screenText = extractOnScreenText(text);
+
+  if (!isElevatorTrailerLine(text)) {
+    const genericAllowedCharactersText = deriveFrameCharactersFromScript(text, "");
+    const genericAllowedCharacters = genericAllowedCharactersText
+      ? genericAllowedCharactersText.split(";").map((x) => cleanText(x)).filter(Boolean)
+      : [];
+    const sourceEn = toPromptEnglish(text, { fallback: "literal scripted event" });
+    const genericVisualEn = `Literal camera-visible shot from this source line only: ${sourceEn}.`;
+    const genericNoPeople = genericAllowedCharacters.length === 0;
+    const genericForbidden = deriveFrameForbiddenVisuals({
+      source: text,
+      visualBeat: genericVisualEn,
+      allowedCharacters: genericAllowedCharactersText,
+      baseForbidden: genericNoPeople ? "no people in this frame" : "no extra people or unrelated cast members",
+    });
+    const genericShotRole = /шепчет|говорит|сказал|сказала|крик|диалог/i.test(text)
+      ? "dialogue_or_reaction"
+      : /след|инструмент|нож|молот|шило|цеп|маск|зуб|отражение|вывеск|крюк/i.test(text)
+        ? "insert_or_clue"
+        : /беги|несутся|режет|срывается|тянет|захлопывает|выходит|появляется|вспыхивает/i.test(text)
+          ? "action_or_reveal"
+          : "trailer_beat";
+    const genericCamera = genericShotRole === "insert_or_clue"
+      ? "tight documentary insert, tactile close focus"
+      : genericShotRole === "action_or_reveal"
+        ? "urgent handheld cinematic coverage"
+        : "restrained cinematic establishing shot";
+    return {
+      state,
+      visual_ru: `Кадр строго по строке сценария: ${text}.`,
+      visual_en: genericVisualEn,
+      allowed_characters: genericAllowedCharacters,
+      allowed_objects: `Only objects, props, signs, weapons, materials and physical effects named or directly implied by this source line: ${sourceEn}.`,
+      allowed_location: "the exact scripted location slice from this source line only; keep the already established location continuity",
+      forbidden_visuals: genericForbidden,
+      on_screen_text: screenText ? [screenText] : [],
+      shot_role: genericShotRole,
+      camera: genericCamera,
+      sfx: "clean close-mic physical SFX from visible or directly implied objects only; sparse silence; no background hum, drone, room tone or music",
+      blocking: "Use only characters introduced by this exact source line or already required by its pronouns; never reveal a later antagonist early.",
+    };
+  }
 
   let visualRu = `Кадр по строке сценария: ${text}.`;
   let visualEn = `Literal storyboard shot from the script line: ${text}.`;
@@ -841,10 +934,11 @@ GLOBAL RULES:
 - SOURCE OF TRUTH = script line.
 - Use only characters, locations, objects, actions and dialogue present in the script.
 - Do not invent new actors, new locations, new props, new costumes or new supernatural rules.
-- Keep the same cast, wardrobe, office/elevator geography, lighting family and style from first frame to last.
+- Keep the same cast, wardrobe, scripted location geography, lighting family and style from first frame to last.
 - Style cannot override the script: do not add candles, oil lamps, stone, moss, medieval props, new rooms, new eras, new costumes or weather unless the script explicitly says so.
 - If a script line is abstract, convert it into a minimal visual beat from the already established locked location. Do NOT add a person just to make the frame interesting.
-- Do not introduce characters before the script introduces them. Before "Трое сотрудников..." the frame must be empty office/elevator geography only.
+- Do not introduce characters before the script introduces them. Before a person is named or directly implied, the frame must stay an empty scripted location/object/clue beat.
+- Do not reveal an antagonist, weapon, monster, double, masked person or supernatural effect before the exact source line introduces it.
 - Dialogue must be copied exactly from the script into scene.dialogue with stable voice_id.
 - Visible signs, captions, displays and title cards must go into scene.on_screen_text.
 - Narrator/trailer VO belongs in scene.vo_ru.
@@ -855,7 +949,7 @@ GLOBAL RULES:
 SCRIPT BREAKDOWN PASS:
 Before writing scenes, scan the full script and produce the internal breakdown:
 1. recurring cast and first frame where each character is introduced;
-2. recurring locations and allowed office/elevator geography;
+2. recurring locations and allowed scripted spatial geography;
 3. props/signs/displays/captions that are explicitly named;
 4. dialogue lines and stable voice_id per speaker;
 5. ordered visual beats from beginning to end.
@@ -884,10 +978,11 @@ TRAILER HOOK PACING:
 - The first PART must sell the premise immediately. Do not spend the first 4 frames only on empty establishing shots or abstract narration.
 - Compress abstract opening narration into ONE concrete hook frame.
 - A scene.script_line_ru may combine 2-3 exact adjacent source lines with " / " when needed to form a strong trailer beat. Do not invent or paraphrase new story.
-- If recurring protagonists are introduced in the first act, they must appear by frame 2.
-- If the script contains an inciting anomaly/prop/sign/button/display/discovery, it must appear by frame 3.
+- If recurring protagonists are introduced in the first act, they should appear early, but never before their source line.
+- If the script contains an inciting anomaly/prop/sign/button/display/discovery, it should appear by frame 3 when source order allows it.
 - Frame 4 must show the first consequence, choice, trap, threat, or irreversible movement into danger if such a beat exists.
 - For a 4-frame PART, use this mini-arc: 1) HOOK IMAGE, 2) HUMAN STAKE, 3) INCITING DETAIL, 4) FIRST DANGER.
+- Hook pacing never overrides source order or first-appearance rules.
 - After the first PART, continue covering the remaining scenario beats in story order.
 
 VISUAL BEAT RULES:
@@ -902,7 +997,7 @@ STYLE BIBLE:
 ${style}
 
 STYLE COMPATIBILITY:
-Use the style only for lens, camera behavior, color, contrast, grain, texture and lighting quality. If any style token conflicts with the script location/object list, ignore that style token and keep the scripted office/elevator world.
+Use the style only for lens, camera behavior, color, contrast, grain, texture and lighting quality. If any style token conflicts with the script location/object list, ignore that style token and keep the scripted world/location.
 
 OUTPUT:
 Return valid JSON only. No markdown. No explanation.
@@ -970,25 +1065,19 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
     aspect_ratio: aspectRatio,
     total_duration: frameDurations.reduce((a, b) => a + b, 0),
     global_style_lock: style,
-    global_video_lock: "same film trailer continuity, locked cast, locked elevator-office geography, no redesign between PART grids",
-    character_lock: [
-      { name: "Employee group", description: "same three office employees throughout the trailer, tired late-night office look, no actor redesign" },
-      { name: "Corner man", description: "same silent man from elevator corner, motionless presence, no redesign" },
-    ],
+    global_video_lock: "same film trailer continuity, locked scripted cast when introduced, locked scripted geography, no redesign between PART grids",
+    character_lock: [],
     voice_lock: [
       { character: "Narrator", voice_id: "voice_01", voice_profile: "low tense trailer narration", delivery_arc: "controlled dread to final whisper" },
       { character: "Offscreen voice", voice_id: "voice_04", voice_profile: "near-whisper supernatural voice", delivery_arc: "appears only for curse/rule lines" },
     ],
-    cast_lock: [
-      { id: "CHAR_01", role: "three employees", visual_identity: "same three late-night office employees from first appearance to disappearance", wardrobe: "office clothes, tired after-work look", forbidden_changes: "no new actors, no age drift, no costume redesign" },
-      { id: "CHAR_02", role: "corner man", visual_identity: "same silent man in elevator corner and corridor distance", wardrobe: "dark indistinct office-era clothing", forbidden_changes: "no monster redesign, no different face/body each PART" },
-    ],
+    cast_lock: [],
     location_lock: {
-      main: "old empty office, impossible elevator, long fluorescent corridors",
-      materials: "dirty metal elevator, glass partitions, green-grey office walls, worn floors",
-      lighting: "night office fluorescent light, red elevator light, sections going dark",
-      spatial_rules: "elevator, corridor, glass office and photo wall remain one connected impossible office geography",
-      forbidden: "no luxury building, no daylight modern lobby, no new unrelated location",
+      main: "only the locations introduced by the user's script",
+      materials: "only materials and production-design details named or directly implied by the script",
+      lighting: "only practical lighting sources named or physically plausible in the scripted location",
+      spatial_rules: "each frame must preserve the established scripted geography and must not jump to an unrelated place",
+      forbidden: "no unrelated building, no new era, no new room, no extra location not supported by the source line",
     },
     style_bible: style,
     grid_continuity: "PART 1 must work as a trailer hook mini-arc: hook image, human stake, inciting anomaly, first danger. PART 2+ continues the same film using cast_lock, location_lock, style_bible, visual_beat fields and previous PART visual DNA. Any final PART size is valid; never add filler frames just to make a perfect grid.",
@@ -1527,18 +1616,25 @@ export default function TrailerStoryboardPage() {
 
   function buildLocalFramePrompt(scene, partIndex, localIndex, partLength) {
     if (!scene) return "";
-    const scriptLine = toPromptEnglish(scene.script_line_ru || scene.vo_ru || scene.description_ru || "", { fallback: "current scripted beat" });
-    const visualBeat = toPromptEnglish(scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "", { fallback: "literal storyboard shot" });
-    const allowedCharacters = promptList(scene.allowed_characters);
+    const sourceRaw = scene.script_line_ru || scene.vo_ru || scene.description_ru || "";
+    const visualRaw = scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "";
+    const scriptLine = toPromptEnglish(sourceRaw, { fallback: "current scripted beat" });
+    const visualBeat = toPromptEnglish(visualRaw, { fallback: "literal storyboard shot" });
+    const storyboardAllowedCharacters = promptList(scene.allowed_characters);
+    const allowedCharacters = deriveFrameCharactersFromScript(sourceRaw, storyboardAllowedCharacters);
     const allowedObjects = promptList(scene.allowed_objects);
     const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
-    const forbidden = toPromptEnglish(scene.forbidden_visuals || "", { fallback: "" });
+    const forbidden = toPromptEnglish(deriveFrameForbiddenVisuals({
+      source: sourceRaw,
+      visualBeat: visualRaw,
+      allowedCharacters,
+      baseForbidden: scene.forbidden_visuals || "",
+    }), { fallback: "" });
     const exactVisibleText = exactTextLine(scene.on_screen_text || []);
     const style = compactStyleLine(storyboard?.style_bible || storyboard?.global_style_lock || styleProfile?.style_lock || "");
-    const castLock = toPromptEnglish(formatCastLock(storyboard), { fallback: "" });
     const locationLock = toPromptEnglish(formatLocationLock(storyboard), { fallback: "" });
     const noPeopleRule = allowedCharacters
-      ? `Allowed characters in this frame only: ${allowedCharacters}. Preserve exact actor identity and wardrobe if visible.`
+      ? `Allowed characters in this frame only: ${allowedCharacters}. Preserve exact actor identity and wardrobe if visible. Do not render any other cast-lock character.`
       : "Allowed characters in this frame: none. Keep this frame empty of people, faces, silhouettes, hands, reflections and passersby.";
 
     return `Generate ONE standalone vertical 9:16 cinematic frame, not a collage and not a storyboard sheet.
@@ -1552,18 +1648,19 @@ ${visualBeat}
 ${exactVisibleText ? `\n${exactVisibleText}` : ""}
 
 FRAME RULES:
+Render only the current source line. Do not advance to later story beats.
 ${noPeopleRule}
 Allowed objects: ${allowedObjects || "only objects directly named by the source line and visual beat"}.
-Location: ${allowedLocation || "same locked office/elevator location"}.
+Location: ${allowedLocation || "same locked scripted location"}.
 Forbidden: ${forbidden || "no extra actors, no new props, no new rooms, no new era, no captions, no UI, no watermark"}.
 
 CONTINUITY:
-Same trailer / short film as all other frames. Preserve cast identity only when a frame explicitly includes that character. Preserve office/elevator geography, lighting family, color grade and realism.
-${castLock ? `Cast lock reference: ${castLock}` : ""}
+Same trailer / short film as all other frames. Preserve cast identity only when this frame explicitly includes that character. Preserve scripted geography, lighting family, color grade and realism.
+Cast lock is an identity reference only, not a subject list. Never add a recurring character just because they exist elsewhere in the storyboard.
 ${locationLock ? `Location lock reference: ${locationLock}` : ""}
 
 STYLE:
-${style || "photoreal cinematic documentary horror, real camera still, natural office practical light, realistic skin and fabric, restrained grain"}.
+${style || "photoreal cinematic documentary horror, real camera still, practical location light, realistic skin and fabric, restrained grain"}.
 
 FINAL CHECK:
 One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F04, no captions, no border, no title bar.`;

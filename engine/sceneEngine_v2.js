@@ -568,7 +568,7 @@ Create root "voice_lock" for every speaking character: stable character name, st
 Preserve every written screen title/sign/display text exactly in "on_screen_text". Do not put subtitles into image_prompt_en unless the script explicitly says text appears on screen.
 Each scene must include "script_line_ru" with the exact source beat from the script, "blocking" with actor positions/movement, and "shot_role" such as establishing, insert, dialogue, reaction, reveal, chase, climax, final_sting.
 Do NOT invent dialogue lines, extra exposition, new characters, new locations, or new supernatural rules.
-For dialogue scenes, use cinematic coverage: who is speaking, who listens, eye-line, reaction, hand movement, elevator/office spatial position.
+For dialogue scenes, use cinematic coverage: who is speaking, who listens, eye-line, reaction, hand movement and spatial position inside the scripted location.
 For non-dialogue scenes, dialogue must be [].
 ` : ""}
 ${isTrailer ? `
@@ -579,7 +579,7 @@ Create root "grid_continuity" explaining how PART grids continue: PART 1 establi
 If the frame count is odd or custom (27, 29, 31, etc.), keep exact frame count and allow the final PART grid to contain any remaining cell count. Do not add or remove frames to make a perfect 2x2 grid.
 For long format up to 10 minutes, preserve cast_lock, location_lock, style_bible, voice_lock and frame numbering across all chunks.
 Narrator/trailer VO belongs in vo_ru. Character speech belongs only in dialogue[]. Supernatural whispers/offscreen lines may use dialogue with speaker "Offscreen voice" and stable voice_id.
-Do NOT create new actors, new office/elevator design, new costumes, or new supernatural rules between frames unless the script explicitly introduces them.
+Do NOT create new actors, new scripted-location design, new costumes, or new supernatural rules between frames unless the script explicitly introduces them.
 SCRIPT BREAKDOWN PASS: before scenes, infer first appearance of each character, allowed locations, scripted props/signs/displays, dialogue lines and ordered visual beats.
 Every trailer scene must include visual_beat_ru, visual_beat_en, allowed_characters, allowed_objects, allowed_location and forbidden_visuals.
 If a script line is abstract, make a minimal concrete shot from the already established locked location. Do NOT add people before they are introduced.

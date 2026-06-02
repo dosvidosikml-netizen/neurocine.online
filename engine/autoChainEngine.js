@@ -292,7 +292,7 @@ ${locationLock}
 STYLE BIBLE:
 ${styleBible || sourceStyle || "same locked cinematic style, same lens language, same color grade, same production design"}
 
-Do not redesign actors between PARTS. Do not replace the office/elevator/corridor with a new location. Do not change wardrobe, age, face, body type or role unless the script explicitly says so.
+Do not redesign actors between PARTS. Do not replace the scripted location/geography with a new place. Do not change wardrobe, age, face, body type or role unless the script explicitly says so.
 ` : ""}
 
 HERO / CHARACTER LOCK:
