@@ -1820,7 +1820,7 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
       title: "ПК агент: нет связи",
       detail: lastMs
         ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Проверь, запущена ли команда агента на ПК.`
-        : "Сайт ещё не видел Local Agent с этим токеном. Нажми “Команда агента” и запусти её на ПК для этого токена.",
+        : "Сайт ещё не видел Local Agent с этим token. Нажми “Скопировать команду агента” и запусти её на ПК для этого token.",
     };
   }
 
@@ -2222,9 +2222,14 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     const command = localAgentCommand
       .replace(localAgentToken || "PASTE_AGENT_TOKEN", token)
       .replace("PASTE_AGENT_TOKEN", token);
-    await navigator.clipboard.writeText(command);
-    setStatus("Команда локального агента скопирована");
-    setLocalRenderNotice({ type: "success", message: "Команда агента скопирована. Запусти её на ПК, если агент ещё не работает." });
+    try {
+      await navigator.clipboard.writeText(command);
+      setStatus("Команда локального агента скопирована");
+      setLocalRenderNotice({ type: "success", message: `Команда агента скопирована. Token сайта: ${token.slice(0, 8)}...${token.slice(-6)}.` });
+    } catch (e) {
+      setStatus("Команду агента можно скопировать вручную из блока ниже");
+      setLocalRenderNotice({ type: "warn", message: "Браузер не дал скопировать команду. Скопируй строку из блока команды вручную." });
+    }
   }
 
   function changeLocalAgentToken(value) {
@@ -3136,6 +3141,23 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     const role = cleanText(location.description || location.sourceContext || (location.referencePrompt ? "auto location prompt готов" : "загрузи ref или собери из сценария"));
     return { name, role };
   }
+  const agentTokenLabel = localAgentToken
+    ? `${localAgentToken.slice(0, 8)}...${localAgentToken.slice(-6)}`
+    : "создаётся";
+  const agentNeedsCommand = localAgentHealth.status !== "online";
+  const localPrimaryLabel = agentNeedsCommand
+    ? "Скопировать команду агента"
+    : localRenderAction === "queue-current"
+      ? "Ставлю PART..."
+      : "В очередь текущий PART";
+  const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length));
+  async function handleLocalPrimaryAction() {
+    if (agentNeedsCommand) {
+      await copyLocalAgentCommand();
+      return;
+    }
+    await queueCurrentPartForLocalAgent();
+  }
   return (
     <main className="trailer-page">
       <style jsx>{`
@@ -3187,6 +3209,19 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .prompt-head h2{margin:0}
         .uploadbox{border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.16);border-radius:8px;padding:12px;display:grid;gap:10px}
         .local-render{border-color:rgba(158,232,201,.24);background:linear-gradient(135deg,rgba(47,119,95,.12),rgba(0,0,0,.16))}
+        .local-main{display:grid;gap:10px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.18);border-radius:8px;padding:10px}
+        .local-main-actions{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px}
+        .local-primary{min-height:48px;font-size:14px}
+        .agent-token{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:9px 10px}
+        .agent-token span{font-size:11px;color:rgba(247,243,234,.55);text-transform:uppercase;font-weight:900;letter-spacing:.06em}
+        .agent-token b{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:#b7ffe3}
+        .agent-command{border:1px solid rgba(255,196,112,.30);background:rgba(74,50,17,.18);border-radius:6px;padding:9px 10px;display:grid;gap:6px}
+        .agent-command strong{font-size:12px;color:#ffdca6}
+        .agent-command code{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.45;color:#f7f3ea}
+        .local-advanced{border:1px solid rgba(255,255,255,.10);border-radius:6px;padding:9px 10px;background:rgba(255,255,255,.025)}
+        .local-advanced summary{cursor:pointer;color:#d8def0;font-size:12px;font-weight:900;list-style:none}
+        .local-advanced summary::-webkit-details-marker{display:none}
+        .local-advanced[open]{display:grid;gap:10px}
         .hint{font-size:12px;line-height:1.45;color:rgba(247,243,234,.62)}
         .param-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .compact-area{min-height:86px}
@@ -3267,7 +3302,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
         .mono.master{max-height:360px;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;background:#0b0f17}
-        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.param-grid,.mini-row{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.param-grid,.mini-row,.local-main-actions{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
 
       <div className="wrap">
@@ -3514,27 +3549,29 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                 <div className="uploadbox local-render">
                   <div className="prompt-head">
                     <h2>06 · Авто-генерация на локальном ПК</h2>
-                    <div className="buttons">
-                      <button className={`action-check${localRenderAction === "check" ? " is-working" : ""}`} disabled={localRenderBusy} onClick={checkLocalRenderWorker}>
-                        {localRenderAction === "check" ? "Проверяю ПК..." : "Проверить ПК"}
-                      </button>
-                      <button className={`action-direct${localRenderAction === "direct-current" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={generateCurrentPartOnLocalPc}>
-                        {localRenderAction === "direct-current" ? "Генерация PART..." : "Только ПК: PART"}
-                      </button>
-                      <button className={`action-direct${localRenderAction === "direct-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length} onClick={generateAllPartsOnLocalPc}>
-                        {localRenderAction === "direct-all" ? "Генерация всех..." : "Только ПК: все PART"}
-                      </button>
-                      <button className={`action-queue${localRenderAction === "queue-current" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={queueCurrentPartForLocalAgent}>
-                        {localRenderAction === "queue-current" ? "Ставлю PART..." : "В очередь PART"}
-                      </button>
-                      <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length} onClick={queueAllPartsForLocalAgent}>
-                        {localRenderAction === "queue-all" ? "Ставлю всё..." : "В очередь всё"}
+                  </div>
+                  <div className="local-main">
+                    <div className="local-main-actions">
+                      <button className={`${agentNeedsCommand ? "action-service" : "action-queue"} local-primary${localRenderAction === "queue-current" ? " is-working" : ""}`} disabled={localPrimaryDisabled} onClick={handleLocalPrimaryAction}>
+                        {localPrimaryLabel}
                       </button>
                       <button className={`action-refresh${localRenderAction === "refresh" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={() => refreshLocalQueueJobs(false)}>
-                        {localRenderAction === "refresh" ? "Обновляю..." : "Обновить очередь"}
+                        {localRenderAction === "refresh" ? "Обновляю..." : "Обновить"}
                       </button>
-                      <button className="action-service" disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Команда агента</button>
+                      <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length || agentNeedsCommand} onClick={queueAllPartsForLocalAgent}>
+                        {localRenderAction === "queue-all" ? "Ставлю всё..." : "В очередь всё"}
+                      </button>
                     </div>
+                    <div className="agent-token">
+                      <span>Token сайта для ПК агента</span>
+                      <b>{agentTokenLabel}</b>
+                    </div>
+                    {agentNeedsCommand ? (
+                      <div className="agent-command">
+                        <strong>На ПК должен быть запущен агент с этим token. Сайт сам не запускает программы на удалённом ПК.</strong>
+                        <code>{localAgentCommand}</code>
+                      </div>
+                    ) : null}
                   </div>
                   <div className={`local-notice ${localRenderNotice.type || "idle"}`}>
                     {localRenderNotice.message}
@@ -3548,6 +3585,21 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                     <strong>{localAgentHealth.title}</strong>
                     <span>{localAgentHealth.detail}</span>
                   </div>
+                  <details className="local-advanced">
+                    <summary>Дополнительно: прямой запуск на этом ПК и команда агента</summary>
+                    <div className="buttons">
+                      <button className={`action-check${localRenderAction === "check" ? " is-working" : ""}`} disabled={localRenderBusy} onClick={checkLocalRenderWorker}>
+                        {localRenderAction === "check" ? "Проверяю ПК..." : "Проверить генератор"}
+                      </button>
+                      <button className={`action-direct${localRenderAction === "direct-current" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !partScenes.length} onClick={generateCurrentPartOnLocalPc}>
+                        {localRenderAction === "direct-current" ? "Генерация PART..." : "Только ПК: PART"}
+                      </button>
+                      <button className={`action-direct${localRenderAction === "direct-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length} onClick={generateAllPartsOnLocalPc}>
+                        {localRenderAction === "direct-all" ? "Генерация всех..." : "Только ПК: все PART"}
+                      </button>
+                      <button className="action-service" disabled={!localAgentCommand} onClick={copyLocalAgentCommand}>Скопировать команду агента</button>
+                    </div>
+                  </details>
                   <div className="row">
                     <label>Адрес локального генератора<input value={localWorkerUrl} onChange={(e) => setLocalWorkerUrl(e.target.value)} placeholder={DEFAULT_LOCAL_WORKER_URL} /></label>
                     <label>Движок<select value={localRenderProvider} onChange={(e) => changeLocalRenderProvider(e.target.value)}>
