@@ -36,11 +36,71 @@ function normalizeImage(value) {
   return `data:image/png;base64,${raw}`;
 }
 
+function dataUrlToBuffer(value) {
+  const raw = String(value || "");
+  const base64 = raw.includes(",") ? raw.split(",").pop() : raw;
+  return Buffer.from(base64, "base64");
+}
+
+function dataUrlMime(value) {
+  return String(value || "").match(/^data:([^;]+);base64,/i)?.[1] || "image/png";
+}
+
+function safeFilePart(value = "reference") {
+  return String(value || "reference")
+    .replace(/[^a-z0-9_-]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "reference";
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+async function uploadComfyInputImage(baseUrl, imageData, prefix = "neurocine_ref") {
+  const normalized = normalizeImage(imageData);
+  if (!normalized) return "";
+  const mime = dataUrlMime(normalized);
+  const extension = mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png";
+  const fileName = `${safeFilePart(prefix)}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const form = new FormData();
+  form.append("image", new Blob([dataUrlToBuffer(normalized)], { type: mime }), fileName);
+  form.append("overwrite", "true");
+  form.append("type", "input");
+  form.append("subfolder", "neurocine_refs");
+  const data = await fetchJson(`${baseUrl}/upload/image`, {
+    method: "POST",
+    body: form,
+  }, 120000);
+  const name = data.name || fileName;
+  const subfolder = data.subfolder || "neurocine_refs";
+  return subfolder ? `${subfolder}/${name}` : name;
+}
+
+async function prepareComfyPayload(baseUrl, payload = {}) {
+  if (payload.workflow || payload.init_image) return payload;
+  const anchor = payload.reference_anchor && typeof payload.reference_anchor === "object" ? payload.reference_anchor : {};
+  const imageData = payload.init_image_data || anchor.image_data || "";
+  if (!imageData) return payload;
+  const prefix = [payload.filename_prefix, anchor.kind, anchor.id || anchor.name].filter(Boolean).join("_");
+  const initImage = await uploadComfyInputImage(baseUrl, imageData, prefix || "neurocine_ref");
+  if (!initImage) return payload;
+  return {
+    ...payload,
+    init_image: initImage,
+    denoise: clampNumber(payload.denoise ?? anchor.denoise, 0.35, 0.95, 0.72),
+  };
+}
+
 function buildDefaultComfyWorkflow(payload = {}) {
   const width = Number(payload.width || 936);
   const height = Number(payload.height || 1664);
   const steps = Number(payload.steps || 24);
   const cfg = Number(payload.cfg_scale || payload.cfg || 6);
+  const hasInitImage = Boolean(payload.init_image);
+  const denoise = hasInitImage ? clampNumber(payload.denoise, 0.35, 0.95, 0.72) : 1;
   const seed = Number.isFinite(Number(payload.seed)) && Number(payload.seed) >= 0
     ? Math.floor(Number(payload.seed))
     : Math.floor(Math.random() * 999999999);
@@ -63,7 +123,10 @@ function buildDefaultComfyWorkflow(payload = {}) {
     },
     "7": {
       class_type: "CLIPTextEncode",
-      inputs: { text: payload.negative_prompt || "", clip: ["4", 1] },
+      inputs: {
+        text: payload.negative_prompt || "bad hands, bad anatomy, text, captions, watermark, UI, frame labels, numbers, random hooded robe, random cloak, cult robe, anonymous hooded figure, contact sheet, nested grid, illustration, CGI, render, plastic skin",
+        clip: ["4", 1],
+      },
     },
     "3": {
       class_type: "KSampler",
@@ -73,7 +136,7 @@ function buildDefaultComfyWorkflow(payload = {}) {
         cfg,
         sampler_name: payload.sampler_name || "dpmpp_2m",
         scheduler: payload.scheduler || "karras",
-        denoise: 1,
+        denoise,
         model: ["4", 0],
         positive: ["6", 0],
         negative: ["7", 0],
@@ -89,11 +152,26 @@ function buildDefaultComfyWorkflow(payload = {}) {
       inputs: { filename_prefix: payload.filename_prefix || "neurocine_trailer_part", images: ["8", 0] },
     },
   };
+  if (hasInitImage) {
+    workflow["20"] = { class_type: "LoadImage", inputs: { image: payload.init_image } };
+    workflow["21"] = {
+      class_type: "ImageScale",
+      inputs: {
+        image: ["20", 0],
+        upscale_method: "lanczos",
+        width,
+        height,
+        crop: "center",
+      },
+    };
+    workflow["22"] = { class_type: "VAEEncode", inputs: { pixels: ["21", 0], vae: ["4", 2] } };
+    workflow["3"].inputs.latent_image = ["22", 0];
+  }
   let modelRef = ["4", 0];
   let clipRef = ["4", 1];
   const loras = Array.isArray(payload.loras) ? payload.loras.filter((x) => x?.name) : [];
   loras.forEach((lora, index) => {
-    const id = String(10 + index);
+    const id = String(30 + index);
     workflow[id] = {
       class_type: "LoraLoader",
       inputs: {
@@ -125,7 +203,8 @@ function findComfyImage(history, promptId) {
 
 async function renderComfyImage(baseUrl, payload = {}) {
   const clientId = randomUUID();
-  const workflow = payload.workflow || buildDefaultComfyWorkflow(payload);
+  const preparedPayload = await prepareComfyPayload(baseUrl, payload);
+  const workflow = preparedPayload.workflow || buildDefaultComfyWorkflow(preparedPayload);
   const submitted = await fetchJson(`${baseUrl}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

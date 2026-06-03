@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
 import { STYLE_PRESETS, getStyleProfile } from "../../engine/directorEngine_v4";
 import { splitScenesIntoParts, buildFlowCompactPartPrompt } from "../../engine/autoChainEngine";
-import { exactTextLine, promptListEnglish, toPromptEnglish } from "../../engine/promptLanguage";
+import { exactTextLine, hasCyrillic, promptListEnglish, toPromptEnglish } from "../../engine/promptLanguage";
 
 const DEFAULT_SCRIPT = "";
 
@@ -74,6 +74,10 @@ const LOCAL_IMAGE_NEGATIVE = [
   "F03",
   "F04",
   "numbers",
+  "random hooded robe",
+  "random cloak",
+  "cult robe",
+  "anonymous hooded figure",
   "contact sheet",
   "gallery cards",
   "nested grid",
@@ -388,6 +392,186 @@ function normalizeTextKey(value = "") {
   return cleanText(value).toLowerCase().replace(/ё/g, "е");
 }
 
+function promptEnglishSafe(value = "", fallback = "scripted detail") {
+  const raw = cleanText(value);
+  if (!raw) return fallback;
+  const converted = toPromptEnglish(raw, { fallback, residualFallback: "scripted detail" });
+  const weakTokens = converted.match(/\b(scripted detail|literal scripted event|current scripted beat)\b/gi) || [];
+  if (hasCyrillic(raw) && (weakTokens.length > 2 || converted.length < 12)) return fallback;
+  return converted || fallback;
+}
+
+function roughScriptBeatEnglish(value = "", bible = null, fallback = "literal scripted event") {
+  const raw = cleanText(value);
+  if (!raw) return fallback;
+  const source = normalizeTextKey(raw);
+  const details = [];
+  const add = (phrase) => {
+    const clean = cleanText(phrase);
+    if (clean && !details.includes(clean)) details.push(clean);
+  };
+
+  const normalizedBible = bible ? normalizeProductionBible(bible) : null;
+  filledProductionCharacters(normalizedBible || {}).forEach((item) => {
+    const name = normalizeTextKey(item.name || "");
+    if (name && source.includes(name)) {
+      add(`${item.id || "CHAR"} ${promptEnglishSafe(item.role || "recurring scripted character", "recurring scripted character")}`);
+    }
+  });
+  filledProductionLocations(normalizedBible || {}).forEach((item) => {
+    const name = normalizeTextKey(item.name || "");
+    if (name && source.includes(name)) add(`${item.id || "LOC"} ${promptEnglishSafe(item.description || item.name || "scripted location", "scripted location")}`);
+  });
+
+  const phraseMap = [
+    [/подъезд/, "dim apartment stairwell"],
+    [/коммуналк/, "communal apartment"],
+    [/коридор/, "narrow corridor"],
+    [/ванн/, "old bathroom"],
+    [/общ(ая|ей)\s+кухн|кухн/, "shared kitchen"],
+    [/двор/, "inner courtyard"],
+    [/бойн/, "abandoned slaughterhouse"],
+    [/цех/, "old industrial processing hall"],
+    [/холодильн/, "cold storage room"],
+    [/лифт/, "elevator"],
+    [/офис/, "office"],
+    [/пикап|фара/, "pickup truck headlight"],
+    [/вывеск/, "rusty sign"],
+    [/калитк|ворот/, "rusty gate"],
+    [/двер/, "doorway"],
+    [/ступеньк|лестниц/, "stairs"],
+    [/мигающ|дрожит|ламп/, "flickering practical lamp"],
+    [/женщин.*разрезан|разрезан.*женщин/, "woman lying on the stairs with a severe neck wound"],
+    [/кров/, "blood on the floor or wall exactly as scripted"],
+    [/молок/, "milk bag"],
+    [/ботинок|коврик/, "shoe and doormat"],
+    [/ч[её]рн(ый|ого)\s+меш/, "black plastic bag"],
+    [/мокр(ый|ого)\s+след/, "wet trail"],
+    [/нож/, "knife"],
+    [/молот/, "hammer"],
+    [/пил|бензопил/, "saw or chainsaw only if this source line names it"],
+    [/провод.*шею|шею.*провод/, "electric cord pulled around the old man's neck"],
+    [/стул/, "overturned chair"],
+    [/чашк/, "broken cup"],
+    [/радио/, "small radio"],
+    [/ключ|очки/, "keys and eyeglasses on the wall"],
+    [/полиэтилен|тазик/, "plastic sheeting and basins"],
+    [/кипяток|пар/, "boiling water steam"],
+    [/обожж/, "burned face"],
+    [/маск/, "leather mask only if named by this source line"],
+    [/крюк|рельс|цеп/, "hooks, rails and chains"],
+    [/фонар/, "flashlight beam"],
+    [/инструмент/, "butcher tools"],
+    [/сапог|след/, "fresh boot prints"],
+  ];
+  phraseMap.forEach(([re, phrase]) => {
+    if (re.test(source)) add(phrase);
+  });
+
+  if (/говорит|сказал|сказала|шепчет|«|"/i.test(raw)) add("dialogue beat, keep exact Russian dialogue only if spoken or visible");
+  if (/перешагивает/i.test(source)) add("calmly steps over the body");
+  if (/вытирает/i.test(source)) add("wipes shoe on the mat");
+  if (/тащит/i.test(source)) add("drags the object named by the source line");
+  if (/режет/i.test(source)) add("cuts on the board exactly as scripted");
+  if (/пятится/i.test(source)) add("backs away in fear");
+  if (/открывает/i.test(source)) add("opens the scripted door");
+  if (/бросает/i.test(source)) add("throws the scripted object");
+  if (/врывается|д[её]ргает/i.test(source)) add("runs to the locked entrance door");
+  if (/опускается/i.test(source)) add("weapon lowers into frame only as scripted");
+
+  if (!details.length) return promptEnglishSafe(raw, fallback);
+  return `Literal scripted shot only: ${details.join(", ")}. Do not add story events, costumes, props, rooms or characters not present in this source line.`;
+}
+
+function scriptBeatPromptEnglish(value = "", bible = null, fallback = "literal scripted event") {
+  const converted = promptEnglishSafe(value, fallback);
+  if (!hasCyrillic(value)) return converted;
+  if (!/\b(scripted detail|literal scripted event|current scripted beat)\b/i.test(converted)) return converted;
+  return roughScriptBeatEnglish(value, bible, fallback);
+}
+
+function anchorSearchText(scene = {}) {
+  return normalizeTextKey([
+    scene.script_line_ru,
+    scene.vo_ru,
+    scene.description_ru,
+    scene.visual_beat_ru,
+    scene.visual_beat_en,
+    scene.image_prompt_en,
+    scene.allowed_characters,
+    scene.allowed_location,
+  ].filter(Boolean).join(" "));
+}
+
+function itemMentionScore(item = {}, haystack = "") {
+  const source = normalizeTextKey(haystack);
+  if (!source) return 0;
+  const candidates = [
+    [item.id, 6],
+    [item.name, 8],
+    [item.role, 3],
+    [item.description, 2],
+  ];
+  return candidates.reduce((score, [value, weight]) => {
+    const key = normalizeTextKey(value || "");
+    if (!key || key.length < 3) return score;
+    return source.includes(key) ? Math.max(score, weight) : score;
+  }, 0);
+}
+
+function referenceAnchorForFrame(scene = {}, bible = {}) {
+  const normalized = normalizeProductionBible(bible);
+  const text = anchorSearchText(scene);
+  const characters = filledProductionCharacters(normalized)
+    .filter((item) => item.reference)
+    .map((item) => ({ item, score: itemMentionScore(item, text) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const locations = filledProductionLocations(normalized)
+    .filter((item) => item.reference)
+    .map((item) => ({ item, score: itemMentionScore(item, text) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (characters.length === 1) {
+    const item = characters[0].item;
+    return {
+      kind: "character",
+      id: item.id,
+      name: item.name || item.role || item.id,
+      reference_name: item.referenceName || "",
+      image_data: item.reference,
+      denoise: 0.74,
+    };
+  }
+  if (locations.length) {
+    const item = locations[0].item;
+    return {
+      kind: "location",
+      id: item.id,
+      name: item.name || item.id,
+      reference_name: item.referenceName || "",
+      image_data: item.reference,
+      denoise: characters.length > 1 ? 0.66 : 0.62,
+    };
+  }
+  return null;
+}
+
+function referenceAnchorPromptLine(anchor = null) {
+  if (!anchor) {
+    return "No visual reference image is supplied for this frame; obey the production bible and the exact source line.";
+  }
+  const label = [anchor.id, promptEnglishSafe(anchor.name || anchor.reference_name || anchor.kind, "locked visual reference")].filter(Boolean).join(" / ");
+  if (anchor.kind === "character") {
+    return `A visual character reference image is supplied to ComfyUI img2img. Preserve this exact actor face/body identity, wardrobe family and physical condition when the source line includes this character. Anchor: ${label}.`;
+  }
+  if (anchor.kind === "location") {
+    return `A visual location reference image is supplied to ComfyUI img2img. Preserve this exact location design, materials, spatial layout and lighting family while rendering the current source line. Anchor: ${label}.`;
+  }
+  return `A visual style reference image is supplied to ComfyUI img2img. Preserve only the lens, color, contrast, grain and tactile realism. Anchor: ${label}.`;
+}
+
 function referenceJobIndex(kind = "character", index = 0) {
   return REF_JOB_BASE - (REF_JOB_KIND_OFFSETS[kind] || 0) - Math.max(0, Number(index) || 0);
 }
@@ -612,28 +796,32 @@ function formatProductionBibleForPrompt(bible = {}, { includeReferences = true }
   const charLines = characters.length
     ? characters.map((item, i) => {
       const ref = includeReferences && item.referenceName ? ` reference uploaded: ${item.referenceName};` : "";
-      const identity = item.identity || (item.referenceName
+      const identity = promptEnglishSafe(item.identity || (item.referenceName
         ? "use uploaded reference as the actor face/body identity anchor; infer only missing details from the script"
-        : "infer only from script and first generated appearance");
-      const wardrobe = item.wardrobe || (item.referenceName
+        : "infer only from script and first generated appearance"), "stable actor identity inferred from script and reference");
+      const wardrobe = promptEnglishSafe(item.wardrobe || (item.referenceName
         ? "use reference wardrobe only when the script does not specify wardrobe; script wardrobe always wins"
-        : "scripted wardrobe only");
-      return `${item.id || `CHAR_${String(i + 1).padStart(2, "0")}`} ${item.name || item.role || `Character ${i + 1}`}: role=${item.role || "scripted role"}; identity=${identity}; wardrobe=${wardrobe};${ref} forbidden=${item.negative || "no redesign"}`;
+        : "scripted wardrobe only"), "script-supported wardrobe only");
+      const role = promptEnglishSafe(item.role || `Character ${i + 1}`, `Character ${i + 1}`);
+      const negative = promptEnglishSafe(item.negative || "no redesign", "no redesign, no actor drift, no wardrobe drift");
+      return `${item.id || `CHAR_${String(i + 1).padStart(2, "0")}`} ${role}: identity=${identity}; wardrobe=${wardrobe};${ref} forbidden=${negative}`;
     }).join("\n")
     : "No manual character references. Extract cast from the script and create stable cast_lock.";
   const locLines = locations.length
     ? locations.map((item, i) => {
       const ref = includeReferences && item.referenceName ? ` reference uploaded: ${item.referenceName};` : "";
-      const description = item.description || (item.referenceName
+      const description = promptEnglishSafe(item.description || (item.referenceName
         ? "use uploaded reference as location design anchor; script geography and source line always win"
-        : "scripted location only");
-      const materials = item.materials || (item.referenceName
+        : "scripted location only"), "script-supported location design only");
+      const materials = promptEnglishSafe(item.materials || (item.referenceName
         ? "use visible reference materials only if compatible with the script"
-        : "scripted materials only");
-      const lighting = item.lighting || (item.referenceName
+        : "scripted materials only"), "script-supported materials only");
+      const lighting = promptEnglishSafe(item.lighting || (item.referenceName
         ? "use reference lighting family only if compatible with the selected style and script"
-        : "physically plausible practical light only");
-      return `${item.id || `LOC_${String(i + 1).padStart(2, "0")}`} ${item.name || `Location ${i + 1}`}: description=${description}; materials=${materials}; lighting=${lighting};${ref} forbidden=${item.negative || "no redesign"}`;
+        : "physically plausible practical light only"), "physically plausible practical light only");
+      const name = promptEnglishSafe(item.name || `Location ${i + 1}`, `Location ${i + 1}`);
+      const negative = promptEnglishSafe(item.negative || "no redesign", "no location redesign, no new room, no era drift");
+      return `${item.id || `LOC_${String(i + 1).padStart(2, "0")}`} ${name}: description=${description}; materials=${materials}; lighting=${lighting};${ref} forbidden=${negative}`;
     }).join("\n")
     : "No manual location references. Extract recurring locations from the script and lock them.";
   return `PRODUCTION BIBLE LOCK:
@@ -689,26 +877,28 @@ function styleLineForReference(normalized = {}) {
 }
 
 function buildCharacterReferencePrompt(item = {}, normalized = {}) {
-  const context = toPromptEnglish(item.sourceContext || "", { fallback: "scripted character from this trailer" });
-  const identity = toPromptEnglish(item.identity || "", { fallback: "stable actor face, body type, hair, age impression and emotional condition inferred from the script" });
-  const wardrobe = toPromptEnglish(item.wardrobe || "", { fallback: "script-supported wardrobe only; no costume drift" });
-  const style = styleLineForReference(normalized);
-  return cleanText(`Create one clean 9:16 photoreal character reference image for the same film. Single actor only, full body visible, neutral standing pose, face readable, hands visible, no action, no weapon unless the script says this character always carries it. Character: ${item.name || item.id || "script character"}. Role: ${item.role || "script character"}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style || "real camera photoreal cinematic realism, practical lighting, natural skin texture, fabric detail"}. No captions, no labels, no UI, no watermark, no collage, no extra people, no unrelated props, no new location.`);
+  const context = scriptBeatPromptEnglish(item.sourceContext || "", normalized, "recurring scripted character from this trailer");
+  const identity = promptEnglishSafe(item.identity || "", "stable actor face, body type, hair, age impression and emotional condition inferred from the script");
+  const wardrobe = promptEnglishSafe(item.wardrobe || "", "script-supported wardrobe only; no costume drift");
+  const role = promptEnglishSafe(item.role || "script character", "script character");
+  const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, natural skin texture, fabric detail");
+  return cleanText(`Create one clean 9:16 photoreal character reference image for the same film. Single actor only, full body visible, neutral standing pose, face readable, hands visible, no action, no weapon unless the script says this character always carries it. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. No captions, no labels, no UI, no watermark, no collage, no extra people, no unrelated props, no new location.`);
 }
 
 function buildLocationReferencePrompt(item = {}, normalized = {}) {
-  const context = toPromptEnglish(item.sourceContext || "", { fallback: "scripted recurring location from this trailer" });
-  const description = toPromptEnglish(item.description || "", { fallback: "script-supported production design and geography only" });
-  const materials = toPromptEnglish(item.materials || "", { fallback: "script-supported materials only" });
-  const lighting = toPromptEnglish(item.lighting || "", { fallback: "physically plausible practical light only" });
-  const style = styleLineForReference(normalized);
-  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film. No actors, no monster, no extra props beyond the script. Location: ${item.name || item.id || "script location"}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style || "real camera photoreal cinematic realism, practical lighting, tactile surfaces"}. No captions, no labels, no UI, no watermark, no collage, no text unless the script explicitly says a sign/text is visible.`);
+  const context = scriptBeatPromptEnglish(item.sourceContext || "", normalized, "scripted recurring location from this trailer");
+  const description = promptEnglishSafe(item.description || "", "script-supported production design and geography only");
+  const materials = promptEnglishSafe(item.materials || "", "script-supported materials only");
+  const lighting = promptEnglishSafe(item.lighting || "", "physically plausible practical light only");
+  const name = promptEnglishSafe(item.name || item.id || "script location", "script location");
+  const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, tactile surfaces");
+  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film. No actors, no monster, no extra props beyond the script. Location slot: ${item.id || "LOC"}. Location type: ${name}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style}. No captions, no labels, no UI, no watermark, no collage, no text unless the script explicitly says a sign/text is visible.`);
 }
 
 function buildStyleReferencePrompt(normalized = {}, script = "") {
-  const context = toPromptEnglish(sourceSentences(script).slice(0, 5).join(" / "), { fallback: "same trailer world" });
-  const style = styleLineForReference(normalized);
-  return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style || "real camera cinematic photorealism, practical lighting, realistic skin/fabric/surface texture"}. Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
+  const context = scriptBeatPromptEnglish(sourceSentences(script).slice(0, 5).join(" / "), normalized, "same trailer world");
+  const style = promptEnglishSafe(styleLineForReference(normalized), "real camera cinematic photorealism, practical lighting, realistic skin/fabric/surface texture");
+  return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style}. Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
 }
 
 function extractProductionBibleFromScript(script = "", currentBible = {}, { stylePreset = "", styleProfile = null } = {}) {
@@ -767,18 +957,31 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
     const candidate = uniqueCandidates[i] || {};
     const name = candidate.name || existing.name || "";
     const role = candidate.role || (name ? "script character" : existing.role);
-    const sourceContext = existing.sourceContext || contextForPattern(sentences, candidate.pattern, name ? text.slice(0, 260) : "");
+    const hasCandidate = Boolean(candidate.name);
+    const keepExistingReference = !hasCandidate
+      || !existing.reference
+      || !existing.name
+      || normalizeTextKey(existing.name) === normalizeTextKey(candidate.name);
+    const sourceContext = hasCandidate
+      ? contextForPattern(sentences, candidate.pattern, name ? text.slice(0, 260) : "")
+      : (existing.sourceContext || contextForPattern(sentences, candidate.pattern, name ? text.slice(0, 260) : ""));
     const next = {
       ...existing,
       name,
-      role: existing.role || role,
-      identity: existing.identity || (name ? `${name}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames` : ""),
+      reference: keepExistingReference ? existing.reference : "",
+      referenceName: keepExistingReference ? existing.referenceName : "",
+      role: hasCandidate ? role : (existing.role || role),
+      identity: hasCandidate
+        ? `${name}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames`
+        : (existing.identity || (name ? `${name}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames` : "")),
       wardrobe: existing.wardrobe || (name ? "use only wardrobe described by script or first generated reference; no costume drift" : ""),
       sourceContext,
     };
     return {
       ...next,
-      referencePrompt: existing.referencePrompt || (name ? buildCharacterReferencePrompt(next, normalized) : ""),
+      referencePrompt: hasCandidate
+        ? buildCharacterReferencePrompt(next, normalized)
+        : (existing.referencePrompt || (name ? buildCharacterReferencePrompt(next, normalized) : "")),
     };
   });
   const locationHints = [
@@ -809,17 +1012,29 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   const locations = Array.from({ length: MAX_LOCATION_REFS }, (_, i) => {
     const existing = normalized.locations[i] || emptyProductionLocation(i);
     const found = foundLocations[i] || {};
+    const hasFound = Boolean(found.name);
+    const keepExistingReference = !hasFound
+      || !existing.reference
+      || !existing.name
+      || normalizeTextKey(existing.name) === normalizeTextKey(found.name);
+    const sourceContext = hasFound
+      ? contextForPattern(sentences, found.pattern, found.name ? text.slice(0, 300) : "")
+      : (existing.sourceContext || contextForPattern(sentences, found.pattern, found.name ? text.slice(0, 300) : ""));
     const next = {
       ...existing,
-      name: existing.name || found.name || "",
-      description: existing.description || found.description || "",
+      name: hasFound ? found.name : (existing.name || ""),
+      reference: keepExistingReference ? existing.reference : "",
+      referenceName: keepExistingReference ? existing.referenceName : "",
+      description: hasFound ? found.description : (existing.description || ""),
       materials: existing.materials || (found.name ? "use only script-supported surfaces, grime, metal, tile, wood, plastic, fabric and practical props" : ""),
       lighting: existing.lighting || (found.name ? "practical light from script and physically plausible fixtures; no random stylized glow" : ""),
-      sourceContext: existing.sourceContext || contextForPattern(sentences, found.pattern, found.name ? text.slice(0, 300) : ""),
+      sourceContext,
     };
     return {
       ...next,
-      referencePrompt: existing.referencePrompt || (next.name ? buildLocationReferencePrompt(next, normalized) : ""),
+      referencePrompt: hasFound
+        ? buildLocationReferencePrompt(next, normalized)
+        : (existing.referencePrompt || (next.name ? buildLocationReferencePrompt(next, normalized) : "")),
     };
   });
   const styleNext = {
@@ -831,7 +1046,7 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
     autoGenerated: true,
     characters,
     locations,
-    style: { ...styleNext, referencePrompt: normalized.style.referencePrompt || buildStyleReferencePrompt({ ...normalized, style: styleNext }, script) },
+    style: { ...styleNext, referencePrompt: buildStyleReferencePrompt({ ...normalized, style: styleNext }, script) },
   };
 }
 
@@ -1056,7 +1271,7 @@ function buildTrailerVisualBeat(source = "", previousState = {}, productionBible
     const genericAllowedCharacters = genericAllowedCharactersText
       ? genericAllowedCharactersText.split(";").map((x) => cleanText(x)).filter(Boolean)
       : [];
-    const sourceEn = toPromptEnglish(text, { fallback: "literal scripted event" });
+    const sourceEn = scriptBeatPromptEnglish(text, productionBible, "literal scripted event");
     const genericVisualEn = `Literal camera-visible shot from this source line only: ${sourceEn}.`;
     const genericNoPeople = genericAllowedCharacters.length === 0;
     const genericForbidden = deriveFrameForbiddenVisuals({
@@ -1399,7 +1614,7 @@ function buildLocalTrailerStoryboard({ script, duration, aspectRatio, stylePrese
     const sceneDuration = frameDurations[i] || frameSeconds || 3;
     const sceneStart = runningStart;
     const safeSfx = cleanSfxText(visual.sfx);
-    const sourceEn = toPromptEnglish(source, { fallback: "current scripted beat" });
+    const sourceEn = scriptBeatPromptEnglish(source, normalizedBible, "current scripted beat");
     const exactVisibleText = exactTextLine(visual.on_screen_text || []);
     const imageExactText = exactVisibleText ? ` ${exactVisibleText}.` : "";
     const videoExactText = exactVisibleText ? ` ${exactVisibleText}.` : "";
@@ -1993,14 +2208,14 @@ export default function TrailerStoryboardPage() {
     return `${fixPrompt}\n\n${partPrompt}`.trim();
   }
 
-  function buildLocalFramePrompt(scene, partIndex, localIndex, partLength) {
+  function buildLocalFramePrompt(scene, partIndex, localIndex, partLength, referenceAnchor = null) {
     if (!scene) return "";
-    const sourceRaw = scene.script_line_ru || scene.vo_ru || scene.description_ru || "";
-    const visualRaw = scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "";
-    const scriptLine = toPromptEnglish(sourceRaw, { fallback: "current scripted beat" });
-    const visualBeat = toPromptEnglish(visualRaw, { fallback: "literal storyboard shot" });
-    const storyboardAllowedCharacters = promptList(scene.allowed_characters);
     const frameBible = storyboard?.production_bible || productionBible;
+    const sourceRaw = scene.script_line_ru || scene.vo_ru || scene.description_ru || "";
+    const visualRaw = scene.visual_beat_en || scene.image_prompt_en || scene.visual_beat_ru || scene.description_ru || "";
+    const scriptLine = scriptBeatPromptEnglish(sourceRaw, frameBible, "current scripted beat");
+    const visualBeat = scriptBeatPromptEnglish(visualRaw, frameBible, "literal storyboard shot");
+    const storyboardAllowedCharacters = promptList(scene.allowed_characters);
     const allowedCharacters = deriveFrameCharactersFromScript(sourceRaw, storyboardAllowedCharacters, frameBible);
     const allowedObjects = promptList(scene.allowed_objects);
     const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
@@ -2034,6 +2249,10 @@ Allowed objects: ${allowedObjects || "only objects directly named by the source 
 Location: ${allowedLocation || "same locked scripted location"}.
 Forbidden: ${forbidden || "no extra actors, no new props, no new rooms, no new era, no captions, no UI, no watermark"}.
 Production bible: ${formatProductionBibleForPrompt(frameBible, { includeReferences: false }) || "use storyboard locks only"}.
+
+VISUAL REFERENCE ANCHOR:
+${referenceAnchorPromptLine(referenceAnchor)}
+If the anchor conflicts with the source line, the source line wins. Never turn a scripted ordinary person into a hooded robe, cult figure, anonymous masked stranger or different genre costume unless the exact source line says so.
 
 CONTINUITY:
 Same trailer / short film as all other frames. Preserve cast identity only when this frame explicitly includes that character. Preserve scripted geography, lighting family, color grade and realism.
@@ -2205,13 +2424,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       payload.grid_cols = layout.cols;
       payload.grid_rows = layout.rows;
       payload.part_size = part.length;
-      payload.frames = part.map((scene, localIndex) => ({
-        id: scene.id || frameId(partIndex * partSize + localIndex + 1),
-        label: frameLabel(scene, partIndex * partSize + localIndex),
-        prompt: buildLocalFramePrompt(scene, partIndex, localIndex, part.length),
-        source_line: scene.script_line_ru || scene.vo_ru || scene.description_ru || "",
-        visual_beat: scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "",
-      }));
+      payload.frames = part.map((scene, localIndex) => {
+        const referenceAnchor = referenceAnchorForFrame(scene, lockedProductionBible);
+        return {
+          id: scene.id || frameId(partIndex * partSize + localIndex + 1),
+          label: frameLabel(scene, partIndex * partSize + localIndex),
+          prompt: buildLocalFramePrompt(scene, partIndex, localIndex, part.length, referenceAnchor),
+          source_line: scene.script_line_ru || scene.vo_ru || scene.description_ru || "",
+          visual_beat: scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "",
+          reference_anchor: referenceAnchor,
+        };
+      });
     }
     return payload;
   }
