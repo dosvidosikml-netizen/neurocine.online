@@ -715,28 +715,52 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   const normalized = normalizeProductionBible(currentBible, { stylePreset, styleProfile });
   const text = cleanText(script);
   const sentences = sourceSentences(script);
-  const stop = new Set(["Фара", "На", "Внутри", "Из", "За", "Она", "Они", "Он", "Когда", "Белый", "Свет", "Дверь", "Лампа", "Здесь", "Беги", "Не", "Ты", "Лифт", "Следующий"]);
+  const stop = new Set([
+    "Фара", "Тусклый", "Узкий", "Молодая", "Старый", "Старая", "На", "Внутри", "Из", "За", "Она", "Они", "Он", "Когда", "Белый", "Свет", "Дверь", "Лампа", "Лампочка", "Здесь", "Беги", "Не", "Ты", "Лифт", "Следующий", "Молоток", "Стул", "Чашка", "Радио", "Сзади", "Во",
+  ]);
   const candidates = [];
+  function mentionPattern(name = "") {
+    return new RegExp(cleanText(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  }
   function addCandidate(name, role, pattern) {
     const cleanName = cleanText(name);
     if (!cleanName || candidates.some((item) => normalizeTextKey(item.name) === normalizeTextKey(cleanName))) return;
-    candidates.push({ name: cleanName, role: cleanText(role), pattern });
+    candidates.push({ name: cleanName, role: cleanText(role), pattern: pattern || mentionPattern(cleanName) });
   }
-  for (const name of (text.match(/\b[А-ЯЁ][а-яё]{2,}\b/g) || [])) {
-    if (!stop.has(name)) addCandidate(name, "script character", new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  function addContextNames(re, role) {
+    for (const match of text.matchAll(re)) {
+      const name = cleanText(match[1] || "");
+      if (name && !stop.has(name)) addCandidate(name, role, mentionPattern(name));
+    }
   }
-  if (/лена/i.test(text)) addCandidate("Лена", "main protagonist", /лена/i);
-  if (/арт[её]м/i.test(text)) addCandidate("Артём", "second protagonist", /арт[её]м/i);
-  if (/девушк/i.test(text)) addCandidate("Девушка", "female protagonist", /девушк/i);
-  if (/брат/i.test(text)) addCandidate("Брат", "male protagonist / brother", /брат/i);
+  const properNameCounts = new Map();
+  for (const match of text.matchAll(/\b[А-ЯЁ][а-яё]{2,}\b/g)) {
+    const name = cleanText(match[0]);
+    if (!name || stop.has(name)) continue;
+    properNameCounts.set(name, (properNameCounts.get(name) || 0) + 1);
+  }
+  addContextNames(/\bсосед\s+([А-ЯЁ][а-яё]{2,})\b/g, "сосед / возможный антагонист");
+  addContextNames(/\bсоседка\s+([А-ЯЁ][а-яё]{2,})\b/g, "соседка / свидетель");
+  addContextNames(/\b(?:девушка|женщина|мужчина|парень|мясник|охранник|сотрудник)\s+([А-ЯЁ][а-яё]{2,})\b/g, "персонаж из сценария");
+  addContextNames(/\b([А-ЯЁ][а-яё]{2,})\s+(?:тащит|проходит|режет|открывает|пятится|бросает|врывается|сползает|молчит|выглядывает|сжимает|поднимает|перешагивает|вытирает|тянется|набросывает|говорит|шепчет|ревёт|идёт|светит|толкает|хватает|бежит|дёргает)\b/g, "персонаж из действия");
+  if (/геннадий/i.test(text)) addCandidate("Геннадий", /провод.{0,60}шею|молоток|ч[её]рный мешок|разрезанн|полиэтилен|пил[аы]/i.test(text) ? "сосед-антагонист" : "сосед", /геннадий/i);
+  if (/лена/i.test(text)) addCandidate("Лена", "главная героиня / свидетель", /лена/i);
+  if (/арт[её]м/i.test(text)) addCandidate("Артём", "второй герой", /арт[её]м/i);
+  if (/старик[-\s]+сосед/i.test(text)) addCandidate("Старик-сосед", "пожилой сосед / жертва", /старик[-\s]+сосед/i);
+  if (/женщин[аы].{0,120}разрезанн|разрезанн.{0,120}женщин/i.test(text)) addCandidate("Женщина на лестнице", "первая жертва из открывающего кадра", /женщин[аы]|разрезанн/i);
+  for (const [name, count] of properNameCounts.entries()) {
+    if (count >= 2) addCandidate(name, "повторяющийся персонаж сценария", mentionPattern(name));
+  }
+  if (/девушк/i.test(text)) addCandidate("Девушка", "женский герой", /девушк/i);
+  if (/брат/i.test(text)) addCandidate("Брат", "мужской герой / брат", /брат/i);
   if (/трое\s+сотрудник|сотрудник/i.test(text)) {
-    addCandidate("Сотрудник 1", "office employee protagonist", /сотрудник|трое/i);
-    addCandidate("Сотрудник 2", "office employee protagonist", /сотрудник|трое/i);
-    addCandidate("Сотрудник 3", "office employee protagonist", /сотрудник|трое/i);
+    addCandidate("Сотрудник 1", "офисный сотрудник", /сотрудник|трое/i);
+    addCandidate("Сотрудник 2", "офисный сотрудник", /сотрудник|трое/i);
+    addCandidate("Сотрудник 3", "офисный сотрудник", /сотрудник|трое/i);
   }
-  if (/мясник|человек в маске|высокий человек|бензопил|фартук/i.test(text)) addCandidate("Мясник", "masked antagonist", /мясник|человек в маске|высокий человек|бензопил|фартук/i);
-  if (/копи[яию]|двойник/i.test(text)) addCandidate("Двойник", "duplicate / supernatural copy", /копи[яию]|двойник/i);
-  if (!candidates.length && text.length > 30) addCandidate("Главный персонаж", "script protagonist inferred from scenario", /./);
+  if (/мясник|человек в маске|высокий человек|бензопил|фартук/i.test(text)) addCandidate("Мясник", "антагонист в маске", /мясник|человек в маске|высокий человек|бензопил|фартук/i);
+  if (/копи[яию]|двойник/i.test(text)) addCandidate("Двойник", "двойник / сверхъестественная копия", /копи[яию]|двойник/i);
+  if (!candidates.length && text.length > 30) addCandidate("Главный персонаж", "главный персонаж, извлечённый из сценария", /./);
   const uniqueCandidates = candidates.slice(0, MAX_CHARACTER_REFS);
   const characters = Array.from({ length: MAX_CHARACTER_REFS }, (_, i) => {
     const existing = normalized.characters[i] || emptyProductionCharacter(i);
@@ -758,6 +782,11 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
     };
   });
   const locationHints = [
+    [/подъезд/i, "тусклый подъезд", "dim apartment stairwell, flickering bulb, rusty grate, locked entrance door"],
+    [/коммуналк|коридор коммуналк/i, "коридор коммуналки", "narrow communal apartment corridor, linoleum floor, kitchen and rooms connected by one hallway"],
+    [/ванн/i, "старая ванная", "old communal bathroom, enamel bathtub, red water, chlorine smell"],
+    [/кухн/i, "общая кухня", "shared communal kitchen, cutting board, old table, radio, domestic Soviet-era details"],
+    [/двор|бельев/i, "двор коммуналки", "inner courtyard with clothesline and stained shirt"],
     [/бойн/i, "старая бойня", "rusty slaughterhouse exterior, gate, industrial meat-processing building"],
     [/цех/i, "старый цех", "old processing hall, stained tile, butcher tables, hanging rail system"],
     [/холодильн/i, "холодильная камера", "cold storage room, blue dead light, white vapor"],
@@ -3089,6 +3118,24 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       : bibleAction === "empty"
         ? "Не найдено"
         : "Собрать из сценария";
+  function referenceStatusLabel(kind, index, item = {}) {
+    const jobMessage = localRenderJobs[referenceJobIndex(kind, index)]?.message || "";
+    if (item.referenceName) return `ref загружен: ${item.referenceName}`;
+    if (jobMessage) return jobMessage;
+    if (item.referencePrompt) return "auto prompt готов";
+    if (cleanText(item.name || item.role || item.description || item.identity)) return "auto lock готов";
+    return "референс не загружен";
+  }
+  function characterMetaLabel(character = {}) {
+    const name = cleanText(character.name || character.id || "Пустой слот");
+    const role = cleanText(character.role || character.sourceContext || (character.referencePrompt ? "auto ref prompt готов" : "загрузи ref или собери из сценария"));
+    return { name, role };
+  }
+  function locationMetaLabel(location = {}) {
+    const name = cleanText(location.name || location.id || "Пустой слот");
+    const role = cleanText(location.description || location.sourceContext || (location.referencePrompt ? "auto location prompt готов" : "загрузи ref или собери из сценария"));
+    return { name, role };
+  }
   return (
     <main className="trailer-page">
       <style jsx>{`
@@ -3203,6 +3250,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .ref-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
         .ref-card-head strong{font-size:12px;color:#f7f3ea}
         .ref-card-head span{font-size:11px;color:rgba(247,243,234,.52)}
+        .ref-meta{display:grid;gap:3px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:6px;padding:8px 10px}
+        .ref-meta b{font-size:13px;color:#f7f3ea}
+        .ref-meta span{font-size:12px;line-height:1.35;color:rgba(247,243,234,.66)}
         .mini-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
         .ref-preview{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .ref-preview img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.12)}
@@ -3307,7 +3357,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="ref-card" key={character.id || i}>
                     <div className="ref-card-head">
                       <strong>{character.id || `CHAR_${i + 1}`}</strong>
-                      <span>{character.referenceName || localRenderJobs[referenceJobIndex("character", i)]?.message || "референс не загружен"}</span>
+                      <span>{referenceStatusLabel("character", i, character)}</span>
+                    </div>
+                    <div className="ref-meta">
+                      <b>{characterMetaLabel(character).name}</b>
+                      <span>{characterMetaLabel(character).role}</span>
                     </div>
                     <div className="ref-preview">
                       {character.reference ? <img src={character.reference} alt={`Референс ${character.name || character.id}`} /> : null}
@@ -3334,7 +3388,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="ref-card" key={location.id || i}>
                     <div className="ref-card-head">
                       <strong>{location.id || `LOC_${i + 1}`}</strong>
-                      <span>{location.referenceName || localRenderJobs[referenceJobIndex("location", i)]?.message || "референс не загружен"}</span>
+                      <span>{referenceStatusLabel("location", i, location)}</span>
+                    </div>
+                    <div className="ref-meta">
+                      <b>{locationMetaLabel(location).name}</b>
+                      <span>{locationMetaLabel(location).role}</span>
                     </div>
                     <div className="ref-preview">
                       {location.reference ? <img src={location.reference} alt={`Референс ${location.name || location.id}`} /> : null}
