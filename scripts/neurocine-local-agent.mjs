@@ -427,6 +427,29 @@ async function sendHeartbeat(config, workerStatus = null) {
   return { heartbeat, worker };
 }
 
+function startHeartbeatLoop(config, state) {
+  let heartbeatBusy = false;
+  async function tick() {
+    if (heartbeatBusy) return;
+    heartbeatBusy = true;
+    try {
+      state.lastWorkerStatus = await checkWorkerStatus(config);
+      const hb = await sendHeartbeat(config, state.lastWorkerStatus);
+      const agent = hb?.heartbeat?.agent || {};
+      const workerOk = agent.worker_ok ? "worker online" : `worker offline${agent.worker_error ? `: ${agent.worker_error}` : ""}`;
+      console.log(`[NeuroCine Agent] heartbeat: ${workerOk}`);
+    } catch (heartbeatError) {
+      console.error(`[NeuroCine Agent] heartbeat error: ${heartbeatError.message}`);
+    } finally {
+      heartbeatBusy = false;
+    }
+  }
+
+  const timer = setInterval(tick, config.heartbeatMs);
+  tick();
+  return () => clearInterval(timer);
+}
+
 async function main() {
   const provider = arg("provider", "comfyui");
   const defaultWorker = provider === "automatic1111" ? "http://127.0.0.1:7860" : "http://127.0.0.1:8188";
@@ -450,25 +473,12 @@ async function main() {
   console.log(`[NeuroCine Agent] provider=${config.provider} worker=${config.workerUrl}`);
   console.log(`[NeuroCine Agent] grid composer python=${config.python}`);
   console.log("[NeuroCine Agent] ждёт задания...");
-  let lastHeartbeatAt = 0;
-  let lastWorkerStatus = { ok: false, error: "worker status not checked yet" };
+  const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" } };
+  startHeartbeatLoop(config, state);
 
   while (true) {
     try {
-      if (Date.now() - lastHeartbeatAt >= config.heartbeatMs) {
-        lastWorkerStatus = await checkWorkerStatus(config);
-        try {
-          const hb = await sendHeartbeat(config, lastWorkerStatus);
-          const agent = hb?.heartbeat?.agent || {};
-          const workerOk = agent.worker_ok ? "worker online" : `worker offline${agent.worker_error ? `: ${agent.worker_error}` : ""}`;
-          console.log(`[NeuroCine Agent] heartbeat: ${workerOk}`);
-        } catch (heartbeatError) {
-          console.error(`[NeuroCine Agent] heartbeat error: ${heartbeatError.message}`);
-        }
-        lastHeartbeatAt = Date.now();
-      }
-
-      if (!lastWorkerStatus.ok) {
+      if (!state.lastWorkerStatus.ok) {
         await sleep(config.intervalMs);
         continue;
       }

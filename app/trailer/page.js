@@ -1807,7 +1807,7 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
   const lastSeen = agent?.last_seen_at || agent?.updated_at || "";
   const lastMs = timeMs(lastSeen);
   const ageMs = lastMs ? Math.max(0, nowMs - lastMs) : Infinity;
-  const online = Boolean(lastMs && ageMs < 25000);
+  const online = Boolean(lastMs && ageMs < 180000);
   const provider = agent?.provider === "automatic1111"
     ? "Forge/A1111"
     : agent?.provider === "neurocine-worker"
@@ -1819,7 +1819,7 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
       status: "offline",
       title: "ПК агент: нет связи",
       detail: lastMs
-        ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Проверь, запущена ли команда агента на ПК.`
+        ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Если на ПК идёт долгий рендер, связь обновится после шага агента; проверь процесс только если прошло больше 3 минут.`
         : "Сайт ещё не видел Local Agent с этим token. Нажми “Скопировать команду агента” и запусти её на ПК для этого token.",
     };
   }
