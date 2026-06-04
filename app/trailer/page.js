@@ -333,12 +333,10 @@ function buildTrailerBeatPlan(lines = [], totalFrames = 1) {
 function estimateAutoFrameCount(script, duration, frameSeconds) {
   const safeDuration = clampNumber(duration, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 60);
   const safeFrameSeconds = clampNumber(frameSeconds, MIN_FRAME_SECONDS, MAX_FRAME_SECONDS, 3);
-  const beatCount = splitScriptBeats(script).length;
   const preferredFrames = Math.max(1, Math.round(safeDuration / safeFrameSeconds));
   const minFrames = Math.max(1, Math.ceil(safeDuration / MAX_FRAME_SECONDS));
   const maxFrames = Math.max(minFrames, Math.floor(safeDuration / MIN_FRAME_SECONDS));
-  const scriptAware = beatCount > 0 ? Math.min(beatCount, preferredFrames) : preferredFrames;
-  return clampNumber(scriptAware, minFrames, maxFrames, preferredFrames);
+  return clampNumber(preferredFrames, minFrames, maxFrames, preferredFrames);
 }
 
 function distributeDurations(totalDuration, totalFrames, preferredSeconds) {
@@ -1994,7 +1992,7 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
     progress = hasRealProgress ? progress : 0;
     showTrack = hasRealProgress;
   } else if (status === "rendering") {
-    stage = "агент рендерит";
+    stage = queueJob.progress_stage ? cleanText(queueJob.progress_stage) : "агент рендерит";
     progress = hasRealProgress ? Math.min(99, Math.max(1, progress)) : 0;
     showTrack = hasRealProgress;
   } else if (status === "done") {
@@ -2014,7 +2012,7 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
     showTrack,
     elapsed: base ? formatElapsedTime(elapsed) : "0:00",
     updated: relativeTimeLabel(queueJob.updated_at || queueJob.created_at, nowMs),
-    message: job.message || (queueJob.status ? `очередь: ${queueJob.status}` : fallbackMessage),
+    message: queueJob.progress_message || job.message || (queueJob.status ? `очередь: ${queueJob.status}` : fallbackMessage),
   };
 }
 
@@ -2090,6 +2088,7 @@ export default function TrailerStoryboardPage() {
   const [localRenderJobs, setLocalRenderJobs] = useState({});
   const [localAgentToken, setLocalAgentToken] = useState("");
   const [localQueueJobs, setLocalQueueJobs] = useState({});
+  const [localHistoryJobs, setLocalHistoryJobs] = useState([]);
   const [localAgentStatus, setLocalAgentStatus] = useState(null);
   const [localModelPreset, setLocalModelPreset] = useState(DEFAULT_LOCAL_MODEL_PRESET);
   const defaultLocalModel = LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
@@ -2502,6 +2501,44 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     } finally {
       if (!quiet) setLocalRenderAction("");
     }
+  }
+
+  async function loadLocalRenderHistory() {
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (localAgentToken !== token) setLocalAgentToken(token);
+    setLocalRenderAction("history");
+    setLocalRenderNotice({ type: "working", message: "Загружаю историю готовых PART..." });
+    try {
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "history",
+          agent_token: token,
+          limit: 16,
+        }),
+      }, 30000);
+      const jobs = Array.isArray(data.jobs) ? data.jobs.filter((job) => job.image_data) : [];
+      setLocalHistoryJobs(jobs);
+      setLocalRenderNotice({
+        type: jobs.length ? "success" : "warn",
+        message: jobs.length ? `История загружена: ${jobs.length} готовых сеток.` : "История пуста для этого token.",
+      });
+    } catch (e) {
+      setLocalRenderNotice({ type: "error", message: `История не загружена: ${e.message}` });
+    } finally {
+      setLocalRenderAction("");
+    }
+  }
+
+  function insertHistoryJob(job = {}) {
+    if (!job.image_data) return;
+    const partIndex = Math.max(0, Number(job.part_index || 0));
+    setGridUploads((prev) => ({ ...prev, [partIndex]: job.image_data }));
+    setActivePart(partIndex);
+    setSelectedFrameIndex(0);
+    setCroppedFrame("");
+    setLocalRenderNotice({ type: "success", message: `${job.part_label || `PART ${partIndex + 1}`} вставлен из истории.` });
   }
 
   useEffect(() => {
@@ -3484,6 +3521,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .job.rendering .job-track span{background:#e3344f}
         .job.error{border-color:rgba(255,154,168,.50);color:#ff9aa8}
         .job.error .job-track span{background:#ff9aa8}
+        .history-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .history-card{padding:0;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:#10131b;display:grid;text-align:left}
+        .history-card img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#070a10}
+        .history-card span{font-size:11px;line-height:1.25;padding:7px 8px 2px;color:#f7f3ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .history-card small{font-size:10px;line-height:1.25;padding:0 8px 8px;color:rgba(247,243,234,.50)}
         .uploadbox input[type="file"]{padding:9px;background:#0b0f17}
         .frame-select{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
         .frame-select button{min-height:42px;padding:8px;font-size:12px;background:#11151f;border:1px solid rgba(255,255,255,.13)}
@@ -3525,7 +3567,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
         .mono.master{max-height:360px;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;background:#0b0f17}
-        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.param-grid,.mini-row,.local-main-actions{grid-template-columns:1fr}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.param-grid,.mini-row,.local-main-actions{grid-template-columns:1fr}.history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
 
       <div className="wrap">
@@ -3781,6 +3823,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       <button className={`action-refresh${localRenderAction === "refresh" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={() => refreshLocalQueueJobs(false)}>
                         {localRenderAction === "refresh" ? "Обновляю..." : "Обновить"}
                       </button>
+                      <button className={`action-refresh${localRenderAction === "history" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={loadLocalRenderHistory}>
+                        {localRenderAction === "history" ? "Гружу..." : "История"}
+                      </button>
                       <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length || agentNeedsCommand} onClick={queueAllPartsForLocalAgent}>
                         {localRenderAction === "queue-all" ? "Ставлю всё..." : "В очередь всё"}
                       </button>
@@ -3888,6 +3933,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       );
                     }) : <span className="job">Сначала создай JSON раскадровки</span>}
                   </div>
+                  {localHistoryJobs.length ? (
+                    <div className="history-grid">
+                      {localHistoryJobs.map((job) => (
+                        <button type="button" key={job.id} className="history-card" onClick={() => insertHistoryJob(job)}>
+                          <img src={job.image_data} alt={job.part_label || "готовая PART-сетка"} />
+                          <span>{job.part_label || `PART ${Number(job.part_index || 0) + 1}`}</span>
+                          <small>{relativeTimeLabel(job.completed_at || job.updated_at, queueClock)}</small>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="hint">Розовые кнопки “В очередь” — правильный режим для телефона. Страница сама обновляет очередь каждые 4 секунды, а таймер PART идёт каждую секунду. Токен агента теперь постоянный между проектами; если сайт пишет “нет связи”, запусти команду агента именно с этим токеном.</div>
                 </div>
 

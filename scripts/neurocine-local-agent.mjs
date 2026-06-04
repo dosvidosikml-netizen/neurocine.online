@@ -387,6 +387,12 @@ async function renderFrameGrid(job, config, payload) {
 
   for (let i = 0; i < frames.length; i += 1) {
     const frame = frames[i];
+    const startProgress = Math.round(5 + (i / frames.length) * 84);
+    await updateQueueJobProgress(config, job, {
+      progress: startProgress,
+      stage: "render_frame",
+      message: `рендер кадра ${i + 1}/${frames.length}`,
+    });
     const framePayload = {
       ...payload,
       prompt: frame.prompt,
@@ -408,7 +414,19 @@ async function renderFrameGrid(job, config, payload) {
       partIndex: job.part_index,
       checkpoint: config.checkpoint,
     }));
+    const doneProgress = Math.round(5 + ((i + 1) / frames.length) * 84);
+    await updateQueueJobProgress(config, job, {
+      progress: doneProgress,
+      stage: "render_frame_done",
+      message: `кадр ${i + 1}/${frames.length} готов`,
+    });
   }
+
+  await updateQueueJobProgress(config, job, {
+    progress: 94,
+    stage: "compose_grid",
+    message: "собираю PART-сетку",
+  });
 
   return composeGridWithPillow({
     images: rendered,
@@ -429,6 +447,11 @@ async function renderJob(job, config) {
   if (payload.render_mode === "frames_grid" && Array.isArray(payload.frames) && payload.frames.length) {
     return renderFrameGrid(job, config, payload);
   }
+  await updateQueueJobProgress(config, job, {
+    progress: 10,
+    stage: "render_single",
+    message: "рендер изображения",
+  });
   return renderPayloadWithProvider({
     provider: config.provider,
     workerUrl: config.workerUrl,
@@ -459,6 +482,27 @@ async function completeQueueJob(config, job, result) {
       error: result.error || "",
     }),
   }, 120000);
+}
+
+async function updateQueueJobProgress(config, job, patch = {}) {
+  if (!job?.id) return null;
+  try {
+    return await fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "progress",
+        agent_token: config.token,
+        job_id: job.id,
+        progress: patch.progress,
+        stage: patch.stage || "",
+        message: patch.message || "",
+      }),
+    }, 15000);
+  } catch (e) {
+    console.error(`[NeuroCine Agent] progress update skipped: ${e.message}`);
+    return null;
+  }
 }
 
 async function fetchOk(url, timeoutMs = 5000) {

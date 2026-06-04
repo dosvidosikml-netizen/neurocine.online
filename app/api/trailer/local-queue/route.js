@@ -18,12 +18,19 @@ function cleanToken(value) {
   return String(value || "").trim().slice(0, 200);
 }
 
+function clampProgress(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
 function isMissingTableError(error) {
   const msg = String(error?.message || error || "").toLowerCase();
   return msg.includes("does not exist") || msg.includes("schema cache") || msg.includes("relation");
 }
 
 function publicJob(row = {}) {
+  const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
   return {
     id: row.id,
     part_index: Number(row.part_index || 0),
@@ -37,6 +44,9 @@ function publicJob(row = {}) {
     created_at: row.created_at || "",
     started_at: row.started_at || "",
     completed_at: row.completed_at || "",
+    progress: Number.isFinite(Number(payload.progress)) ? clampProgress(payload.progress) : null,
+    progress_message: String(payload.progress_message || "").slice(0, 300),
+    progress_stage: String(payload.progress_stage || "").slice(0, 120),
   };
 }
 
@@ -172,7 +182,7 @@ async function createJobs(req, body) {
     const partIndexes = [...new Set(rows.map((row) => row.part_index))];
     const { data: existing, error: existingError } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at,agent_token")
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at,agent_token")
       .eq("agent_token", agentToken)
       .in("status", ACTIVE_JOB_STATUSES)
       .in("part_index", partIndexes);
@@ -190,7 +200,7 @@ async function createJobs(req, body) {
       const { data, error } = await admin
         .from(TABLE)
         .insert(rowsToInsert)
-        .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at,agent_token");
+        .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at,agent_token");
       if (!error) {
         const inserted = data || [];
         const allByKey = new Map([...existingByKey, ...inserted.map((row) => [jobDedupeKey(row), row])]);
@@ -265,13 +275,68 @@ async function completeJob(body) {
       .update(patch)
       .eq("id", id)
       .eq("agent_token", agentToken)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at")
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
       .maybeSingle();
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", job: publicJob(data || {}) });
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
   const row = updateMemory(id, agentToken, patch);
+  if (!row) return NextResponse.json({ ok: false, error: "Задание не найдено." }, { status: 404 });
+  return NextResponse.json({ ok: true, mode: "memory", job: publicJob(row) });
+}
+
+async function progressJob(body) {
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const id = String(body.id || body.job_id || "").trim();
+  if (!agentToken || !id) return NextResponse.json({ ok: false, error: "Нужен token и job_id." }, { status: 400 });
+
+  const progress = clampProgress(body.progress);
+  const progressMessage = String(body.message || body.progress_message || "").slice(0, 300);
+  const progressStage = String(body.stage || body.progress_stage || "").slice(0, 120);
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data: existing, error: selectError } = await admin
+      .from(TABLE)
+      .select("id,payload")
+      .eq("id", id)
+      .eq("agent_token", agentToken)
+      .maybeSingle();
+    if (!selectError && existing?.id) {
+      const payload = existing.payload && typeof existing.payload === "object" ? existing.payload : {};
+      const patch = {
+        payload: {
+          ...payload,
+          progress,
+          progress_message: progressMessage,
+          progress_stage: progressStage,
+        },
+        updated_at: nowIso(),
+      };
+      const { data, error } = await admin
+        .from(TABLE)
+        .update(patch)
+        .eq("id", id)
+        .eq("agent_token", agentToken)
+        .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+        .maybeSingle();
+      if (!error) return NextResponse.json({ ok: true, mode: "supabase", job: publicJob(data || {}) });
+      if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+    if (selectError && !isMissingTableError(selectError)) return NextResponse.json({ ok: false, error: selectError.message }, { status: 500 });
+  }
+
+  const current = memoryStore.get(id);
+  const currentPayload = current?.payload && typeof current.payload === "object" ? current.payload : {};
+  const row = updateMemory(id, agentToken, {
+    payload: {
+      ...currentPayload,
+      progress,
+      progress_message: progressMessage,
+      progress_stage: progressStage,
+    },
+  });
   if (!row) return NextResponse.json({ ok: false, error: "Задание не найдено." }, { status: 404 });
   return NextResponse.json({ ok: true, mode: "memory", job: publicJob(row) });
 }
@@ -376,7 +441,7 @@ async function statusJobs(body) {
   if (admin) {
     const { data, error } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,error,image_data,created_at,updated_at,started_at,completed_at")
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
       .eq("agent_token", agentToken)
       .in("id", ids);
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob), agent: await getAgentStatus(agentToken) });
@@ -386,6 +451,33 @@ async function statusJobs(body) {
   return NextResponse.json({ ok: true, mode: "memory", jobs: listMemory({ agentToken, ids, limit: ids.length }).map(publicJob), agent: await getAgentStatus(agentToken) });
 }
 
+async function historyJobs(body) {
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const limit = Math.max(1, Math.min(40, Number(body.limit || 12)));
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .eq("agent_token", agentToken)
+      .eq("status", "done")
+      .not("image_data", "is", null)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
+    if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).filter((row) => row.image_data).map(publicJob) });
+    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  const jobs = Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && row.status === "done" && row.image_data)
+    .sort((a, b) => String(b.completed_at || b.updated_at || "").localeCompare(String(a.completed_at || a.updated_at || "")))
+    .slice(0, limit)
+    .map(publicJob);
+  return NextResponse.json({ ok: true, mode: "memory", jobs });
+}
+
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -393,9 +485,11 @@ export async function POST(req) {
     if (action === "create") return createJobs(req, body);
     if (action === "poll") return pollJobs(body);
     if (action === "complete") return completeJob(body);
+    if (action === "progress") return progressJob(body);
     if (action === "heartbeat") return heartbeatAgent(body);
     if (action === "agent_status") return NextResponse.json({ ok: true, agent: await getAgentStatus(cleanToken(body.agent_token || body.agentToken)) });
     if (action === "status") return statusJobs(body);
+    if (action === "history") return historyJobs(body);
     return NextResponse.json({ ok: false, error: "Неизвестное действие очереди." }, { status: 400 });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message || "Local queue error" }, { status: 500 });
