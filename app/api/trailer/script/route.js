@@ -18,18 +18,25 @@ const SYSTEM_PROMPT = `Ты сценарист трейлеров и корот�
 - финал должен быть физическим кадром/действием, а не абстрактным выводом;
 - без таймкодов, списков, номеров сцен и технических комментариев.`;
 
+const RU_TRAILER_VO_WORDS_PER_SECOND = 1.85;
+
 function wordTarget(durationSec = 90) {
   const duration = Math.max(30, Math.min(600, Number(durationSec) || 90));
-  const target = Math.round(duration * 1.65);
+  const target = Math.round(duration * RU_TRAILER_VO_WORDS_PER_SECOND);
   return {
-    min: Math.max(70, Math.round(target * 0.78)),
+    min: Math.max(40, Math.round(target * 0.88)),
     target,
-    max: Math.round(target * 1.18),
+    max: Math.round(target * 1.08),
   };
+}
+
+function countWords(text = "") {
+  return String(text || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
 function buildPrompt({ topic, duration, style, target, frameSeconds, frameCount }) {
   const words = wordTarget(duration);
+  const voiceSeconds = Math.round(words.target / RU_TRAILER_VO_WORDS_PER_SECOND);
   return `Тема / название: ${topic}
 Формат: трейлер / короткометражка, вертикальное видео
 Целевая модель визуала: ${target || "grok"}
@@ -37,7 +44,8 @@ function buildPrompt({ topic, duration, style, target, frameSeconds, frameCount 
 Длительность: ${duration || 90} секунд
 Ориентир по кадрам: ${frameCount || "auto"}
 Секунд на кадр: ${frameSeconds || 3}
-Объём: ${words.min}-${words.max} слов, цель около ${words.target}.
+Озвучка: русский трейлерный VO, примерно ${RU_TRAILER_VO_WORDS_PER_SECOND} слова/сек с короткими паузами.
+Объём строго: ${words.min}-${words.max} слов, цель около ${words.target} слов. Это должно укладываться примерно в ${voiceSeconds} секунд озвучки.
 
 Задача:
 Напиши цельный сценарий без таймкодов. Он должен иметь:
@@ -47,6 +55,11 @@ function buildPrompt({ topic, duration, style, target, frameSeconds, frameCount 
 4. нарастающую цепочку визуальных событий;
 5. 1-3 короткие реплики, если это уместно;
 6. финальный sting, который можно сразу превратить в последний кадр.
+
+Контроль перед ответом:
+- посчитай слова внутренне;
+- если сценарий короче ${words.min} слов или длиннее ${words.max} слов, перепиши его до попадания в диапазон;
+- не добавляй технический отчёт о подсчёте, верни только сценарий.
 
 Верни только сам сценарий.`;
 }
@@ -96,16 +109,27 @@ export async function POST(req) {
     }
 
     const text = String(result.content || "").replace(/^```[\s\S]*?\n?|\n?```$/g, "").trim();
+    const words = wordTarget(duration);
+    const wordCount = countWords(text);
+    const voiceSeconds = Math.round(wordCount / RU_TRAILER_VO_WORDS_PER_SECOND);
     await logUsageFromGuard(accessGuard, {
       req,
       endpoint: "/api/trailer/script",
       success: true,
       modelUsed: result.model_used,
       durationMs: Date.now() - started,
-      metadata: usageMeta(body, { duration, words: text.split(/\s+/).filter(Boolean).length }),
+      metadata: usageMeta(body, { duration, words: wordCount, target_words: words.target, voice_seconds: voiceSeconds }),
     });
 
-    return Response.json({ ok: true, text, model_used: result.model_used });
+    return Response.json({
+      ok: true,
+      text,
+      model_used: result.model_used,
+      word_count: wordCount,
+      word_target: words,
+      estimated_voice_seconds: voiceSeconds,
+      voice_words_per_second: RU_TRAILER_VO_WORDS_PER_SECOND,
+    });
   } catch (e) {
     return Response.json({ error: e.message || "Trailer script generation error" }, { status: 500 });
   }

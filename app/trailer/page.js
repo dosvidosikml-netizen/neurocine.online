@@ -373,6 +373,36 @@ function formatDuration(seconds) {
   return s ? `${m}м ${s}с` : `${m}м`;
 }
 
+const RU_TRAILER_VO_WORDS_PER_SECOND = 1.85;
+
+function countScriptWords(text = "") {
+  return String(text || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function voiceWordTarget(durationSec = 90) {
+  const duration = clampNumber(durationSec, 30, MAX_TOTAL_DURATION, 90);
+  const target = Math.round(duration * RU_TRAILER_VO_WORDS_PER_SECOND);
+  return {
+    min: Math.max(40, Math.round(target * 0.88)),
+    target,
+    max: Math.round(target * 1.08),
+  };
+}
+
+function scriptVoiceTimingInfo(script = "", durationSec = 90) {
+  const words = countScriptWords(script);
+  const target = voiceWordTarget(durationSec);
+  const estimatedSeconds = words ? Math.round(words / RU_TRAILER_VO_WORDS_PER_SECOND) : 0;
+  const status = !words
+    ? "empty"
+    : words < target.min
+      ? "short"
+      : words > target.max
+        ? "long"
+        : "ok";
+  return { words, target, estimatedSeconds, status };
+}
+
 function cleanText(value = "") {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -2153,6 +2183,7 @@ export default function TrailerStoryboardPage() {
     ? clampNumber(duration, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 87)
     : clampNumber(manualFrames * frameSeconds, MIN_TOTAL_DURATION, MAX_TOTAL_DURATION, 81);
   const timingMode = autoTiming ? "auto" : "manual";
+  const voiceTiming = useMemo(() => scriptVoiceTimingInfo(script, effectiveDuration), [script, effectiveDuration]);
   const fullScenarioPrompt = useMemo(() => buildFullScenarioPrompt({
     projectName,
     script,
@@ -3021,7 +3052,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       const nextScript = data.text.trim();
       setScript(nextScript);
       setProductionBible(extractProductionBibleFromScript(nextScript, productionBible, { stylePreset, styleProfile }));
-      setStatus(`Сценарий готов, библия проекта собрана автоматически. Проверь locks и жми “Сгенерировать JSON”.${data.model_used ? ` Модель: ${data.model_used}` : ""}`);
+      const nextVoice = scriptVoiceTimingInfo(nextScript, effectiveDuration);
+      const voiceNote = data.word_count
+        ? ` Слов: ${data.word_count}, оценка VO: ~${formatDuration(data.estimated_voice_seconds || nextVoice.estimatedSeconds)}.`
+        : ` Слов: ${nextVoice.words}, оценка VO: ~${formatDuration(nextVoice.estimatedSeconds)}.`;
+      setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}.${voiceNote} Проверь locks и жми “Сгенерировать JSON”.${data.model_used ? ` Модель: ${data.model_used}` : ""}`);
     } catch (e) {
       setError(e.message || "Генерация сценария не удалась");
       setStatus("");
@@ -3554,6 +3589,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .metricbox{border:1px solid rgba(255,255,255,.12);background:#10131b;border-radius:6px;padding:11px;display:grid;gap:4px;min-height:46px}
         .metricbox strong{font-size:20px;color:#fff;letter-spacing:0}
         .metricbox span{font-size:11px;color:rgba(247,243,234,.58);text-transform:none;letter-spacing:0;font-weight:700}
+        .metricbox.voice-ok{border-color:rgba(158,232,201,.42);background:rgba(23,58,49,.22)}
+        .metricbox.voice-short,.metricbox.voice-long{border-color:rgba(255,196,112,.42);background:rgba(74,50,17,.18)}
         .status{font-size:13px;color:#9ee8c9}.error{font-size:13px;color:#ff9aa8}
         .parts{display:flex;gap:8px;flex-wrap:wrap}.part{border:1px solid rgba(255,255,255,.14);background:#11151f}.part.active{background:#e3344f}
         .locks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -3686,13 +3723,6 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           <div className="panel">
             <h2>01 · Настройка сценария</h2>
             <label>Название проекта<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
-            <label>Сценарий<textarea value={script} onChange={(e) => handleScriptChange(e.target.value)} placeholder="Вставь готовый сценарий или сначала введи тему выше и нажми “Сгенерировать сценарий”." /></label>
-            <div className="buttons">
-              <button className="primary" type="button" disabled={busy || scriptBusy || projectName.trim().length < 3} onClick={generateScriptFromTopic}>
-                {scriptBusy ? "Генерирую сценарий..." : "Сгенерировать сценарий"}
-              </button>
-              <span className="hint">Если есть только тема, сначала жми эту кнопку. Потом — “Сгенерировать JSON”.</span>
-            </div>
             <label className="check">
               <input type="checkbox" checked={autoTiming} onChange={(e) => setAutoTiming(e.target.checked)} />
               Авто: ИИ сканирует сценарий и сам раскладывает его на биты
@@ -3718,13 +3748,27 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
               ) : (
                 <label>Кадров вручную<input type="number" min="1" max={maxManualFrames} value={manualFrames} onChange={(e) => setCustomFrameCount(clampNumber(e.target.value, 1, maxManualFrames, manualFrames))} /></label>
               )}
-              <label>Формат<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
+              <div className={`metricbox voice-${voiceTiming.status}`}>
+                <span>Озвучка</span>
+                <strong>{voiceTiming.words ? `${voiceTiming.words} слов` : `${voiceTiming.target.target} слов`}</strong>
+                <span>{voiceTiming.words ? `~${formatDuration(voiceTiming.estimatedSeconds)} / цель ${voiceTiming.target.min}-${voiceTiming.target.max} слов` : `цель ${voiceTiming.target.min}-${voiceTiming.target.max} слов под ${formatDuration(effectiveDuration)}`}</span>
+              </div>
+            </div>
+            <label>Сценарий<textarea value={script} onChange={(e) => handleScriptChange(e.target.value)} placeholder="Вставь готовый сценарий или сначала введи тему выше и нажми “Сгенерировать сценарий”." /></label>
+            <div className="buttons">
+              <button className="primary" type="button" disabled={busy || scriptBusy || projectName.trim().length < 3} onClick={generateScriptFromTopic}>
+                {scriptBusy ? "Генерирую сценарий..." : "Сгенерировать сценарий"}
+              </button>
+              <span className="hint">Сначала выбери длительность и секунд/кадр. Если есть только тема, жми эту кнопку. Потом — “Сгенерировать JSON”.</span>
             </div>
             <div className="row">
+              <label>Формат<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
               <label>Модель<select value={target} onChange={(e) => setTarget(e.target.value)}><option value="grok">Grok</option><option value="veo3">Veo 3</option></select></label>
-              <label>Размер PART<select value={partSize} onChange={(e) => { setPartSize(Number(e.target.value)); setActivePart(0); }}><option value={4}>4 кадра</option><option value={6}>6 кадров</option><option value={8}>8 кадров</option></select></label>
             </div>
-            <label>Стиль<select value={stylePreset} onChange={(e) => setStylePreset(e.target.value)}>{Object.entries(STYLE_PRESETS).map(([key, val]) => <option key={key} value={key}>{styleLabelRu(key, val.label)}</option>)}</select></label>
+            <div className="row">
+              <label>Размер PART<select value={partSize} onChange={(e) => { setPartSize(Number(e.target.value)); setActivePart(0); }}><option value={4}>4 кадра</option><option value={6}>6 кадров</option><option value={8}>8 кадров</option></select></label>
+              <label>Стиль<select value={stylePreset} onChange={(e) => setStylePreset(e.target.value)}>{Object.entries(STYLE_PRESETS).map(([key, val]) => <option key={key} value={key}>{styleLabelRu(key, val.label)}</option>)}</select></label>
+            </div>
 
             <div className="production-bible">
               <div className="prompt-head">
