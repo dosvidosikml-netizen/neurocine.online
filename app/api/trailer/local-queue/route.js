@@ -61,6 +61,7 @@ function publicJob(row = {}) {
     project_session_id: String(payload.project_session_id || "").slice(0, 120),
     command: String(payload.command || "").slice(0, 80),
     command_label: String(payload.command_label || "").slice(0, 120),
+    has_image: Boolean(row.image_data),
   };
 }
 
@@ -705,18 +706,35 @@ async function historyJobs(body) {
   if (admin) {
     const { data, error } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,created_at,updated_at,started_at,completed_at")
       .eq("agent_token", agentToken)
       .eq("status", "done")
+      .gte("part_index", 0)
       .not("image_data", "is", null)
       .order("completed_at", { ascending: false })
       .limit(limit);
-    if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).filter((row) => row.image_data).map(publicJob) });
+    if (!error) {
+      const rows = data || [];
+      const ids = rows.map((row) => row.id).filter(Boolean);
+      if (!ids.length) return NextResponse.json({ ok: true, mode: "supabase", jobs: [] });
+      const { data: imageRows, error: imageError } = await admin
+        .from(TABLE)
+        .select("id,image_data")
+        .in("id", ids)
+        .eq("agent_token", agentToken);
+      if (imageError && !isMissingTableError(imageError)) return NextResponse.json({ ok: false, error: imageError.message }, { status: 500 });
+      const imageById = new Map((imageRows || []).map((row) => [row.id, row.image_data || ""]));
+      const jobs = rows
+        .map((row) => ({ ...row, image_data: imageById.get(row.id) || "" }))
+        .filter((row) => row.image_data)
+        .map(publicJob);
+      return NextResponse.json({ ok: true, mode: "supabase", jobs });
+    }
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
   const jobs = Array.from(memoryStore.values())
-    .filter((row) => row.agent_token === agentToken && row.status === "done" && row.image_data)
+    .filter((row) => row.agent_token === agentToken && row.status === "done" && Number(row.part_index || 0) >= 0 && row.image_data)
     .sort((a, b) => String(b.completed_at || b.updated_at || "").localeCompare(String(a.completed_at || a.updated_at || "")))
     .slice(0, limit)
     .map(publicJob);

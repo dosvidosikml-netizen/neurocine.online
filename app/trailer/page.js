@@ -526,6 +526,10 @@ function scriptBeatPromptEnglish(value = "", bible = null, fallback = "literal s
   return roughScriptBeatEnglish(value, bible, fallback);
 }
 
+function isWeakPromptText(value = "") {
+  return /\b(scripted detail|literal scripted event|current scripted beat|literal storyboard shot)\b/i.test(cleanText(value));
+}
+
 function anchorSearchText(scene = {}) {
   return normalizeTextKey([
     scene.script_line_ru,
@@ -1117,6 +1121,12 @@ function deriveFrameCharactersFromScript(source = "", fallback = "", bible = nul
   });
   if (/лена|lena/.test(text)) names.push("Lena");
   if (/арт[её]м|артем|artem|artyom/.test(text)) names.push("Artem");
+  if (/геннадий|gennady|gennadiy/.test(text)) names.push("Gennady");
+  if (/лада|lada/.test(text)) names.push("Lada");
+  if (/илья|ilya|ilia/.test(text)) names.push("Ilya");
+  if (/марина|marina/.test(text)) names.push("Marina");
+  if (/анна|anna/.test(text)) names.push("Anna");
+  if (/сергей|sergey|sergei/.test(text)) names.push("Sergey");
   if (scriptLineAllowsThreat(text)) names.push("masked butcher man");
   if (names.length) return [...new Set(names)].join("; ");
   if (/они|их|им|она |он |they|them|she |he /.test(text)) return fallback;
@@ -2321,10 +2331,11 @@ export default function TrailerStoryboardPage() {
     const frameBible = storyboard?.production_bible || productionBible;
     const sourceRaw = scene.script_line_ru || scene.vo_ru || scene.description_ru || "";
     const visualRaw = scene.visual_beat_en || scene.image_prompt_en || scene.visual_beat_ru || scene.description_ru || "";
-    const scriptLine = scriptBeatPromptEnglish(sourceRaw, frameBible, "current scripted beat");
+    let scriptLine = scriptBeatPromptEnglish(sourceRaw, frameBible, "current scripted beat");
     const visualBeat = scriptBeatPromptEnglish(visualRaw, frameBible, "literal storyboard shot");
+    if (isWeakPromptText(scriptLine) && !isWeakPromptText(visualBeat)) scriptLine = visualBeat;
     const storyboardAllowedCharacters = promptList(scene.allowed_characters);
-    const allowedCharacters = deriveFrameCharactersFromScript(sourceRaw, storyboardAllowedCharacters, frameBible);
+    const allowedCharacters = deriveFrameCharactersFromScript(`${sourceRaw} ${visualRaw}`, storyboardAllowedCharacters, frameBible);
     const allowedObjects = promptList(scene.allowed_objects);
     const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
     const forbidden = toPromptEnglish(deriveFrameForbiddenVisuals({
@@ -2626,10 +2637,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         body: JSON.stringify({
           action: "history",
           agent_token: token,
-          limit: 16,
+          limit: 8,
         }),
       }, 30000);
-      const jobs = Array.isArray(data.jobs) ? data.jobs.filter((job) => job.image_data) : [];
+      const jobs = Array.isArray(data.jobs)
+        ? data.jobs.filter((job) => job.image_data && Number(job.part_index || 0) >= 0)
+        : [];
       setLocalHistoryJobs(jobs);
       setLocalRenderNotice({
         type: jobs.length ? "success" : "warn",
