@@ -97,7 +97,16 @@ async function prepareComfyPayload(baseUrl, payload = {}) {
 function buildDefaultComfyWorkflow(payload = {}) {
   const width = Number(payload.width || 936);
   const height = Number(payload.height || 1664);
+  const useHires = payload.workflow_mode === "sdxl_hires" || payload.hires === true || Number(payload.hires_steps || 0) > 0;
+  const baseWidth = useHires
+    ? Math.max(512, Math.round(Number(payload.base_width || Math.min(width, Math.round(width * 0.72))) / 8) * 8)
+    : width;
+  const baseHeight = useHires
+    ? Math.max(768, Math.round(Number(payload.base_height || Math.min(height, Math.round(height * 0.72))) / 8) * 8)
+    : height;
   const steps = Number(payload.steps || 24);
+  const hiresSteps = Math.max(4, Math.min(30, Number(payload.hires_steps || 10) || 10));
+  const hiresDenoise = clampNumber(payload.hires_denoise, 0.18, 0.55, 0.32);
   const cfg = Number(payload.cfg_scale || payload.cfg || 6);
   const hasInitImage = Boolean(payload.init_image);
   const denoise = hasInitImage ? clampNumber(payload.denoise, 0.35, 0.95, 0.72) : 1;
@@ -115,7 +124,7 @@ function buildDefaultComfyWorkflow(payload = {}) {
     },
     "5": {
       class_type: "EmptyLatentImage",
-      inputs: { width, height, batch_size: 1 },
+      inputs: { width: baseWidth, height: baseHeight, batch_size: 1 },
     },
     "6": {
       class_type: "CLIPTextEncode",
@@ -152,6 +161,34 @@ function buildDefaultComfyWorkflow(payload = {}) {
       inputs: { filename_prefix: payload.filename_prefix || "neurocine_trailer_part", images: ["8", 0] },
     },
   };
+  if (useHires) {
+    workflow["10"] = {
+      class_type: "LatentUpscale",
+      inputs: {
+        samples: ["3", 0],
+        upscale_method: payload.latent_upscale_method || "bislerp",
+        width,
+        height,
+        crop: "disabled",
+      },
+    };
+    workflow["11"] = {
+      class_type: "KSampler",
+      inputs: {
+        seed: seed + 1,
+        steps: hiresSteps,
+        cfg,
+        sampler_name: payload.hires_sampler_name || payload.sampler_name || "dpmpp_2m",
+        scheduler: payload.hires_scheduler || payload.scheduler || "karras",
+        denoise: hiresDenoise,
+        model: ["4", 0],
+        positive: ["6", 0],
+        negative: ["7", 0],
+        latent_image: ["10", 0],
+      },
+    };
+    workflow["8"].inputs.samples = ["11", 0];
+  }
   if (hasInitImage) {
     workflow["20"] = { class_type: "LoadImage", inputs: { image: payload.init_image } };
     workflow["21"] = {
@@ -159,8 +196,8 @@ function buildDefaultComfyWorkflow(payload = {}) {
       inputs: {
         image: ["20", 0],
         upscale_method: "lanczos",
-        width,
-        height,
+        width: baseWidth,
+        height: baseHeight,
         crop: "center",
       },
     };
@@ -188,6 +225,7 @@ function buildDefaultComfyWorkflow(payload = {}) {
   workflow["6"].inputs.clip = clipRef;
   workflow["7"].inputs.clip = clipRef;
   workflow["3"].inputs.model = modelRef;
+  if (workflow["11"]) workflow["11"].inputs.model = modelRef;
   return workflow;
 }
 

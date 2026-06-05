@@ -6,7 +6,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const DEFAULT_NEGATIVE = "bad hands, bad anatomy, deformed hands, deformed fingers, extra fingers, missing fingers, bad face, face asymmetry, eyes asymmetry, deformed eyes, deformed mouth, ugly, deformed, low quality, lowres, overprocessed, oversmoothed skin, airbrushed skin, beauty retouching, fashion editorial, glossy glamour lighting, text, subtitles, captions, watermark, UI, logo, frame labels, numbers, random hooded robe, random cloak, cult robe, anonymous hooded figure, contact sheet, gallery cards, nested grid, comic, illustration, painting, cartoon, anime, CGI, render, plastic skin";
+const DEFAULT_NEGATIVE = "bad hands, bad anatomy, deformed hands, deformed fingers, extra fingers, missing fingers, bad face, face asymmetry, eyes asymmetry, deformed eyes, deformed mouth, ugly, deformed, low quality, normal quality, lowres, low detail, blurry, soft focus, mushy texture, smeared skin, washed out, flat contrast, jpeg artifacts, overprocessed, oversmoothed skin, airbrushed skin, beauty retouching, fashion editorial, glossy glamour lighting, duplicate people, extra characters, text, subtitles, captions, watermark, UI, logo, frame labels, numbers, random hooded robe, random cloak, cult robe, anonymous hooded figure, contact sheet, gallery cards, nested grid, comic, illustration, painting, cartoon, anime, CGI, render, plastic skin";
 const DEFAULT_COMFY_PYTHON = process.platform === "win32"
   ? "C:\\Users\\Admin\\AI\\ComfyUI\\.venv\\Scripts\\python.exe"
   : "python3";
@@ -292,7 +292,16 @@ canvas.save(data["output"], "PNG", optimize=True)
 function buildComfyWorkflow(payload = {}, checkpoint) {
   const width = Number(payload.width || 936);
   const height = Number(payload.height || 1664);
+  const useHires = payload.workflow_mode === "sdxl_hires" || payload.hires === true || Number(payload.hires_steps || 0) > 0;
+  const baseWidth = useHires
+    ? Math.max(512, Math.round(Number(payload.base_width || Math.min(width, Math.round(width * 0.72))) / 8) * 8)
+    : width;
+  const baseHeight = useHires
+    ? Math.max(768, Math.round(Number(payload.base_height || Math.min(height, Math.round(height * 0.72))) / 8) * 8)
+    : height;
   const steps = Number(payload.steps || 24);
+  const hiresSteps = Math.max(4, Math.min(30, Number(payload.hires_steps || 10) || 10));
+  const hiresDenoise = clampNumber(payload.hires_denoise, 0.18, 0.55, 0.32);
   const cfg = Number(payload.cfg_scale || payload.cfg || 6);
   const hasInitImage = Boolean(payload.init_image);
   const denoise = hasInitImage ? clampNumber(payload.denoise, 0.35, 0.95, 0.72) : 1;
@@ -304,7 +313,7 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
   }
   const workflow = {
     "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: payload.checkpoint || checkpoint } },
-    "5": { class_type: "EmptyLatentImage", inputs: { width, height, batch_size: 1 } },
+    "5": { class_type: "EmptyLatentImage", inputs: { width: baseWidth, height: baseHeight, batch_size: 1 } },
     "6": { class_type: "CLIPTextEncode", inputs: { text: payload.prompt, clip: ["4", 1] } },
     "7": { class_type: "CLIPTextEncode", inputs: { text: payload.negative_prompt || DEFAULT_NEGATIVE, clip: ["4", 1] } },
     "3": {
@@ -325,6 +334,34 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
     "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
     "9": { class_type: "SaveImage", inputs: { filename_prefix: payload.filename_prefix || "neurocine_trailer_part", images: ["8", 0] } },
   };
+  if (useHires) {
+    workflow["10"] = {
+      class_type: "LatentUpscale",
+      inputs: {
+        samples: ["3", 0],
+        upscale_method: payload.latent_upscale_method || "bislerp",
+        width,
+        height,
+        crop: "disabled",
+      },
+    };
+    workflow["11"] = {
+      class_type: "KSampler",
+      inputs: {
+        seed: seed + 1,
+        steps: hiresSteps,
+        cfg,
+        sampler_name: payload.hires_sampler_name || payload.sampler_name || "dpmpp_2m",
+        scheduler: payload.hires_scheduler || payload.scheduler || "karras",
+        denoise: hiresDenoise,
+        model: ["4", 0],
+        positive: ["6", 0],
+        negative: ["7", 0],
+        latent_image: ["10", 0],
+      },
+    };
+    workflow["8"].inputs.samples = ["11", 0];
+  }
   if (hasInitImage) {
     workflow["20"] = { class_type: "LoadImage", inputs: { image: payload.init_image } };
     workflow["21"] = {
@@ -332,8 +369,8 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
       inputs: {
         image: ["20", 0],
         upscale_method: "lanczos",
-        width,
-        height,
+        width: baseWidth,
+        height: baseHeight,
         crop: "center",
       },
     };
@@ -361,6 +398,7 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
   workflow["6"].inputs.clip = clipRef;
   workflow["7"].inputs.clip = clipRef;
   workflow["3"].inputs.model = modelRef;
+  if (workflow["11"]) workflow["11"].inputs.model = modelRef;
   return workflow;
 }
 
@@ -693,6 +731,7 @@ function summarizeComfyQueueEntry(entry = []) {
   const sampler = nodeByClass(workflow, "KSampler")?.inputs || {};
   const checkpoint = nodeByClass(workflow, "CheckpointLoaderSimple")?.inputs || {};
   const latent = nodeByClass(workflow, "EmptyLatentImage")?.inputs || {};
+  const hiresLatent = nodeByClass(workflow, "LatentUpscale")?.inputs || {};
   const save = nodeByClass(workflow, "SaveImage")?.inputs || {};
   const positive = nodeByClass(workflow, "CLIPTextEncode")?.inputs?.text || "";
   const frameMatch = String(positive || "").match(/This is PART\s+(\d+),\s*frame\s+(\d+)\s+of\s+(\d+)/i);
@@ -704,7 +743,9 @@ function summarizeComfyQueueEntry(entry = []) {
     label,
     filename_prefix: String(save.filename_prefix || "").slice(0, 160),
     checkpoint: String(checkpoint.ckpt_name || "").slice(0, 160),
-    size: latent.width && latent.height ? `${latent.width}x${latent.height}` : "",
+    size: (hiresLatent.width && hiresLatent.height)
+      ? `${hiresLatent.width}x${hiresLatent.height}`
+      : latent.width && latent.height ? `${latent.width}x${latent.height}` : "",
     steps: Number(sampler.steps || 0) || 0,
     cfg: Number(sampler.cfg || 0) || 0,
     sampler: String(sampler.sampler_name || "").slice(0, 120),
