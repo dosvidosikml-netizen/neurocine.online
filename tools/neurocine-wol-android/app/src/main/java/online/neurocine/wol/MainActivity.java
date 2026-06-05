@@ -22,10 +22,14 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_MAC = "70:85:C2:98:35:76";
     private static final String DEFAULT_BROADCAST = "192.168.0.255";
     private static final String DEFAULT_PORT = "9";
+    private static final String DEFAULT_REMOTE_HOST = "5.182.97.164";
+    private static final String DEFAULT_REMOTE_PORT = "40009";
 
     private EditText macInput;
     private EditText broadcastInput;
     private EditText portInput;
+    private EditText remoteHostInput;
+    private EditText remotePortInput;
     private TextView statusView;
 
     @Override
@@ -54,35 +58,53 @@ public class MainActivity extends Activity {
         title.setPadding(0, dp(8), 0, dp(8));
         root.addView(title);
 
-        TextView subtitle = text("Отправляет Wake-on-LAN magic packet на твой ПК по кабелю Ethernet.", 15, Color.rgb(194, 199, 211), false);
+        TextView subtitle = text("Отправляет Wake-on-LAN magic packet на твой ПК по кабелю Ethernet. Есть два режима: дома по Wi-Fi и удалённо через роутер.", 15, Color.rgb(194, 199, 211), false);
         subtitle.setPadding(0, 0, 0, dp(18));
         root.addView(subtitle);
 
         macInput = input("MAC ПК", DEFAULT_MAC, InputType.TYPE_CLASS_TEXT);
-        broadcastInput = input("Broadcast IP", DEFAULT_BROADCAST, InputType.TYPE_CLASS_TEXT);
-        portInput = input("Порт", DEFAULT_PORT, InputType.TYPE_CLASS_NUMBER);
+        broadcastInput = input("Wi-Fi broadcast IP", DEFAULT_BROADCAST, InputType.TYPE_CLASS_TEXT);
+        portInput = input("Wi-Fi порт", DEFAULT_PORT, InputType.TYPE_CLASS_NUMBER);
+        remoteHostInput = input("Удалённый IP / DDNS роутера", DEFAULT_REMOTE_HOST, InputType.TYPE_CLASS_TEXT);
+        remotePortInput = input("Удалённый UDP порт роутера", DEFAULT_REMOTE_PORT, InputType.TYPE_CLASS_NUMBER);
         root.addView(macInput);
         root.addView(broadcastInput);
         root.addView(portInput);
+        root.addView(remoteHostInput);
+        root.addView(remotePortInput);
 
-        Button wakeButton = button("Разбудить ПК", Color.rgb(227, 52, 79));
-        wakeButton.setOnClickListener((v) -> sendWakePacket());
-        root.addView(wakeButton);
+        Button wakeLocalButton = button("Разбудить дома по Wi-Fi", Color.rgb(227, 52, 79));
+        wakeLocalButton.setOnClickListener((v) -> sendWakePacket(
+                broadcastInput.getText().toString().trim(),
+                portInput.getText().toString().trim(),
+                "Wi-Fi"
+        ));
+        root.addView(wakeLocalButton);
+
+        Button wakeRemoteButton = button("Разбудить удалённо через роутер", Color.rgb(18, 112, 83));
+        wakeRemoteButton.setOnClickListener((v) -> sendWakePacket(
+                remoteHostInput.getText().toString().trim(),
+                remotePortInput.getText().toString().trim(),
+                "удалённый режим"
+        ));
+        root.addView(wakeRemoteButton);
 
         Button defaultButton = button("Вернуть данные Codex", Color.rgb(25, 31, 43));
         defaultButton.setOnClickListener((v) -> {
             macInput.setText(DEFAULT_MAC);
             broadcastInput.setText(DEFAULT_BROADCAST);
             portInput.setText(DEFAULT_PORT);
+            remoteHostInput.setText(DEFAULT_REMOTE_HOST);
+            remotePortInput.setText(DEFAULT_REMOTE_PORT);
             setStatus("Данные ПК восстановлены.", false);
         });
         root.addView(defaultButton);
 
-        statusView = text("Готово. Сначала проверь из домашнего Wi-Fi. Для запуска издалека нужен VPN домой или WOL на роутере.", 14, Color.rgb(183, 255, 227), false);
+        statusView = text("Готово. Wi-Fi режим работает в домашней сети. Удалённый режим заработает после настройки TP-Link: UDP 40009 -> Wake-on-LAN внутри сети.", 14, Color.rgb(183, 255, 227), false);
         statusView.setPadding(0, dp(16), 0, 0);
         root.addView(statusView);
 
-        TextView note = text("Если ПК полностью обесточен, Wake-on-LAN не сработает. Для такого случая нужна умная розетка и настройка BIOS: Power On after AC restore.", 13, Color.rgb(255, 220, 166), false);
+        TextView note = text("Если роутер не умеет WOL/UDP broadcast, самый надёжный удалённый старт: умная розетка + BIOS Power On after AC restore. После старта Windows Local Agent уже настроен на автозапуск.", 13, Color.rgb(255, 220, 166), false);
         note.setPadding(0, dp(16), 0, 0);
         root.addView(note);
 
@@ -136,14 +158,18 @@ public class MainActivity extends Activity {
         return textView;
     }
 
-    private void sendWakePacket() {
+    private void sendWakePacket(String targetHost, String targetPort, String modeLabel) {
         final String mac = macInput.getText().toString().trim();
-        final String broadcast = broadcastInput.getText().toString().trim();
+        final String host = targetHost.trim();
         final int port;
         try {
-            port = Integer.parseInt(portInput.getText().toString().trim());
+            port = Integer.parseInt(targetPort.trim());
         } catch (Exception e) {
-            setStatus("Порт должен быть числом, обычно 9.", true);
+            setStatus("Порт должен быть числом.", true);
+            return;
+        }
+        if (host.length() == 0) {
+            setStatus("Нужен IP, broadcast или DDNS роутера.", true);
             return;
         }
 
@@ -158,7 +184,7 @@ public class MainActivity extends Activity {
                 }
 
                 byte[] packet = buildMagicPacket(mac);
-                InetAddress address = InetAddress.getByName(broadcast);
+                InetAddress address = InetAddress.getByName(host);
                 try (DatagramSocket socket = new DatagramSocket()) {
                     socket.setBroadcast(true);
                     DatagramPacket datagram = new DatagramPacket(packet, packet.length, address, port);
@@ -167,7 +193,7 @@ public class MainActivity extends Activity {
                         Thread.sleep(180);
                     }
                 }
-                setStatus(String.format(Locale.US, "Отправлено 5 magic packets на %s:%d для %s.", broadcast, port, mac), false);
+                setStatus(String.format(Locale.US, "%s: отправлено 5 magic packets на %s:%d для %s.", modeLabel, host, port, mac), false);
             } catch (Exception e) {
                 setStatus("Не отправилось: " + e.getMessage(), true);
             } finally {
