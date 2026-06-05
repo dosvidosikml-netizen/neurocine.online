@@ -7,6 +7,15 @@ export const dynamic = "force-dynamic";
 
 const TABLE = "trailer_local_jobs";
 const ACTIVE_JOB_STATUSES = ["queued", "running"];
+const PC_COMMAND_PROVIDER = "pc-command";
+const PC_COMMAND_PROMPT = "__pc_command__";
+const PC_COMMANDS = {
+  status: "Проверить ПК",
+  start_comfyui: "Запустить ComfyUI",
+  restart_comfyui: "Перезапустить ComfyUI",
+  restart_agent: "Перезапустить агента",
+  reboot_pc: "Перезагрузить ПК",
+};
 const memoryStore = globalThis.__neurocineTrailerLocalJobs || new Map();
 globalThis.__neurocineTrailerLocalJobs = memoryStore;
 
@@ -47,7 +56,10 @@ function publicJob(row = {}) {
     progress: Number.isFinite(Number(payload.progress)) ? clampProgress(payload.progress) : null,
     progress_message: String(payload.progress_message || "").slice(0, 300),
     progress_stage: String(payload.progress_stage || "").slice(0, 120),
+    completion_message: String(payload.completion_message || "").slice(0, 800),
     project_session_id: String(payload.project_session_id || "").slice(0, 120),
+    command: String(payload.command || "").slice(0, 80),
+    command_label: String(payload.command_label || "").slice(0, 120),
   };
 }
 
@@ -248,6 +260,7 @@ async function pollJobs(body) {
       .select("id,part_index,part_label,project_name,provider,status,prompt,negative_prompt,payload,created_at,updated_at,started_at,completed_at")
       .eq("agent_token", agentToken)
       .eq("status", "queued")
+      .neq("provider", PC_COMMAND_PROVIDER)
       .order("created_at", { ascending: true })
       .limit(limit);
     if (!error) {
@@ -260,9 +273,98 @@ async function pollJobs(body) {
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  const rows = listMemory({ agentToken, limit, pendingOnly: true });
+  const rows = Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && row.status === "queued" && row.provider !== PC_COMMAND_PROVIDER)
+    .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")))
+    .slice(0, limit);
   rows.forEach((row) => updateMemory(row.id, agentToken, { status: "running", started_at: nowIso() }));
   return NextResponse.json({ ok: true, mode: "memory", jobs: rows.map((row) => ({ ...row, status: "running" })) });
+}
+
+function normalizePcCommand(value) {
+  const command = String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+  return PC_COMMANDS[command] ? command : "";
+}
+
+async function createPcCommand(req, body) {
+  const account = await getServerAccount(req);
+  if (!account.ok) {
+    return NextResponse.json({ ok: false, error: account.message || "Нужно войти через Google." }, { status: account.status || 401 });
+  }
+
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const command = normalizePcCommand(body.command);
+  const projectSessionId = String(body.project_session_id || body.projectSessionId || "").trim().slice(0, 120);
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+  if (!command) return NextResponse.json({ ok: false, error: "Команда ПК не разрешена." }, { status: 400 });
+
+  const row = {
+    user_id: account.user?.id || null,
+    agent_token: agentToken,
+    project_name: "NeuroCine PC Command",
+    part_index: -100,
+    part_label: PC_COMMANDS[command],
+    provider: PC_COMMAND_PROVIDER,
+    status: "queued",
+    prompt: PC_COMMAND_PROMPT,
+    negative_prompt: "",
+    payload: {
+      command,
+      command_label: PC_COMMANDS[command],
+      ...(projectSessionId ? { project_session_id: projectSessionId } : {}),
+    },
+    error: "",
+    image_data: "",
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .insert(row)
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .maybeSingle();
+    if (!error) return NextResponse.json({ ok: true, mode: "supabase", command: publicJob(data || {}) });
+    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  const saved = insertMemory([row])[0];
+  return NextResponse.json({ ok: true, mode: "memory", command: publicJob(saved) });
+}
+
+async function pollPcCommands(body) {
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const limit = Math.max(1, Math.min(4, Number(body.limit || 2)));
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .select("id,part_index,part_label,project_name,provider,status,prompt,negative_prompt,payload,created_at,updated_at,started_at,completed_at")
+      .eq("agent_token", agentToken)
+      .eq("provider", PC_COMMAND_PROVIDER)
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+    if (!error) {
+      const ids = (data || []).map((row) => row.id);
+      if (ids.length) {
+        await admin.from(TABLE).update({ status: "running", updated_at: nowIso(), started_at: nowIso() }).in("id", ids).eq("agent_token", agentToken);
+      }
+      return NextResponse.json({ ok: true, mode: "supabase", commands: data || [] });
+    }
+    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  const rows = Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && row.provider === PC_COMMAND_PROVIDER && row.status === "queued")
+    .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")))
+    .slice(0, limit);
+  rows.forEach((row) => updateMemory(row.id, agentToken, { status: "running", started_at: nowIso() }));
+  return NextResponse.json({ ok: true, mode: "memory", commands: rows.map((row) => ({ ...row, status: "running" })) });
 }
 
 async function completeJob(body) {
@@ -270,7 +372,8 @@ async function completeJob(body) {
   const id = String(body.id || body.job_id || "").trim();
   if (!agentToken || !id) return NextResponse.json({ ok: false, error: "Нужен token и job_id." }, { status: 400 });
 
-  const status = body.status === "failed" || body.error ? "failed" : "done";
+  const status = body.status === "failed" || (body.error && body.status !== "done") ? "failed" : "done";
+  const completionMessage = String(body.message || body.result_message || "").slice(0, 800);
   const patch = {
     status,
     image_data: status === "done" ? String(body.image || body.image_data || "").trim() : "",
@@ -291,10 +394,23 @@ async function completeJob(body) {
       return NextResponse.json({ ok: true, mode: "supabase", job: publicJob(existing), ignored: true });
     }
     if (existingError && !isMissingTableError(existingError)) return NextResponse.json({ ok: false, error: existingError.message }, { status: 500 });
+    const existingPayload = existing?.payload && typeof existing.payload === "object" ? existing.payload : {};
+    const updatePatch = completionMessage
+      ? {
+          ...patch,
+          payload: {
+            ...existingPayload,
+            completion_message: completionMessage,
+            progress_message: completionMessage,
+            progress_stage: status === "done" ? "done" : "failed",
+            progress: 100,
+          },
+        }
+      : patch;
 
     const { data, error } = await admin
       .from(TABLE)
-      .update(patch)
+      .update(updatePatch)
       .eq("id", id)
       .eq("agent_token", agentToken)
       .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
@@ -307,7 +423,19 @@ async function completeJob(body) {
   if (current?.status === "cancelled") {
     return NextResponse.json({ ok: true, mode: "memory", job: publicJob(current), ignored: true });
   }
-  const row = updateMemory(id, agentToken, patch);
+  const currentPayload = current?.payload && typeof current.payload === "object" ? current.payload : {};
+  const row = updateMemory(id, agentToken, completionMessage
+    ? {
+        ...patch,
+        payload: {
+          ...currentPayload,
+          completion_message: completionMessage,
+          progress_message: completionMessage,
+          progress_stage: status === "done" ? "done" : "failed",
+          progress: 100,
+        },
+      }
+    : patch);
   if (!row) return NextResponse.json({ ok: false, error: "Задание не найдено." }, { status: 404 });
   return NextResponse.json({ ok: true, mode: "memory", job: publicJob(row) });
 }
@@ -561,12 +689,41 @@ async function historyJobs(body) {
   return NextResponse.json({ ok: true, mode: "memory", jobs });
 }
 
+async function commandHistory(body) {
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const limit = Math.max(1, Math.min(20, Number(body.limit || 8)));
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .eq("agent_token", agentToken)
+      .eq("provider", PC_COMMAND_PROVIDER)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!error) return NextResponse.json({ ok: true, mode: "supabase", commands: (data || []).map(publicJob) });
+    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  const commands = Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && row.provider === PC_COMMAND_PROVIDER)
+    .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
+    .slice(0, limit)
+    .map(publicJob);
+  return NextResponse.json({ ok: true, mode: "memory", commands });
+}
+
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "status").toLowerCase();
     if (action === "create") return createJobs(req, body);
     if (action === "poll") return pollJobs(body);
+    if (action === "create_command") return createPcCommand(req, body);
+    if (action === "poll_command") return pollPcCommands(body);
+    if (action === "command_history") return commandHistory(body);
     if (action === "complete") return completeJob(body);
     if (action === "progress") return progressJob(body);
     if (action === "heartbeat") return heartbeatAgent(body);

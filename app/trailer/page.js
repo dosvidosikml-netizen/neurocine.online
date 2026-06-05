@@ -35,6 +35,13 @@ const LOCAL_WORKER_URLS = {
 };
 const DEFAULT_LOCAL_RENDER_PROVIDER = "comfyui";
 const DEFAULT_LOCAL_WORKER_URL = LOCAL_WORKER_URLS[DEFAULT_LOCAL_RENDER_PROVIDER];
+const PC_COMMANDS = [
+  { id: "status", label: "Проверить ПК", hint: "агент и ComfyUI" },
+  { id: "start_comfyui", label: "Запустить ComfyUI", hint: "если API упал" },
+  { id: "restart_comfyui", label: "Перезапустить ComfyUI", hint: "остановить и поднять" },
+  { id: "restart_agent", label: "Перезапустить агента", hint: "новый процесс агента" },
+  { id: "reboot_pc", label: "Перезагрузить ПК", hint: "Windows reboot" },
+];
 const LOCAL_IMAGE_WIDTH = 936;
 const LOCAL_IMAGE_HEIGHT = 1664;
 const LOCAL_IMAGE_NEGATIVE = [
@@ -2051,6 +2058,18 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
   };
 }
 
+function pcCommandProgressInfo(job = {}, nowMs = Date.now()) {
+  const status = job.status === "failed" ? "error" : job.status === "running" ? "rendering" : job.status === "queued" ? "queued" : job.status === "done" ? "done" : "";
+  const label = job.command_label || job.part_label || job.command || "Команда ПК";
+  const message = job.completion_message || job.progress_message || job.error || (status === "queued" ? "ждёт агента" : status === "rendering" ? "агент выполняет" : status === "done" ? "готово" : "ожидает статуса");
+  return {
+    status,
+    label,
+    message,
+    updated: relativeTimeLabel(job.updated_at || job.created_at, nowMs),
+  };
+}
+
 function agentHealthInfo(agent = null, nowMs = Date.now()) {
   const lastSeen = agent?.last_seen_at || agent?.updated_at || "";
   const lastMs = timeMs(lastSeen);
@@ -2124,6 +2143,8 @@ export default function TrailerStoryboardPage() {
   const [localAgentToken, setLocalAgentToken] = useState("");
   const [localQueueJobs, setLocalQueueJobs] = useState({});
   const [localHistoryJobs, setLocalHistoryJobs] = useState([]);
+  const [pcCommandInput, setPcCommandInput] = useState("");
+  const [pcCommandJobs, setPcCommandJobs] = useState([]);
   const [localAgentStatus, setLocalAgentStatus] = useState(null);
   const [projectSessionId, setProjectSessionId] = useState("");
   const [localModelPreset, setLocalModelPreset] = useState(DEFAULT_LOCAL_MODEL_PRESET);
@@ -2570,6 +2591,93 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     }
   }
 
+  function parsePcCommandText(value = "") {
+    const text = cleanText(value).toLowerCase();
+    if (!text) return "";
+    if ((text.includes("включ") || text.includes("разбуд")) && (text.includes("пк") || text.includes("комп"))) return "wake_pc";
+    if (text.includes("перезагруз") && (text.includes("пк") || text.includes("комп") || text.includes("windows"))) return "reboot_pc";
+    if ((text.includes("перезап") || text.includes("рестарт")) && text.includes("агент")) return "restart_agent";
+    if ((text.includes("перезап") || text.includes("рестарт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "restart_comfyui";
+    if ((text.includes("запуст") || text.includes("старт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "start_comfyui";
+    if (text.includes("пров") || text.includes("статус") || text.includes("связ")) return "status";
+    return "";
+  }
+
+  async function refreshPcCommandHistory(quiet = false) {
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (!token) return;
+    try {
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "command_history",
+          agent_token: token,
+          limit: 8,
+        }),
+      }, 30000);
+      setPcCommandJobs(Array.isArray(data.commands) ? data.commands : []);
+      setQueueClock(Date.now());
+    } catch (e) {
+      if (!quiet) setLocalRenderNotice({ type: "error", message: `Команды ПК не обновились: ${e.message}` });
+    }
+  }
+
+  async function sendPcCommand(commandId, label = "") {
+    const command = String(commandId || "").trim();
+    if (!command) return;
+    if (command === "wake_pc") {
+      setLocalRenderNotice({ type: "warn", message: "Включить полностью выключенный ПК сайт не может. Для этого нужен Wake-on-LAN, BIOS/роутер/VPN или умная розетка." });
+      return;
+    }
+    if (command === "reboot_pc" && typeof window !== "undefined" && !window.confirm("Перезагрузить ПК через 15 секунд? Активная генерация прервётся.")) {
+      return;
+    }
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (localAgentToken !== token) setLocalAgentToken(token);
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      setLocalRenderNotice({ type: "error", message: "Для команды ПК нужно войти через Google." });
+      return;
+    }
+    const actionName = `pc-${command}`;
+    setLocalRenderAction(actionName);
+    setLocalRenderNotice({ type: "working", message: `${label || "Команда ПК"} отправляется агенту...` });
+    try {
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          action: "create_command",
+          agent_token: token,
+          command,
+          project_session_id: projectSessionId,
+        }),
+      }, 30000);
+      const next = data.command ? [data.command, ...pcCommandJobs.filter((job) => job.id !== data.command.id)].slice(0, 8) : pcCommandJobs;
+      setPcCommandJobs(next);
+      setLocalRenderNotice({ type: "success", message: `Команда создана: ${data.command?.command_label || label || command}. Агент заберёт её при следующем опросе.` });
+      setPcCommandInput("");
+    } catch (e) {
+      setLocalRenderNotice({ type: "error", message: `Команда ПК не создана: ${e.message}` });
+    } finally {
+      setLocalRenderAction("");
+    }
+  }
+
+  async function sendPcCommandFromText() {
+    const command = parsePcCommandText(pcCommandInput);
+    if (!command) {
+      setLocalRenderNotice({ type: "warn", message: "Не понял команду. Напиши: проверь ПК, запусти ComfyUI, перезапусти ComfyUI, перезапусти агента или перезагрузи ПК." });
+      return;
+    }
+    const item = PC_COMMANDS.find((x) => x.id === command);
+    await sendPcCommand(command, item?.label || pcCommandInput);
+  }
+
   function insertHistoryJob(job = {}) {
     if (!job.image_data) return;
     const partIndex = Math.max(0, Number(job.part_index || 0));
@@ -2689,20 +2797,26 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
 
   useEffect(() => {
     const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
+    const activeCommands = pcCommandJobs.some((job) => job?.status === "queued" || job?.status === "running");
     if (!localAgentToken) return undefined;
-    const timer = window.setInterval(() => refreshLocalQueueJobs(true), active ? 4000 : 8000);
+    const timer = window.setInterval(() => {
+      refreshLocalQueueJobs(true);
+      refreshPcCommandHistory(true);
+    }, active || activeCommands ? 4000 : 8000);
     refreshLocalQueueJobs(true);
+    refreshPcCommandHistory(true);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localQueueJobs, localAgentToken, projectSessionId]);
+  }, [localQueueJobs, pcCommandJobs, localAgentToken, projectSessionId]);
 
   useEffect(() => {
     const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
+    const activeCommands = pcCommandJobs.some((job) => job?.status === "queued" || job?.status === "running");
     const hasAgentStatus = Boolean(localAgentStatus?.last_seen_at || localAgentStatus?.updated_at);
-    if (!active && !hasAgentStatus) return undefined;
+    if (!active && !activeCommands && !hasAgentStatus) return undefined;
     const timer = window.setInterval(() => setQueueClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [localQueueJobs, localAgentStatus]);
+  }, [localQueueJobs, pcCommandJobs, localAgentStatus]);
 
   function restoreSavedDraft() {
     try {
@@ -3635,6 +3749,16 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .agent-health.warn strong{color:#ffdca6}
         .agent-health.offline{border-color:rgba(255,154,168,.45);background:rgba(58,18,27,.22)}
         .agent-health.offline strong{color:#ffb3bd}
+        .pc-command-center{border:1px solid rgba(255,255,255,.10);background:rgba(9,11,16,.34);border-radius:8px;padding:10px;display:grid;gap:10px}
+        .pc-command-center h3{margin:0;font-size:14px}
+        .pc-chat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+        .pc-chat input{min-height:44px}
+        .pc-command-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+        .pc-command-grid button{display:grid;gap:3px;text-align:left;min-height:52px}
+        .pc-command-grid button span{font-size:12px;font-weight:900}
+        .pc-command-grid button small{font-size:10px;color:rgba(247,243,234,.54)}
+        .pc-command-note{border:1px solid rgba(255,196,112,.22);background:rgba(74,50,17,.13);border-radius:6px;padding:9px 10px;font-size:12px;line-height:1.45;color:#ffdca6}
+        .command-history{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
         .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
         .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:9px 10px;font-size:12px;color:rgba(247,243,234,.70);display:grid;gap:6px}
         .job-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -3699,7 +3823,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .frames{display:grid;gap:8px}.frame{border-left:3px solid #e3344f;background:rgba(255,255,255,.04);padding:10px;border-radius:6px}
         .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;max-height:420px;overflow:auto}
         .mono.master{max-height:360px;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;background:#0b0f17}
-        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.param-grid,.mini-row,.local-main-actions{grid-template-columns:1fr}.history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}.row,.locks,.crop-grid,.joblist,.command-history,.param-grid,.mini-row,.local-main-actions,.pc-chat,.pc-command-grid{grid-template-columns:1fr}.history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.trailer-page{padding:10px}textarea{min-height:260px}.compact-area{min-height:110px}.frame-select{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
 
       <div className="wrap">
@@ -3994,6 +4118,51 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className={`agent-health ${localAgentHealth.status}`}>
                     <strong>{localAgentHealth.title}</strong>
                     <span>{localAgentHealth.detail}</span>
+                  </div>
+                  <div className="pc-command-center">
+                    <div className="prompt-head">
+                      <h3>Командный центр ПК</h3>
+                      <button className={`action-refresh${localRenderAction === "pc-history" ? " is-working" : ""}`} type="button" disabled={!localAgentToken} onClick={() => refreshPcCommandHistory(false)}>
+                        Обновить команды
+                      </button>
+                    </div>
+                    <div className="pc-chat">
+                      <input value={pcCommandInput} onChange={(e) => setPcCommandInput(e.target.value)} placeholder="Напиши: проверь ПК, запусти ComfyUI, перезапусти агента..." />
+                      <button className="action-service" type="button" disabled={!pcCommandInput.trim() || !localAgentToken} onClick={sendPcCommandFromText}>Отправить</button>
+                    </div>
+                    <div className="pc-command-grid">
+                      {PC_COMMANDS.map((cmd) => (
+                        <button
+                          key={cmd.id}
+                          type="button"
+                          className={`${cmd.id === "reboot_pc" ? "danger" : "action-service"}${localRenderAction === `pc-${cmd.id}` ? " is-working" : ""}`}
+                          disabled={!localAgentToken || localRenderAction === `pc-${cmd.id}`}
+                          onClick={() => sendPcCommand(cmd.id, cmd.label)}
+                        >
+                          <span>{cmd.label}</span>
+                          <small>{cmd.hint}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pc-command-note">
+                      Команды работают только если на ПК уже запущен агент с этим token. Полностью выключенный ПК сайт не включает: для этого нужен Wake-on-LAN или питание через умную розетку.
+                    </div>
+                    {pcCommandJobs.length ? (
+                      <div className="command-history">
+                        {pcCommandJobs.map((job) => {
+                          const item = pcCommandProgressInfo(job, queueClock);
+                          return (
+                            <span key={job.id} className={`job ${item.status}`}>
+                              <span className="job-top">
+                                <strong>{item.label}</strong>
+                                <em>{item.updated}</em>
+                              </span>
+                              <span className="job-message">{item.message}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
                   <details className="local-advanced">
                     <summary>Дополнительно: прямой запуск на этом ПК и команда агента</summary>

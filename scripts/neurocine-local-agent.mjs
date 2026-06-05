@@ -10,6 +10,10 @@ const DEFAULT_NEGATIVE = "bad hands, bad anatomy, deformed hands, deformed finge
 const DEFAULT_COMFY_PYTHON = process.platform === "win32"
   ? "C:\\Users\\Admin\\AI\\ComfyUI\\.venv\\Scripts\\python.exe"
   : "python3";
+const DEFAULT_COMFY_DIR = process.platform === "win32"
+  ? "C:\\Users\\Admin\\AI\\ComfyUI"
+  : "";
+const PC_COMMAND_PROVIDER = "pc-command";
 
 function arg(name, fallback = "") {
   const flag = `--${name}`;
@@ -169,6 +173,60 @@ function runProcess(command, args = [], options = {}) {
       else reject(new Error(stderr || stdout || `${command} exited with code ${code}`));
     });
   });
+}
+
+function runDetached(command, args = [], options = {}) {
+  const child = spawn(command, args, {
+    ...options,
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  child.unref();
+  return child;
+}
+
+function workerPort(workerUrl, fallback = 8188) {
+  try {
+    const parsed = new URL(workerUrl);
+    return Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80)) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function quotePowerShell(value = "") {
+  return `'${String(value || "").replace(/'/g, "''")}'`;
+}
+
+async function stopComfyUiProcesses(config) {
+  if (process.platform !== "win32") {
+    throw new Error("ComfyUI restart is configured for Windows only in this agent.");
+  }
+  if (!config.comfyuiDir) throw new Error("Missing --comfyui-dir");
+  const script = [
+    `$root = ${quotePowerShell(config.comfyuiDir)}.ToLowerInvariant()`,
+    "$procs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($root) -and $_.CommandLine.ToLowerInvariant().Contains('main.py') }",
+    "$procs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+    "Write-Output ($procs | Measure-Object).Count",
+  ].join("; ");
+  const result = await runProcess("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]);
+  return String(result.stdout || "").trim() || "0";
+}
+
+async function startComfyUi(config) {
+  const current = await checkWorkerStatus(config);
+  if (current.ok) return "ComfyUI already responds.";
+  if (config.provider !== "comfyui") throw new Error("Start ComfyUI command requires provider=comfyui.");
+  if (!config.comfyuiDir || !config.comfyuiMain) throw new Error("Missing ComfyUI path. Pass --comfyui-dir if needed.");
+  const port = workerPort(config.workerUrl, 8188);
+  runDetached(config.python, [config.comfyuiMain, "--listen", "127.0.0.1", "--port", String(port)], { cwd: config.comfyuiDir });
+  for (let i = 0; i < 20; i += 1) {
+    await sleep(1500);
+    const status = await checkWorkerStatus(config);
+    if (status.ok) return `ComfyUI started on port ${port}.`;
+  }
+  throw new Error("ComfyUI start command was sent, but API did not become ready.");
 }
 
 async function composeGridWithPillow({ images, cols, rows, cellWidth, cellHeight, pythonBinary }) {
@@ -469,6 +527,14 @@ async function pollQueue(config) {
   }, 30000);
 }
 
+async function pollPcCommands(config) {
+  return fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "poll_command", agent_token: config.token, provider: PC_COMMAND_PROVIDER, limit: 2 }),
+  }, 30000);
+}
+
 async function completeQueueJob(config, job, result) {
   return fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
     method: "POST",
@@ -480,8 +546,72 @@ async function completeQueueJob(config, job, result) {
       status: result.ok ? "done" : "failed",
       image: result.image || "",
       error: result.error || "",
+      message: result.message || "",
     }),
   }, 120000);
+}
+
+async function executePcCommand(job, config, state) {
+  const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
+  const command = String(payload.command || "").trim().toLowerCase();
+  console.log(`[NeuroCine Agent] pc command: ${payload.command_label || command || job.id}`);
+
+  if (command === "status") {
+    const worker = await checkWorkerStatus(config);
+    state.lastWorkerStatus = worker;
+    return { ok: true, message: worker.ok ? "PC agent online. ComfyUI API online." : `PC agent online. ComfyUI API offline: ${worker.error}` };
+  }
+
+  if (command === "start_comfyui") {
+    const message = await startComfyUi(config);
+    state.lastWorkerStatus = await checkWorkerStatus(config);
+    return { ok: true, message };
+  }
+
+  if (command === "restart_comfyui") {
+    const stopped = await stopComfyUiProcesses(config);
+    await sleep(2000);
+    const message = await startComfyUi(config);
+    state.lastWorkerStatus = await checkWorkerStatus(config);
+    return { ok: true, message: `Stopped processes: ${stopped}. ${message}` };
+  }
+
+  if (command === "restart_agent") {
+    await completeQueueJob(config, job, { ok: true, message: "Agent restarting now." });
+    runDetached(process.execPath, process.argv.slice(1), { cwd: process.cwd(), env: process.env });
+    setTimeout(() => process.exit(0), 600);
+    return { ok: true, alreadyCompleted: true, message: "Agent restarting now." };
+  }
+
+  if (command === "reboot_pc") {
+    await completeQueueJob(config, job, { ok: true, message: "Windows reboot scheduled in 15 seconds." });
+    if (process.platform === "win32") {
+      runDetached("shutdown.exe", ["/r", "/t", "15", "/c", "NeuroCine remote reboot"]);
+    } else {
+      runDetached("shutdown", ["-r", "+1"]);
+    }
+    return { ok: true, alreadyCompleted: true, message: "PC reboot scheduled." };
+  }
+
+  throw new Error(`Unsupported PC command: ${command || "empty"}`);
+}
+
+async function handlePcCommands(config, state) {
+  const queue = await pollPcCommands(config);
+  const commands = Array.isArray(queue.commands) ? queue.commands : [];
+  for (const commandJob of commands) {
+    try {
+      const result = await executePcCommand(commandJob, config, state);
+      if (!result.alreadyCompleted) {
+        await completeQueueJob(config, commandJob, { ok: true, message: result.message || "Command done." });
+      }
+      console.log(`[NeuroCine Agent] pc command done: ${commandJob.part_label || commandJob.id}`);
+    } catch (e) {
+      await completeQueueJob(config, commandJob, { ok: false, error: e.message || "PC command failed" });
+      console.error(`[NeuroCine Agent] pc command failed ${commandJob.part_label || commandJob.id}: ${e.message}`);
+    }
+  }
+  return commands.length;
 }
 
 async function updateQueueJobProgress(config, job, patch = {}) {
@@ -580,9 +710,12 @@ async function main() {
     workerUrl: cleanBaseUrl(arg("worker", defaultWorker), defaultWorker),
     checkpoint: arg("checkpoint", "RealVisXL_V5.0_fp16.safetensors"),
     python: arg("python", process.env.COMFYUI_PYTHON || process.env.PYTHON || DEFAULT_COMFY_PYTHON),
+    comfyuiDir: arg("comfyui-dir", process.env.COMFYUI_DIR || DEFAULT_COMFY_DIR),
+    comfyuiMain: arg("comfyui-main", ""),
     intervalMs: Math.max(1000, Number(arg("interval", "3000")) || 3000),
     heartbeatMs: Math.max(5000, Number(arg("heartbeat", "8000")) || 8000),
   };
+  config.comfyuiMain = config.comfyuiMain || (config.comfyuiDir ? path.join(config.comfyuiDir, "main.py") : "");
 
   if (!config.token) {
     console.error("Нужен --token из блока NeuroCine Local Agent на сайте.");
@@ -592,12 +725,15 @@ async function main() {
   console.log(`[NeuroCine Agent] site=${config.siteUrl}`);
   console.log(`[NeuroCine Agent] provider=${config.provider} worker=${config.workerUrl}`);
   console.log(`[NeuroCine Agent] grid composer python=${config.python}`);
+  if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui dir=${config.comfyuiDir || "not set"}`);
   console.log("[NeuroCine Agent] ждёт задания...");
   const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" } };
   startHeartbeatLoop(config, state);
 
   while (true) {
     try {
+      await handlePcCommands(config, state);
+
       if (!state.lastWorkerStatus.ok) {
         await sleep(config.intervalMs);
         continue;
