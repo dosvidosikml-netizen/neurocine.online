@@ -33,8 +33,8 @@ function cleanBaseUrl(value, fallback) {
   return withScheme.replace(/\/+$/, "");
 }
 
-async function fetchJson(url, options = {}, timeoutMs = 600000) {
-  return fetchJsonWithRetry(url, options, timeoutMs, 4);
+async function fetchJson(url, options = {}, timeoutMs = 600000, attempts = 4) {
+  return fetchJsonWithRetry(url, options, timeoutMs, attempts);
 }
 
 function isTransientFetchError(error = {}) {
@@ -583,6 +583,22 @@ async function executePcCommand(job, config, state) {
     return { ok: true, alreadyCompleted: true, message: "Agent restarting now." };
   }
 
+  if (command === "sleep_pc") {
+    await completeQueueJob(config, job, { ok: true, message: "Windows sleep scheduled in 5 seconds." });
+    if (process.platform === "win32") {
+      runDetached("powershell.exe", [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Start-Sleep -Seconds 5; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $false, $false)",
+      ]);
+    } else {
+      runDetached("systemctl", ["suspend"]);
+    }
+    return { ok: true, alreadyCompleted: true, message: "PC sleep scheduled." };
+  }
+
   if (command === "reboot_pc") {
     await completeQueueJob(config, job, { ok: true, message: "Windows reboot scheduled in 15 seconds." });
     if (process.platform === "win32") {
@@ -659,8 +675,84 @@ async function checkWorkerStatus(config) {
   return fetchOk(`${config.workerUrl}/system_stats`, 5000);
 }
 
+function nodeByClass(workflow = {}, classType = "") {
+  return Object.values(workflow || {}).find((node) => node?.class_type === classType) || null;
+}
+
+function extractPromptSection(text = "", header = "") {
+  const raw = String(text || "");
+  const index = raw.indexOf(header);
+  if (index < 0) return "";
+  const rest = raw.slice(index + header.length);
+  return rest.split(/\n\s*\n/)[0].replace(/\s+/g, " ").trim().slice(0, 260);
+}
+
+function summarizeComfyQueueEntry(entry = []) {
+  const promptId = String(entry?.[1] || "");
+  const workflow = entry?.[2] && typeof entry[2] === "object" ? entry[2] : {};
+  const sampler = nodeByClass(workflow, "KSampler")?.inputs || {};
+  const checkpoint = nodeByClass(workflow, "CheckpointLoaderSimple")?.inputs || {};
+  const latent = nodeByClass(workflow, "EmptyLatentImage")?.inputs || {};
+  const save = nodeByClass(workflow, "SaveImage")?.inputs || {};
+  const positive = nodeByClass(workflow, "CLIPTextEncode")?.inputs?.text || "";
+  const frameMatch = String(positive || "").match(/This is PART\s+(\d+),\s*frame\s+(\d+)\s+of\s+(\d+)/i);
+  const label = frameMatch ? `PART ${frameMatch[1]}, кадр ${frameMatch[2]}/${frameMatch[3]}` : "";
+  return {
+    prompt_id: promptId,
+    part: frameMatch ? `PART ${frameMatch[1]}` : "",
+    frame: frameMatch ? `${frameMatch[2]}/${frameMatch[3]}` : "",
+    label,
+    filename_prefix: String(save.filename_prefix || "").slice(0, 160),
+    checkpoint: String(checkpoint.ckpt_name || "").slice(0, 160),
+    size: latent.width && latent.height ? `${latent.width}x${latent.height}` : "",
+    steps: Number(sampler.steps || 0) || 0,
+    cfg: Number(sampler.cfg || 0) || 0,
+    sampler: String(sampler.sampler_name || "").slice(0, 120),
+    scheduler: String(sampler.scheduler || "").slice(0, 120),
+    visual_beat: extractPromptSection(positive, "VISUAL BEAT:"),
+  };
+}
+
+async function getWorkerQueueStatus(config, workerOk = false) {
+  if (!workerOk || config.provider !== "comfyui") {
+    return {
+      active: false,
+      running_count: 0,
+      pending_count: 0,
+      status: workerOk ? "idle" : "offline",
+      updated_at: new Date().toISOString(),
+      current: {},
+    };
+  }
+  try {
+    const data = await fetchJson(`${config.workerUrl}/queue`, { method: "GET" }, 8000, 1);
+    const running = Array.isArray(data.queue_running) ? data.queue_running : [];
+    const pending = Array.isArray(data.queue_pending) ? data.queue_pending : [];
+    const current = running.length ? summarizeComfyQueueEntry(running[0]) : {};
+    return {
+      active: running.length > 0,
+      running_count: running.length,
+      pending_count: pending.length,
+      status: running.length ? "running" : pending.length ? "pending" : "idle",
+      updated_at: new Date().toISOString(),
+      current,
+    };
+  } catch (e) {
+    return {
+      active: false,
+      running_count: 0,
+      pending_count: 0,
+      status: "unknown",
+      updated_at: new Date().toISOString(),
+      error: e.message || "queue status failed",
+      current: {},
+    };
+  }
+}
+
 async function sendHeartbeat(config, workerStatus = null) {
   const worker = workerStatus || await checkWorkerStatus(config);
+  const workerQueue = await getWorkerQueueStatus(config, worker.ok);
   const heartbeat = await fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -671,6 +763,7 @@ async function sendHeartbeat(config, workerStatus = null) {
       worker_url: config.workerUrl,
       worker_ok: worker.ok,
       worker_error: worker.error,
+      worker_queue: workerQueue,
       agent_version: "neurocine-local-agent-v1",
     }),
   }, 15000);
@@ -687,7 +780,13 @@ function startHeartbeatLoop(config, state) {
       const hb = await sendHeartbeat(config, state.lastWorkerStatus);
       const agent = hb?.heartbeat?.agent || {};
       const workerOk = agent.worker_ok ? "worker online" : `worker offline${agent.worker_error ? `: ${agent.worker_error}` : ""}`;
-      console.log(`[NeuroCine Agent] heartbeat: ${workerOk}`);
+      const queue = agent.worker_queue || {};
+      const queueText = queue.active
+        ? `, ComfyUI ${queue.current?.label || "rendering"}`
+        : queue.pending_count
+          ? `, ComfyUI pending ${queue.pending_count}`
+          : "";
+      console.log(`[NeuroCine Agent] heartbeat: ${workerOk}${queueText}`);
     } catch (heartbeatError) {
       console.error(`[NeuroCine Agent] heartbeat error: ${heartbeatError.message}`);
     } finally {

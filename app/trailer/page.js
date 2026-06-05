@@ -40,6 +40,7 @@ const PC_COMMANDS = [
   { id: "start_comfyui", label: "Запустить ComfyUI", hint: "если API упал" },
   { id: "restart_comfyui", label: "Перезапустить ComfyUI", hint: "остановить и поднять" },
   { id: "restart_agent", label: "Перезапустить агента", hint: "новый процесс агента" },
+  { id: "sleep_pc", label: "Сон ПК", hint: "усыпить Windows" },
   { id: "reboot_pc", label: "Перезагрузить ПК", hint: "Windows reboot" },
 ];
 const LOCAL_IMAGE_WIDTH = 936;
@@ -2106,6 +2107,55 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
   };
 }
 
+function agentQueueInfo(agent = null, nowMs = Date.now()) {
+  const queue = agent?.worker_queue && typeof agent.worker_queue === "object" ? agent.worker_queue : null;
+  if (!queue) return null;
+  const current = queue.current && typeof queue.current === "object" ? queue.current : {};
+  const updated = relativeTimeLabel(queue.updated_at || agent?.last_seen_at || agent?.updated_at, nowMs);
+  const running = Number(queue.running_count || 0) || 0;
+  const pending = Number(queue.pending_count || 0) || 0;
+  const meta = [
+    current.checkpoint ? `модель: ${current.checkpoint}` : "",
+    current.size ? `размер: ${current.size}` : "",
+    current.steps ? `steps: ${current.steps}` : "",
+    current.sampler ? `sampler: ${current.sampler}${current.scheduler ? ` / ${current.scheduler}` : ""}` : "",
+  ].filter(Boolean);
+
+  if (queue.error) {
+    return {
+      status: "warn",
+      title: "ComfyUI queue: ошибка",
+      detail: `${queue.error}. Обновлено: ${updated}.`,
+      meta,
+    };
+  }
+
+  if (running > 0) {
+    return {
+      status: "rendering",
+      title: `ComfyUI рендерит${current.label ? `: ${current.label}` : ""}`,
+      detail: `${current.visual_beat || current.filename_prefix || "KSampler в работе"}. Обновлено: ${updated}.`,
+      meta,
+    };
+  }
+
+  if (pending > 0) {
+    return {
+      status: "queued",
+      title: `ComfyUI очередь: ${pending} ждёт`,
+      detail: `Сейчас не рендерит, но в очереди ComfyUI есть задания. Обновлено: ${updated}.`,
+      meta,
+    };
+  }
+
+  return {
+    status: "online",
+    title: "ComfyUI свободен",
+    detail: `Очередь пуста. Обновлено: ${updated}.`,
+    meta,
+  };
+}
+
 export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
@@ -2236,6 +2286,7 @@ export default function TrailerStoryboardPage() {
   }, [localAgentToken, localRenderProvider, localWorkerUrl, localCheckpoint, defaultLocalModel.checkpoint]);
   const activeLocalModelPreset = LOCAL_MODEL_PRESETS[localModelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
   const localAgentHealth = useMemo(() => agentHealthInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
+  const localAgentQueue = useMemo(() => agentQueueInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const usesBaseCheckpoint = /(^|[\\/])sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim()) || /^sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim());
 
   function buildPartPromptForIndex(partIndex, includeFix = true) {
@@ -2595,6 +2646,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     const text = cleanText(value).toLowerCase();
     if (!text) return "";
     if ((text.includes("включ") || text.includes("разбуд")) && (text.includes("пк") || text.includes("комп"))) return "wake_pc";
+    if (text.includes("сон") || text.includes("спать") || text.includes("усып") || text.includes("sleep")) return "sleep_pc";
     if (text.includes("перезагруз") && (text.includes("пк") || text.includes("комп") || text.includes("windows"))) return "reboot_pc";
     if ((text.includes("перезап") || text.includes("рестарт")) && text.includes("агент")) return "restart_agent";
     if ((text.includes("перезап") || text.includes("рестарт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "restart_comfyui";
@@ -2628,6 +2680,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if (!command) return;
     if (command === "wake_pc") {
       setLocalRenderNotice({ type: "warn", message: "Включить полностью выключенный ПК сайт не может. Для этого нужен Wake-on-LAN, BIOS/роутер/VPN или умная розетка." });
+      return;
+    }
+    if (command === "sleep_pc" && typeof window !== "undefined" && !window.confirm("Отправить ПК в сон через 5 секунд? Активная генерация может прерваться.")) {
       return;
     }
     if (command === "reboot_pc" && typeof window !== "undefined" && !window.confirm("Перезагрузить ПК через 15 секунд? Активная генерация прервётся.")) {
@@ -3749,6 +3804,19 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .agent-health.warn strong{color:#ffdca6}
         .agent-health.offline{border-color:rgba(255,154,168,.45);background:rgba(58,18,27,.22)}
         .agent-health.offline strong{color:#ffb3bd}
+        .agent-queue{border:1px solid rgba(255,255,255,.12);background:#10131b;border-radius:6px;padding:10px 12px;display:grid;gap:7px}
+        .agent-queue strong{font-size:13px}
+        .agent-queue span{font-size:12px;line-height:1.45;color:rgba(247,243,234,.66)}
+        .agent-queue.online{border-color:rgba(158,232,201,.38);background:rgba(23,58,49,.18)}
+        .agent-queue.online strong{color:#b7ffe3}
+        .agent-queue.queued{border-color:rgba(255,196,112,.42);background:rgba(74,50,17,.20)}
+        .agent-queue.queued strong{color:#ffdca6}
+        .agent-queue.rendering{border-color:rgba(235,45,82,.58);background:rgba(235,45,82,.12)}
+        .agent-queue.rendering strong{color:#ffb3bd}
+        .agent-queue.warn{border-color:rgba(255,196,112,.48);background:rgba(74,50,17,.24)}
+        .agent-queue.warn strong{color:#ffdca6}
+        .agent-queue-meta{display:flex;flex-wrap:wrap;gap:6px}
+        .agent-queue-meta em{font-style:normal;border:1px solid rgba(255,255,255,.10);border-radius:999px;padding:5px 8px;font-size:10px;color:rgba(247,243,234,.70);background:rgba(255,255,255,.04)}
         .pc-command-center{border:1px solid rgba(255,255,255,.10);background:rgba(9,11,16,.34);border-radius:8px;padding:10px;display:grid;gap:10px}
         .pc-command-center h3{margin:0;font-size:14px}
         .pc-chat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
@@ -4119,6 +4187,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                     <strong>{localAgentHealth.title}</strong>
                     <span>{localAgentHealth.detail}</span>
                   </div>
+                  {localAgentQueue ? (
+                    <div className={`agent-queue ${localAgentQueue.status}`}>
+                      <strong>{localAgentQueue.title}</strong>
+                      <span>{localAgentQueue.detail}</span>
+                      {localAgentQueue.meta?.length ? (
+                        <div className="agent-queue-meta">
+                          {localAgentQueue.meta.map((item) => <em key={item}>{item}</em>)}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="pc-command-center">
                     <div className="prompt-head">
                       <h3>Командный центр ПК</h3>
@@ -4135,7 +4214,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                         <button
                           key={cmd.id}
                           type="button"
-                          className={`${cmd.id === "reboot_pc" ? "danger" : "action-service"}${localRenderAction === `pc-${cmd.id}` ? " is-working" : ""}`}
+                          className={`${["reboot_pc", "sleep_pc"].includes(cmd.id) ? "danger" : "action-service"}${localRenderAction === `pc-${cmd.id}` ? " is-working" : ""}`}
                           disabled={!localAgentToken || localRenderAction === `pc-${cmd.id}`}
                           onClick={() => sendPcCommand(cmd.id, cmd.label)}
                         >

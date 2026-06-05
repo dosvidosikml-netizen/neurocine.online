@@ -14,6 +14,7 @@ const PC_COMMANDS = {
   start_comfyui: "Запустить ComfyUI",
   restart_comfyui: "Перезапустить ComfyUI",
   restart_agent: "Перезапустить агента",
+  sleep_pc: "Сон ПК",
   reboot_pc: "Перезагрузить ПК",
 };
 const memoryStore = globalThis.__neurocineTrailerLocalJobs || new Map();
@@ -73,8 +74,40 @@ function publicAgent(row = {}) {
     worker_url: payload.worker_url || "",
     worker_ok: workerOk,
     worker_error: payload.worker_error || row.error || "",
+    worker_queue: payload.worker_queue && typeof payload.worker_queue === "object" ? payload.worker_queue : null,
     last_seen_at: lastSeenAt,
     updated_at: row.updated_at || "",
+  };
+}
+
+function cleanQueueText(value = "", max = 220) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function normalizeWorkerQueue(value = null) {
+  if (!value || typeof value !== "object") return null;
+  const current = value.current && typeof value.current === "object" ? value.current : {};
+  return {
+    active: value.active === true,
+    running_count: Math.max(0, Math.min(20, Number(value.running_count || value.runningCount || 0) || 0)),
+    pending_count: Math.max(0, Math.min(200, Number(value.pending_count || value.pendingCount || 0) || 0)),
+    status: cleanQueueText(value.status, 80),
+    updated_at: cleanQueueText(value.updated_at || value.updatedAt, 60),
+    error: cleanQueueText(value.error, 300),
+    current: {
+      prompt_id: cleanQueueText(current.prompt_id || current.promptId, 120),
+      part: cleanQueueText(current.part, 80),
+      frame: cleanQueueText(current.frame, 80),
+      label: cleanQueueText(current.label, 160),
+      filename_prefix: cleanQueueText(current.filename_prefix || current.filenamePrefix, 160),
+      checkpoint: cleanQueueText(current.checkpoint, 160),
+      size: cleanQueueText(current.size, 80),
+      steps: Math.max(0, Math.min(200, Number(current.steps || 0) || 0)),
+      cfg: Math.max(0, Math.min(30, Number(current.cfg || 0) || 0)),
+      sampler: cleanQueueText(current.sampler, 120),
+      scheduler: cleanQueueText(current.scheduler, 120),
+      visual_beat: cleanQueueText(current.visual_beat || current.visualBeat, 260),
+    },
   };
 }
 
@@ -528,6 +561,7 @@ async function heartbeatAgent(body) {
     worker_url: String(body.worker_url || body.workerUrl || "").slice(0, 400),
     worker_ok: body.worker_ok === true || body.workerOk === true,
     worker_error: String(body.worker_error || body.workerError || "").slice(0, 800),
+    worker_queue: normalizeWorkerQueue(body.worker_queue || body.workerQueue),
     agent_version: String(body.agent_version || body.agentVersion || "local-agent").slice(0, 80),
   };
   const patch = {
