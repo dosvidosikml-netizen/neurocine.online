@@ -47,6 +47,7 @@ function publicJob(row = {}) {
     progress: Number.isFinite(Number(payload.progress)) ? clampProgress(payload.progress) : null,
     progress_message: String(payload.progress_message || "").slice(0, 300),
     progress_stage: String(payload.progress_stage || "").slice(0, 120),
+    project_session_id: String(payload.project_session_id || "").slice(0, 120),
   };
 }
 
@@ -120,9 +121,15 @@ function updateMemory(id, agentToken, patch = {}) {
   return next;
 }
 
+function projectSessionIdOf(row = {}) {
+  const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+  return String(payload.project_session_id || "").trim();
+}
+
 function jobDedupeKey(row = {}) {
   return [
     cleanToken(row.agent_token),
+    projectSessionIdOf(row),
     String(row.project_name || "").trim().toLowerCase(),
     String(row.provider || "comfyui").trim().toLowerCase(),
     Number(row.part_index || 0),
@@ -154,6 +161,7 @@ async function createJobs(req, body) {
   }
 
   const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const projectSessionId = String(body.project_session_id || body.projectSessionId || "").trim().slice(0, 120);
   const jobs = Array.isArray(body.jobs) ? body.jobs : [];
   if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
   if (!jobs.length) return NextResponse.json({ ok: false, error: "Нет заданий для очереди." }, { status: 400 });
@@ -168,7 +176,10 @@ async function createJobs(req, body) {
     status: "queued",
     prompt: String(job.prompt || "").slice(0, 120000),
     negative_prompt: String(job.negative_prompt || body.negative_prompt || "").slice(0, 20000),
-    payload: job.payload && typeof job.payload === "object" ? job.payload : {},
+    payload: {
+      ...(job.payload && typeof job.payload === "object" ? job.payload : {}),
+      ...(projectSessionId ? { project_session_id: projectSessionId } : {}),
+    },
     error: "",
     image_data: "",
     created_at: nowIso(),
@@ -270,6 +281,17 @@ async function completeJob(body) {
 
   const admin = createAdminSupabase();
   if (admin) {
+    const { data: existing, error: existingError } = await admin
+      .from(TABLE)
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .eq("id", id)
+      .eq("agent_token", agentToken)
+      .maybeSingle();
+    if (!existingError && existing?.status === "cancelled") {
+      return NextResponse.json({ ok: true, mode: "supabase", job: publicJob(existing), ignored: true });
+    }
+    if (existingError && !isMissingTableError(existingError)) return NextResponse.json({ ok: false, error: existingError.message }, { status: 500 });
+
     const { data, error } = await admin
       .from(TABLE)
       .update(patch)
@@ -281,6 +303,10 @@ async function completeJob(body) {
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
+  const current = memoryStore.get(id);
+  if (current?.status === "cancelled") {
+    return NextResponse.json({ ok: true, mode: "memory", job: publicJob(current), ignored: true });
+  }
   const row = updateMemory(id, agentToken, patch);
   if (!row) return NextResponse.json({ ok: false, error: "Задание не найдено." }, { status: 404 });
   return NextResponse.json({ ok: true, mode: "memory", job: publicJob(row) });
@@ -299,11 +325,14 @@ async function progressJob(body) {
   if (admin) {
     const { data: existing, error: selectError } = await admin
       .from(TABLE)
-      .select("id,payload")
+      .select("id,status,payload")
       .eq("id", id)
       .eq("agent_token", agentToken)
       .maybeSingle();
     if (!selectError && existing?.id) {
+      if (existing.status === "cancelled") {
+        return NextResponse.json({ ok: true, mode: "supabase", ignored: true });
+      }
       const payload = existing.payload && typeof existing.payload === "object" ? existing.payload : {};
       const patch = {
         payload: {
@@ -328,6 +357,9 @@ async function progressJob(body) {
   }
 
   const current = memoryStore.get(id);
+  if (current?.status === "cancelled") {
+    return NextResponse.json({ ok: true, mode: "memory", ignored: true });
+  }
   const currentPayload = current?.payload && typeof current.payload === "object" ? current.payload : {};
   const row = updateMemory(id, agentToken, {
     payload: {
@@ -431,6 +463,57 @@ async function heartbeatAgent(body) {
   return NextResponse.json({ ok: true, mode: "memory", agent });
 }
 
+async function clearJobs(req, body) {
+  const account = await getServerAccount(req);
+  if (!account.ok) {
+    return NextResponse.json({ ok: false, error: account.message || "Нужно войти через Google." }, { status: account.status || 401 });
+  }
+
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  const projectSessionId = String(body.project_session_id || body.projectSessionId || "").trim().slice(0, 120);
+  const clearAll = body.all === true || String(body.scope || "").toLowerCase() === "all";
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+  if (!clearAll && !projectSessionId) return NextResponse.json({ ok: false, error: "Нужен project_session_id или all=true." }, { status: 400 });
+
+  const patch = {
+    status: "cancelled",
+    image_data: "",
+    error: "cancelled by user",
+    completed_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data: existing, error: selectError } = await admin
+      .from(TABLE)
+      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at,user_id")
+      .eq("agent_token", agentToken)
+      .eq("user_id", account.user?.id || "")
+      .in("status", ACTIVE_JOB_STATUSES)
+      .limit(300);
+    if (!selectError) {
+      const rows = (existing || []).filter((row) => clearAll || projectSessionIdOf(row) === projectSessionId);
+      const ids = rows.map((row) => row.id).filter(Boolean);
+      if (!ids.length) return NextResponse.json({ ok: true, mode: "supabase", jobs: [], cleared_count: 0 });
+      const { data, error } = await admin
+        .from(TABLE)
+        .update(patch)
+        .in("id", ids)
+        .eq("agent_token", agentToken)
+        .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at");
+      if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob), cleared_count: (data || []).length });
+      if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+    if (selectError && !isMissingTableError(selectError)) return NextResponse.json({ ok: false, error: selectError.message }, { status: 500 });
+  }
+
+  const rows = Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && ACTIVE_JOB_STATUSES.includes(row.status) && (clearAll || projectSessionIdOf(row) === projectSessionId));
+  const jobs = rows.map((row) => updateMemory(row.id, agentToken, patch)).filter(Boolean).map(publicJob);
+  return NextResponse.json({ ok: true, mode: "memory", jobs, cleared_count: jobs.length });
+}
+
 async function statusJobs(body) {
   const agentToken = cleanToken(body.agent_token || body.agentToken);
   const ids = (Array.isArray(body.ids) ? body.ids : []).map((x) => String(x || "").trim()).filter(Boolean);
@@ -487,6 +570,7 @@ export async function POST(req) {
     if (action === "complete") return completeJob(body);
     if (action === "progress") return progressJob(body);
     if (action === "heartbeat") return heartbeatAgent(body);
+    if (action === "clear") return clearJobs(req, body);
     if (action === "agent_status") return NextResponse.json({ ok: true, agent: await getAgentStatus(cleanToken(body.agent_token || body.agentToken)) });
     if (action === "status") return statusJobs(body);
     if (action === "history") return historyJobs(body);

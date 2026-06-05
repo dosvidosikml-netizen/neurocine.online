@@ -1746,6 +1746,11 @@ function makeLocalAgentToken() {
   return `agent_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function makeProjectSessionId() {
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `trailer_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function getPersistentLocalAgentToken(fallback = "") {
   if (typeof window === "undefined") return String(fallback || "").trim() || "PASTE_AGENT_TOKEN";
   const saved = String(window.localStorage.getItem(TRAILER_AGENT_TOKEN_KEY) || "").trim();
@@ -2090,6 +2095,7 @@ export default function TrailerStoryboardPage() {
   const [localQueueJobs, setLocalQueueJobs] = useState({});
   const [localHistoryJobs, setLocalHistoryJobs] = useState([]);
   const [localAgentStatus, setLocalAgentStatus] = useState(null);
+  const [projectSessionId, setProjectSessionId] = useState("");
   const [localModelPreset, setLocalModelPreset] = useState(DEFAULT_LOCAL_MODEL_PRESET);
   const defaultLocalModel = LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
   const [localCheckpoint, setLocalCheckpoint] = useState(defaultLocalModel.checkpoint);
@@ -2397,6 +2403,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       cfg: localCfg,
     });
     payload.production_bible = stripProductionBibleImages(lockedProductionBible);
+    payload.project_session_id = projectSessionId;
     payload.reference_assets = {
       characters: filledProductionCharacters(lockedProductionBible).map((item) => ({
         id: item.id,
@@ -2476,6 +2483,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (data.agent !== undefined) setLocalAgentStatus(data.agent || null);
       const nextJobs = {};
       for (const job of data.jobs || []) {
+        if (projectSessionId && job.project_session_id !== projectSessionId) continue;
         nextJobs[job.part_index] = job;
         if (job.status === "done" && job.image_data && applyReferenceJobImage(job)) {
           // Reference image was applied to production bible.
@@ -2491,7 +2499,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           });
         }
       }
-      setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
+      setLocalQueueJobs(nextJobs);
       setQueueClock(Date.now());
       if (!quiet) setStatus(`Очередь обновлена: ${Object.keys(nextJobs).length} заданий`);
       if (!quiet) setLocalRenderNotice({ type: "success", message: `Очередь обновлена: ${Object.keys(nextJobs).length} заданий.` });
@@ -2541,15 +2549,37 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setLocalRenderNotice({ type: "success", message: `${job.part_label || `PART ${partIndex + 1}`} вставлен из истории.` });
   }
 
+  function resetGeneratedLayer(nextSessionId = makeProjectSessionId()) {
+    setProjectSessionId(nextSessionId);
+    setStoryboard(null);
+    setGridUploads({});
+    setCroppedFrame("");
+    setActivePart(0);
+    setSelectedFrameIndex(0);
+    setLocalRenderJobs({});
+    setLocalQueueJobs({});
+    setLocalHistoryJobs([]);
+  }
+
+  function handleScriptChange(value) {
+    setScript(value);
+    resetGeneratedLayer();
+    setBibleAction("");
+    setBibleNotice({ type: "idle", message: "Сценарий изменён. Сначала собери библию/JSON заново, потом ставь PART в очередь." });
+    setLocalRenderNotice({ type: "idle", message: "Сценарий изменён: старая очередь скрыта для этого проекта." });
+  }
+
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(TRAILER_DRAFT_KEY);
       if (!raw) {
         setLocalAgentToken(getPersistentLocalAgentToken());
+        setProjectSessionId(makeProjectSessionId());
         setDraftReady(true);
         return;
       }
       const draft = JSON.parse(raw);
+      setProjectSessionId(draft.projectSessionId || makeProjectSessionId());
       if (draft.projectName !== undefined) setProjectName(draft.projectName);
       if (draft.script !== undefined) setScript(draft.script);
       if (draft.duration) setDuration(Number(draft.duration));
@@ -2578,7 +2608,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (Number.isFinite(Number(draft.localSteps))) setLocalSteps(Number(draft.localSteps));
       if (Number.isFinite(Number(draft.localCfg))) setLocalCfg(Number(draft.localCfg));
       setLocalAgentToken(getPersistentLocalAgentToken(draft.localAgentToken));
-      if (draft.localQueueJobs && typeof draft.localQueueJobs === "object") setLocalQueueJobs(draft.localQueueJobs);
+      if (draft.localQueueJobs && typeof draft.localQueueJobs === "object") {
+        const sessionId = draft.projectSessionId || "";
+        const scopedJobs = Object.fromEntries(Object.entries(draft.localQueueJobs).filter(([, job]) => !sessionId || job?.project_session_id === sessionId));
+        setLocalQueueJobs(scopedJobs);
+      }
       if (draft.lastSavedAt) setLastSavedAt(draft.lastSavedAt);
     } catch {}
     setLocalAgentToken((prev) => getPersistentLocalAgentToken(prev));
@@ -2594,6 +2628,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset,
       localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight,
       localSteps, localCfg, localAgentToken, localQueueJobs, lastSavedAt: savedAt,
+      projectSessionId,
     };
     try {
       savePersistentLocalAgentToken(localAgentToken);
@@ -2605,7 +2640,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         setLastSavedAt(savedAt);
       } catch {}
     }
-  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, lockedProductionBible, partSize, cropInset, storyboard, activePart, selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset, localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight, localSteps, localCfg, localAgentToken, localQueueJobs]);
+  }, [draftReady, projectName, script, duration, frameSeconds, autoTiming, customFrameCount, aspectRatio, target, stylePreset, lockedProductionBible, partSize, cropInset, storyboard, activePart, selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset, localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight, localSteps, localCfg, localAgentToken, localQueueJobs, projectSessionId]);
 
   useEffect(() => {
     if (!currentGridUpload || !partScenes.length) {
@@ -2628,7 +2663,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     refreshLocalQueueJobs(true);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localQueueJobs, localAgentToken]);
+  }, [localQueueJobs, localAgentToken, projectSessionId]);
 
   useEffect(() => {
     const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
@@ -2646,6 +2681,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         return;
       }
       const draft = JSON.parse(raw);
+      const restoredSessionId = draft.projectSessionId || makeProjectSessionId();
+      setProjectSessionId(restoredSessionId);
       if (draft.projectName !== undefined) setProjectName(draft.projectName);
       if (draft.script !== undefined) setScript(draft.script);
       if (draft.duration) setDuration(Number(draft.duration));
@@ -2669,7 +2706,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (Number.isFinite(Number(draft.localSteps))) setLocalSteps(Number(draft.localSteps));
       if (Number.isFinite(Number(draft.localCfg))) setLocalCfg(Number(draft.localCfg));
       setLocalAgentToken(getPersistentLocalAgentToken(draft.localAgentToken));
-      setLocalQueueJobs(draft.localQueueJobs && typeof draft.localQueueJobs === "object" ? draft.localQueueJobs : {});
+      if (draft.localQueueJobs && typeof draft.localQueueJobs === "object") {
+        const scopedJobs = Object.fromEntries(Object.entries(draft.localQueueJobs).filter(([, job]) => !restoredSessionId || job?.project_session_id === restoredSessionId));
+        setLocalQueueJobs(scopedJobs);
+      } else {
+        setLocalQueueJobs({});
+      }
       setStoryboard(draft.storyboard?.scenes ? draft.storyboard : null);
       setGridUploads(draft.gridUploads && typeof draft.gridUploads === "object" ? draft.gridUploads : {});
       setActivePart(Number.isFinite(Number(draft.activePart)) ? Number(draft.activePart) : 0);
@@ -2690,6 +2732,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       selectedFrameIndex, gridUploads, localWorkerUrl, localRenderProvider, localModelPreset,
       localCheckpoint, localLoras, localWorkflowTemplate, localImageWidth, localImageHeight,
       localSteps, localCfg, localAgentToken, localQueueJobs, lastSavedAt: savedAt,
+      projectSessionId,
     };
     try {
       window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify(payload));
@@ -2712,10 +2755,63 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setStatus("Сохранённый черновик удалён из браузера");
   }
 
-  function resetAll() {
+  async function requestClearLocalQueue({ token, sessionId, all = false, skipWithoutAuth = false } = {}) {
+    const agentToken = getPersistentLocalAgentToken(token || localAgentToken);
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      if (skipWithoutAuth) return { ok: false, skipped: true, cleared_count: 0 };
+      throw new Error("Для очистки облачной очереди нужно войти через Google.");
+    }
+    return fetchJsonWithTimeout("/api/trailer/local-queue", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        action: "clear",
+        agent_token: agentToken,
+        project_session_id: sessionId || projectSessionId,
+        all,
+      }),
+    }, 30000);
+  }
+
+  async function clearLocalAgentQueue({ all = true, quiet = false } = {}) {
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    if (localAgentToken !== token) setLocalAgentToken(token);
+    if (!quiet) {
+      setLocalRenderAction("clear-queue");
+      setLocalRenderNotice({ type: "working", message: all ? "Отменяю все активные задания ПК..." : "Отменяю задания текущего проекта..." });
+    }
+    try {
+      const data = await requestClearLocalQueue({ token, sessionId: projectSessionId, all });
+      setLocalQueueJobs({});
+      setLocalRenderJobs({});
+      if (!quiet) {
+        const cleared = Number(data.cleared_count || 0);
+        setStatus(cleared ? `Очередь ПК очищена: отменено ${cleared} заданий.` : "Активных заданий ПК нет.");
+        setLocalRenderNotice({ type: "success", message: cleared ? `Очередь ПК очищена: ${cleared} заданий отменено.` : "Активных заданий ПК нет." });
+      }
+      return data;
+    } catch (e) {
+      if (!quiet) {
+        setError(`Очередь ПК не очищена: ${e.message}`);
+        setLocalRenderNotice({ type: "error", message: `Очередь ПК не очищена: ${e.message}` });
+      }
+      return null;
+    } finally {
+      if (!quiet) setLocalRenderAction("");
+    }
+  }
+
+  async function resetAll() {
+    const oldToken = getPersistentLocalAgentToken(localAgentToken);
+    const oldSessionId = projectSessionId;
     window.localStorage.removeItem(TRAILER_DRAFT_KEY);
     setProjectName("");
     setScript("");
+    setProjectSessionId(makeProjectSessionId());
     setDuration(87);
     setFrameSeconds(3);
     setAutoTiming(true);
@@ -2754,6 +2850,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setBibleAction("");
     setBibleNotice({ type: "idle", message: "Проект очищен. Вставь сценарий и нажми “Собрать из сценария”." });
     setStatus("Всё очищено: сценарий, раскадровка, PART-сетки, кроп и локальное сохранение");
+    requestClearLocalQueue({ token: oldToken, sessionId: oldSessionId, all: true, skipWithoutAuth: true }).catch(() => {});
   }
 
   function autoBuildProductionBible() {
@@ -2899,13 +2996,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setScriptBusy(true);
     setError("");
     setStatus("Генерирую сценарий из темы...");
-    setStoryboard(null);
-    setGridUploads({});
-    setCroppedFrame("");
-    setActivePart(0);
-    setSelectedFrameIndex(0);
-    setLocalRenderJobs({});
-    setLocalQueueJobs({});
+    resetGeneratedLayer();
 
     try {
       const token = await getAuthToken();
@@ -3192,6 +3283,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         body: JSON.stringify({
           action: "create",
           agent_token: token,
+          project_session_id: projectSessionId,
           project_name: projectName || storyboard.project_name || "NeuroCine Trailer",
           provider: localRenderProvider,
           jobs,
@@ -3261,6 +3353,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         body: JSON.stringify({
           action: "create",
           agent_token: token,
+          project_session_id: projectSessionId,
           project_name: projectName || "NeuroCine Trailer",
           provider: localRenderProvider,
           jobs,
@@ -3409,7 +3502,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     ? "Скопировать команду агента"
     : localRenderAction === "queue-current"
       ? "Ставлю PART..."
-      : "В очередь текущий PART";
+      : !storyboard || !partScenes.length
+        ? "Сначала JSON"
+        : "В очередь текущий PART";
   const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length));
   async function handleLocalPrimaryAction() {
     if (agentNeedsCommand) {
@@ -3591,7 +3686,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           <div className="panel">
             <h2>01 · Настройка сценария</h2>
             <label>Название проекта<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
-            <label>Сценарий<textarea value={script} onChange={(e) => setScript(e.target.value)} placeholder="Вставь готовый сценарий или сначала введи тему выше и нажми “Сгенерировать сценарий”." /></label>
+            <label>Сценарий<textarea value={script} onChange={(e) => handleScriptChange(e.target.value)} placeholder="Вставь готовый сценарий или сначала введи тему выше и нажми “Сгенерировать сценарий”." /></label>
             <div className="buttons">
               <button className="primary" type="button" disabled={busy || scriptBusy || projectName.trim().length < 3} onClick={generateScriptFromTopic}>
                 {scriptBusy ? "Генерирую сценарий..." : "Сгенерировать сценарий"}
@@ -3825,6 +3920,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       </button>
                       <button className={`action-refresh${localRenderAction === "history" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={loadLocalRenderHistory}>
                         {localRenderAction === "history" ? "Гружу..." : "История"}
+                      </button>
+                      <button className={`danger${localRenderAction === "clear-queue" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={() => clearLocalAgentQueue({ all: true })}>
+                        {localRenderAction === "clear-queue" ? "Чищу..." : "Очистить очередь ПК"}
                       </button>
                       <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length || agentNeedsCommand} onClick={queueAllPartsForLocalAgent}>
                         {localRenderAction === "queue-all" ? "Ставлю всё..." : "В очередь всё"}
