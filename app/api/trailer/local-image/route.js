@@ -98,6 +98,7 @@ function buildDefaultComfyWorkflow(payload = {}) {
   const width = Number(payload.width || 936);
   const height = Number(payload.height || 1664);
   const useHires = payload.workflow_mode === "sdxl_hires" || payload.hires === true || Number(payload.hires_steps || 0) > 0;
+  const usePixelUpscale = payload.pixel_upscale === true || payload.upscale_model;
   const baseWidth = useHires
     ? Math.max(512, Math.round(Number(payload.base_width || Math.min(width, Math.round(width * 0.72))) / 8) * 8)
     : width;
@@ -109,7 +110,10 @@ function buildDefaultComfyWorkflow(payload = {}) {
   const hiresDenoise = clampNumber(payload.hires_denoise, 0.18, 0.55, 0.32);
   const cfg = Number(payload.cfg_scale || payload.cfg || 6);
   const hasInitImage = Boolean(payload.init_image);
-  const denoise = hasInitImage ? clampNumber(payload.denoise, 0.35, 0.95, 0.72) : 1;
+  const referenceMode = String(payload.reference_mode || (hasInitImage ? "ipadapter" : "none")).toLowerCase();
+  const useIpAdapter = hasInitImage && referenceMode !== "img2img" && referenceMode !== "none";
+  const useInitLatent = hasInitImage && referenceMode === "img2img";
+  const denoise = useInitLatent ? clampNumber(payload.denoise, 0.35, 0.95, 0.72) : 1;
   const seed = Number.isFinite(Number(payload.seed)) && Number(payload.seed) >= 0
     ? Math.floor(Number(payload.seed))
     : Math.floor(Math.random() * 999999999);
@@ -202,7 +206,7 @@ function buildDefaultComfyWorkflow(payload = {}) {
       },
     };
     workflow["22"] = { class_type: "VAEEncode", inputs: { pixels: ["21", 0], vae: ["4", 2] } };
-    workflow["3"].inputs.latent_image = ["22", 0];
+    if (useInitLatent) workflow["3"].inputs.latent_image = ["22", 0];
   }
   let modelRef = ["4", 0];
   let clipRef = ["4", 1];
@@ -222,10 +226,61 @@ function buildDefaultComfyWorkflow(payload = {}) {
     modelRef = [id, 0];
     clipRef = [id, 1];
   });
+  if (useIpAdapter) {
+    workflow["24"] = {
+      class_type: "IPAdapterModelLoader",
+      inputs: {
+        ipadapter_file: payload.ipadapter_model || "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+      },
+    };
+    workflow["25"] = {
+      class_type: "CLIPVisionLoader",
+      inputs: {
+        clip_name: payload.clip_vision_model || "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+      },
+    };
+    workflow["26"] = {
+      class_type: "IPAdapterAdvanced",
+      inputs: {
+        model: modelRef,
+        ipadapter: ["24", 0],
+        image: ["21", 0],
+        weight: clampNumber(payload.ipadapter_weight, 0.15, 1.35, 0.72),
+        weight_type: payload.ipadapter_weight_type || "linear",
+        combine_embeds: payload.ipadapter_combine_embeds || "average",
+        start_at: clampNumber(payload.ipadapter_start_at, 0, 1, 0),
+        end_at: clampNumber(payload.ipadapter_end_at, 0, 1, 0.82),
+        embeds_scaling: payload.ipadapter_embeds_scaling || "K+V",
+        clip_vision: ["25", 0],
+      },
+    };
+    modelRef = ["26", 0];
+  }
   workflow["6"].inputs.clip = clipRef;
   workflow["7"].inputs.clip = clipRef;
   workflow["3"].inputs.model = modelRef;
   if (workflow["11"]) workflow["11"].inputs.model = modelRef;
+  if (usePixelUpscale) {
+    workflow["40"] = {
+      class_type: "UpscaleModelLoader",
+      inputs: { model_name: payload.upscale_model || "RealESRGAN_x4plus.pth" },
+    };
+    workflow["41"] = {
+      class_type: "ImageUpscaleWithModel",
+      inputs: { upscale_model: ["40", 0], image: ["8", 0] },
+    };
+    workflow["42"] = {
+      class_type: "ImageScale",
+      inputs: {
+        image: ["41", 0],
+        upscale_method: payload.final_downscale_method || "lanczos",
+        width,
+        height,
+        crop: "disabled",
+      },
+    };
+    workflow["9"].inputs.images = ["42", 0];
+  }
   return workflow;
 }
 

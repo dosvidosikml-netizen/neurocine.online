@@ -113,6 +113,13 @@ const LOCAL_MODEL_PRESETS = {
     family: "sdxl",
     checkpoint: "RealVisXL_V5.0_fp16.safetensors",
     workflowMode: "sdxl_hires",
+    referenceMode: "ipadapter",
+    ipadapterModel: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+    clipVisionModel: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+    ipadapterWeight: 0.72,
+    ipadapterEndAt: 0.82,
+    pixelUpscale: true,
+    upscaleModel: "RealESRGAN_x4plus.pth",
     width: 1080,
     height: 1920,
     baseWidth: 768,
@@ -124,13 +131,20 @@ const LOCAL_MODEL_PRESETS = {
     sampler: "dpmpp_sde",
     a1111Sampler: "DPM++ SDE Karras",
     scheduler: "karras",
-    note: "Рекомендуемый photoreal checkpoint: two-pass SDXL hires workflow. Медленнее, но заметно резче простого txt2img. Нужен файл RealVisXL_V5.0_fp16.safetensors в ComfyUI/models/checkpoints.",
+    note: "Production photoreal: RealVisXL + SDXL hires + IPAdapter refs + RealESRGAN финальный upscale/downsample. Медленнее, но это уже не простой txt2img.",
   },
   sdxlCinema: {
     label: "Juggernaut XL cinema realism",
     family: "sdxl",
     checkpoint: "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
     workflowMode: "sdxl_hires",
+    referenceMode: "ipadapter",
+    ipadapterModel: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+    clipVisionModel: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+    ipadapterWeight: 0.68,
+    ipadapterEndAt: 0.78,
+    pixelUpscale: true,
+    upscaleModel: "RealESRGAN_x4plus.pth",
     width: 1080,
     height: 1920,
     baseWidth: 768,
@@ -142,7 +156,7 @@ const LOCAL_MODEL_PRESETS = {
     sampler: "dpmpp_2m",
     a1111Sampler: "DPM++ 2M Karras",
     scheduler: "karras",
-    note: "Сильный cinematic photoreal checkpoint, хорош для киношных людей и интерьеров.",
+    note: "Cinematic photoreal pipeline с IPAdapter refs и RealESRGAN, если Juggernaut XL установлен в checkpoints.",
   },
   sdxlBaseDebug: {
     label: "SDXL base debug, не realism",
@@ -623,12 +637,12 @@ function referenceAnchorPromptLine(anchor = null) {
   }
   const label = [anchor.id, promptEnglishSafe(anchor.name || anchor.reference_name || anchor.kind, "locked visual reference")].filter(Boolean).join(" / ");
   if (anchor.kind === "character") {
-    return `A visual character reference image is supplied to ComfyUI img2img. Preserve this exact actor face/body identity, wardrobe family and physical condition when the source line includes this character. Anchor: ${label}.`;
+    return `A visual character reference image is supplied to ComfyUI IPAdapter. Preserve this exact actor face/body identity, wardrobe family and physical condition only when the source line includes this character. Anchor: ${label}.`;
   }
   if (anchor.kind === "location") {
-    return `A visual location reference image is supplied to ComfyUI img2img. Preserve this exact location design, materials, spatial layout and lighting family while rendering the current source line. Anchor: ${label}.`;
+    return `A visual location reference image is supplied to ComfyUI IPAdapter. Preserve this exact location design, materials, spatial layout and lighting family while rendering the current source line. Anchor: ${label}.`;
   }
-  return `A visual style reference image is supplied to ComfyUI img2img. Preserve only the lens, color, contrast, grain and tactile realism. Anchor: ${label}.`;
+  return `A visual style reference image is supplied to ComfyUI IPAdapter. Preserve only the lens, color, contrast, grain and tactile realism. Anchor: ${label}.`;
 }
 
 function referenceJobIndex(kind = "character", index = 0) {
@@ -1916,6 +1930,15 @@ function buildLocalRenderPayload({
     model_preset: modelPreset,
     model_family: preset.family || "sdxl",
     workflow_mode: preset.workflowMode || "sdxl",
+    reference_mode: preset.referenceMode || "none",
+    ipadapter_model: preset.ipadapterModel || undefined,
+    clip_vision_model: preset.clipVisionModel || undefined,
+    ipadapter_weight: preset.ipadapterWeight || undefined,
+    ipadapter_end_at: preset.ipadapterEndAt || undefined,
+    ipadapter_weight_type: preset.ipadapterWeightType || undefined,
+    ipadapter_embeds_scaling: preset.ipadapterEmbedsScaling || undefined,
+    pixel_upscale: preset.pixelUpscale === true,
+    upscale_model: preset.upscaleModel || undefined,
     checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
     width: clampNumber(width, 512, 1536, preset.width || LOCAL_IMAGE_WIDTH),
     height: clampNumber(height, 768, 2048, preset.height || LOCAL_IMAGE_HEIGHT),
