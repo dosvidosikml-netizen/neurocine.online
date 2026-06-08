@@ -710,7 +710,6 @@ async function historyJobs(body) {
       .eq("agent_token", agentToken)
       .eq("status", "done")
       .gte("part_index", 0)
-      .not("image_data", "is", null)
       .order("completed_at", { ascending: false })
       .limit(limit);
     if (!error) {

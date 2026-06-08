@@ -107,12 +107,21 @@ const LOCAL_IMAGE_NEGATIVE = [
   "render",
   "plastic skin",
 ].join(", ");
+const SCRIPT_LITERAL_GATE = [
+  "SCRIPT-LITERAL OBJECT GATE:",
+  "Render only people, objects, wardrobe, locations and physical effects named by the current source line, current visual beat or allowed lists.",
+  "Do not add doctors, nurses, medical staff, hospital rooms, clinics, laboratories, hazmat suits, surgical masks, medical gloves, random windows, cars, extra men, extra women or unrelated rooms unless the current source line explicitly names them.",
+  "If a style reference, location reference or character reference contains an unscripted object, ignore that object for this frame.",
+  "Earlier and later script events are forbidden in the current frame."
+].join(" ");
 const LOCAL_MODEL_PRESETS = {
   sdxlProduction: {
     label: "RealVisXL production hires реализм",
     family: "sdxl",
     checkpoint: "RealVisXL_V5.0_fp16.safetensors",
     workflowMode: "sdxl_hires",
+    lockDimensions: true,
+    lockQuality: true,
     referenceMode: "ipadapter",
     ipadapterModel: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
     clipVisionModel: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
@@ -122,12 +131,12 @@ const LOCAL_MODEL_PRESETS = {
     upscaleModel: "RealESRGAN_x4plus.pth",
     width: 1080,
     height: 1920,
-    baseWidth: 768,
-    baseHeight: 1360,
-    steps: 32,
-    hiresSteps: 12,
-    hiresDenoise: 0.32,
-    cfg: 5,
+    baseWidth: 896,
+    baseHeight: 1592,
+    steps: 38,
+    hiresSteps: 16,
+    hiresDenoise: 0.28,
+    cfg: 4.8,
     sampler: "dpmpp_sde",
     a1111Sampler: "DPM++ SDE Karras",
     scheduler: "karras",
@@ -138,6 +147,8 @@ const LOCAL_MODEL_PRESETS = {
     family: "sdxl",
     checkpoint: "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
     workflowMode: "sdxl_hires",
+    lockDimensions: true,
+    lockQuality: true,
     referenceMode: "ipadapter",
     ipadapterModel: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
     clipVisionModel: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
@@ -147,12 +158,12 @@ const LOCAL_MODEL_PRESETS = {
     upscaleModel: "RealESRGAN_x4plus.pth",
     width: 1080,
     height: 1920,
-    baseWidth: 768,
-    baseHeight: 1360,
-    steps: 30,
-    hiresSteps: 12,
-    hiresDenoise: 0.30,
-    cfg: 5,
+    baseWidth: 896,
+    baseHeight: 1592,
+    steps: 36,
+    hiresSteps: 16,
+    hiresDenoise: 0.28,
+    cfg: 4.8,
     sampler: "dpmpp_2m",
     a1111Sampler: "DPM++ 2M Karras",
     scheduler: "karras",
@@ -955,7 +966,7 @@ function buildCharacterReferencePrompt(item = {}, normalized = {}) {
   const wardrobe = promptEnglishSafe(item.wardrobe || "", "script-supported wardrobe only; no costume drift");
   const role = promptEnglishSafe(item.role || "script character", "script character");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, natural skin texture, fabric detail");
-  return cleanText(`Create one clean 9:16 photoreal character reference image for the same film. Single actor only, full body visible, neutral standing pose, face readable, hands visible, no action, no weapon unless the script says this character always carries it. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. No captions, no labels, no UI, no watermark, no collage, no extra people, no unrelated props, no new location.`);
+  return cleanText(`Create one clean 9:16 photoreal character reference image for the same film. Single actor only, full body visible, neutral standing pose, face readable, hands visible, no action, no weapon unless the script says this character always carries it. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger or unrelated masked person unless this exact character role or script context explicitly says so. No captions, no labels, no UI, no watermark, no collage, no extra people, no unrelated props, no new location.`);
 }
 
 function buildLocationReferencePrompt(item = {}, normalized = {}) {
@@ -965,13 +976,13 @@ function buildLocationReferencePrompt(item = {}, normalized = {}) {
   const lighting = promptEnglishSafe(item.lighting || "", "physically plausible practical light only");
   const name = promptEnglishSafe(item.name || item.id || "script location", "script location");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, tactile surfaces");
-  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film. No actors, no monster, no extra props beyond the script. Location slot: ${item.id || "LOC"}. Location type: ${name}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style}. No captions, no labels, no UI, no watermark, no collage, no text unless the script explicitly says a sign/text is visible.`);
+  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film. No actors, no monster, no extra props beyond the script. Location slot: ${item.id || "LOC"}. Location type: ${name}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not add hospital, clinic, laboratory, medical corridor, doctors, random windows, cars or unrelated rooms unless the script context explicitly says so. No captions, no labels, no UI, no watermark, no collage, no text unless the script explicitly says a sign/text is visible.`);
 }
 
 function buildStyleReferencePrompt(normalized = {}, script = "") {
   const context = scriptBeatPromptEnglish(sourceSentences(script).slice(0, 5).join(" / "), normalized, "same trailer world");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera cinematic photorealism, practical lighting, realistic skin/fabric/surface texture");
-  return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style}. Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
+  return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
 }
 
 function extractProductionBibleFromScript(script = "", currentBible = {}, { stylePreset = "", styleProfile = null } = {}) {
@@ -1924,6 +1935,20 @@ function buildLocalRenderPayload({
   cfg,
 }) {
   const preset = LOCAL_MODEL_PRESETS[modelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+  const outputWidth = preset.lockDimensions === true
+    ? clampNumber(preset.width, 512, 1536, LOCAL_IMAGE_WIDTH)
+    : clampNumber(width, 512, 1536, preset.width || LOCAL_IMAGE_WIDTH);
+  const outputHeight = preset.lockDimensions === true
+    ? clampNumber(preset.height, 768, 2048, LOCAL_IMAGE_HEIGHT)
+    : clampNumber(height, 768, 2048, preset.height || LOCAL_IMAGE_HEIGHT);
+  const requestedSteps = clampNumber(steps, 4, 60, preset.steps || 24);
+  const outputSteps = preset.lockQuality === true
+    ? Math.max(clampNumber(preset.steps, 4, 60, requestedSteps), requestedSteps)
+    : requestedSteps;
+  const requestedCfg = clampNumber(cfg, 1, 12, preset.cfg || 6);
+  const outputCfg = preset.lockQuality === true
+    ? Number(preset.cfg || requestedCfg)
+    : requestedCfg;
   const payload = {
     prompt,
     negative_prompt: LOCAL_IMAGE_NEGATIVE,
@@ -1940,14 +1965,14 @@ function buildLocalRenderPayload({
     pixel_upscale: preset.pixelUpscale === true,
     upscale_model: preset.upscaleModel || undefined,
     checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
-    width: clampNumber(width, 512, 1536, preset.width || LOCAL_IMAGE_WIDTH),
-    height: clampNumber(height, 768, 2048, preset.height || LOCAL_IMAGE_HEIGHT),
+    width: outputWidth,
+    height: outputHeight,
     base_width: preset.baseWidth || undefined,
     base_height: preset.baseHeight || undefined,
-    steps: clampNumber(steps, 4, 60, preset.steps || 24),
+    steps: outputSteps,
     hires_steps: preset.hiresSteps || 0,
     hires_denoise: preset.hiresDenoise || 0,
-    cfg_scale: clampNumber(cfg, 1, 12, preset.cfg || 6),
+    cfg_scale: outputCfg,
     sampler_name: provider === "automatic1111" ? (preset.a1111Sampler || "DPM++ 2M Karras") : (preset.sampler || "dpmpp_2m"),
     scheduler: preset.scheduler || "karras",
     batch_size: 1,
@@ -2342,6 +2367,10 @@ export default function TrailerStoryboardPage() {
       : base;
   }, [localAgentToken, localRenderProvider, localWorkerUrl, localCheckpoint, defaultLocalModel.checkpoint]);
   const activeLocalModelPreset = LOCAL_MODEL_PRESETS[localModelPreset] || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET];
+  const effectiveLocalImageWidth = activeLocalModelPreset.lockDimensions === true ? activeLocalModelPreset.width : localImageWidth;
+  const effectiveLocalImageHeight = activeLocalModelPreset.lockDimensions === true ? activeLocalModelPreset.height : localImageHeight;
+  const effectiveLocalSteps = activeLocalModelPreset.lockQuality === true ? Math.max(activeLocalModelPreset.steps || 24, localSteps || 24) : localSteps;
+  const effectiveLocalCfg = activeLocalModelPreset.lockQuality === true ? (activeLocalModelPreset.cfg || localCfg) : localCfg;
   const localAgentHealth = useMemo(() => agentHealthInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const localAgentQueue = useMemo(() => agentQueueInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const usesBaseCheckpoint = /(^|[\\/])sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim()) || /^sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim());
@@ -2414,6 +2443,7 @@ ${noPeopleRule}
 Allowed objects: ${allowedObjects || "only objects directly named by the source line and visual beat"}.
 Location: ${allowedLocation || "same locked scripted location"}.
 Forbidden: ${forbidden || "no extra actors, no new props, no new rooms, no new era, no captions, no UI, no watermark"}.
+${SCRIPT_LITERAL_GATE}
 Production bible: ${formatProductionBibleForPrompt(frameBible, { includeReferences: false }) || "use storyboard locks only"}.
 
 VISUAL REFERENCE ANCHOR:
@@ -2427,6 +2457,9 @@ ${locationLock ? `Location lock reference: ${locationLock}` : ""}
 
 STYLE:
 ${style || "photoreal cinematic documentary horror, real camera still, practical location light, realistic skin and fabric, restrained grain"}.
+
+QUALITY LOCK:
+Full-resolution sharp production still. Keep the main subject, props, hands, readable surfaces and scripted evidence tack-sharp with visible skin pores, fabric fibers, metal scratches, dust, wet surfaces and micro-contrast. No soft focus over the whole image, no smeared faces, no low-detail background, no waxy plastic skin, no AI blur, no compression-looking artifacts.
 
 FINAL CHECK:
 One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F04, no captions, no border, no title bar.`;
@@ -4333,16 +4366,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                     <label>Checkpoint / модель<input value={localCheckpoint} onChange={(e) => setLocalCheckpoint(e.target.value)} placeholder="имя файла из ComfyUI/models/checkpoints" /></label>
                   </div>
                   <div className="param-grid">
-                    <label>Ширина<input type="number" min="512" max="1536" value={localImageWidth} onChange={(e) => setLocalImageWidth(clampNumber(e.target.value, 512, 1536, localImageWidth))} /></label>
-                    <label>Высота<input type="number" min="768" max="2048" value={localImageHeight} onChange={(e) => setLocalImageHeight(clampNumber(e.target.value, 768, 2048, localImageHeight))} /></label>
-                    <label>Steps<input type="number" min="4" max="60" value={localSteps} onChange={(e) => setLocalSteps(clampNumber(e.target.value, 4, 60, localSteps))} /></label>
-                    <label>CFG<input type="number" min="1" max="12" step="0.5" value={localCfg} onChange={(e) => setLocalCfg(clampNumber(e.target.value, 1, 12, localCfg))} /></label>
+                    <label>Ширина<input type="number" min="512" max="1536" disabled={activeLocalModelPreset.lockDimensions === true} value={effectiveLocalImageWidth} onChange={(e) => setLocalImageWidth(clampNumber(e.target.value, 512, 1536, localImageWidth))} /></label>
+                    <label>Высота<input type="number" min="768" max="2048" disabled={activeLocalModelPreset.lockDimensions === true} value={effectiveLocalImageHeight} onChange={(e) => setLocalImageHeight(clampNumber(e.target.value, 768, 2048, localImageHeight))} /></label>
+                    <label>Steps<input type="number" min="4" max="60" value={effectiveLocalSteps} onChange={(e) => setLocalSteps(clampNumber(e.target.value, 4, 60, localSteps))} /></label>
+                    <label>CFG<input type="number" min="1" max="12" step="0.5" disabled={activeLocalModelPreset.lockQuality === true} value={effectiveLocalCfg} onChange={(e) => setLocalCfg(clampNumber(e.target.value, 1, 12, localCfg))} /></label>
                   </div>
                   <label>LoRA, по одной строке<textarea className="compact-area" value={localLoras} onChange={(e) => setLocalLoras(e.target.value)} placeholder={"cinematic_horror_lora.safetensors:0.65\nsame_actor_face_lora.safetensors:0.55"} /></label>
                   <label>ComfyUI workflow template для FLUX/кастомных графов<textarea className="compact-area" value={localWorkflowTemplate} onChange={(e) => setLocalWorkflowTemplate(e.target.value)} placeholder={'Опционально. Вставь workflow JSON и используй плейсхолдеры "__PROMPT__", "__NEGATIVE__", "__WIDTH__", "__HEIGHT__", "__STEPS__", "__CFG__", "__SEED__", "__CHECKPOINT__".'} /></label>
                   <label>Токен локального агента<input value={localAgentToken} onChange={(e) => changeLocalAgentToken(e.target.value)} placeholder="будет создан автоматически" /></label>
                   <div className="pills">
-                    <span className="pill active">Кадр: {localImageWidth}×{localImageHeight}</span>
+                    <span className="pill active">Кадр: {effectiveLocalImageWidth}×{effectiveLocalImageHeight}</span>
+                    <span className="pill active">Steps: {effectiveLocalSteps}</span>
                     <span className="pill">{activeLocalModelPreset.label}</span>
                     <span className="pill">кадры отдельно</span>
                     <span className="pill">сборка сетки кодом</span>
