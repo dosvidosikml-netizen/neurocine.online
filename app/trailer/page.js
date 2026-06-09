@@ -146,14 +146,16 @@ const LOCAL_MODEL_PRESETS = {
     ipadapterEmbedsScaling: "K+V",
     pixelUpscale: true,
     upscaleModel: "RealESRGAN_x4plus.pth",
+    gridOutputFormat: "jpeg",
+    gridJpegQuality: 97,
     width: 1080,
     height: 1920,
-    baseWidth: 928,
-    baseHeight: 1648,
-    steps: 46,
-    hiresSteps: 22,
-    hiresDenoise: 0.22,
-    cfg: 4.4,
+    baseWidth: 1024,
+    baseHeight: 1824,
+    steps: 52,
+    hiresSteps: 26,
+    hiresDenoise: 0.18,
+    cfg: 4.2,
     sampler: "dpmpp_sde",
     a1111Sampler: "DPM++ SDE Karras",
     scheduler: "karras",
@@ -161,7 +163,7 @@ const LOCAL_MODEL_PRESETS = {
     hiresScheduler: "karras",
     latentUpscaleMethod: "bislerp",
     finalDownscaleMethod: "lanczos",
-    note: "Максимальный production режим для RTX 3060 12GB: выше base-разрешение, больше steps, мягкий hires denoise, IPAdapter refs и RealESRGAN. Медленно, но меньше мыла и дрейфа.",
+    note: "Максимальный production режим для RTX 3060 12GB: высокий base-render 1024×1824, больше steps, низкий hires denoise, IPAdapter refs и RealESRGAN. Медленно, но меньше мыла и дрейфа.",
   },
   sdxlProduction: {
     label: "RealVisXL production hires реализм",
@@ -177,14 +179,16 @@ const LOCAL_MODEL_PRESETS = {
     ipadapterEndAt: 0.82,
     pixelUpscale: true,
     upscaleModel: "RealESRGAN_x4plus.pth",
+    gridOutputFormat: "jpeg",
+    gridJpegQuality: 96,
     width: 1080,
     height: 1920,
-    baseWidth: 896,
-    baseHeight: 1592,
-    steps: 38,
-    hiresSteps: 16,
-    hiresDenoise: 0.28,
-    cfg: 4.8,
+    baseWidth: 960,
+    baseHeight: 1704,
+    steps: 42,
+    hiresSteps: 20,
+    hiresDenoise: 0.22,
+    cfg: 4.6,
     sampler: "dpmpp_sde",
     a1111Sampler: "DPM++ SDE Karras",
     scheduler: "karras",
@@ -204,6 +208,8 @@ const LOCAL_MODEL_PRESETS = {
     ipadapterEndAt: 0.78,
     pixelUpscale: true,
     upscaleModel: "RealESRGAN_x4plus.pth",
+    gridOutputFormat: "jpeg",
+    gridJpegQuality: 96,
     width: 1080,
     height: 1920,
     baseWidth: 896,
@@ -2231,6 +2237,8 @@ function buildLocalRenderPayload({
     production_quality: preset.productionQuality || "",
     pixel_upscale: preset.pixelUpscale === true,
     upscale_model: preset.upscaleModel || undefined,
+    grid_output_format: preset.gridOutputFormat || "jpeg",
+    grid_jpeg_quality: preset.gridJpegQuality || 97,
     required_models: {
       checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
       ipadapter_model: preset.ipadapterModel || "",
@@ -2357,6 +2365,13 @@ function formatElapsedTime(ms = 0) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function formatBytes(value = 0) {
+  const bytes = Math.max(0, Number(value || 0) || 0);
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} МБ`;
+}
+
 function relativeTimeLabel(value = "", nowMs = Date.now()) {
   const ms = timeMs(value);
   if (!ms) return "нет данных";
@@ -2415,6 +2430,7 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
     showTrack,
     elapsed: base ? formatElapsedTime(elapsed) : "0:00",
     updated: relativeTimeLabel(queueJob.updated_at || queueJob.created_at, nowMs),
+    output: formatBytes(queueJob.output_meta?.bytes || job.output_meta?.bytes || 0),
     message: queueJob.progress_message || job.message || (queueJob.status ? `очередь: ${queueJob.status}` : fallbackMessage),
   };
 }
@@ -4847,7 +4863,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                           </span>
                           <span className="job-message">{progress.message}</span>
                           <span className="job-meta">
-                            Время: {progress.elapsed} · обновлено: {progress.updated}
+                            Время: {progress.elapsed} · обновлено: {progress.updated}{progress.output ? ` · файл: ${progress.output}` : ""}
                           </span>
                           {progress.showTrack ? (
                             <span className="job-track"><span style={{ width: `${progress.progress}%` }} /></span>
@@ -4864,7 +4880,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                         <button type="button" key={job.id} className="history-card" onClick={() => insertHistoryJob(job)}>
                           <img src={job.image_data} alt={job.part_label || "готовая PART-сетка"} />
                           <span>{job.part_label || `PART ${Number(job.part_index || 0) + 1}`}</span>
-                          <small>{relativeTimeLabel(job.completed_at || job.updated_at, queueClock)}</small>
+                          <small>{relativeTimeLabel(job.completed_at || job.updated_at, queueClock)}{job.output_meta?.bytes ? ` · ${formatBytes(job.output_meta.bytes)}` : ""}</small>
                         </button>
                       ))}
                     </div>

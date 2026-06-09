@@ -60,6 +60,12 @@ function publicJob(row = {}) {
     progress_message: String(payload.progress_message || "").slice(0, 300),
     progress_stage: String(payload.progress_stage || "").slice(0, 120),
     completion_message: String(payload.completion_message || "").slice(0, 800),
+    output_meta: payload.output_meta && typeof payload.output_meta === "object" ? {
+      bytes: Math.max(0, Number(payload.output_meta.bytes || 0) || 0),
+      width: Math.max(0, Number(payload.output_meta.width || 0) || 0),
+      height: Math.max(0, Number(payload.output_meta.height || 0) || 0),
+      mime: cleanQueueText(payload.output_meta.mime, 80),
+    } : null,
     project_session_id: String(payload.project_session_id || "").slice(0, 120),
     command: String(payload.command || "").slice(0, 80),
     command_label: String(payload.command_label || "").slice(0, 120),
@@ -439,6 +445,12 @@ async function completeJob(body) {
 
   const status = body.status === "failed" || (body.error && body.status !== "done") ? "failed" : "done";
   const completionMessage = String(body.message || body.result_message || "").slice(0, 800);
+  const outputMeta = body.output_meta && typeof body.output_meta === "object" ? {
+    bytes: Math.max(0, Number(body.output_meta.bytes || 0) || 0),
+    width: Math.max(0, Number(body.output_meta.width || 0) || 0),
+    height: Math.max(0, Number(body.output_meta.height || 0) || 0),
+    mime: cleanQueueText(body.output_meta.mime, 80),
+  } : null;
   const patch = {
     status,
     image_data: status === "done" ? String(body.image || body.image_data || "").trim() : "",
@@ -460,13 +472,14 @@ async function completeJob(body) {
     }
     if (existingError && !isMissingTableError(existingError)) return NextResponse.json({ ok: false, error: existingError.message }, { status: 500 });
     const existingPayload = existing?.payload && typeof existing.payload === "object" ? existing.payload : {};
-    const updatePatch = completionMessage
+    const updatePatch = completionMessage || outputMeta
       ? {
           ...patch,
           payload: {
             ...existingPayload,
+            ...(outputMeta ? { output_meta: outputMeta } : {}),
             completion_message: completionMessage,
-            progress_message: completionMessage,
+            progress_message: completionMessage || existingPayload.progress_message || "",
             progress_stage: status === "done" ? "done" : "failed",
             progress: 100,
           },
@@ -489,13 +502,14 @@ async function completeJob(body) {
     return NextResponse.json({ ok: true, mode: "memory", job: publicJob(current), ignored: true });
   }
   const currentPayload = current?.payload && typeof current.payload === "object" ? current.payload : {};
-  const row = updateMemory(id, agentToken, completionMessage
+  const row = updateMemory(id, agentToken, completionMessage || outputMeta
     ? {
         ...patch,
         payload: {
           ...currentPayload,
+          ...(outputMeta ? { output_meta: outputMeta } : {}),
           completion_message: completionMessage,
-          progress_message: completionMessage,
+          progress_message: completionMessage || currentPayload.progress_message || "",
           progress_stage: status === "done" ? "done" : "failed",
           progress: 100,
         },

@@ -634,12 +634,13 @@ async function assertProductionReady(config, payload = {}) {
   }
 }
 
-async function composeGridWithPillow({ images, cols, rows, cellWidth, cellHeight, pythonBinary }) {
+async function composeGridWithPillow({ images, cols, rows, cellWidth, cellHeight, pythonBinary, outputFormat = "jpeg", jpegQuality = 97 }) {
   if (!images.length) throw new Error("No frame images to compose");
   const tempRoot = await mkdir(path.join(tmpdir(), `neurocine-grid-${Date.now()}-${Math.random().toString(36).slice(2)}`), { recursive: true });
   const manifestPath = path.join(tempRoot, "manifest.json");
   const scriptPath = path.join(tempRoot, "compose_grid.py");
-  const outputPath = path.join(tempRoot, "grid.png");
+  const safeFormat = String(outputFormat || "jpeg").toLowerCase() === "png" ? "png" : "jpeg";
+  const outputPath = path.join(tempRoot, safeFormat === "png" ? "grid.png" : "grid.jpg");
   try {
     const files = [];
     for (let i = 0; i < images.length; i += 1) {
@@ -650,6 +651,8 @@ async function composeGridWithPillow({ images, cols, rows, cellWidth, cellHeight
     await writeFile(manifestPath, JSON.stringify({
       files,
       output: outputPath,
+      output_format: safeFormat,
+      jpeg_quality: Math.max(90, Math.min(98, Math.round(Number(jpegQuality) || 97))),
       cols,
       rows,
       cell_width: cellWidth,
@@ -668,6 +671,8 @@ rows = int(data["rows"])
 cell_w = int(data["cell_width"])
 cell_h = int(data["cell_height"])
 canvas = Image.new("RGB", (cols * cell_w, rows * cell_h), (0, 0, 0))
+output_format = str(data.get("output_format", "jpeg")).lower()
+jpeg_quality = int(data.get("jpeg_quality", 97))
 
 for idx, file in enumerate(data["files"]):
     if idx >= cols * rows:
@@ -682,11 +687,21 @@ for idx, file in enumerate(data["files"]):
     y = (idx // cols) * cell_h
     canvas.paste(crop, (x, y))
 
-canvas.save(data["output"], "PNG", compress_level=1)
+if output_format == "png":
+    canvas.save(data["output"], "PNG", compress_level=1, optimize=False)
+else:
+    canvas.save(data["output"], "JPEG", quality=jpeg_quality, subsampling=0, optimize=False)
 `, "utf8");
     await runProcess(pythonBinary, [scriptPath, manifestPath]);
     const buffer = await readFile(outputPath);
-    return `data:image/png;base64,${buffer.toString("base64")}`;
+    const mime = safeFormat === "png" ? "image/png" : "image/jpeg";
+    return {
+      image: `data:${mime};base64,${buffer.toString("base64")}`,
+      bytes: buffer.length,
+      width: cols * cellWidth,
+      height: rows * cellHeight,
+      mime,
+    };
   } catch (e) {
     throw new Error(`Grid compose failed: ${e.message}. Install/keep Pillow in ComfyUI venv or pass --python to the local agent.`);
   } finally {
@@ -994,7 +1009,7 @@ async function renderFrameGrid(job, config, payload) {
       prompt: frame.prompt,
       width: cellWidth,
       height: cellHeight,
-      seed: baseSeed,
+      seed: baseSeed + i * 9973,
       filename_prefix: `neurocine_trailer_part_${String(job.part_index + 1).padStart(2, "0")}_frame_${String(i + 1).padStart(2, "0")}`,
     };
     const resolvedAnchors = Array.isArray(frame.reference_anchors)
@@ -1049,6 +1064,8 @@ async function renderFrameGrid(job, config, payload) {
     cellWidth,
     cellHeight,
     pythonBinary: config.python,
+    outputFormat: payload.grid_output_format || "jpeg",
+    jpegQuality: payload.grid_jpeg_quality || 97,
   });
 }
 
@@ -1093,6 +1110,7 @@ async function pollPcCommands(config) {
 }
 
 async function completeQueueJob(config, job, result) {
+  const output = result.image && typeof result.image === "object" ? result.image : null;
   return fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1101,7 +1119,13 @@ async function completeQueueJob(config, job, result) {
       agent_token: config.token,
       job_id: job.id,
       status: result.ok ? "done" : "failed",
-      image: result.image || "",
+      image: output?.image || result.image || "",
+      output_meta: output ? {
+        bytes: output.bytes || 0,
+        width: output.width || 0,
+        height: output.height || 0,
+        mime: output.mime || "image/png",
+      } : null,
       error: result.error || "",
       message: result.message || "",
     }),
