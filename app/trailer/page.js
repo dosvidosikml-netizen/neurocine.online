@@ -3081,7 +3081,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     return payload;
   }
 
-  function buildReferenceJobs(bibleOverride = null) {
+  function buildReferenceJobs(bibleOverride = null, options = {}) {
+    const includeStyle = options.includeStyle === true;
     const normalized = normalizeProductionBible(bibleOverride || lockedProductionBible, { stylePreset, styleProfile });
     const jobs = [];
     (Array.isArray(normalized.characters) ? normalized.characters : []).forEach((item, index) => {
@@ -3112,8 +3113,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         payload,
       });
     });
-    const stylePrompt = normalized.style?.referencePrompt || buildStyleReferencePrompt(normalized, script);
-    if (stylePrompt && !normalized.style?.reference) {
+    const stylePrompt = includeStyle ? (normalized.style?.referencePrompt || buildStyleReferencePrompt(normalized, script)) : "";
+    if (includeStyle && stylePrompt && !normalized.style?.reference) {
       const payload = buildReferenceLocalPayload(stylePrompt, { kind: "style", index: 0, id: "STYLE", bible: normalized });
       jobs.push({
         part_index: referenceJobIndex("style", 0),
@@ -4260,12 +4261,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       { stylePreset, styleProfile }
     );
     setProductionBible(normalized);
-    const jobs = buildReferenceJobs(normalized);
+    const jobs = buildReferenceJobs(normalized, { includeStyle: options.includeStyle === true });
     if (!jobs.length) {
       if (!quiet) {
-        setStatus("Auto refs уже готовы или сценарий не дал героев/локаций.");
-        setBibleNotice({ type: "success", message: "Auto refs уже готовы или нечего ставить в очередь." });
-        setLocalRenderNotice({ type: "success", message: "Auto refs уже готовы или нечего ставить в очередь." });
+        setStatus("Character/location refs уже готовы или сценарий не дал героев/локаций.");
+        setBibleNotice({ type: "success", message: "Character/location refs уже готовы или нечего ставить в очередь." });
+        setLocalRenderNotice({ type: "success", message: "Character/location refs уже готовы или нечего ставить в очередь." });
       }
       return false;
     }
@@ -4273,8 +4274,8 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if (localAgentToken !== token) setLocalAgentToken(token);
     if (!quiet) {
       setLocalRenderAction("queue-refs");
-      setBibleNotice({ type: "working", message: `Ставлю auto refs в очередь: ${jobs.length} заданий...` });
-      setLocalRenderNotice({ type: "working", message: `Ставлю auto refs в очередь: ${jobs.length} заданий...` });
+      setBibleNotice({ type: "working", message: `Ставлю character/location refs в очередь: ${jobs.length} заданий...` });
+      setLocalRenderNotice({ type: "working", message: `Ставлю character/location refs в очередь: ${jobs.length} заданий...` });
     }
     try {
       const authToken = await getAuthToken();
@@ -4307,9 +4308,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       const skipped = Math.max(0, Number(data.skipped_duplicate_count || 0));
       const duplicateNote = skipped ? ` Уже есть в очереди/рендере: ${skipped} ref-заданий, дубли не созданы.` : "";
       if (!quiet) {
-        setStatus(`Auto refs в очереди: ${inserted} новых.${duplicateNote}`);
-        setBibleNotice({ type: "success", message: `Auto refs в очереди: ${inserted} новых.${duplicateNote}` });
-        setLocalRenderNotice({ type: "success", message: `Auto refs в очереди: ${inserted} новых.${duplicateNote}` });
+        setStatus(`Character/location refs в очереди: ${inserted} новых.${duplicateNote}`);
+        setBibleNotice({ type: "success", message: `Character/location refs в очереди: ${inserted} новых.${duplicateNote}` });
+        setLocalRenderNotice({ type: "success", message: `Character/location refs в очереди: ${inserted} новых.${duplicateNote}` });
       }
       return true;
     } catch (e) {
