@@ -12,6 +12,7 @@ const PC_COMMAND_PROMPT = "__pc_command__";
 const PC_COMMANDS = {
   status: "Проверить ПК",
   production_check: "Проверить production",
+  install_production: "Установить production",
   start_comfyui: "Запустить ComfyUI",
   restart_comfyui: "Перезапустить ComfyUI",
   restart_agent: "Перезапустить агента",

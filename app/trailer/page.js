@@ -38,6 +38,7 @@ const DEFAULT_LOCAL_WORKER_URL = LOCAL_WORKER_URLS[DEFAULT_LOCAL_RENDER_PROVIDER
 const PC_COMMANDS = [
   { id: "status", label: "Проверить ПК", hint: "агент и ComfyUI" },
   { id: "production_check", label: "Проверить production", hint: "модели и ноды" },
+  { id: "install_production", label: "Установить production", hint: "скачать модели/nodes" },
   { id: "start_comfyui", label: "Запустить ComfyUI", hint: "если API упал" },
   { id: "restart_comfyui", label: "Перезапустить ComfyUI", hint: "остановить и поднять" },
   { id: "restart_agent", label: "Перезапустить агента", hint: "новый процесс агента" },
@@ -3081,6 +3082,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if ((text.includes("перезап") || text.includes("рестарт")) && text.includes("агент")) return "restart_agent";
     if ((text.includes("перезап") || text.includes("рестарт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "restart_comfyui";
     if ((text.includes("запуст") || text.includes("старт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "start_comfyui";
+    if ((text.includes("установ") || text.includes("скач") || text.includes("докач")) && (text.includes("production") || text.includes("продак") || text.includes("модел") || text.includes("ноды") || text.includes("nodes") || text.includes("ipadapter") || text.includes("upscale"))) return "install_production";
     if (text.includes("production") || text.includes("продак") || text.includes("модел") || text.includes("ноды") || text.includes("nodes") || text.includes("ipadapter") || text.includes("upscale")) return "production_check";
     if (text.includes("пров") || text.includes("статус") || text.includes("связ")) return "status";
     return "";
@@ -3148,6 +3150,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       return;
     }
     if (command === "reboot_pc" && typeof window !== "undefined" && !window.confirm("Перезагрузить ПК через 15 секунд? Активная генерация прервётся.")) {
+      return;
+    }
+    if (command === "install_production" && typeof window !== "undefined" && !window.confirm("Установить production-компоненты на ПК? Это может скачать несколько больших файлов и занять время.")) {
       return;
     }
     const token = getPersistentLocalAgentToken(localAgentToken);

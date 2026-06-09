@@ -2,9 +2,12 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 const DEFAULT_NEGATIVE = "bad hands, bad anatomy, deformed hands, deformed fingers, extra fingers, missing fingers, bad face, face asymmetry, eyes asymmetry, deformed eyes, deformed mouth, ugly, deformed, low quality, normal quality, lowres, low detail, blurry, soft focus, mushy texture, smeared skin, washed out, flat contrast, jpeg artifacts, overprocessed, oversmoothed skin, airbrushed skin, beauty retouching, fashion editorial, glossy glamour lighting, duplicate people, extra characters, text, subtitles, captions, watermark, UI, logo, frame labels, numbers, random hooded robe, random cloak, cult robe, anonymous hooded figure, contact sheet, gallery cards, nested grid, comic, illustration, painting, cartoon, anime, CGI, render, plastic skin";
 const DEFAULT_COMFY_PYTHON = process.platform === "win32"
@@ -14,6 +17,13 @@ const DEFAULT_COMFY_DIR = process.platform === "win32"
   ? "C:\\Users\\Admin\\AI\\ComfyUI"
   : "";
 const PC_COMMAND_PROVIDER = "pc-command";
+const PRODUCTION_DOWNLOADS = {
+  checkpoint: "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
+  ipadapter: "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors",
+  clipVision: "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors",
+  upscale: "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+  ipadapterNode: "https://github.com/cubiq/ComfyUI_IPAdapter_plus.git",
+};
 
 function arg(name, fallback = "") {
   const flag = `--${name}`;
@@ -279,6 +289,175 @@ async function modelRequirement(config, folder, fileName, label, required = true
     ok: Boolean(found),
     required,
     path: found,
+  };
+}
+
+function comfyModelPath(config, folder, fileName) {
+  if (!config.comfyuiDir) throw new Error("Missing --comfyui-dir. Cannot install ComfyUI production files.");
+  return path.join(config.comfyuiDir, "models", folder, fileName);
+}
+
+function productionInstallPayload(config) {
+  return {
+    production_quality: "slow_production",
+    reference_mode: "ipadapter",
+    pixel_upscale: true,
+    checkpoint: config.checkpoint || "RealVisXL_V5.0_fp16.safetensors",
+    ipadapter_model: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+    clip_vision_model: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+    upscale_model: "RealESRGAN_x4plus.pth",
+  };
+}
+
+function productionDownloadSpecs(config, payload = productionInstallPayload(config)) {
+  const checkpoint = String(payload.checkpoint || config.checkpoint || "").trim();
+  const checkpointUrl = process.env.NEUROCINE_CHECKPOINT_URL
+    || process.env.REALVISXL_URL
+    || (checkpoint === "RealVisXL_V5.0_fp16.safetensors" ? PRODUCTION_DOWNLOADS.checkpoint : "");
+  return [
+    {
+      key: "checkpoint",
+      label: `checkpoint ${checkpoint}`,
+      folder: "checkpoints",
+      file: checkpoint,
+      url: checkpointUrl,
+      required: true,
+    },
+    {
+      key: "ipadapter",
+      label: `IPAdapter ${payload.ipadapter_model}`,
+      folder: "ipadapter",
+      file: payload.ipadapter_model,
+      url: process.env.NEUROCINE_IPADAPTER_URL || PRODUCTION_DOWNLOADS.ipadapter,
+      required: true,
+    },
+    {
+      key: "clip_vision",
+      label: `CLIP Vision ${payload.clip_vision_model}`,
+      folder: "clip_vision",
+      file: payload.clip_vision_model,
+      url: process.env.NEUROCINE_CLIP_VISION_URL || PRODUCTION_DOWNLOADS.clipVision,
+      required: true,
+    },
+    {
+      key: "upscale",
+      label: `upscale ${payload.upscale_model}`,
+      folder: "upscale_models",
+      file: payload.upscale_model,
+      url: process.env.NEUROCINE_UPSCALE_URL || PRODUCTION_DOWNLOADS.upscale,
+      required: true,
+    },
+  ].filter((item) => item.file);
+}
+
+async function downloadFile(url, destination, label = "file") {
+  if (!url) {
+    return { ok: false, skipped: true, message: `${label}: no download URL configured` };
+  }
+  if (await pathExists(destination)) {
+    return { ok: true, skipped: true, message: `${label}: already exists` };
+  }
+  await mkdir(path.dirname(destination), { recursive: true });
+  const partial = `${destination}.partial`;
+  await rm(partial, { force: true }).catch(() => {});
+  try {
+    console.log(`[NeuroCine Agent] downloading ${label} -> ${destination}`);
+    const res = await fetch(url, { headers: { "User-Agent": "NeuroCine-Local-Agent/1.0" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.body) {
+      await writeFile(partial, Buffer.from(await res.arrayBuffer()));
+    } else {
+      await pipeline(Readable.fromWeb(res.body), createWriteStream(partial));
+    }
+    await rename(partial, destination);
+    return { ok: true, downloaded: true, message: `${label}: downloaded` };
+  } catch (e) {
+    await rm(partial, { force: true }).catch(() => {});
+    throw new Error(`${label} download failed: ${e.message}`);
+  }
+}
+
+async function downloadMissingModel(config, spec) {
+  const destination = comfyModelPath(config, spec.folder, spec.file);
+  if (await pathExists(destination)) return { ok: true, skipped: true, message: `${spec.label}: already exists` };
+  return downloadFile(spec.url, destination, spec.label);
+}
+
+async function ensureGitRepo(url, destination, label = "custom node") {
+  await mkdir(path.dirname(destination), { recursive: true });
+  const gitDir = path.join(destination, ".git");
+  if (await pathExists(gitDir)) {
+    console.log(`[NeuroCine Agent] updating ${label}: ${destination}`);
+    await runProcess("git", ["pull", "--ff-only"], { cwd: destination });
+    return { ok: true, updated: true, message: `${label}: updated` };
+  }
+  if (await pathExists(destination)) {
+    return {
+      ok: true,
+      skipped: true,
+      message: `${label}: folder already exists, not a git repo`,
+    };
+  }
+  console.log(`[NeuroCine Agent] cloning ${label}: ${url}`);
+  await runProcess("git", ["clone", "--depth", "1", url, destination], { cwd: path.dirname(destination) });
+  return { ok: true, installed: true, message: `${label}: installed` };
+}
+
+async function installNodeRequirements(config, nodeDir, label = "custom node") {
+  const requirements = path.join(nodeDir, "requirements.txt");
+  if (!(await pathExists(requirements))) {
+    return { ok: true, skipped: true, message: `${label}: no requirements.txt` };
+  }
+  console.log(`[NeuroCine Agent] installing requirements for ${label}`);
+  await runProcess(config.python || DEFAULT_COMFY_PYTHON, ["-m", "pip", "install", "-r", requirements], { cwd: nodeDir });
+  return { ok: true, installed: true, message: `${label}: requirements installed` };
+}
+
+async function installProductionAssets(config) {
+  if (config.provider !== "comfyui") throw new Error("Production install works only with ComfyUI provider.");
+  if (!config.comfyuiDir) throw new Error("Missing --comfyui-dir.");
+
+  const payload = productionInstallPayload(config);
+  const workerBefore = await checkWorkerStatus(config);
+  const before = await getProductionReadiness(config, workerBefore.ok, payload);
+  const actions = [];
+  let nodeChanged = false;
+
+  const ipadapterNodeDir = path.join(config.comfyuiDir, "custom_nodes", "ComfyUI_IPAdapter_plus");
+  const ipadapterNodeOk = await customNodeFolderExists(config, ["ComfyUI_IPAdapter_plus", "ComfyUI_IPAdapter_plus-main"]);
+  if (!ipadapterNodeOk) {
+    const repo = await ensureGitRepo(PRODUCTION_DOWNLOADS.ipadapterNode, ipadapterNodeDir, "ComfyUI IPAdapter Plus");
+    actions.push(repo.message);
+    const req = await installNodeRequirements(config, ipadapterNodeDir, "ComfyUI IPAdapter Plus");
+    actions.push(req.message);
+    nodeChanged = repo.installed === true || repo.updated === true || req.installed === true;
+  }
+
+  for (const spec of productionDownloadSpecs(config, payload)) {
+    const result = await downloadMissingModel(config, spec);
+    actions.push(result.message);
+  }
+
+  if (nodeChanged && workerBefore.ok && process.platform === "win32") {
+    const queue = await getWorkerQueueStatus(config, true);
+    if (!queue.active && !queue.pending_count) {
+      const stopped = await stopComfyUiProcesses(config);
+      await sleep(2000);
+      const started = await startComfyUi(config);
+      actions.push(`ComfyUI restarted after node install, stopped: ${stopped}. ${started}`);
+    } else {
+      actions.push("ComfyUI is busy; restart it after render to load new nodes.");
+    }
+  }
+
+  const workerAfter = await checkWorkerStatus(config);
+  const after = await getProductionReadiness(config, workerAfter.ok, payload);
+  const prefix = after.ready ? "Production install complete." : "Production install incomplete.";
+  const beforeText = before.ready ? "was ready" : `was missing ${before.missing?.length || 0}`;
+  const afterText = after.ready ? "ready now" : productionReadinessMessage(after);
+  return {
+    ok: after.ready,
+    message: `${prefix} Before: ${beforeText}; after: ${afterText}. ${actions.filter(Boolean).slice(0, 10).join(" ")}`,
   };
 }
 
@@ -881,6 +1060,12 @@ async function executePcCommand(job, config, state) {
     });
     state.lastWorkerStatus = worker;
     return { ok: readiness.ready, message: productionReadinessMessage(readiness) };
+  }
+
+  if (command === "install_production") {
+    const result = await installProductionAssets(config);
+    state.lastWorkerStatus = await checkWorkerStatus(config);
+    return result;
   }
 
   if (command === "start_comfyui") {
