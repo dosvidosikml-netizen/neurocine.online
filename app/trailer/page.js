@@ -657,7 +657,7 @@ function itemMentionScore(item = {}, haystack = "") {
   }, 0);
 }
 
-function referenceAnchorForFrame(scene = {}, bible = {}) {
+function referenceAnchorsForFrame(scene = {}, bible = {}) {
   const normalized = normalizeProductionBible(bible);
   const text = anchorSearchText(scene);
   const characters = filledProductionCharacters(normalized)
@@ -677,54 +677,58 @@ function referenceAnchorForFrame(scene = {}, bible = {}) {
     reference_name: normalized.style?.referenceName || "",
     image_data: normalized.style.reference,
     denoise: 0.58,
-    ipadapter_weight: 0.38,
-    ipadapter_end_at: 0.62,
+    ipadapter_weight: 0.26,
+    ipadapter_end_at: 0.52,
     ipadapter_start_at: 0,
   } : null;
 
-  if (characters.length === 1) {
-    const item = characters[0].item;
-    return {
+  const anchors = [];
+  if (styleAnchor) anchors.push(styleAnchor);
+  if (locations.length) {
+    const item = locations[0].item;
+    anchors.push({
+      kind: "location",
+      id: item.id,
+      name: item.name || item.id,
+      reference_name: item.referenceName || "",
+      image_data: item.reference,
+      denoise: characters.length ? 0.62 : 0.58,
+      ipadapter_weight: characters.length ? 0.46 : 0.58,
+      ipadapter_end_at: characters.length ? 0.66 : 0.78,
+      ipadapter_start_at: 0,
+    });
+  }
+  characters.slice(0, 2).forEach(({ item }, index) => {
+    anchors.push({
       kind: "character",
       id: item.id,
       name: item.name || item.role || item.id,
       reference_name: item.referenceName || "",
       image_data: item.reference,
       denoise: 0.74,
-      ipadapter_weight: 0.88,
-      ipadapter_end_at: 0.92,
+      ipadapter_weight: index === 0 ? 0.86 : 0.68,
+      ipadapter_end_at: index === 0 ? 0.92 : 0.82,
       ipadapter_start_at: 0,
-    };
-  }
-  if (locations.length) {
-    const item = locations[0].item;
-    return {
-      kind: "location",
-      id: item.id,
-      name: item.name || item.id,
-      reference_name: item.referenceName || "",
-      image_data: item.reference,
-      denoise: characters.length > 1 ? 0.66 : 0.62,
-      ipadapter_weight: characters.length > 1 ? 0.7 : 0.64,
-      ipadapter_end_at: 0.78,
-      ipadapter_start_at: 0,
-    };
-  }
-  return styleAnchor;
+    });
+  });
+  return anchors.slice(0, 3);
+}
+
+function referenceAnchorForFrame(scene = {}, bible = {}) {
+  const anchors = referenceAnchorsForFrame(scene, bible);
+  return anchors.find((item) => item.kind === "character")
+    || anchors.find((item) => item.kind === "location")
+    || anchors[0]
+    || null;
 }
 
 function referenceAnchorPromptLine(anchor = null) {
-  if (!anchor) {
+  const anchors = Array.isArray(anchor) ? anchor.filter(Boolean) : (anchor ? [anchor] : []);
+  if (!anchors.length) {
     return "No visual reference image is supplied for this frame; obey the production bible and the exact source line.";
   }
-  const label = [anchor.id, promptEnglishSafe(anchor.name || anchor.reference_name || anchor.kind, "locked visual reference")].filter(Boolean).join(" / ");
-  if (anchor.kind === "character") {
-    return `A visual character reference image is supplied to ComfyUI IPAdapter. Preserve this exact actor face/body identity, wardrobe family and physical condition only when the source line includes this character. Anchor: ${label}.`;
-  }
-  if (anchor.kind === "location") {
-    return `A visual location reference image is supplied to ComfyUI IPAdapter. Preserve this exact location design, materials, spatial layout and lighting family while rendering the current source line. Anchor: ${label}.`;
-  }
-  return `A visual style reference image is supplied to ComfyUI IPAdapter. Preserve only the lens, color, contrast, grain and tactile realism. Anchor: ${label}.`;
+  const labels = anchors.map((item) => [item.kind, item.id, promptEnglishSafe(item.name || item.reference_name || item.kind, "locked visual reference")].filter(Boolean).join(" / "));
+  return `Visual references are supplied to ComfyUI IPAdapter in layered order: ${labels.join("; ")}. Use character references only for scripted characters in this frame, location references only for compatible spatial design, and style references only for lens/color/texture. Source line and allowed lists still win.`;
 }
 
 function referenceJobIndex(kind = "character", index = 0) {
@@ -2948,17 +2952,30 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       payload.grid_cols = layout.cols;
       payload.grid_rows = layout.rows;
       payload.part_size = part.length;
+      const referenceBank = {};
+      const bankAnchor = (anchor = null) => {
+        if (!anchor?.image_data) return anchor;
+        const key = `${anchor.kind || "ref"}:${anchor.id || anchor.reference_name || anchor.name || Object.keys(referenceBank).length}`;
+        if (!referenceBank[key]) referenceBank[key] = { ...anchor };
+        return { ...anchor, image_data: "", bank_key: key };
+      };
       payload.frames = part.map((scene, localIndex) => {
-        const referenceAnchor = referenceAnchorForFrame(scene, lockedProductionBible);
+        const referenceAnchors = referenceAnchorsForFrame(scene, lockedProductionBible).map(bankAnchor).filter(Boolean);
+        const referenceAnchor = referenceAnchors.find((item) => item.kind === "character")
+          || referenceAnchors.find((item) => item.kind === "location")
+          || referenceAnchors[0]
+          || null;
         return {
           id: scene.id || frameId(partIndex * partSize + localIndex + 1),
           label: frameLabel(scene, partIndex * partSize + localIndex),
-          prompt: buildLocalFramePrompt(scene, partIndex, localIndex, part.length, referenceAnchor),
+          prompt: buildLocalFramePrompt(scene, partIndex, localIndex, part.length, referenceAnchors),
           source_line: scene.script_line_ru || scene.vo_ru || scene.description_ru || "",
           visual_beat: scene.visual_beat_en || scene.visual_beat_ru || scene.description_ru || "",
           reference_anchor: referenceAnchor,
+          reference_anchors: referenceAnchors,
         };
       });
+      payload.reference_bank = referenceBank;
     }
     return payload;
   }
@@ -4366,9 +4383,11 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .ref-meta b{font-size:13px;color:#f7f3ea}
         .ref-meta span{font-size:12px;line-height:1.35;color:rgba(247,243,234,.66)}
         .mini-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-        .ref-preview{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .ref-preview img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.12)}
-        .ref-preview span{font-size:11px;color:rgba(247,243,234,.58);text-transform:none;letter-spacing:0}
+        .ref-preview{display:grid;grid-template-columns:1fr;gap:8px;align-items:start}
+        .ref-preview img{width:100%;height:auto;max-height:420px;object-fit:contain;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#070a10;display:block}
+        .ref-preview input[type="file"]{width:100%;min-width:0}
+        .ref-preview button{justify-self:start}
+        .ref-preview span{font-size:11px;color:rgba(247,243,234,.58);text-transform:none;letter-spacing:0;line-height:1.35;word-break:break-word}
         .ref-details{border-top:1px solid rgba(255,255,255,.08);padding-top:8px;display:grid;gap:8px}
         .ref-details summary{cursor:pointer;color:#b7ffe3;font-size:12px;font-weight:900;list-style:none}
         .ref-details summary::-webkit-details-marker{display:none}

@@ -154,7 +154,31 @@ async function uploadComfyInputImage(baseUrl, imageData, prefix = "neurocine_ref
 }
 
 async function prepareComfyPayload(baseUrl, payload = {}) {
-  if (payload.workflow || payload.init_image) return payload;
+  if (payload.workflow) return payload;
+  const rawAnchors = Array.isArray(payload.reference_anchors)
+    ? payload.reference_anchors.filter((item) => item && typeof item === "object" && item.image_data)
+    : [];
+  if (rawAnchors.length) {
+    const referenceAnchors = [];
+    for (let index = 0; index < rawAnchors.length; index += 1) {
+      const anchor = rawAnchors[index];
+      const prefix = [payload.filename_prefix, anchor.kind, anchor.id || anchor.name || index].filter(Boolean).join("_");
+      const initImage = await uploadComfyInputImage(baseUrl, anchor.image_data, prefix || `neurocine_ref_${index + 1}`);
+      if (initImage) referenceAnchors.push({ ...anchor, init_image: initImage, image_data: "" });
+    }
+    const primary = referenceAnchors.find((item) => item.kind === "character")
+      || referenceAnchors.find((item) => item.kind === "location")
+      || referenceAnchors[0];
+    return {
+      ...payload,
+      reference_anchors: referenceAnchors,
+      init_image: payload.init_image || primary?.init_image || "",
+      denoise: clampNumber(payload.denoise ?? primary?.denoise, 0.35, 0.95, 0.72),
+      init_anchor_kind: primary?.kind || payload.init_anchor_kind || "reference",
+      init_anchor_name: primary?.name || primary?.reference_name || payload.init_anchor_name || "",
+    };
+  }
+  if (payload.init_image) return payload;
   const anchor = payload.reference_anchor && typeof payload.reference_anchor === "object" ? payload.reference_anchor : {};
   const imageData = payload.init_image_data || anchor.image_data || "";
   if (!imageData) return payload;
@@ -686,8 +710,11 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
   const hiresDenoise = clampNumber(payload.hires_denoise, 0.18, 0.55, 0.32);
   const cfg = Number(payload.cfg_scale || payload.cfg || 6);
   const hasInitImage = Boolean(payload.init_image);
+  const preparedAnchors = Array.isArray(payload.reference_anchors)
+    ? payload.reference_anchors.filter((item) => item && typeof item === "object" && item.init_image)
+    : [];
   const referenceMode = String(payload.reference_mode || (hasInitImage ? "ipadapter" : "none")).toLowerCase();
-  const useIpAdapter = hasInitImage && referenceMode !== "img2img" && referenceMode !== "none";
+  const useIpAdapter = (hasInitImage || preparedAnchors.length) && referenceMode !== "img2img" && referenceMode !== "none";
   const useInitLatent = hasInitImage && referenceMode === "img2img";
   const denoise = useInitLatent ? clampNumber(payload.denoise, 0.35, 0.95, 0.72) : 1;
   const seed = Number.isFinite(Number(payload.seed)) && Number(payload.seed) >= 0
@@ -793,22 +820,53 @@ function buildComfyWorkflow(payload = {}, checkpoint) {
         clip_name: payload.clip_vision_model || "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
       },
     };
-    workflow["26"] = {
-      class_type: "IPAdapterAdvanced",
-      inputs: {
-        model: modelRef,
-        ipadapter: ["24", 0],
-        image: ["21", 0],
-        weight: clampNumber(payload.ipadapter_weight, 0.15, 1.35, 0.72),
-        weight_type: payload.ipadapter_weight_type || "linear",
-        combine_embeds: payload.ipadapter_combine_embeds || "average",
-        start_at: clampNumber(payload.ipadapter_start_at, 0, 1, 0),
-        end_at: clampNumber(payload.ipadapter_end_at, 0, 1, 0.82),
-        embeds_scaling: payload.ipadapter_embeds_scaling || "K+V",
-        clip_vision: ["25", 0],
-      },
-    };
-    modelRef = ["26", 0];
+    const anchors = preparedAnchors.length
+      ? preparedAnchors
+      : [{ kind: payload.init_anchor_kind || "reference", init_image: payload.init_image }];
+    const sortedAnchors = anchors
+      .map((item, index) => ({ ...item, _index: index }))
+      .sort((a, b) => {
+        const rank = { style: 1, location: 2, character: 3 };
+        return (rank[a.kind] || 2) - (rank[b.kind] || 2) || a._index - b._index;
+      })
+      .slice(0, 3);
+    sortedAnchors.forEach((anchor, index) => {
+      const loadId = String(260 + index * 3);
+      const scaleId = String(261 + index * 3);
+      const adapterId = String(262 + index * 3);
+      const imageRef = index === 0 && hasInitImage && anchor.init_image === payload.init_image && workflow["21"]
+        ? ["21", 0]
+        : [scaleId, 0];
+      if (!(index === 0 && hasInitImage && anchor.init_image === payload.init_image && workflow["21"])) {
+        workflow[loadId] = { class_type: "LoadImage", inputs: { image: anchor.init_image } };
+        workflow[scaleId] = {
+          class_type: "ImageScale",
+          inputs: {
+            image: [loadId, 0],
+            upscale_method: "lanczos",
+            width: baseWidth,
+            height: baseHeight,
+            crop: "center",
+          },
+        };
+      }
+      workflow[adapterId] = {
+        class_type: "IPAdapterAdvanced",
+        inputs: {
+          model: modelRef,
+          ipadapter: ["24", 0],
+          image: imageRef,
+          weight: clampNumber(anchor.ipadapter_weight ?? payload.ipadapter_weight, 0.15, 1.35, 0.72),
+          weight_type: anchor.ipadapter_weight_type || payload.ipadapter_weight_type || "linear",
+          combine_embeds: anchor.ipadapter_combine_embeds || payload.ipadapter_combine_embeds || "average",
+          start_at: clampNumber(anchor.ipadapter_start_at ?? payload.ipadapter_start_at, 0, 1, 0),
+          end_at: clampNumber(anchor.ipadapter_end_at ?? payload.ipadapter_end_at, 0, 1, 0.82),
+          embeds_scaling: anchor.ipadapter_embeds_scaling || payload.ipadapter_embeds_scaling || "K+V",
+          clip_vision: ["25", 0],
+        },
+      };
+      modelRef = [adapterId, 0];
+    });
   }
   workflow["6"].inputs.clip = clipRef;
   workflow["7"].inputs.clip = clipRef;
@@ -916,6 +974,12 @@ async function renderFrameGrid(job, config, payload) {
     ? Math.floor(requestedSeed)
     : Math.floor(Math.random() * 999999999);
   const rendered = [];
+  const referenceBank = payload.reference_bank && typeof payload.reference_bank === "object" ? payload.reference_bank : {};
+  const resolveReferenceAnchor = (anchor = null) => {
+    if (!anchor || typeof anchor !== "object") return null;
+    const banked = anchor.bank_key ? referenceBank[anchor.bank_key] : null;
+    return { ...(banked && typeof banked === "object" ? banked : {}), ...anchor, image_data: anchor.image_data || banked?.image_data || "" };
+  };
 
   for (let i = 0; i < frames.length; i += 1) {
     const frame = frames[i];
@@ -933,18 +997,30 @@ async function renderFrameGrid(job, config, payload) {
       seed: baseSeed,
       filename_prefix: `neurocine_trailer_part_${String(job.part_index + 1).padStart(2, "0")}_frame_${String(i + 1).padStart(2, "0")}`,
     };
-    if (frame.reference_anchor?.image_data) {
-      framePayload.reference_anchor = frame.reference_anchor;
-      framePayload.denoise = frame.reference_anchor.denoise || framePayload.denoise;
-      framePayload.reference_mode = frame.reference_anchor.reference_mode || framePayload.reference_mode || "ipadapter";
-      framePayload.ipadapter_weight = frame.reference_anchor.ipadapter_weight || framePayload.ipadapter_weight;
-      framePayload.ipadapter_start_at = frame.reference_anchor.ipadapter_start_at ?? framePayload.ipadapter_start_at;
-      framePayload.ipadapter_end_at = frame.reference_anchor.ipadapter_end_at || framePayload.ipadapter_end_at;
-      framePayload.ipadapter_weight_type = frame.reference_anchor.ipadapter_weight_type || framePayload.ipadapter_weight_type;
-      framePayload.ipadapter_embeds_scaling = frame.reference_anchor.ipadapter_embeds_scaling || framePayload.ipadapter_embeds_scaling;
+    const resolvedAnchors = Array.isArray(frame.reference_anchors)
+      ? frame.reference_anchors.map(resolveReferenceAnchor).filter((item) => item?.image_data).slice(0, 3)
+      : [];
+    const resolvedSingleAnchor = resolveReferenceAnchor(frame.reference_anchor);
+    if (resolvedAnchors.length) {
+      framePayload.reference_anchors = resolvedAnchors;
+      framePayload.reference_anchor = framePayload.reference_anchors.find((item) => item.kind === "character")
+        || framePayload.reference_anchors.find((item) => item.kind === "location")
+        || framePayload.reference_anchors[0];
+      framePayload.reference_mode = framePayload.reference_anchor.reference_mode || framePayload.reference_mode || "ipadapter";
+      framePayload.denoise = framePayload.reference_anchor.denoise || framePayload.denoise;
+    } else if (resolvedSingleAnchor?.image_data) {
+      framePayload.reference_anchor = resolvedSingleAnchor;
+      framePayload.denoise = resolvedSingleAnchor.denoise || framePayload.denoise;
+      framePayload.reference_mode = resolvedSingleAnchor.reference_mode || framePayload.reference_mode || "ipadapter";
+      framePayload.ipadapter_weight = resolvedSingleAnchor.ipadapter_weight || framePayload.ipadapter_weight;
+      framePayload.ipadapter_start_at = resolvedSingleAnchor.ipadapter_start_at ?? framePayload.ipadapter_start_at;
+      framePayload.ipadapter_end_at = resolvedSingleAnchor.ipadapter_end_at || framePayload.ipadapter_end_at;
+      framePayload.ipadapter_weight_type = resolvedSingleAnchor.ipadapter_weight_type || framePayload.ipadapter_weight_type;
+      framePayload.ipadapter_embeds_scaling = resolvedSingleAnchor.ipadapter_embeds_scaling || framePayload.ipadapter_embeds_scaling;
     }
     delete framePayload.frames;
     delete framePayload.workflow;
+    delete framePayload.reference_bank;
     rendered.push(await renderPayloadWithProvider({
       provider: config.provider,
       workerUrl: config.workerUrl,
