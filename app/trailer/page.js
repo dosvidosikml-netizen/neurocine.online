@@ -977,13 +977,86 @@ function styleLineForReference(normalized = {}) {
   ].filter(Boolean).join(". "));
 }
 
+function characterReferenceEmotionSet(item = {}) {
+  const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.sourceContext || ""}`);
+  if (/геннадий|gennady|антагонист/.test(key)) {
+    return "neutral flat stare, polite domestic calm, cold suspicion, controlled irritation, pain reaction only if later scripted injury exists";
+  }
+  if (/лена|lena|героиня|свидетель|девушк/.test(key)) {
+    return "neutral tired state, fear, shock, silent suspicion, panic under restraint, exhausted survival focus";
+  }
+  if (/старик|elderly|жертва/.test(key)) {
+    return "neutral elderly fatigue, worry, fear, pain only in scripted victim beat";
+  }
+  if (/мясник|butcher|маске|masked/.test(key)) {
+    return "silent neutral threat, slow intent, restrained anger, pain reaction only if scripted, no monster redesign";
+  }
+  return "neutral, fear, shock, suspicion, pain only if scripted, exhausted focus";
+}
+
+function characterReferencePoseSet(item = {}) {
+  const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.wardrobe || ""} ${item.sourceContext || ""}`);
+  if (/геннадий|gennady/.test(key)) {
+    return "standing in doorway, calmly stepping forward, carrying a milk bag, dragging a black bag, holding a hammer only as a prop detail";
+  }
+  if (/лена|lena/.test(key)) {
+    return "peeking from kitchen doorway, clutching a mug, backing away, throwing boiling water, pulling a locked door chain";
+  }
+  if (/мясник|butcher|маске|masked/.test(key)) {
+    return "front stance, three-quarter stance, side stance, walking forward, chainsaw held low only if scripted";
+  }
+  if (/старик|elderly/.test(key)) {
+    return "standing near shared kitchen, reaching toward a phone, tense seated posture, frail side profile";
+  }
+  if (/женщина на лестнице|первая жертва/.test(key)) {
+    return "ordinary resident standing reference, stairwell victim body layout only as a small scripted continuity thumbnail";
+  }
+  return "front stance, three-quarter stance, side stance, looking over shoulder, walking, tense close-up";
+}
+
+function characterReferenceDetailSet(item = {}) {
+  const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.wardrobe || ""} ${item.sourceContext || ""}`);
+  if (/мясник|butcher|маске|masked/.test(key)) {
+    return "mask seams, apron stains, glove texture, heavy boots, tool grip, body silhouette";
+  }
+  if (/геннадий|gennady/.test(key)) {
+    return "flat stare, sleeveless undershirt, slippers, milk bag, worn hands, ordinary domestic silhouette";
+  }
+  if (/лена|lena/.test(key)) {
+    return "anxious eyes, tense hands around mug, hair silhouette, home clothes, bare feet only as scripted detail";
+  }
+  return "face close-up, eyes, hands, wardrobe fabric, shoes, silhouette, color palette from first appearance";
+}
+
+function characterReferenceNegativePrompt() {
+  const allowedSheetConflicts = new Set([
+    "duplicate people",
+    "contact sheet",
+    "gallery cards",
+    "nested grid",
+  ]);
+  return [
+    ...LOCAL_IMAGE_NEGATIVE.split(", ").filter((item) => !allowedSheetConflicts.has(cleanText(item))),
+    "different actors in the same reference sheet",
+    "face drift between views",
+    "wardrobe drift between views",
+    "unreadable face",
+    "tiny face only",
+    "random costume",
+    "random genre mask",
+  ].join(", ");
+}
+
 function buildCharacterReferencePrompt(item = {}, normalized = {}) {
   const context = scriptBeatPromptEnglish(item.sourceContext || "", normalized, "recurring scripted character from this trailer");
   const identity = promptEnglishSafe(item.identity || "", "stable actor face, body type, hair, age impression and emotional condition inferred from the script");
   const wardrobe = promptEnglishSafe(item.wardrobe || "", "script-supported wardrobe only; no costume drift");
   const role = promptEnglishSafe(item.role || "script character", "script character");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, natural skin texture, fabric detail");
-  return cleanText(`Create one clean vertical 9:16 photoreal identity reference sheet for the same film, not a story frame. Show the same single actor three times inside one simple neutral sheet: face close-up, waist-up view, and full-body neutral stance. The actor identity, age impression, hair, body type, skin texture, hands and wardrobe must be identical in all three views. No action scene, no threat pose, no weapon unless the script says this character always carries it. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger, cult figure or unrelated masked person unless this exact character role or script context explicitly says so. No captions, no labels, no UI, no watermark, no story scene, no extra people, no unrelated props, no new location.`);
+  const emotions = promptEnglishSafe(characterReferenceEmotionSet(item), "neutral, fear, shock, suspicion, exhaustion");
+  const poses = promptEnglishSafe(characterReferencePoseSet(item), "front stance, three-quarter stance, side stance, close-up, action pose only if scripted");
+  const details = promptEnglishSafe(characterReferenceDetailSet(item), "face, eyes, hands, wardrobe fabric, shoes and silhouette");
+  return cleanText(`Create one wide 16:9 photoreal film character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single actor only, repeated across controlled reference panels with the same face, hair, age impression, body type, skin texture, hands, wardrobe and color palette in every panel. Required visual sections without readable labels: 1) turnarounds: front, 3/4, side, back; 2) emotion heads: ${emotions}; 3) scenario poses: ${poses}; 4) detail close-ups: ${details}. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same actor, but never multiple different people. Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger, cult figure or unrelated masked person unless this exact character role or script context explicitly says so. No readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
 }
 
 function buildLocationReferencePrompt(item = {}, normalized = {}) {
@@ -2612,6 +2685,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     payload.production_bible = stripProductionBibleImages(meta.bible || lockedProductionBible);
     payload.seed = stableSeedFromText(`${projectName || "trailer"}|${script}|auto-reference|${meta.kind}|${meta.index}|${prompt}`);
     payload.filename_prefix = `neurocine_${meta.kind || "ref"}_${meta.index || 0}`;
+    if (meta.kind === "character") {
+      payload.render_mode = "character_reference_sheet";
+      payload.reference_mode = "none";
+      payload.width = 1536;
+      payload.height = 864;
+      payload.base_width = 1368;
+      payload.base_height = 768;
+      payload.hires_steps = Math.max(14, Number(payload.hires_steps || 0));
+      payload.hires_denoise = 0.24;
+      payload.negative_prompt = characterReferenceNegativePrompt();
+    }
     return payload;
   }
 
