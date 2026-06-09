@@ -95,6 +95,16 @@ const LOCAL_IMAGE_NEGATIVE = [
   "random cloak",
   "cult robe",
   "anonymous hooded figure",
+  "doctors",
+  "nurses",
+  "hospital",
+  "clinic",
+  "laboratory",
+  "medical corridor",
+  "surgical mask",
+  "hazmat suit",
+  "random window",
+  "cars",
   "contact sheet",
   "gallery cards",
   "nested grid",
@@ -111,6 +121,7 @@ const SCRIPT_LITERAL_GATE = [
   "SCRIPT-LITERAL OBJECT GATE:",
   "Render only people, objects, wardrobe, locations and physical effects named by the current source line, current visual beat or allowed lists.",
   "Do not add doctors, nurses, medical staff, hospital rooms, clinics, laboratories, hazmat suits, surgical masks, medical gloves, random windows, cars, extra men, extra women or unrelated rooms unless the current source line explicitly names them.",
+  "Do not add hooded strangers, cult robes, anonymous masked people, extra killers or genre costumes unless the current source line explicitly names them.",
   "If a style reference, location reference or character reference contains an unscripted object, ignore that object for this frame.",
   "Earlier and later script events are forbidden in the current frame."
 ].join(" ");
@@ -590,6 +601,12 @@ function anchorSearchText(scene = {}) {
 function itemMentionScore(item = {}, haystack = "") {
   const source = normalizeTextKey(haystack);
   if (!source) return 0;
+  const itemText = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""}`);
+  if (/женщина на лестнице|первая жертва|stairwell victim|opening stairwell victim/.test(itemText) && /женщин|ступень|лестниц|горл|кров/.test(source)) return 8;
+  if (/старик|elderly|old male/.test(itemText) && /старик|пожил|телефон|провод|шею/.test(source)) return 8;
+  if (/геннадий|gennady/.test(itemText) && /геннадий|сосед|молок|мешок|молоток/.test(source)) return 8;
+  if (/лена|lena/.test(itemText) && /лена|соседка|кружк|кипяток|босые|дверь/.test(source)) return 8;
+  if (/мясник|butcher|человек в маске|masked/.test(itemText) && /мясник|человек в маске|маск|фартук|бензопил/.test(source)) return 8;
   const candidates = [
     [item.id, 6],
     [item.name, 8],
@@ -966,7 +983,7 @@ function buildCharacterReferencePrompt(item = {}, normalized = {}) {
   const wardrobe = promptEnglishSafe(item.wardrobe || "", "script-supported wardrobe only; no costume drift");
   const role = promptEnglishSafe(item.role || "script character", "script character");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, natural skin texture, fabric detail");
-  return cleanText(`Create one clean 9:16 photoreal character reference image for the same film. Single actor only, full body visible, neutral standing pose, face readable, hands visible, no action, no weapon unless the script says this character always carries it. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger or unrelated masked person unless this exact character role or script context explicitly says so. No captions, no labels, no UI, no watermark, no collage, no extra people, no unrelated props, no new location.`);
+  return cleanText(`Create one clean vertical 9:16 photoreal identity reference sheet for the same film, not a story frame. Show the same single actor three times inside one simple neutral sheet: face close-up, waist-up view, and full-body neutral stance. The actor identity, age impression, hair, body type, skin texture, hands and wardrobe must be identical in all three views. No action scene, no threat pose, no weapon unless the script says this character always carries it. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger, cult figure or unrelated masked person unless this exact character role or script context explicitly says so. No captions, no labels, no UI, no watermark, no story scene, no extra people, no unrelated props, no new location.`);
 }
 
 function buildLocationReferencePrompt(item = {}, normalized = {}) {
@@ -985,6 +1002,66 @@ function buildStyleReferencePrompt(normalized = {}, script = "") {
   return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
 }
 
+function contextContains(source = "", patterns = []) {
+  return patterns.some((pattern) => pattern.test(source));
+}
+
+function inferCharacterIdentityLock(name = "", role = "", sourceContext = "", fullScript = "") {
+  const key = normalizeTextKey(`${name} ${role} ${sourceContext}`);
+  const text = normalizeTextKey(`${sourceContext} ${fullScript}`);
+  if (/геннадий|gennady/.test(key)) {
+    return "Gennady: ordinary middle-aged male communal-apartment neighbor, calm domestic body language, unsettling flat stare, same face and build from first appearance to final frame";
+  }
+  if (/лена|lena/.test(key)) {
+    return "Lena: young female neighbor and witness, anxious face, tense hands, same face, hair, body type and frightened physical condition from first appearance to final frame";
+  }
+  if (/старик/.test(key)) {
+    return "Elderly male neighbor, frail older body, domestic appearance, same age and face only in his scripted victim frames";
+  }
+  if (/женщина на лестнице|первая жертва/.test(key)) {
+    return "Opening stairwell victim: adult woman from the first scene only, ordinary resident appearance, same body and clothing only when the source line includes her";
+  }
+  if (/мясник|butcher|человек в маске|маске/.test(key)) {
+    return "Masked butcher antagonist: very tall broad-shouldered adult male, same crude leather mask, heavy physical presence and silent posture from first reveal onward";
+  }
+  if (/девушк|girl|woman/.test(key) && /бойн|slaughter|цех|крюк|бензопил|маск/.test(text)) {
+    return "Female lead in the slaughterhouse story, slim tired young woman, same face, hair, body type and fear response across all scripted frames";
+  }
+  if (/брат|арт[её]м|artem|artyom/.test(key)) {
+    return "Young male companion, anxious face, same actor identity, hair, build and panic condition across all scripted frames";
+  }
+  return `${name || role || "Script character"}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames where this character is explicitly present`;
+}
+
+function inferCharacterWardrobeLock(name = "", role = "", sourceContext = "", fullScript = "") {
+  const key = normalizeTextKey(`${name} ${role} ${sourceContext}`);
+  const text = normalizeTextKey(`${sourceContext} ${fullScript}`);
+  if (/геннадий|gennady/.test(key)) {
+    return contextContains(text, [/майк/, /тапк/])
+      ? "plain sleeveless undershirt, house slippers and ordinary worn home trousers from first appearance; milk bag, black bag, wire or hammer appear only when the current source line names them"
+      : "ordinary neighbor home clothes from first appearance; no costume redesign";
+  }
+  if (/лена|lena/.test(key)) {
+    return "plain communal-apartment home clothes from first appearance; mug, bare feet or boiling water appear only when the current source line names them";
+  }
+  if (/старик/.test(key)) {
+    return "ordinary elderly neighbor home clothes; telephone appears only when the current source line names it";
+  }
+  if (/женщина на лестнице|первая жертва/.test(key)) {
+    return "ordinary resident clothing from the opening stairwell victim beat only; no new costume, no glamor styling";
+  }
+  if (/мясник|butcher|человек в маске|маске/.test(key)) {
+    return "heavy butcher apron over dark work clothes, same crude leather mask, gloves and heavy boots; chainsaw only when the current source line names it";
+  }
+  if (/девушк|girl|woman/.test(key) && /бойн|slaughter|цех|крюк|бензопил|маск/.test(text)) {
+    return "dust-covered practical clothes, worn boots, script-supported flashlight only when named; no fashion styling";
+  }
+  if (/брат|арт[её]м|artem|artyom/.test(key)) {
+    return "ordinary practical clothes from first appearance; flashlight or injury appears only when the current source line names it";
+  }
+  return "use only wardrobe described by script or first generated reference; no costume drift, no genre redesign";
+}
+
 function extractProductionBibleFromScript(script = "", currentBible = {}, { stylePreset = "", styleProfile = null } = {}) {
   const normalized = normalizeProductionBible(currentBible, { stylePreset, styleProfile });
   const text = cleanText(script);
@@ -996,15 +1073,22 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   function mentionPattern(name = "") {
     return new RegExp(cleanText(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   }
-  function addCandidate(name, role, pattern) {
+  function addCandidate(name, role, pattern, priority = 50) {
     const cleanName = cleanText(name);
-    if (!cleanName || candidates.some((item) => normalizeTextKey(item.name) === normalizeTextKey(cleanName))) return;
-    candidates.push({ name: cleanName, role: cleanText(role), pattern: pattern || mentionPattern(cleanName) });
+    if (!cleanName) return;
+    const key = normalizeTextKey(cleanName);
+    const existing = candidates.find((item) => normalizeTextKey(item.name) === key);
+    if (existing) {
+      existing.priority = Math.max(existing.priority || 0, priority);
+      if (role && (!existing.role || cleanText(role).length > cleanText(existing.role).length)) existing.role = cleanText(role);
+      return;
+    }
+    candidates.push({ name: cleanName, role: cleanText(role), pattern: pattern || mentionPattern(cleanName), priority });
   }
-  function addContextNames(re, role) {
+  function addContextNames(re, role, priority = 70) {
     for (const match of text.matchAll(re)) {
       const name = cleanText(match[1] || "");
-      if (name && !stop.has(name)) addCandidate(name, role, mentionPattern(name));
+      if (name && !stop.has(name)) addCandidate(name, role, mentionPattern(name), priority);
     }
   }
   const properNameCounts = new Map();
@@ -1013,29 +1097,34 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
     if (!name || stop.has(name)) continue;
     properNameCounts.set(name, (properNameCounts.get(name) || 0) + 1);
   }
-  addContextNames(/\bсосед\s+([А-ЯЁ][а-яё]{2,})\b/g, "сосед / возможный антагонист");
-  addContextNames(/\bсоседка\s+([А-ЯЁ][а-яё]{2,})\b/g, "соседка / свидетель");
-  addContextNames(/\b(?:девушка|женщина|мужчина|парень|мясник|охранник|сотрудник)\s+([А-ЯЁ][а-яё]{2,})\b/g, "персонаж из сценария");
-  addContextNames(/\b([А-ЯЁ][а-яё]{2,})\s+(?:тащит|проходит|режет|открывает|пятится|бросает|врывается|сползает|молчит|выглядывает|сжимает|поднимает|перешагивает|вытирает|тянется|набросывает|говорит|шепчет|ревёт|идёт|светит|толкает|хватает|бежит|дёргает)\b/g, "персонаж из действия");
-  if (/геннадий/i.test(text)) addCandidate("Геннадий", /провод.{0,60}шею|молоток|ч[её]рный мешок|разрезанн|полиэтилен|пил[аы]/i.test(text) ? "сосед-антагонист" : "сосед", /геннадий/i);
-  if (/лена/i.test(text)) addCandidate("Лена", "главная героиня / свидетель", /лена/i);
-  if (/арт[её]м/i.test(text)) addCandidate("Артём", "второй герой", /арт[её]м/i);
-  if (/старик[-\s]+сосед/i.test(text)) addCandidate("Старик-сосед", "пожилой сосед / жертва", /старик[-\s]+сосед/i);
-  if (/женщин[аы].{0,120}разрезанн|разрезанн.{0,120}женщин/i.test(text)) addCandidate("Женщина на лестнице", "первая жертва из открывающего кадра", /женщин[аы]|разрезанн/i);
+  addContextNames(/\bсосед\s+([А-ЯЁ][а-яё]{2,})\b/g, "сосед / возможный антагонист", 90);
+  addContextNames(/\bсоседка\s+([А-ЯЁ][а-яё]{2,})\b/g, "соседка / свидетель", 90);
+  addContextNames(/\bмолодая\s+соседка\s+([А-ЯЁ][а-яё]{2,})\b/g, "молодая соседка / свидетель", 95);
+  addContextNames(/\b(?:девушка|женщина|мужчина|парень|мясник|охранник|сотрудник)\s+([А-ЯЁ][а-яё]{2,})\b/g, "персонаж из сценария", 82);
+  addContextNames(/\b([А-ЯЁ][а-яё]{2,})\s+(?:тащит|проходит|режет|открывает|пятится|бросает|врывается|сползает|молчит|выглядывает|сжимает|поднимает|перешагивает|вытирает|тянется|набрасывает|набросывает|говорит|шепчет|ревёт|ревет|идёт|идет|светит|толкает|хватает|бежит|дёргает|дергает)\b/g, "персонаж из действия", 80);
+  if (/геннадий/i.test(text)) addCandidate("Геннадий", /провод.{0,60}шею|молоток|ч[её]рный мешок|разрезанн|полиэтилен|пил[аы]/i.test(text) ? "сосед-антагонист" : "сосед", /геннадий/i, 100);
+  if (/лена/i.test(text)) addCandidate("Лена", "главная героиня / свидетель", /лена/i, 98);
+  if (/арт[её]м/i.test(text)) addCandidate("Артём", "второй герой", /арт[её]м/i, 96);
+  if (/старик[-\s]+сосед/i.test(text)) addCandidate("Старик-сосед", "пожилой сосед / жертва", /старик[-\s]+сосед/i, 76);
+  if (/женщин[аы].{0,120}разрезанн|разрезанн.{0,120}женщин/i.test(text)) addCandidate("Женщина на лестнице", "первая жертва из открывающего кадра", /женщин[аы]|разрезанн/i, 68);
   for (const [name, count] of properNameCounts.entries()) {
-    if (count >= 2) addCandidate(name, "повторяющийся персонаж сценария", mentionPattern(name));
+    if (count >= 2) addCandidate(name, "повторяющийся персонаж сценария", mentionPattern(name), 84 + count);
   }
-  if (/девушк/i.test(text)) addCandidate("Девушка", "женский герой", /девушк/i);
-  if (/брат/i.test(text)) addCandidate("Брат", "мужской герой / брат", /брат/i);
+  if (/девушк/i.test(text)) addCandidate("Девушка", "женский герой", /девушк/i, 78);
+  if (/брат/i.test(text)) addCandidate("Брат", "мужской герой / брат", /брат/i, 78);
   if (/трое\s+сотрудник|сотрудник/i.test(text)) {
-    addCandidate("Сотрудник 1", "офисный сотрудник", /сотрудник|трое/i);
-    addCandidate("Сотрудник 2", "офисный сотрудник", /сотрудник|трое/i);
-    addCandidate("Сотрудник 3", "офисный сотрудник", /сотрудник|трое/i);
+    addCandidate("Сотрудник 1", "офисный сотрудник", /сотрудник|трое/i, 86);
+    addCandidate("Сотрудник 2", "офисный сотрудник", /сотрудник|трое/i, 85);
+    addCandidate("Сотрудник 3", "офисный сотрудник", /сотрудник|трое/i, 84);
   }
-  if (/мясник|человек в маске|высокий человек|бензопил|фартук/i.test(text)) addCandidate("Мясник", "антагонист в маске", /мясник|человек в маске|высокий человек|бензопил|фартук/i);
-  if (/копи[яию]|двойник/i.test(text)) addCandidate("Двойник", "двойник / сверхъестественная копия", /копи[яию]|двойник/i);
-  if (!candidates.length && text.length > 30) addCandidate("Главный персонаж", "главный персонаж, извлечённый из сценария", /./);
-  const uniqueCandidates = candidates.slice(0, MAX_CHARACTER_REFS);
+  if (/мясник|человек в маске|высокий человек|бензопил|фартук/i.test(text)) addCandidate("Мясник", "антагонист в маске", /мясник|человек в маске|высокий человек|бензопил|фартук/i, 92);
+  if (/копи[яию]|двойник/i.test(text)) addCandidate("Двойник", "двойник / сверхъестественная копия", /копи[яию]|двойник/i, 72);
+  if (!candidates.length && text.length > 30) addCandidate("Главный персонаж", "главный персонаж, извлечённый из сценария", /./, 10);
+  const uniqueCandidates = candidates
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0)
+      || (properNameCounts.get(b.name) || 0) - (properNameCounts.get(a.name) || 0)
+      || a.name.localeCompare(b.name, "ru"))
+    .slice(0, MAX_CHARACTER_REFS);
   const characters = Array.from({ length: MAX_CHARACTER_REFS }, (_, i) => {
     const existing = normalized.characters[i] || emptyProductionCharacter(i);
     const candidate = uniqueCandidates[i] || {};
@@ -1049,6 +1138,8 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
     const sourceContext = hasCandidate
       ? contextForPattern(sentences, candidate.pattern, name ? text.slice(0, 260) : "")
       : (existing.sourceContext || contextForPattern(sentences, candidate.pattern, name ? text.slice(0, 260) : ""));
+    const inferredIdentity = name ? inferCharacterIdentityLock(name, role, sourceContext, text) : "";
+    const inferredWardrobe = name ? inferCharacterWardrobeLock(name, role, sourceContext, text) : "";
     const next = {
       ...existing,
       name,
@@ -1056,9 +1147,10 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
       referenceName: keepExistingReference ? existing.referenceName : "",
       role: hasCandidate ? role : (existing.role || role),
       identity: hasCandidate
-        ? `${name}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames`
-        : (existing.identity || (name ? `${name}: stable actor identity extracted from script; preserve same face, body type, hair, age impression and emotional condition across all frames` : "")),
-      wardrobe: existing.wardrobe || (name ? "use only wardrobe described by script or first generated reference; no costume drift" : ""),
+        ? inferredIdentity
+        : (existing.identity || inferredIdentity),
+      wardrobe: existing.wardrobe || inferredWardrobe,
+      negative: existing.negative || "no different actor, no face drift, no age drift, no wardrobe drift, no genre redesign, no unscripted mask or uniform",
       sourceContext,
     };
     return {
@@ -1159,19 +1251,28 @@ function scriptLineIsEmptyMaskBeat(source = "") {
 function deriveFrameCharactersFromScript(source = "", fallback = "", bible = null) {
   const text = normalizeForMatch(source);
   const names = [];
-  filledProductionCharacters(bible || {}).forEach((item) => {
+  const bibleCharacters = filledProductionCharacters(bible || {});
+  function lockedName(pattern, fallbackName) {
+    const found = bibleCharacters.find((item) => pattern.test(normalizeForMatch(`${item.name || ""} ${item.role || ""} ${item.identity || ""}`)));
+    return found?.name || fallbackName;
+  }
+  bibleCharacters.forEach((item) => {
     const name = normalizeForMatch(item.name);
     if (name && text.includes(name)) names.push(item.name);
+    const role = normalizeForMatch(item.role || "");
+    if (role && role.length > 4 && text.includes(role)) names.push(item.name || item.role);
   });
-  if (/лена|lena/.test(text)) names.push("Lena");
-  if (/арт[её]м|артем|artem|artyom/.test(text)) names.push("Artem");
-  if (/геннадий|gennady|gennadiy/.test(text)) names.push("Gennady");
-  if (/лада|lada/.test(text)) names.push("Lada");
-  if (/илья|ilya|ilia/.test(text)) names.push("Ilya");
-  if (/марина|marina/.test(text)) names.push("Marina");
-  if (/анна|anna/.test(text)) names.push("Anna");
-  if (/сергей|sergey|sergei/.test(text)) names.push("Sergey");
-  if (scriptLineAllowsThreat(text)) names.push("masked butcher man");
+  if (/лена|lena|молодая\s+соседка/.test(text)) names.push(lockedName(/лена|lena|соседка/, "Лена"));
+  if (/арт[её]м|артем|artem|artyom/.test(text)) names.push(lockedName(/артем|артём|artem|artyom/, "Артём"));
+  if (/геннадий|gennady|gennadiy/.test(text)) names.push(lockedName(/геннадий|gennady|gennadiy/, "Геннадий"));
+  if (/старик[-\s]+сосед|old male neighbor|elderly neighbor/.test(text)) names.push(lockedName(/старик|elderly|old male/, "Старик-сосед"));
+  if (/женщин[аы].{0,120}(разрезанн|горл|кров)|victim woman|woman lying/.test(text)) names.push(lockedName(/женщина на лестнице|первая жертва|victim woman/, "Женщина на лестнице"));
+  if (/лада|lada/.test(text)) names.push(lockedName(/лада|lada/, "Лада"));
+  if (/илья|ilya|ilia/.test(text)) names.push(lockedName(/илья|ilya|ilia/, "Илья"));
+  if (/марина|marina/.test(text)) names.push(lockedName(/марина|marina/, "Марина"));
+  if (/анна|anna/.test(text)) names.push(lockedName(/анна|anna/, "Анна"));
+  if (/сергей|sergey|sergei/.test(text)) names.push(lockedName(/сергей|sergey|sergei/, "Сергей"));
+  if (scriptLineAllowsThreat(text)) names.push(lockedName(/мясник|butcher|маске|masked/, "Мясник"));
   if (names.length) return [...new Set(names)].join("; ");
   if (/они|их|им|она |он |they|them|she |he /.test(text)) return fallback;
   return "";
