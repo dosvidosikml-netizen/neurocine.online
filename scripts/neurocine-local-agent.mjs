@@ -277,7 +277,7 @@ for idx, file in enumerate(data["files"]):
     y = (idx // cols) * cell_h
     canvas.paste(crop, (x, y))
 
-canvas.save(data["output"], "PNG", optimize=True)
+canvas.save(data["output"], "PNG", compress_level=1)
 `, "utf8");
     await runProcess(pythonBinary, [scriptPath, manifestPath]);
     const buffer = await readFile(outputPath);
@@ -555,6 +555,12 @@ async function renderFrameGrid(job, config, payload) {
     if (frame.reference_anchor?.image_data) {
       framePayload.reference_anchor = frame.reference_anchor;
       framePayload.denoise = frame.reference_anchor.denoise || framePayload.denoise;
+      framePayload.reference_mode = frame.reference_anchor.reference_mode || framePayload.reference_mode || "ipadapter";
+      framePayload.ipadapter_weight = frame.reference_anchor.ipadapter_weight || framePayload.ipadapter_weight;
+      framePayload.ipadapter_start_at = frame.reference_anchor.ipadapter_start_at ?? framePayload.ipadapter_start_at;
+      framePayload.ipadapter_end_at = frame.reference_anchor.ipadapter_end_at || framePayload.ipadapter_end_at;
+      framePayload.ipadapter_weight_type = frame.reference_anchor.ipadapter_weight_type || framePayload.ipadapter_weight_type;
+      framePayload.ipadapter_embeds_scaling = frame.reference_anchor.ipadapter_embeds_scaling || framePayload.ipadapter_embeds_scaling;
     }
     delete framePayload.frames;
     delete framePayload.workflow;

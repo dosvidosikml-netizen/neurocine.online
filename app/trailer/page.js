@@ -126,6 +126,41 @@ const SCRIPT_LITERAL_GATE = [
   "Earlier and later script events are forbidden in the current frame."
 ].join(" ");
 const LOCAL_MODEL_PRESETS = {
+  sdxlProductionSlow: {
+    label: "RealVisXL slow production максимум",
+    family: "sdxl",
+    checkpoint: "RealVisXL_V5.0_fp16.safetensors",
+    workflowMode: "sdxl_hires",
+    productionQuality: "slow_production",
+    lockDimensions: true,
+    lockQuality: true,
+    referenceMode: "ipadapter",
+    ipadapterModel: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+    clipVisionModel: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+    ipadapterWeight: 0.78,
+    ipadapterStartAt: 0,
+    ipadapterEndAt: 0.9,
+    ipadapterWeightType: "linear",
+    ipadapterEmbedsScaling: "K+V",
+    pixelUpscale: true,
+    upscaleModel: "RealESRGAN_x4plus.pth",
+    width: 1080,
+    height: 1920,
+    baseWidth: 928,
+    baseHeight: 1648,
+    steps: 46,
+    hiresSteps: 22,
+    hiresDenoise: 0.22,
+    cfg: 4.4,
+    sampler: "dpmpp_sde",
+    a1111Sampler: "DPM++ SDE Karras",
+    scheduler: "karras",
+    hiresSampler: "dpmpp_sde",
+    hiresScheduler: "karras",
+    latentUpscaleMethod: "bislerp",
+    finalDownscaleMethod: "lanczos",
+    note: "Максимальный production режим для RTX 3060 12GB: выше base-разрешение, больше steps, мягкий hires denoise, IPAdapter refs и RealESRGAN. Медленно, но меньше мыла и дрейфа.",
+  },
   sdxlProduction: {
     label: "RealVisXL production hires реализм",
     family: "sdxl",
@@ -246,7 +281,7 @@ const LOCAL_MODEL_PRESETS = {
     note: "Ручной режим: укажи checkpoint, LoRA и параметры сам.",
   },
 };
-const DEFAULT_LOCAL_MODEL_PRESET = "sdxlProduction";
+const DEFAULT_LOCAL_MODEL_PRESET = "sdxlProductionSlow";
 
 function emptyProductionCharacter(i = 0) {
   return {
@@ -633,6 +668,17 @@ function referenceAnchorForFrame(scene = {}, bible = {}) {
     .map((item) => ({ item, score: itemMentionScore(item, text) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
+  const styleAnchor = normalized.style?.reference ? {
+    kind: "style",
+    id: "STYLE",
+    name: normalized.style?.label || normalized.style?.preset || "style reference",
+    reference_name: normalized.style?.referenceName || "",
+    image_data: normalized.style.reference,
+    denoise: 0.58,
+    ipadapter_weight: 0.38,
+    ipadapter_end_at: 0.62,
+    ipadapter_start_at: 0,
+  } : null;
 
   if (characters.length === 1) {
     const item = characters[0].item;
@@ -643,6 +689,9 @@ function referenceAnchorForFrame(scene = {}, bible = {}) {
       reference_name: item.referenceName || "",
       image_data: item.reference,
       denoise: 0.74,
+      ipadapter_weight: 0.88,
+      ipadapter_end_at: 0.92,
+      ipadapter_start_at: 0,
     };
   }
   if (locations.length) {
@@ -654,9 +703,12 @@ function referenceAnchorForFrame(scene = {}, bible = {}) {
       reference_name: item.referenceName || "",
       image_data: item.reference,
       denoise: characters.length > 1 ? 0.66 : 0.62,
+      ipadapter_weight: characters.length > 1 ? 0.7 : 0.64,
+      ipadapter_end_at: 0.78,
+      ipadapter_start_at: 0,
     };
   }
-  return null;
+  return styleAnchor;
 }
 
 function referenceAnchorPromptLine(anchor = null) {
@@ -818,6 +870,39 @@ function filledProductionLocations(bible = {}) {
       id: item?.id || `LOC_${String(i + 1).padStart(2, "0")}`,
     }))
     .filter((item) => cleanText(item.name || item.description || item.referenceName));
+}
+
+function productionReferenceReadiness(bible = {}) {
+  const normalized = normalizeProductionBible(bible);
+  const characters = filledProductionCharacters(normalized);
+  const locations = filledProductionLocations(normalized);
+  const characterReady = characters.filter((item) => item.reference).length;
+  const locationReady = locations.filter((item) => item.reference).length;
+  const missingCharacters = characters
+    .filter((item) => !item.reference)
+    .map((item) => cleanText(item.name || item.role || item.id || "CHAR"));
+  const missingLocations = locations
+    .filter((item) => !item.reference)
+    .map((item) => cleanText(item.name || item.description || item.id || "LOC"));
+  const styleReady = Boolean(normalized.style?.reference);
+  const requiredTotal = characters.length + locations.length;
+  const readyTotal = characterReady + locationReady;
+  const missingLabels = [
+    ...missingCharacters.map((name) => `персонаж: ${name}`),
+    ...missingLocations.map((name) => `локация: ${name}`),
+  ];
+  return {
+    requiredTotal,
+    readyTotal,
+    missingTotal: missingLabels.length,
+    charactersTotal: characters.length,
+    characterReady,
+    locationsTotal: locations.length,
+    locationReady,
+    styleReady,
+    missingLabels,
+    ready: requiredTotal === 0 || missingLabels.length === 0,
+  };
 }
 
 function normalizeProductionBible(bible = {}, { stylePreset = "", styleProfile = null } = {}) {
@@ -2051,8 +2136,8 @@ function stableSeedFromText(value = "") {
 
 function migrateSavedCheckpoint(presetKey, checkpoint) {
   const raw = String(checkpoint ?? "").trim();
-  if (presetKey === "sdxlProduction" && (!raw || raw === "sd_xl_base_1.0.safetensors")) {
-    return LOCAL_MODEL_PRESETS.sdxlProduction.checkpoint;
+  if (["sdxlProduction", "sdxlProductionSlow"].includes(presetKey) && (!raw || raw === "sd_xl_base_1.0.safetensors")) {
+    return LOCAL_MODEL_PRESETS[presetKey]?.checkpoint || LOCAL_MODEL_PRESETS[DEFAULT_LOCAL_MODEL_PRESET].checkpoint;
   }
   return checkpoint;
 }
@@ -2133,9 +2218,11 @@ function buildLocalRenderPayload({
     ipadapter_model: preset.ipadapterModel || undefined,
     clip_vision_model: preset.clipVisionModel || undefined,
     ipadapter_weight: preset.ipadapterWeight || undefined,
+    ipadapter_start_at: preset.ipadapterStartAt || undefined,
     ipadapter_end_at: preset.ipadapterEndAt || undefined,
     ipadapter_weight_type: preset.ipadapterWeightType || undefined,
     ipadapter_embeds_scaling: preset.ipadapterEmbedsScaling || undefined,
+    production_quality: preset.productionQuality || "",
     pixel_upscale: preset.pixelUpscale === true,
     upscale_model: preset.upscaleModel || undefined,
     checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
@@ -2146,6 +2233,10 @@ function buildLocalRenderPayload({
     steps: outputSteps,
     hires_steps: preset.hiresSteps || 0,
     hires_denoise: preset.hiresDenoise || 0,
+    hires_sampler_name: preset.hiresSampler || undefined,
+    hires_scheduler: preset.hiresScheduler || undefined,
+    latent_upscale_method: preset.latentUpscaleMethod || undefined,
+    final_downscale_method: preset.finalDownscaleMethod || undefined,
     cfg_scale: outputCfg,
     sampler_name: provider === "automatic1111" ? (preset.a1111Sampler || "DPM++ 2M Karras") : (preset.sampler || "dpmpp_2m"),
     scheduler: preset.scheduler || "karras",
@@ -2468,6 +2559,7 @@ export default function TrailerStoryboardPage() {
     () => normalizeProductionBible(productionBible, { stylePreset, styleProfile }),
     [productionBible, stylePreset, styleProfile]
   );
+  const referenceReadiness = useMemo(() => productionReferenceReadiness(lockedProductionBible), [lockedProductionBible]);
   const scenes = useMemo(() => (Array.isArray(storyboard?.scenes) ? storyboard.scenes : []), [storyboard]);
   const parts = useMemo(() => splitScenesIntoParts(scenes, partSize), [scenes, partSize]);
   const safePart = Math.max(0, Math.min(activePart, Math.max(0, parts.length - 1)));
@@ -2783,6 +2875,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     });
     payload.production_bible = stripProductionBibleImages(lockedProductionBible);
     payload.project_session_id = projectSessionId;
+    payload.reference_readiness = {
+      required_total: referenceReadiness.requiredTotal,
+      ready_total: referenceReadiness.readyTotal,
+      missing_total: referenceReadiness.missingTotal,
+      missing: referenceReadiness.missingLabels,
+    };
     payload.reference_assets = {
       characters: filledProductionCharacters(lockedProductionBible).map((item) => ({
         id: item.id,
@@ -2822,6 +2920,20 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       });
     }
     return payload;
+  }
+
+  function ensureProductionReferencesReadyForRender(partIndexes = []) {
+    if (referenceReadiness.ready) return true;
+    const missing = referenceReadiness.missingLabels.slice(0, 6).join(", ");
+    const extra = referenceReadiness.missingLabels.length > 6 ? ` и ещё ${referenceReadiness.missingLabels.length - 6}` : "";
+    const message = `PART не запущен: refs не готовы (${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}). Не хватает: ${missing}${extra}. Сначала нажми “В очередь refs” и дождись загрузки ref.`;
+    setError(message);
+    setStatus("Сначала нужны refs для персонажей и локаций.");
+    setLocalRenderNotice({ type: "error", message });
+    (Array.isArray(partIndexes) ? partIndexes : [partIndexes]).forEach((partIndex) => {
+      if (Number.isFinite(Number(partIndex))) updateLocalRenderJob(Number(partIndex), { status: "error", message: "refs не готовы" });
+    });
+    return false;
   }
 
   async function copyLocalAgentCommand() {
@@ -3673,6 +3785,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setLocalRenderNotice({ type: "error", message: "Сначала создай storyboard JSON и выбери PART." });
       return false;
     }
+    if (!ensureProductionReferencesReadyForRender([partIndex])) return false;
     if (!keepQueueBusy) {
       setLocalRenderBusy(true);
       setLocalRenderAction("direct-current");
@@ -3749,6 +3862,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     const token = getPersistentLocalAgentToken(localAgentToken);
     if (localAgentToken !== token) setLocalAgentToken(token);
     const indexes = partIndexes.length ? partIndexes : parts.map((_, i) => i);
+    if (!ensureProductionReferencesReadyForRender(indexes)) {
+      setLocalRenderAction("");
+      return;
+    }
     let jobs = [];
     try {
       jobs = indexes.map((partIndex) => {
@@ -4011,17 +4128,24 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     ? `${localAgentToken.slice(0, 8)}...${localAgentToken.slice(-6)}`
     : "создаётся";
   const agentNeedsCommand = localAgentHealth.status !== "online";
+  const partRefsReady = referenceReadiness.ready;
   const localPrimaryLabel = agentNeedsCommand
     ? "Скопировать команду агента"
     : localRenderAction === "queue-current"
       ? "Ставлю PART..."
       : !storyboard || !partScenes.length
         ? "Сначала JSON"
-        : "В очередь текущий PART";
+        : !partRefsReady
+          ? "Сначала refs"
+          : "В очередь текущий PART";
   const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length));
   async function handleLocalPrimaryAction() {
     if (agentNeedsCommand) {
       await copyLocalAgentCommand();
+      return;
+    }
+    if (!partRefsReady) {
+      await queueReferencesForLocalAgent();
       return;
     }
     await queueCurrentPartForLocalAgent();
@@ -4290,6 +4414,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
               <div className="pills">
                 <span className="pill active">{filledProductionCharacters(lockedProductionBible).length} персонаж.</span>
                 <span className="pill">{filledProductionLocations(lockedProductionBible).length} локац.</span>
+                <span className={`pill ${referenceReadiness.ready ? "active" : ""}`}>refs {referenceReadiness.readyTotal}/{referenceReadiness.requiredTotal}</span>
                 <span className="pill">{lockedProductionBible.style?.referenceName ? "style ref" : "style text"}</span>
                 <span className="pill">до 5 героев</span>
                 <span className="pill">поля необязательны</span>
@@ -4493,6 +4618,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className={`local-notice ${localRenderNotice.type || "idle"}`}>
                     {localRenderNotice.message}
                   </div>
+                  {referenceReadiness.requiredTotal ? (
+                    <div className={`local-notice ${referenceReadiness.ready ? "success" : "warn"}`}>
+                      {referenceReadiness.ready
+                        ? `Refs готовы: ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}. PART будет использовать character/location anchors.`
+                        : `Refs не готовы: ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}. Не хватает: ${referenceReadiness.missingLabels.slice(0, 4).join(", ")}${referenceReadiness.missingLabels.length > 4 ? "..." : ""}`}
+                    </div>
+                  ) : null}
                   {usesBaseCheckpoint ? (
                     <div className="local-notice warn">
                       Сейчас выбран SDXL Base. Это debug-модель, она даёт разные лица и слабый реализм. Для финала выбери RealVisXL/Juggernaut checkpoint.
