@@ -649,7 +649,7 @@ function itemMentionScore(item = {}, haystack = "") {
   if (/старик|elderly|old male/.test(itemText) && /старик|пожил|телефон|провод|шею/.test(source)) return 8;
   if (/геннадий|gennady/.test(itemText) && /геннадий|сосед|молок|мешок|молоток/.test(source)) return 8;
   if (/лена|lena/.test(itemText) && /лена|соседка|кружк|кипяток|босые|дверь/.test(source)) return 8;
-  if (/мясник|butcher|человек в маске|masked/.test(itemText) && /мясник|человек в маске|маск|фартук|бензопил/.test(source)) return 8;
+  if (/мясник|butcher|человек в маске|masked/.test(itemText) && scriptLineAllowsThreat(source) && /мясник|человек в маске|маск|фартук|бензопил/.test(source)) return 8;
   const candidates = [
     [item.id, 6],
     [item.name, 8],
@@ -663,13 +663,35 @@ function itemMentionScore(item = {}, haystack = "") {
   }, 0);
 }
 
+function characterAllowedInFrame(item = {}, allowedCharactersText = "", frameText = "") {
+  const allowed = normalizeTextKey(allowedCharactersText);
+  if (!allowed) return false;
+  const itemText = normalizeTextKey(`${item.id || ""} ${item.name || ""} ${item.role || ""} ${item.identity || ""}`);
+  const directKeys = [item.id, item.name, item.role]
+    .map((value) => normalizeTextKey(value || ""))
+    .filter((value) => value.length >= 3);
+  if (directKeys.some((key) => allowed.includes(key))) return true;
+  if (/сотрудник|employee/.test(allowed) && /сотрудник|employee/.test(itemText)) return true;
+  if (/сосед|neighbor/.test(allowed) && /сосед|neighbor|геннадий|лена|старик/.test(itemText)) return true;
+  if (/жертва|victim|женщина/.test(allowed) && /жертва|victim|женщина/.test(itemText)) return true;
+  if (/мясник|butcher|masked|маск|антагонист/.test(allowed) && /мясник|butcher|masked|маск|антагонист/.test(itemText)) return true;
+  return itemMentionScore(item, `${allowed} ${frameText}`) > 0 && itemMentionScore(item, allowed) > 0;
+}
+
 function referenceAnchorsForFrame(scene = {}, bible = {}) {
   const normalized = normalizeProductionBible(bible);
   const text = anchorSearchText(scene);
+  const allowedCharactersText = deriveFrameCharactersFromScript([
+    scene.script_line_ru,
+    scene.visual_beat_ru,
+    scene.visual_beat_en,
+    scene.description_ru,
+  ].filter(Boolean).join(" "), promptList(scene.allowed_characters), normalized);
   const characters = filledProductionCharacters(normalized)
     .filter((item) => item.reference)
+    .filter((item) => characterAllowedInFrame(item, allowedCharactersText, text))
     .map((item) => ({ item, score: itemMentionScore(item, text) }))
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score > 0 || promptList(allowedCharactersText))
     .sort((a, b) => b.score - a.score);
   const locations = filledProductionLocations(normalized)
     .filter((item) => item.reference)
@@ -1418,6 +1440,132 @@ function scriptLineIsEmptyMaskBeat(source = "") {
   return scriptLineHasAny(source, [/пустая кожаная маска/, /маска.*крюк/, /hook.*mask/, /empty.*mask/]) && !scriptLineAllowsThreat(source);
 }
 
+const SCRIPT_OBJECT_SCOPE = [
+  [/фар[аы]|пикап|headlight|pickup/, "pickup headlight"],
+  [/вывеск|sign/, "rusted slaughterhouse sign"],
+  [/бойн|slaughterhouse/, "slaughterhouse exterior details only when visible"],
+  [/калитк|ворот|gate/, "rusted gate"],
+  [/кожаная маск|пустая.*маск|маск.*крюк|empty.*mask|leather mask/, "empty leather mask on a hook"],
+  [/фонар|flashlight/, "flashlight beam"],
+  [/рельс|тушн|hook rail|meat rail/, "overhead meat rails"],
+  [/крюк|hook/, "metal hooks"],
+  [/цеп[ьи]|chain/, "chains"],
+  [/плитк|tile/, "dark stained tile"],
+  [/ламп|bulb|lamp/, "flickering practical lamp"],
+  [/инструмент|tools?/, "butcher tools"],
+  [/нож|knife/, "knife"],
+  [/молот|hammer/, "hammer"],
+  [/шило|awl/, "awl"],
+  [/бензопил|chainsaw/, "chainsaw"],
+  [/след.*сапог|сапог.*след|boot print/, "fresh boot prints"],
+  [/стен[аы].*маск|маски.*стен|stitched masks/, "stitched leather masks on the wall"],
+  [/пластиков.*штор|plastic curtain/, "plastic curtain"],
+  [/зуб|tooth/, "tooth on the floor"],
+  [/стол|table/, "scripted table surface"],
+  [/искр|sparks?/, "metal sparks"],
+  [/холодильн|cold storage/, "cold storage door"],
+  [/пар|vapor|steam/, "cold vapor or steam exactly as scripted"],
+  [/син(ий|ее).*свет|blue light/, "dead blue practical light"],
+  [/зубц|reflection|отражени/, "reflection on a chainsaw tooth"],
+  [/подъезд|stairwell/, "apartment stairwell"],
+  [/ступеньк|stairs?/, "stair steps"],
+  [/женщин.*горл|горл.*женщин|woman lying|severe neck wound/, "woman body on the stairs only in the opening victim beat"],
+  [/кров|blood|бур(ый|ых)/, "blood exactly where the source line places it"],
+  [/ржав.*реш[её]тк|rusty grate/, "rusty grate"],
+  [/домофон|intercom/, "intercom camera"],
+  [/молок|milk/, "milk bag"],
+  [/ботинок|shoe/, "shoe"],
+  [/коврик|doormat/, "doormat"],
+  [/ч[её]рн(ый|ого)\s+меш|black bag/, "black bag"],
+  [/мокр.*след|wet trail/, "wet trail"],
+  [/ванн|bathtub/, "old enamel bathtub"],
+  [/красн.*вод|red water/, "red water"],
+  [/кружк|mug/, "mug"],
+  [/рубашк|shirt/, "stained shirt"],
+  [/бельев|clothesline/, "clothesline"],
+  [/мясо|meat/, "meat on the cutting board"],
+  [/доск|cutting board/, "cutting board"],
+  [/телефон|phone/, "telephone"],
+  [/провод|wire|cord/, "electric cord"],
+  [/стул|chair/, "chair"],
+  [/чашк|cup/, "cup"],
+  [/радио|radio/, "radio"],
+  [/линолеум|linoleum/, "linoleum floor"],
+  [/полиэтилен|plastic sheeting/, "plastic sheeting"],
+  [/тазик|basin/, "basins"],
+  [/пил[аы]|saws?/, "saws only when the source line names them"],
+  [/ключ|keys?/, "keys on the wall"],
+  [/очк|eyeglasses/, "eyeglasses on the wall"],
+  [/кипяток|boiling water/, "boiling water"],
+  [/цепочк|door chain/, "locked door chain"],
+  [/обожж|burned/, "burned face only when scripted"],
+  [/лифт|elevator/, "elevator cabin or doors"],
+  [/кнопк|-1|минус/, "exact elevator button or -1 sign"],
+  [/диспле|display/, "elevator display"],
+  [/фотограф|photo/, "old photograph"],
+  [/подпись|caption/, "scripted caption only"],
+  [/пустот|void/, "black void only when scripted"],
+];
+
+const SCRIPT_LOCATION_SCOPE = [
+  [/подъезд|ступеньк|лестниц/, "dim apartment stairwell"],
+  [/коммуналк|коридор коммуналк/, "narrow communal apartment corridor"],
+  [/ванн/, "old communal bathroom"],
+  [/общ(ая|ей)\s+кухн|кухн/, "shared communal kitchen"],
+  [/двор|бельев/, "inner courtyard"],
+  [/бойн|вывеск|пикап|калитк|ворот/, "abandoned slaughterhouse exterior threshold"],
+  [/цех|тушн|рельс|крюк|разделочн|штор/, "old slaughterhouse processing hall"],
+  [/холодильн/, "cold storage room"],
+  [/офис|компьютер|стол.*офис/, "late-night office floor"],
+  [/лифт|диспле|кнопк|кабин/, "same scripted elevator area"],
+];
+
+function detectScriptTerms(source = "", entries = []) {
+  const text = normalizeTextKey(source);
+  const terms = [];
+  entries.forEach(([pattern, label]) => {
+    if (pattern.test(text) && !terms.includes(label)) terms.push(label);
+  });
+  return terms;
+}
+
+function baseScopeIsGeneric(value = "") {
+  return !cleanText(value)
+    || /\bonly objects\b|directly named|directly implied|source line|scripted location slice|same locked scripted location|exact scripted location slice/i.test(cleanText(value));
+}
+
+function deriveFrameAllowedObjectsFromScript({ source = "", visualBeat = "", baseAllowed = "" } = {}) {
+  const terms = detectScriptTerms(`${source} ${visualBeat}`, SCRIPT_OBJECT_SCOPE);
+  if (terms.length) return `Scripted visible objects and physical effects only: ${terms.join(", ")}. No other props.`;
+  if (!baseScopeIsGeneric(baseAllowed)) return promptEnglishSafe(baseAllowed, "only scripted objects visible in this source line");
+  return "Only objects physically named or directly visible in this exact source line; no decorative props.";
+}
+
+function deriveFrameAllowedLocationFromScript({ source = "", visualBeat = "", baseLocation = "" } = {}) {
+  const terms = detectScriptTerms(`${source} ${visualBeat}`, SCRIPT_LOCATION_SCOPE);
+  if (terms.length) return `Scripted location slice only: ${terms.slice(0, 2).join(" / ")}. Do not move to another room or exterior unless this line says so.`;
+  if (!baseScopeIsGeneric(baseLocation)) return promptEnglishSafe(baseLocation, "same scripted location slice");
+  return "The exact scripted location slice from this source line only.";
+}
+
+function deriveFrameSpecificForbiddenVisuals(source = "", visualBeat = "", allowedCharacters = "") {
+  const text = `${source} ${visualBeat}`;
+  const forbidden = [
+    "doctors, nurses, hospital, clinic, laboratory, medical corridor, surgical mask, medical gloves, hazmat suit",
+    "modern cars, police, ambulance, sirens, exterior city, unrelated windows",
+    "new signage, readable text, captions or symbols not named by the current source line",
+  ];
+  if (allowedCharacters) forbidden.push("extra people beyond the allowed character list, crowd, passersby, random bystanders");
+  if (!scriptLineHasAny(text, [/кров/, /blood/, /бур(ый|ых)/])) forbidden.push("blood, gore, wounds or red liquid not named by this source line");
+  if (!scriptLineHasAny(text, [/нож/, /молот/, /пил/, /бензопил/, /шило/, /цеп/, /оруж/, /knife/, /hammer/, /saw/, /chainsaw/, /weapon/])) {
+    forbidden.push("knife, hammer, saw, chainsaw, gun or weapon close-up not named by this source line");
+  }
+  if (!scriptLineHasAny(text, [/машин/, /пикап/, /car/, /pickup/, /vehicle/])) forbidden.push("vehicle body, road, parking lot, street scene");
+  if (!scriptLineHasAny(text, [/окн/, /window/])) forbidden.push("large random windows or daylight exterior view");
+  if (scriptLineIsEmptyMaskBeat(text)) forbidden.push("person wearing the leather mask, body attached to the mask, masked attacker in this frame");
+  return forbidden.join("; ");
+}
+
 function deriveFrameCharactersFromScript(source = "", fallback = "", bible = null) {
   const text = normalizeForMatch(source);
   const names = [];
@@ -1450,7 +1598,7 @@ function deriveFrameCharactersFromScript(source = "", fallback = "", bible = nul
 
 function deriveFrameForbiddenVisuals({ source = "", visualBeat = "", allowedCharacters = "", baseForbidden = "" }) {
   const combined = `${source} ${visualBeat}`;
-  const forbidden = [baseForbidden].filter(Boolean);
+  const forbidden = [baseForbidden, deriveFrameSpecificForbiddenVisuals(source, visualBeat, allowedCharacters)].filter(Boolean);
   if (!allowedCharacters) {
     forbidden.push("people, faces, bodies, hands, silhouettes, reflections of people, passersby");
   }
@@ -1658,8 +1806,8 @@ function buildTrailerVisualBeat(source = "", previousState = {}, productionBible
       visual_ru: `Кадр строго по строке сценария: ${text}.`,
       visual_en: genericVisualEn,
       allowed_characters: genericAllowedCharacters,
-      allowed_objects: `Only objects, props, signs, weapons, materials and physical effects named or directly implied by this source line: ${sourceEn}.`,
-      allowed_location: "the exact scripted location slice from this source line only; keep the already established location continuity",
+      allowed_objects: deriveFrameAllowedObjectsFromScript({ source: text, visualBeat: genericVisualEn }),
+      allowed_location: deriveFrameAllowedLocationFromScript({ source: text, visualBeat: genericVisualEn }),
       forbidden_visuals: genericForbidden,
       on_screen_text: screenText ? [screenText] : [],
       shot_role: genericShotRole,
@@ -2739,8 +2887,18 @@ export default function TrailerStoryboardPage() {
     if (isWeakPromptText(scriptLine) && !isWeakPromptText(visualBeat)) scriptLine = visualBeat;
     const storyboardAllowedCharacters = promptList(scene.allowed_characters);
     const allowedCharacters = deriveFrameCharactersFromScript(`${sourceRaw} ${visualRaw}`, storyboardAllowedCharacters, frameBible);
-    const allowedObjects = promptList(scene.allowed_objects);
-    const allowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
+    const storyboardAllowedObjects = promptList(scene.allowed_objects);
+    const storyboardAllowedLocation = promptList(scene.allowed_location) || promptList(storyboard?.location_lock?.main || "");
+    const allowedObjects = deriveFrameAllowedObjectsFromScript({
+      source: sourceRaw,
+      visualBeat: visualRaw,
+      baseAllowed: storyboardAllowedObjects,
+    });
+    const allowedLocation = deriveFrameAllowedLocationFromScript({
+      source: sourceRaw,
+      visualBeat: visualRaw,
+      baseLocation: storyboardAllowedLocation,
+    });
     const forbidden = toPromptEnglish(deriveFrameForbiddenVisuals({
       source: sourceRaw,
       visualBeat: visualRaw,
@@ -2767,8 +2925,8 @@ ${exactVisibleText ? `\n${exactVisibleText}` : ""}
 FRAME RULES:
 Render only the current source line. Do not advance to later story beats.
 ${noPeopleRule}
-Allowed objects: ${allowedObjects || "only objects directly named by the source line and visual beat"}.
-Location: ${allowedLocation || "same locked scripted location"}.
+Current-frame object scope: ${allowedObjects}.
+Current-frame location scope: ${allowedLocation}.
 Forbidden: ${forbidden || "no extra actors, no new props, no new rooms, no new era, no captions, no UI, no watermark"}.
 ${SCRIPT_LITERAL_GATE}
 Production bible: ${formatProductionBibleForPrompt(frameBible, { includeReferences: false }) || "use storyboard locks only"}.
