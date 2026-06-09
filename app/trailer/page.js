@@ -2758,13 +2758,44 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         body: JSON.stringify({
           action: "command_history",
           agent_token: token,
-          limit: 8,
+          limit: 3,
         }),
       }, 30000);
       setPcCommandJobs(Array.isArray(data.commands) ? data.commands : []);
       setQueueClock(Date.now());
     } catch (e) {
       if (!quiet) setLocalRenderNotice({ type: "error", message: `Команды ПК не обновились: ${e.message}` });
+    }
+  }
+
+  async function clearPcCommandHistory() {
+    const token = getPersistentLocalAgentToken(localAgentToken);
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      setLocalRenderNotice({ type: "error", message: "Для очистки истории команд нужно войти через Google." });
+      return;
+    }
+    setLocalRenderAction("pc-clear-history");
+    setLocalRenderNotice({ type: "working", message: "Очищаю историю команд ПК..." });
+    try {
+      const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          action: "clear_command_history",
+          agent_token: token,
+        }),
+      }, 30000);
+      setPcCommandJobs([]);
+      const cleared = Number(data.cleared_count || 0);
+      setLocalRenderNotice({ type: "success", message: cleared ? `История команд очищена: ${cleared} записей.` : "История команд уже пустая." });
+    } catch (e) {
+      setLocalRenderNotice({ type: "error", message: `История команд не очищена: ${e.message}` });
+    } finally {
+      setLocalRenderAction("");
     }
   }
 
@@ -2805,7 +2836,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           project_session_id: projectSessionId,
         }),
       }, 30000);
-      const next = data.command ? [data.command, ...pcCommandJobs.filter((job) => job.id !== data.command.id)].slice(0, 8) : pcCommandJobs;
+      const next = data.command ? [data.command, ...pcCommandJobs.filter((job) => job.id !== data.command.id)].slice(0, 3) : pcCommandJobs;
       setPcCommandJobs(next);
       setLocalRenderNotice({ type: "success", message: `Команда создана: ${data.command?.command_label || label || command}. Агент заберёт её при следующем опросе.` });
       setPcCommandInput("");
@@ -3919,7 +3950,13 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .pc-command-grid button span{font-size:12px;font-weight:900}
         .pc-command-grid button small{font-size:10px;color:rgba(247,243,234,.54)}
         .pc-command-note{border:1px solid rgba(255,196,112,.22);background:rgba(74,50,17,.13);border-radius:6px;padding:9px 10px;font-size:12px;line-height:1.45;color:#ffdca6}
+        .command-history-wrap{border:1px solid rgba(255,255,255,.10);border-radius:6px;background:#10131b;overflow:hidden}
+        .command-history-wrap summary{cursor:pointer;padding:10px;font-size:12px;font-weight:900;color:#f7f3ea;list-style:none}
+        .command-history-wrap summary::-webkit-details-marker{display:none}
+        .command-history-wrap summary:after{content:"показать";float:right;color:rgba(247,243,234,.52);font-weight:700}
+        .command-history-wrap[open] summary:after{content:"скрыть"}
         .command-history{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+        .command-history-wrap .command-history{padding:0 10px 10px}
         .joblist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
         .job{border:1px solid rgba(255,255,255,.10);background:#10131b;border-radius:6px;padding:9px 10px;font-size:12px;color:rgba(247,243,234,.70);display:grid;gap:6px}
         .job-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -4294,9 +4331,14 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="pc-command-center">
                     <div className="prompt-head">
                       <h3>Командный центр ПК</h3>
-                      <button className={`action-refresh${localRenderAction === "pc-history" ? " is-working" : ""}`} type="button" disabled={!localAgentToken} onClick={() => refreshPcCommandHistory(false)}>
-                        Обновить команды
-                      </button>
+                      <div className="buttons">
+                        <button className={`action-refresh${localRenderAction === "pc-history" ? " is-working" : ""}`} type="button" disabled={!localAgentToken || localRenderAction === "pc-clear-history"} onClick={() => refreshPcCommandHistory(false)}>
+                          Обновить
+                        </button>
+                        <button className={`danger${localRenderAction === "pc-clear-history" ? " is-working" : ""}`} type="button" disabled={!localAgentToken || localRenderAction === "pc-clear-history" || !pcCommandJobs.length} onClick={clearPcCommandHistory}>
+                          Очистить историю
+                        </button>
+                      </div>
                     </div>
                     <div className="pc-chat">
                       <input value={pcCommandInput} onChange={(e) => setPcCommandInput(e.target.value)} placeholder="Напиши: проверь ПК, запусти ComfyUI, перезапусти агента..." />
@@ -4320,20 +4362,23 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       Команды работают только если на ПК уже запущен агент с этим token. Полностью выключенный ПК сайт не включает: для этого нужен Wake-on-LAN или питание через умную розетку.
                     </div>
                     {pcCommandJobs.length ? (
-                      <div className="command-history">
-                        {pcCommandJobs.map((job) => {
-                          const item = pcCommandProgressInfo(job, queueClock);
-                          return (
-                            <span key={job.id} className={`job ${item.status}`}>
-                              <span className="job-top">
-                                <strong>{item.label}</strong>
-                                <em>{item.updated}</em>
+                      <details className="command-history-wrap">
+                        <summary>История команд ПК: последние {pcCommandJobs.length}</summary>
+                        <div className="command-history">
+                          {pcCommandJobs.map((job) => {
+                            const item = pcCommandProgressInfo(job, queueClock);
+                            return (
+                              <span key={job.id} className={`job ${item.status}`}>
+                                <span className="job-top">
+                                  <strong>{item.label}</strong>
+                                  <em>{item.updated}</em>
+                                </span>
+                                <span className="job-message">{item.message}</span>
                               </span>
-                              <span className="job-message">{item.message}</span>
-                            </span>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      </details>
                     ) : null}
                   </div>
                   <details className="local-advanced">

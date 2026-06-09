@@ -742,7 +742,7 @@ async function historyJobs(body) {
 
 async function commandHistory(body) {
   const agentToken = cleanToken(body.agent_token || body.agentToken);
-  const limit = Math.max(1, Math.min(20, Number(body.limit || 8)));
+  const limit = Math.max(1, Math.min(12, Number(body.limit || 3)));
   if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
 
   const admin = createAdminSupabase();
@@ -766,6 +766,38 @@ async function commandHistory(body) {
   return NextResponse.json({ ok: true, mode: "memory", commands });
 }
 
+async function clearCommandHistory(req, body) {
+  const account = await getServerAccount(req);
+  if (!account.ok) {
+    return NextResponse.json({ ok: false, error: account.message || "Нужно войти через Google." }, { status: account.status || 401 });
+  }
+
+  const agentToken = cleanToken(body.agent_token || body.agentToken);
+  if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .delete()
+      .eq("agent_token", agentToken)
+      .eq("provider", PC_COMMAND_PROVIDER)
+      .eq("user_id", account.user?.id || "")
+      .select("id");
+    if (!error) return NextResponse.json({ ok: true, mode: "supabase", cleared_count: (data || []).length });
+    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  let cleared = 0;
+  for (const [id, row] of memoryStore.entries()) {
+    if (row.agent_token === agentToken && row.provider === PC_COMMAND_PROVIDER) {
+      memoryStore.delete(id);
+      cleared += 1;
+    }
+  }
+  return NextResponse.json({ ok: true, mode: "memory", cleared_count: cleared });
+}
+
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -775,6 +807,7 @@ export async function POST(req) {
     if (action === "create_command") return createPcCommand(req, body);
     if (action === "poll_command") return pollPcCommands(body);
     if (action === "command_history") return commandHistory(body);
+    if (action === "clear_command_history") return clearCommandHistory(req, body);
     if (action === "complete") return completeJob(body);
     if (action === "progress") return progressJob(body);
     if (action === "heartbeat") return heartbeatAgent(body);
