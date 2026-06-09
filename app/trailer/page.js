@@ -100,7 +100,6 @@ const LOCAL_IMAGE_NEGATIVE = [
   "doctors",
   "nurses",
   "hospital",
-  "clinic",
   "laboratory",
   "medical corridor",
   "surgical mask",
@@ -559,6 +558,18 @@ function roughScriptBeatEnglish(value = "", bible = null, fallback = "literal sc
 
   const phraseMap = [
     [/подъезд/, "dim apartment stairwell"],
+    [/метель|снег|сугроб/, "snowstorm and snowdrift exactly as scripted"],
+    [/лесн(ая|ую)\s+дорог/, "empty forest road at night"],
+    [/волчонок|волчонк/, "small gray wolf cub"],
+    [/ветеринар|лада/, "young rural veterinarian Lada"],
+    [/сельск.*клиник|ветклиник|клиник/, "small rural veterinary clinic"],
+    [/металлическ.*стол/, "metal veterinary treatment table"],
+    [/полотенц/, "warm towels"],
+    [/кислород/, "oxygen support"],
+    [/игл/, "needle"],
+    [/монитор/, "medical monitor"],
+    [/забор/, "fence outside the clinic"],
+    [/волки|стая/, "adult wolves outside the fence only when scripted"],
     [/коммуналк/, "communal apartment"],
     [/коридор/, "narrow corridor"],
     [/ванн/, "old bathroom"],
@@ -649,6 +660,8 @@ function itemMentionScore(item = {}, haystack = "") {
   if (/старик|elderly|old male/.test(itemText) && /старик|пожил|телефон|провод|шею/.test(source)) return 8;
   if (/геннадий|gennady/.test(itemText) && /геннадий|сосед|молок|мешок|молоток/.test(source)) return 8;
   if (/лена|lena/.test(itemText) && /лена|соседка|кружк|кипяток|босые|дверь/.test(source)) return 8;
+  if (/лада|lada|ветеринар|veterinarian/.test(itemText) && /лада|ветеринар|клиник|полотенц|улыба|дверь|прижимает/.test(source)) return 8;
+  if (/волчонок|волчонк|wolf cub/.test(itemText) && /волчон|серый комок|шерст|дыхание|сердце|голову|сугроб/.test(source)) return 8;
   if (/мясник|butcher|человек в маске|masked/.test(itemText) && scriptLineAllowsThreat(source) && /мясник|человек в маске|маск|фартук|бензопил/.test(source)) return 8;
   const candidates = [
     [item.id, 6],
@@ -1098,8 +1111,14 @@ function styleLineForReference(normalized = {}) {
 
 function characterReferenceEmotionSet(item = {}) {
   const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.sourceContext || ""}`);
+  if (/волчон|wolf cub|cub/.test(key)) {
+    return "eyes closed from cold, weak breathing, confused first eye opening, fragile recovery, alert farewell glance";
+  }
   if (/геннадий|gennady|антагонист/.test(key)) {
     return "neutral flat stare, polite domestic calm, cold suspicion, controlled irritation, pain reaction only if later scripted injury exists";
+  }
+  if (/лада|lada|ветеринар|veterinarian/.test(key)) {
+    return "focused emergency care, exhausted tenderness, fear under control, relieved smile, quiet farewell sadness";
   }
   if (/лена|lena|героиня|свидетель|девушк/.test(key)) {
     return "neutral tired state, fear, shock, silent suspicion, panic under restraint, exhausted survival focus";
@@ -1115,6 +1134,12 @@ function characterReferenceEmotionSet(item = {}) {
 
 function characterReferencePoseSet(item = {}) {
   const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.wardrobe || ""} ${item.sourceContext || ""}`);
+  if (/волчон|wolf cub|cub/.test(key)) {
+    return "curled in snow, wrapped in towels on a metal clinic table, oxygen care pose, lifting head weakly, stepping into snow";
+  }
+  if (/лада|lada|ветеринар|veterinarian/.test(key)) {
+    return "running with rescued animal against coat, leaning over clinic table, holding tiny chest gently, smiling through exhaustion, opening clinic door";
+  }
   if (/геннадий|gennady/.test(key)) {
     return "standing in doorway, calmly stepping forward, carrying a milk bag, dragging a black bag, holding a hammer only as a prop detail";
   }
@@ -1135,6 +1160,12 @@ function characterReferencePoseSet(item = {}) {
 
 function characterReferenceDetailSet(item = {}) {
   const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.wardrobe || ""} ${item.sourceContext || ""}`);
+  if (/волчон|wolf cub|cub/.test(key)) {
+    return "gray fur clumps, frost on whiskers, closed eyelids, tiny paws, damp nose, weak chest movement, recovered alert eyes";
+  }
+  if (/лада|lada|ветеринар|veterinarian/.test(key)) {
+    return "tired eyes, winter coat fabric, gloved hands, clinic sleeves, practical hair, gentle hand pressure, exhausted smile";
+  }
   if (/мясник|butcher|маске|masked/.test(key)) {
     return "mask seams, apron stains, glove texture, heavy boots, tool grip, body silhouette";
   }
@@ -1167,6 +1198,7 @@ function characterReferenceNegativePrompt() {
 }
 
 function buildCharacterReferencePrompt(item = {}, normalized = {}) {
+  const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.sourceContext || ""}`);
   const context = scriptBeatPromptEnglish(item.sourceContext || "", normalized, "recurring scripted character from this trailer");
   const identity = promptEnglishSafe(item.identity || "", "stable actor face, body type, hair, age impression and emotional condition inferred from the script");
   const wardrobe = promptEnglishSafe(item.wardrobe || "", "script-supported wardrobe only; no costume drift");
@@ -1175,6 +1207,9 @@ function buildCharacterReferencePrompt(item = {}, normalized = {}) {
   const emotions = promptEnglishSafe(characterReferenceEmotionSet(item), "neutral, fear, shock, suspicion, exhaustion");
   const poses = promptEnglishSafe(characterReferencePoseSet(item), "front stance, three-quarter stance, side stance, close-up, action pose only if scripted");
   const details = promptEnglishSafe(characterReferenceDetailSet(item), "face, eyes, hands, wardrobe fabric, shoes and silhouette");
+  if (/волчон|wolf cub|cub/.test(key)) {
+    return cleanText(`Create one wide 16:9 photoreal animal character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single gray wolf cub only, repeated across controlled reference panels with the same fur pattern, age, size, muzzle shape, eye color, ear shape, paws and vulnerable physical condition in every panel. Required visual sections without readable labels: 1) turnarounds: front, 3/4, side, back; 2) emotion/state heads: ${emotions}; 3) scenario poses: ${poses}; 4) detail close-ups: ${details}. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same wolf cub, but never multiple different animals. No human child, no dog, no adult wolf replacement, no fantasy creature, no collar, no readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
+  }
   return cleanText(`Create one wide 16:9 photoreal film character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single actor only, repeated across controlled reference panels with the same face, hair, age impression, body type, skin texture, hands, wardrobe and color palette in every panel. Required visual sections without readable labels: 1) turnarounds: front, 3/4, side, back; 2) emotion heads: ${emotions}; 3) scenario poses: ${poses}; 4) detail close-ups: ${details}. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same actor, but never multiple different people. Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger, cult figure or unrelated masked person unless this exact character role or script context explicitly says so. No readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
 }
 
@@ -1201,6 +1236,12 @@ function contextContains(source = "", patterns = []) {
 function inferCharacterIdentityLock(name = "", role = "", sourceContext = "", fullScript = "") {
   const key = normalizeTextKey(`${name} ${role} ${sourceContext}`);
   const text = normalizeTextKey(`${sourceContext} ${fullScript}`);
+  if (/лада|lada|ветеринар|veterinarian/.test(key)) {
+    return "Lada: young rural veterinarian, same tired kind face, practical emergency focus, gentle but urgent body language, same identity from rescue to release";
+  }
+  if (/волчон|wolf cub|cub/.test(key)) {
+    return "Wolf cub: same small gray wolf cub, fragile juvenile body, gray winter fur pattern, damp nose, small ears, vulnerable recovery state from snow rescue to final release";
+  }
   if (/геннадий|gennady/.test(key)) {
     return "Gennady: ordinary middle-aged male communal-apartment neighbor, calm domestic body language, unsettling flat stare, same face and build from first appearance to final frame";
   }
@@ -1228,6 +1269,12 @@ function inferCharacterIdentityLock(name = "", role = "", sourceContext = "", fu
 function inferCharacterWardrobeLock(name = "", role = "", sourceContext = "", fullScript = "") {
   const key = normalizeTextKey(`${name} ${role} ${sourceContext}`);
   const text = normalizeTextKey(`${sourceContext} ${fullScript}`);
+  if (/лада|lada|ветеринар|veterinarian/.test(key)) {
+    return "winter veterinarian clothing: practical coat or clinic sleeves, gloves when outdoors, tired emergency-care look; no glamour styling, no hospital uniform redesign unless the script line is inside the clinic";
+  }
+  if (/волчон|wolf cub|cub/.test(key)) {
+    return "no clothing; same natural gray fur, frost or towels only when the current source line names snow, clinic table or warm towels";
+  }
   if (/геннадий|gennady/.test(key)) {
     return contextContains(text, [/майк/, /тапк/])
       ? "plain sleeveless undershirt, house slippers and ordinary worn home trousers from first appearance; milk bag, black bag, wire or hammer appear only when the current source line names them"
@@ -1292,8 +1339,10 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
   addContextNames(/\bсосед\s+([А-ЯЁ][а-яё]{2,})\b/g, "сосед / возможный антагонист", 90);
   addContextNames(/\bсоседка\s+([А-ЯЁ][а-яё]{2,})\b/g, "соседка / свидетель", 90);
   addContextNames(/\bмолодая\s+соседка\s+([А-ЯЁ][а-яё]{2,})\b/g, "молодая соседка / свидетель", 95);
-  addContextNames(/\b(?:девушка|женщина|мужчина|парень|мясник|охранник|сотрудник)\s+([А-ЯЁ][а-яё]{2,})\b/g, "персонаж из сценария", 82);
-  addContextNames(/\b([А-ЯЁ][а-яё]{2,})\s+(?:тащит|проходит|режет|открывает|пятится|бросает|врывается|сползает|молчит|выглядывает|сжимает|поднимает|перешагивает|вытирает|тянется|набрасывает|набросывает|говорит|шепчет|ревёт|ревет|идёт|идет|светит|толкает|хватает|бежит|дёргает|дергает)\b/g, "персонаж из действия", 80);
+  addContextNames(/\b(?:девушка|женщина|мужчина|парень|мясник|охранник|сотрудник|ветеринар|врач)\s+([А-ЯЁ][а-яё]{2,})\b/g, "персонаж из сценария", 82);
+  addContextNames(/\b([А-ЯЁ][а-яё]{2,})\s+(?:тащит|проходит|режет|открывает|пятится|бросает|врывается|сползает|молчит|выглядывает|сжимает|поднимает|перешагивает|вытирает|тянется|набрасывает|набросывает|говорит|шепчет|ревёт|ревет|идёт|идет|светит|толкает|хватает|бежит|дёргает|дергает|прижимает|улыбается)\b/g, "персонаж из действия", 80);
+  if (/лада|ветеринар/i.test(text)) addCandidate("Лада", "молодой ветеринар / главная героиня", /лада|ветеринар/i, 102);
+  if (/волчонок|волчонк|wolf cub/i.test(text)) addCandidate("Волчонок", "спасённый волчонок / второй главный герой", /волчонок|волчонк|wolf cub/i, 101);
   if (/геннадий/i.test(text)) addCandidate("Геннадий", /провод.{0,60}шею|молоток|ч[её]рный мешок|разрезанн|полиэтилен|пил[аы]/i.test(text) ? "сосед-антагонист" : "сосед", /геннадий/i, 100);
   if (/лена/i.test(text)) addCandidate("Лена", "главная героиня / свидетель", /лена/i, 98);
   if (/арт[её]м/i.test(text)) addCandidate("Артём", "второй герой", /арт[её]м/i, 96);
@@ -1353,6 +1402,8 @@ function extractProductionBibleFromScript(script = "", currentBible = {}, { styl
     };
   });
   const locationHints = [
+    [/лесн(ая|ую)\s+дорог|метель|сугроб|снег/i, "заснеженная лесная дорога", "empty forest road at night in a snowstorm, blue headlights, snowdrift, rural isolation"],
+    [/сельск.*клиник|ветклиник|клиник|металлическом стол|кислород|монитор/i, "сельская ветклиника", "small rural veterinary clinic, metal treatment table, warm towels, oxygen, needle, monitor, yellow practical light"],
     [/подъезд/i, "тусклый подъезд", "dim apartment stairwell, flickering bulb, rusty grate, locked entrance door"],
     [/коммуналк|коридор коммуналк/i, "коридор коммуналки", "narrow communal apartment corridor, linoleum floor, kitchen and rooms connected by one hallway"],
     [/ванн/i, "старая ванная", "old communal bathroom, enamel bathtub, red water, chlorine smell"],
@@ -1441,7 +1492,20 @@ function scriptLineIsEmptyMaskBeat(source = "") {
 }
 
 const SCRIPT_OBJECT_SCOPE = [
+  [/метель|snowstorm/, "snowstorm"],
+  [/снег|сугроб|snowdrift|snow/, "snowdrift and snow"],
+  [/волчонок|волчонк|wolf cub/, "same small gray wolf cub"],
+  [/шерст|fur/, "frost on gray fur"],
   [/фар[аы]|пикап|headlight|pickup/, "pickup headlight"],
+  [/ветеринар|лада|veterinarian|lada/, "young veterinarian Lada only when this line names her"],
+  [/клиник|ветклиник|clinic/, "rural veterinary clinic details"],
+  [/металлическ.*стол|metal table/, "metal veterinary treatment table"],
+  [/полотенц|towels?/, "warm towels"],
+  [/кислород|oxygen/, "oxygen support"],
+  [/игл|needle/, "needle"],
+  [/монитор|monitor/, "medical monitor"],
+  [/забор|fence/, "clinic fence"],
+  [/волки|стая|wolf pack|adult wolves/, "adult wolves as distant dark silhouettes only when scripted"],
   [/вывеск|sign/, "rusted slaughterhouse sign"],
   [/бойн|slaughterhouse/, "slaughterhouse exterior details only when visible"],
   [/калитк|ворот|gate/, "rusted gate"],
@@ -1508,6 +1572,9 @@ const SCRIPT_OBJECT_SCOPE = [
 ];
 
 const SCRIPT_LOCATION_SCOPE = [
+  [/лесн(ая|ую)\s+дорог|метель|сугроб|снег/, "empty snowy forest road"],
+  [/сельск.*клиник|ветклиник|клиник|металлическом стол|кислород|монитор/, "small rural veterinary clinic"],
+  [/забор|волки|стая/, "clinic fence at the forest edge"],
   [/подъезд|ступеньк|лестниц/, "dim apartment stairwell"],
   [/коммуналк|коридор коммуналк/, "narrow communal apartment corridor"],
   [/ванн/, "old communal bathroom"],
@@ -1551,11 +1618,12 @@ function deriveFrameAllowedLocationFromScript({ source = "", visualBeat = "", ba
 function deriveFrameSpecificForbiddenVisuals(source = "", visualBeat = "", allowedCharacters = "") {
   const text = `${source} ${visualBeat}`;
   const forbidden = [
-    "doctors, nurses, hospital, clinic, laboratory, medical corridor, surgical mask, medical gloves, hazmat suit",
+    "doctors, nurses, hospital, laboratory, medical corridor, surgical mask, medical gloves, hazmat suit",
     "modern cars, police, ambulance, sirens, exterior city, unrelated windows",
     "new signage, readable text, captions or symbols not named by the current source line",
   ];
   if (allowedCharacters) forbidden.push("extra people beyond the allowed character list, crowd, passersby, random bystanders");
+  if (!scriptLineHasAny(text, [/клиник/, /ветеринар/, /clinic/, /veterinarian/])) forbidden.push("clinic, medical room or veterinary room not named by this source line");
   if (!scriptLineHasAny(text, [/кров/, /blood/, /бур(ый|ых)/])) forbidden.push("blood, gore, wounds or red liquid not named by this source line");
   if (!scriptLineHasAny(text, [/нож/, /молот/, /пил/, /бензопил/, /шило/, /цеп/, /оруж/, /knife/, /hammer/, /saw/, /chainsaw/, /weapon/])) {
     forbidden.push("knife, hammer, saw, chainsaw, gun or weapon close-up not named by this source line");
@@ -1585,6 +1653,9 @@ function deriveFrameCharactersFromScript(source = "", fallback = "", bible = nul
   if (/геннадий|gennady|gennadiy/.test(text)) names.push(lockedName(/геннадий|gennady|gennadiy/, "Геннадий"));
   if (/старик[-\s]+сосед|old male neighbor|elderly neighbor/.test(text)) names.push(lockedName(/старик|elderly|old male/, "Старик-сосед"));
   if (/женщин[аы].{0,120}(разрезанн|горл|кров)|victim woman|woman lying/.test(text)) names.push(lockedName(/женщина на лестнице|первая жертва|victim woman/, "Женщина на лестнице"));
+  if (/лада|lada|ветеринар|veterinarian/.test(text)) names.push(lockedName(/лада|lada|ветеринар|veterinarian/, "Лада"));
+  if (/волчонок|волчонк|wolf cub/.test(text)) names.push(lockedName(/волчонок|волчонк|wolf cub/, "Волчонок"));
+  if (/взрослые волки|волки|стая|adult wolves|wolf pack/.test(text)) names.push(lockedName(/стая взрослых волков|взрослые волки|wolf pack/, "стая взрослых волков"));
   if (/лада|lada/.test(text)) names.push(lockedName(/лада|lada/, "Лада"));
   if (/илья|ilya|ilia/.test(text)) names.push(lockedName(/илья|ilya|ilia/, "Илья"));
   if (/марина|marina/.test(text)) names.push(lockedName(/марина|marina/, "Марина"));
@@ -4234,7 +4305,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       setLocalQueueJobs((prev) => ({ ...prev, ...nextJobs }));
       const inserted = Number.isFinite(Number(data.inserted_count)) ? Number(data.inserted_count) : Object.keys(nextJobs).length;
       const skipped = Math.max(0, Number(data.skipped_duplicate_count || 0));
-      const duplicateNote = skipped ? ` Уже в работе: ${skipped} refs.` : "";
+      const duplicateNote = skipped ? ` Уже есть в очереди/рендере: ${skipped} ref-заданий, дубли не созданы.` : "";
       if (!quiet) {
         setStatus(`Auto refs в очереди: ${inserted} новых.${duplicateNote}`);
         setBibleNotice({ type: "success", message: `Auto refs в очереди: ${inserted} новых.${duplicateNote}` });
