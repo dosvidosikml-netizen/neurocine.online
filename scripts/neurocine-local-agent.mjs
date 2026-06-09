@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -227,6 +227,208 @@ async function startComfyUi(config) {
     if (status.ok) return `ComfyUI started on port ${port}.`;
   }
   throw new Error("ComfyUI start command was sent, but API did not become ready.");
+}
+
+async function pathExists(filePath = "") {
+  if (!filePath) return false;
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findFileRecursive(rootDir = "", fileName = "", maxDepth = 3) {
+  const target = String(fileName || "").trim().toLowerCase();
+  if (!rootDir || !target) return "";
+  const exact = path.join(rootDir, fileName);
+  if (await pathExists(exact)) return exact;
+
+  async function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    let entries = [];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return "";
+    }
+    for (const entry of entries) {
+      const next = path.join(dir, entry.name);
+      if (entry.isFile() && entry.name.toLowerCase() === target) return next;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const found = await walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(rootDir, 0);
+}
+
+async function modelRequirement(config, folder, fileName, label, required = true) {
+  const root = config.comfyuiDir ? path.join(config.comfyuiDir, "models", folder) : "";
+  const found = await findFileRecursive(root, fileName, 4);
+  return {
+    key: folder,
+    label,
+    file: fileName,
+    folder: root,
+    ok: Boolean(found),
+    required,
+    path: found,
+  };
+}
+
+async function loadComfyObjectInfo(config, workerOk = false) {
+  if (!workerOk || config.provider !== "comfyui") return {};
+  try {
+    return await fetchJson(`${config.workerUrl}/object_info`, { method: "GET" }, 12000, 1);
+  } catch {
+    return {};
+  }
+}
+
+function objectInfoHas(objectInfo = {}, classNames = []) {
+  return classNames.every((name) => Boolean(objectInfo?.[name]));
+}
+
+async function customNodeFolderExists(config, folders = []) {
+  if (!config.comfyuiDir) return false;
+  for (const folder of folders) {
+    if (await pathExists(path.join(config.comfyuiDir, "custom_nodes", folder))) return true;
+  }
+  return false;
+}
+
+async function nodeRequirement(config, objectInfo, spec) {
+  const objectOk = objectInfoHas(objectInfo, spec.class_names || []);
+  const folderOk = await customNodeFolderExists(config, spec.folders || []);
+  return {
+    key: spec.key,
+    label: spec.label,
+    ok: objectOk || folderOk,
+    required: spec.required !== false,
+    classes: spec.class_names || [],
+    folders: spec.folders || [],
+  };
+}
+
+function productionNeeds(payload = {}) {
+  const quality = String(payload.production_quality || "").toLowerCase();
+  const referenceMode = String(payload.reference_mode || "").toLowerCase();
+  const family = String(payload.model_family || "sdxl").toLowerCase();
+  return {
+    production: quality.includes("production") || payload.workflow_mode === "sdxl_hires",
+    ipadapter: referenceMode === "ipadapter" || Boolean(payload.ipadapter_model) || quality.includes("production"),
+    upscale: payload.pixel_upscale === true || Boolean(payload.upscale_model) || quality.includes("production"),
+    wan: family.includes("wan") || quality.includes("wan"),
+  };
+}
+
+async function getProductionReadiness(config, workerOk = false, payload = {}) {
+  const needs = productionNeeds(payload);
+  const checkpoint = String(payload.checkpoint || config.checkpoint || "RealVisXL_V5.0_fp16.safetensors").trim();
+  const ipadapterModel = String(payload.ipadapter_model || "ip-adapter-plus-face_sdxl_vit-h.safetensors").trim();
+  const clipVisionModel = String(payload.clip_vision_model || "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors").trim();
+  const upscaleModel = String(payload.upscale_model || "RealESRGAN_x4plus.pth").trim();
+  const models = [];
+  const nodes = [];
+
+  if (config.provider !== "comfyui") {
+    return {
+      status: "unsupported",
+      ready: false,
+      checked_at: new Date().toISOString(),
+      missing: ["Production check работает только для ComfyUI."],
+      warnings: [],
+      models,
+      nodes,
+      comfyui_dir: config.comfyuiDir || "",
+    };
+  }
+
+  models.push(await modelRequirement(config, "checkpoints", checkpoint, `checkpoint: ${checkpoint}`, true));
+  if (needs.ipadapter) {
+    models.push(await modelRequirement(config, "ipadapter", ipadapterModel, `IPAdapter: ${ipadapterModel}`, true));
+    models.push(await modelRequirement(config, "clip_vision", clipVisionModel, `CLIP Vision: ${clipVisionModel}`, true));
+  }
+  if (needs.upscale) {
+    models.push(await modelRequirement(config, "upscale_models", upscaleModel, `Upscale: ${upscaleModel}`, true));
+  }
+
+  const objectInfo = await loadComfyObjectInfo(config, workerOk);
+  if (needs.ipadapter) {
+    nodes.push(await nodeRequirement(config, objectInfo, {
+      key: "ipadapter_plus",
+      label: "ComfyUI IPAdapter Plus nodes",
+      class_names: ["IPAdapterModelLoader", "IPAdapterAdvanced", "CLIPVisionLoader"],
+      folders: ["ComfyUI_IPAdapter_plus", "ComfyUI_IPAdapter_plus-main"],
+    }));
+  }
+  if (needs.upscale && workerOk) {
+    nodes.push({
+      key: "upscale_nodes",
+      label: "ComfyUI upscale nodes",
+      ok: objectInfoHas(objectInfo, ["UpscaleModelLoader", "ImageUpscaleWithModel"]),
+      required: true,
+      classes: ["UpscaleModelLoader", "ImageUpscaleWithModel"],
+      folders: [],
+    });
+  }
+
+  nodes.push(await nodeRequirement(config, objectInfo, {
+    key: "wan22_optional",
+    label: "Wan2.2 video nodes (optional next stage)",
+    class_names: ["WanVideoSampler"],
+    folders: ["ComfyUI-WanVideoWrapper", "ComfyUI_WanVideoWrapper"],
+    required: false,
+  }));
+
+  const missing = [
+    ...models.filter((item) => item.required && !item.ok).map((item) => item.label),
+    ...nodes.filter((item) => item.required && !item.ok).map((item) => item.label),
+  ];
+  const warnings = [
+    ...models.filter((item) => !item.required && !item.ok).map((item) => item.label),
+    ...nodes.filter((item) => !item.required && !item.ok).map((item) => item.label),
+  ];
+
+  return {
+    status: missing.length ? "missing" : "ready",
+    ready: missing.length === 0,
+    checked_at: new Date().toISOString(),
+    comfyui_dir: config.comfyuiDir || "",
+    worker_online: workerOk,
+    needs,
+    missing,
+    warnings,
+    models,
+    nodes,
+  };
+}
+
+function productionReadinessMessage(readiness = {}) {
+  if (readiness.ready) {
+    const warn = readiness.warnings?.length ? ` Optional missing: ${readiness.warnings.slice(0, 3).join("; ")}.` : "";
+    return `Production pipeline ready.${warn}`;
+  }
+  const missing = Array.isArray(readiness.missing) ? readiness.missing.slice(0, 6).join("; ") : "unknown requirements";
+  return `Production pipeline missing: ${missing}`;
+}
+
+async function assertProductionReady(config, payload = {}) {
+  if (config.provider !== "comfyui") return;
+  const needs = productionNeeds(payload);
+  if (!needs.production && !needs.ipadapter && !needs.upscale && !needs.wan) return;
+  const worker = await checkWorkerStatus(config);
+  if (!worker.ok) throw new Error(`ComfyUI offline: ${worker.error}`);
+  const readiness = await getProductionReadiness(config, worker.ok, payload);
+  if (!readiness.ready) {
+    throw new Error(`${productionReadinessMessage(readiness)}. Установи недостающие модели/ноды или выбери debug-пресет.`);
+  }
 }
 
 async function composeGridWithPillow({ images, cols, rows, cellWidth, cellHeight, pythonBinary }) {
@@ -601,6 +803,7 @@ async function renderJob(job, config) {
     prompt: job.prompt,
     negative_prompt: job.negative_prompt || job.payload?.negative_prompt || DEFAULT_NEGATIVE,
   };
+  await assertProductionReady(config, payload);
   if (payload.render_mode === "frames_grid" && Array.isArray(payload.frames) && payload.frames.length) {
     return renderFrameGrid(job, config, payload);
   }
@@ -657,8 +860,27 @@ async function executePcCommand(job, config, state) {
 
   if (command === "status") {
     const worker = await checkWorkerStatus(config);
+    const readiness = await getProductionReadiness(config, worker.ok, {
+      production_quality: "slow_production",
+      reference_mode: "ipadapter",
+      pixel_upscale: true,
+      checkpoint: config.checkpoint,
+    });
     state.lastWorkerStatus = worker;
-    return { ok: true, message: worker.ok ? "PC agent online. ComfyUI API online." : `PC agent online. ComfyUI API offline: ${worker.error}` };
+    const workerMessage = worker.ok ? "PC agent online. ComfyUI API online." : `PC agent online. ComfyUI API offline: ${worker.error}`;
+    return { ok: true, message: `${workerMessage} ${productionReadinessMessage(readiness)}` };
+  }
+
+  if (command === "production_check") {
+    const worker = await checkWorkerStatus(config);
+    const readiness = await getProductionReadiness(config, worker.ok, {
+      production_quality: "slow_production",
+      reference_mode: "ipadapter",
+      pixel_upscale: true,
+      checkpoint: config.checkpoint,
+    });
+    state.lastWorkerStatus = worker;
+    return { ok: readiness.ready, message: productionReadinessMessage(readiness) };
   }
 
   if (command === "start_comfyui") {
@@ -718,7 +940,11 @@ async function handlePcCommands(config, state) {
     try {
       const result = await executePcCommand(commandJob, config, state);
       if (!result.alreadyCompleted) {
-        await completeQueueJob(config, commandJob, { ok: true, message: result.message || "Command done." });
+        await completeQueueJob(config, commandJob, {
+          ok: result.ok !== false,
+          message: result.ok === false ? "" : (result.message || "Command done."),
+          error: result.ok === false ? (result.message || "PC command failed") : "",
+        });
       }
       console.log(`[NeuroCine Agent] pc command done: ${commandJob.part_label || commandJob.id}`);
     } catch (e) {
@@ -855,6 +1081,12 @@ async function getWorkerQueueStatus(config, workerOk = false) {
 async function sendHeartbeat(config, workerStatus = null) {
   const worker = workerStatus || await checkWorkerStatus(config);
   const workerQueue = await getWorkerQueueStatus(config, worker.ok);
+  const productionReadiness = await getProductionReadiness(config, worker.ok, {
+    production_quality: "slow_production",
+    reference_mode: "ipadapter",
+    pixel_upscale: true,
+    checkpoint: config.checkpoint,
+  });
   const heartbeat = await fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -865,7 +1097,10 @@ async function sendHeartbeat(config, workerStatus = null) {
       worker_url: config.workerUrl,
       worker_ok: worker.ok,
       worker_error: worker.error,
-      worker_queue: workerQueue,
+      worker_queue: {
+        ...workerQueue,
+        production_readiness: productionReadiness,
+      },
       agent_version: "neurocine-local-agent-v1",
     }),
   }, 15000);

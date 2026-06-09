@@ -11,6 +11,7 @@ const PC_COMMAND_PROVIDER = "pc-command";
 const PC_COMMAND_PROMPT = "__pc_command__";
 const PC_COMMANDS = {
   status: "Проверить ПК",
+  production_check: "Проверить production",
   start_comfyui: "Запустить ComfyUI",
   restart_comfyui: "Перезапустить ComfyUI",
   restart_agent: "Перезапустить агента",
@@ -76,6 +77,7 @@ function publicAgent(row = {}) {
     worker_ok: workerOk,
     worker_error: payload.worker_error || row.error || "",
     worker_queue: payload.worker_queue && typeof payload.worker_queue === "object" ? payload.worker_queue : null,
+    production_readiness: payload.production_readiness || payload.worker_queue?.production_readiness || null,
     last_seen_at: lastSeenAt,
     updated_at: row.updated_at || "",
   };
@@ -83,6 +85,33 @@ function publicAgent(row = {}) {
 
 function cleanQueueText(value = "", max = 220) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function normalizeReadinessItem(item = {}) {
+  return {
+    key: cleanQueueText(item.key, 80),
+    label: cleanQueueText(item.label, 220),
+    file: cleanQueueText(item.file, 220),
+    ok: item.ok === true,
+    required: item.required !== false,
+  };
+}
+
+function normalizeProductionReadiness(value = null) {
+  if (!value || typeof value !== "object") return null;
+  const missing = Array.isArray(value.missing) ? value.missing.map((x) => cleanQueueText(x, 220)).filter(Boolean).slice(0, 20) : [];
+  const warnings = Array.isArray(value.warnings) ? value.warnings.map((x) => cleanQueueText(x, 220)).filter(Boolean).slice(0, 20) : [];
+  return {
+    status: cleanQueueText(value.status, 60),
+    ready: value.ready === true,
+    checked_at: cleanQueueText(value.checked_at || value.checkedAt, 80),
+    comfyui_dir: cleanQueueText(value.comfyui_dir || value.comfyuiDir, 260),
+    worker_online: value.worker_online === true || value.workerOnline === true,
+    missing,
+    warnings,
+    models: Array.isArray(value.models) ? value.models.map(normalizeReadinessItem).slice(0, 20) : [],
+    nodes: Array.isArray(value.nodes) ? value.nodes.map(normalizeReadinessItem).slice(0, 20) : [],
+  };
 }
 
 function normalizeWorkerQueue(value = null) {
@@ -95,6 +124,7 @@ function normalizeWorkerQueue(value = null) {
     status: cleanQueueText(value.status, 80),
     updated_at: cleanQueueText(value.updated_at || value.updatedAt, 60),
     error: cleanQueueText(value.error, 300),
+    production_readiness: normalizeProductionReadiness(value.production_readiness || value.productionReadiness),
     current: {
       prompt_id: cleanQueueText(current.prompt_id || current.promptId, 120),
       part: cleanQueueText(current.part, 80),

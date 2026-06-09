@@ -37,6 +37,7 @@ const DEFAULT_LOCAL_RENDER_PROVIDER = "comfyui";
 const DEFAULT_LOCAL_WORKER_URL = LOCAL_WORKER_URLS[DEFAULT_LOCAL_RENDER_PROVIDER];
 const PC_COMMANDS = [
   { id: "status", label: "Проверить ПК", hint: "агент и ComfyUI" },
+  { id: "production_check", label: "Проверить production", hint: "модели и ноды" },
   { id: "start_comfyui", label: "Запустить ComfyUI", hint: "если API упал" },
   { id: "restart_comfyui", label: "Перезапустить ComfyUI", hint: "остановить и поднять" },
   { id: "restart_agent", label: "Перезапустить агента", hint: "новый процесс агента" },
@@ -2225,6 +2226,13 @@ function buildLocalRenderPayload({
     production_quality: preset.productionQuality || "",
     pixel_upscale: preset.pixelUpscale === true,
     upscale_model: preset.upscaleModel || undefined,
+    required_models: {
+      checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
+      ipadapter_model: preset.ipadapterModel || "",
+      clip_vision_model: preset.clipVisionModel || "",
+      upscale_model: preset.upscaleModel || "",
+      production_quality: preset.productionQuality || "",
+    },
     checkpoint: String(checkpoint || preset.checkpoint || "").trim(),
     width: outputWidth,
     height: outputHeight,
@@ -2503,6 +2511,37 @@ function agentQueueInfo(agent = null, nowMs = Date.now()) {
   };
 }
 
+function productionReadinessInfo(agent = null, nowMs = Date.now()) {
+  const queue = agent?.worker_queue && typeof agent.worker_queue === "object" ? agent.worker_queue : null;
+  const readiness = agent?.production_readiness || queue?.production_readiness;
+  if (!readiness || typeof readiness !== "object") return null;
+  const missing = Array.isArray(readiness.missing) ? readiness.missing.filter(Boolean) : [];
+  const warnings = Array.isArray(readiness.warnings) ? readiness.warnings.filter(Boolean) : [];
+  const models = Array.isArray(readiness.models) ? readiness.models : [];
+  const nodes = Array.isArray(readiness.nodes) ? readiness.nodes : [];
+  const updated = relativeTimeLabel(readiness.checked_at || queue?.updated_at || agent?.last_seen_at || agent?.updated_at, nowMs);
+  const readyCount = [...models, ...nodes].filter((item) => item?.ok).length;
+  const totalCount = [...models, ...nodes].filter((item) => item?.required !== false).length;
+
+  if (readiness.ready === true) {
+    return {
+      status: "online",
+      title: "Production pipeline готов",
+      detail: `Checkpoint/IPAdapter/upscale проверены. Готово: ${readyCount}/${Math.max(readyCount, totalCount)}. Проверено: ${updated}.`,
+      meta: warnings.slice(0, 4).map((item) => `optional: ${item}`),
+    };
+  }
+
+  return {
+    status: "warn",
+    title: "Production pipeline не готов",
+    detail: missing.length
+      ? `Не хватает: ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "..." : ""}. Проверено: ${updated}.`
+      : `Агент ещё не прислал полный production-check. Проверено: ${updated}.`,
+    meta: warnings.slice(0, 3).map((item) => `optional: ${item}`),
+  };
+}
+
 export default function TrailerStoryboardPage() {
   const [projectName, setProjectName] = useState("");
   const [script, setScript] = useState(DEFAULT_SCRIPT);
@@ -2639,6 +2678,7 @@ export default function TrailerStoryboardPage() {
   const effectiveLocalCfg = activeLocalModelPreset.lockQuality === true ? (activeLocalModelPreset.cfg || localCfg) : localCfg;
   const localAgentHealth = useMemo(() => agentHealthInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const localAgentQueue = useMemo(() => agentQueueInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
+  const localProductionReadiness = useMemo(() => productionReadinessInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const usesBaseCheckpoint = /(^|[\\/])sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim()) || /^sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim());
 
   function buildPartPromptForIndex(partIndex, includeFix = true) {
@@ -3041,6 +3081,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     if ((text.includes("перезап") || text.includes("рестарт")) && text.includes("агент")) return "restart_agent";
     if ((text.includes("перезап") || text.includes("рестарт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "restart_comfyui";
     if ((text.includes("запуст") || text.includes("старт")) && (text.includes("comfy") || text.includes("комфи") || text.includes("генератор"))) return "start_comfyui";
+    if (text.includes("production") || text.includes("продак") || text.includes("модел") || text.includes("ноды") || text.includes("nodes") || text.includes("ipadapter") || text.includes("upscale")) return "production_check";
     if (text.includes("пров") || text.includes("статус") || text.includes("связ")) return "status";
     return "";
   }
@@ -3147,7 +3188,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   async function sendPcCommandFromText() {
     const command = parsePcCommandText(pcCommandInput);
     if (!command) {
-      setLocalRenderNotice({ type: "warn", message: "Не понял команду. Напиши: проверь ПК, запусти ComfyUI, перезапусти ComfyUI, перезапусти агента или перезагрузи ПК." });
+      setLocalRenderNotice({ type: "warn", message: "Не понял команду. Напиши: проверь ПК, проверь production, запусти ComfyUI, перезапусти ComfyUI, перезапусти агента или перезагрузи ПК." });
       return;
     }
     const item = PC_COMMANDS.find((x) => x.id === command);
@@ -4129,6 +4170,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     : "создаётся";
   const agentNeedsCommand = localAgentHealth.status !== "online";
   const partRefsReady = referenceReadiness.ready;
+  const productionPipelineBlocked = Boolean(localProductionReadiness && localProductionReadiness.status !== "online");
   const localPrimaryLabel = agentNeedsCommand
     ? "Скопировать команду агента"
     : localRenderAction === "queue-current"
@@ -4137,8 +4179,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         ? "Сначала JSON"
         : !partRefsReady
           ? "Сначала refs"
-          : "В очередь текущий PART";
-  const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length));
+          : productionPipelineBlocked
+            ? "Сначала production"
+            : "В очередь текущий PART";
+  const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length || productionPipelineBlocked));
   async function handleLocalPrimaryAction() {
     if (agentNeedsCommand) {
       await copyLocalAgentCommand();
@@ -4600,7 +4644,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       <button className={`danger${localRenderAction === "clear-queue" ? " is-working" : ""}`} disabled={localRenderBusy || !localAgentToken} onClick={() => clearLocalAgentQueue({ all: true })}>
                         {localRenderAction === "clear-queue" ? "Чищу..." : "Очистить очередь ПК"}
                       </button>
-                      <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length || agentNeedsCommand} onClick={queueAllPartsForLocalAgent}>
+                      <button className={`action-queue${localRenderAction === "queue-all" ? " is-working" : ""}`} disabled={localRenderBusy || !storyboard || !parts.length || agentNeedsCommand || productionPipelineBlocked} onClick={queueAllPartsForLocalAgent}>
                         {localRenderAction === "queue-all" ? "Ставлю всё..." : "В очередь всё"}
                       </button>
                     </div>
@@ -4634,6 +4678,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                     <strong>{localAgentHealth.title}</strong>
                     <span>{localAgentHealth.detail}</span>
                   </div>
+                  {localProductionReadiness ? (
+                    <div className={`agent-queue ${localProductionReadiness.status}`}>
+                      <strong>{localProductionReadiness.title}</strong>
+                      <span>{localProductionReadiness.detail}</span>
+                      {localProductionReadiness.meta?.length ? (
+                        <div className="agent-queue-meta">
+                          {localProductionReadiness.meta.map((item) => <em key={item}>{item}</em>)}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {localAgentQueue ? (
                     <div className={`agent-queue ${localAgentQueue.status}`}>
                       <strong>{localAgentQueue.title}</strong>
@@ -4658,7 +4713,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                       </div>
                     </div>
                     <div className="pc-chat">
-                      <input value={pcCommandInput} onChange={(e) => setPcCommandInput(e.target.value)} placeholder="Напиши: проверь ПК, запусти ComfyUI, перезапусти агента..." />
+                      <input value={pcCommandInput} onChange={(e) => setPcCommandInput(e.target.value)} placeholder="Напиши: проверь ПК, проверь production, запусти ComfyUI..." />
                       <button className="action-service" type="button" disabled={!pcCommandInput.trim() || !localAgentToken} onClick={sendPcCommandFromText}>Отправить</button>
                     </div>
                     <div className="pc-command-grid">
