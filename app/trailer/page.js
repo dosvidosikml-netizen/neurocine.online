@@ -961,6 +961,16 @@ function productionReferenceReadiness(bible = {}) {
   };
 }
 
+function referenceWaitMessage(readiness = {}) {
+  const required = Number(readiness.requiredTotal || 0);
+  const ready = Number(readiness.readyTotal || 0);
+  if (!required) return "";
+  const missing = Array.isArray(readiness.missingLabels) ? readiness.missingLabels : [];
+  const visible = missing.slice(0, 5).join(", ");
+  const tail = missing.length > 5 ? ` и ещё ${missing.length - 5}` : "";
+  return `Сначала дождись refs: готово ${ready} из ${required}${visible ? `. Не хватает: ${visible}${tail}` : ""}.`;
+}
+
 function normalizeProductionBible(bible = {}, { stylePreset = "", styleProfile = null } = {}) {
   const base = createDefaultProductionBible();
   const source = bible && typeof bible === "object" ? bible : {};
@@ -3982,8 +3992,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     setGridUploads({});
     setCroppedFrame("");
     setBibleAction("done");
-    setBibleNotice({ type: result.mode === "fallback" ? "warn" : "success", message: `${result.mode === "fallback" ? "Fallback" : "AI"} собрало: ${charCount} персонаж./животн., ${locCount} локац. Запускаю refs/storyboard.` });
-    await queueReferencesForLocalAgent(next, { quiet: true, skipWithoutAuth: true });
+    setBibleNotice({ type: result.mode === "fallback" ? "warn" : "success", message: `${result.mode === "fallback" ? "Fallback" : "AI"} собрало: ${charCount} персонаж./животн., ${locCount} локац. Ставлю refs в очередь.` });
+    const queued = await queueReferencesForLocalAgent(next, { quiet: false, skipWithoutAuth: false });
+    const readiness = productionReferenceReadiness(next);
+    if (readiness.requiredTotal && !readiness.ready) {
+      const message = queued
+        ? `${referenceWaitMessage(readiness)} После готовности нажми “Сгенерировать JSON”.`
+        : `${referenceWaitMessage(readiness)} Нажми “В очередь refs” и дождись готовности.`;
+      setStatus(message);
+      setBibleNotice({ type: "warn", message });
+      return;
+    }
     await generateTrailer(next);
   }
 
@@ -4156,6 +4175,15 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         });
       } else if (requestBible !== lockedProductionBible) {
         setProductionBible(requestBible);
+      }
+
+      const readiness = productionReferenceReadiness(requestBible);
+      if (readiness.requiredTotal && !readiness.ready) {
+        const message = `${referenceWaitMessage(readiness)} Сначала нажми “В очередь refs” и дождись готовности, потом запускай JSON.`;
+        setStatus(message);
+        setBibleNotice({ type: "warn", message });
+        setLocalRenderNotice({ type: "warn", message });
+        return;
       }
 
       const token = await getAuthToken();
@@ -4609,12 +4637,29 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         ? "Не найдено"
         : "Собрать из сценария";
   function referenceStatusLabel(kind, index, item = {}) {
-    const jobMessage = localRenderJobs[referenceJobIndex(kind, index)]?.message || "";
-    if (item.referenceName) return `ref загружен: ${item.referenceName}`;
+    const job = localRenderJobs[referenceJobIndex(kind, index)] || localQueueJobs[referenceJobIndex(kind, index)] || {};
+    const status = String(job.status || "").toLowerCase();
+    const jobMessage = cleanText(job.message || job.error || "");
+    if (item.referenceName || item.reference) return item.referenceName ? `готово: ${item.referenceName}` : "готово";
+    if (status === "done") return "готово, обнови очередь";
+    if (status === "failed" || status === "error") return jobMessage ? `ошибка: ${jobMessage}` : "ошибка ref";
+    if (status === "running" || status === "rendering") return "генерируется";
+    if (status === "queued" || status === "pending") return "в очереди";
     if (jobMessage) return jobMessage;
-    if (item.referencePrompt) return "auto prompt готов";
-    if (cleanText(item.name || item.role || item.description || item.identity)) return "auto lock готов";
+    if (item.referencePrompt) return "prompt готов, ref не создан";
+    if (cleanText(item.name || item.role || item.description || item.identity)) return "lock готов, ref не создан";
     return "референс не загружен";
+  }
+  function referenceStatusTone(kind, index, item = {}) {
+    const job = localRenderJobs[referenceJobIndex(kind, index)] || localQueueJobs[referenceJobIndex(kind, index)] || {};
+    const status = String(job.status || "").toLowerCase();
+    if (item.referenceName || item.reference || status === "done") return "done";
+    if (status === "failed" || status === "error") return "error";
+    if (status === "running" || status === "rendering") return "working";
+    if (status === "queued" || status === "pending") return "queued";
+    if (item.referencePrompt) return "prompt";
+    if (cleanText(item.name || item.role || item.description || item.identity)) return "warn";
+    return "empty";
   }
   function characterMetaLabel(character = {}) {
     const name = cleanText(character.name || character.id || "Пустой слот");
@@ -4631,6 +4676,10 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     : "создаётся";
   const agentNeedsCommand = localAgentHealth.status !== "online";
   const partRefsReady = referenceReadiness.ready;
+  const jsonRefsBlocked = Boolean(referenceReadiness.requiredTotal && !referenceReadiness.ready);
+  const jsonRefsMessage = jsonRefsBlocked
+    ? `${referenceWaitMessage(referenceReadiness)} После готовности refs можно генерировать JSON.`
+    : "";
   const productionPipelineBlocked = Boolean(localProductionReadiness && localProductionReadiness.status !== "online");
   const localPrimaryLabel = agentNeedsCommand
     ? "Скопировать команду агента"
@@ -4819,6 +4868,12 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
         .ref-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
         .ref-card-head strong{font-size:12px;color:#f7f3ea}
         .ref-card-head span{font-size:11px;color:rgba(247,243,234,.52)}
+        .ref-status{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:5px 8px;max-width:60%;text-align:right;line-height:1.25}
+        .ref-status.done{border-color:rgba(158,232,201,.42);background:rgba(23,58,49,.30);color:#b7ffe3}
+        .ref-status.queued,.ref-status.working{border-color:rgba(255,196,112,.45);background:rgba(74,50,17,.22);color:#ffdca6}
+        .ref-status.error{border-color:rgba(255,154,168,.52);background:rgba(58,18,27,.32);color:#ffb3bd}
+        .ref-status.prompt,.ref-status.warn{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:rgba(247,243,234,.72)}
+        .ref-status.empty{border-color:rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:rgba(247,243,234,.48)}
         .ref-meta{display:grid;gap:3px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:6px;padding:8px 10px}
         .ref-meta b{font-size:13px;color:#f7f3ea}
         .ref-meta span{font-size:12px;line-height:1.35;color:rgba(247,243,234,.66)}
@@ -4936,7 +4991,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="ref-card" key={character.id || i}>
                     <div className="ref-card-head">
                       <strong>{character.id || `CHAR_${i + 1}`}</strong>
-                      <span>{referenceStatusLabel("character", i, character)}</span>
+                      <span className={`ref-status ${referenceStatusTone("character", i, character)}`}>{referenceStatusLabel("character", i, character)}</span>
                     </div>
                     <div className="ref-meta">
                       <b>{characterMetaLabel(character).name}</b>
@@ -4967,7 +5022,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                   <div className="ref-card" key={location.id || i}>
                     <div className="ref-card-head">
                       <strong>{location.id || `LOC_${i + 1}`}</strong>
-                      <span>{referenceStatusLabel("location", i, location)}</span>
+                      <span className={`ref-status ${referenceStatusTone("location", i, location)}`}>{referenceStatusLabel("location", i, location)}</span>
                     </div>
                     <div className="ref-meta">
                       <b>{locationMetaLabel(location).name}</b>
@@ -5009,7 +5064,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
             </div>
 
             <div className="buttons">
-              <button className="primary" disabled={busy || scriptBusy || script.trim().length < 10} onClick={() => generateTrailer()}>{busy ? "Генерация..." : "Сгенерировать JSON"}</button>
+              <button className="primary" disabled={busy || scriptBusy || script.trim().length < 10 || jsonRefsBlocked} onClick={() => generateTrailer()}>{busy ? "Генерация..." : jsonRefsBlocked ? "Сначала refs" : "Сгенерировать JSON"}</button>
               <button disabled={busy || scriptBusy || script.trim().length < 10} onClick={buildLocalPreview}>Локальный тест</button>
               <button disabled={!storyboard} onClick={downloadJson}>Скачать JSON</button>
               <button disabled={busy || scriptBusy} onClick={saveDraftNow}>Сохранить</button>
@@ -5026,6 +5081,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
               {lastSavedAt ? <span className="pill">сохранено локально</span> : null}
             </div>
             {status && <div className="status">{status}</div>}
+            {jsonRefsBlocked ? <div className="error">{jsonRefsMessage}</div> : null}
             {error && <div className="error">{error}</div>}
           </div>
 
@@ -5130,7 +5186,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
                     <div className={`local-notice ${referenceReadiness.ready ? "success" : "warn"}`}>
                       {referenceReadiness.ready
                         ? `Refs готовы: ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}. PART будет использовать character/location anchors.`
-                        : `Refs не готовы: ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}. Не хватает: ${referenceReadiness.missingLabels.slice(0, 4).join(", ")}${referenceReadiness.missingLabels.length > 4 ? "..." : ""}`}
+                        : referenceWaitMessage(referenceReadiness)}
                     </div>
                   ) : null}
                   {usesBaseCheckpoint ? (
