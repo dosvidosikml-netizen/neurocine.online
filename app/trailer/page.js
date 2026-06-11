@@ -2697,7 +2697,7 @@ function queueVisualStatus(job = {}, queueJob = {}, hasGrid = false) {
   if (job.status === "done" || queueJob.status === "done" || hasGrid) return "done";
   if (job.status === "error" || queueJob.status === "failed") return "error";
   if (job.status === "rendering" || queueJob.status === "running") return "rendering";
-  if (job.status === "queued" || queueJob.status === "queued") return "queued";
+  if (job.status === "queued" || queueJob.status === "queued" || queueJob.status === "pending") return "queued";
   return "";
 }
 
@@ -2742,6 +2742,78 @@ function queueProgressInfo({ job = {}, queueJob = {}, hasGrid = false, nowMs = D
     updated: relativeTimeLabel(queueJob.updated_at || queueJob.created_at, nowMs),
     output: formatBytes(queueJob.output_meta?.bytes || job.output_meta?.bytes || 0),
     message: queueJob.progress_message || job.message || (queueJob.status ? `очередь: ${queueJob.status}` : fallbackMessage),
+  };
+}
+
+function referenceProgressInfo({ bible = {}, localRenderJobs = {}, localQueueJobs = {}, nowMs = Date.now() } = {}) {
+  const normalized = normalizeProductionBible(bible);
+  const items = [];
+  const pushItem = (kind, item, index) => {
+    if (!cleanText(item?.name || item?.role || item?.description || item?.identity || item?.referenceName || item?.referencePrompt)) return;
+    const jobKey = referenceJobIndex(kind, index);
+    const job = localRenderJobs[jobKey] || {};
+    const queueJob = localQueueJobs[jobKey] || {};
+    const hasReference = Boolean(item.reference || item.referenceName);
+    const name = cleanText(item.name || item.role || item.description || item.id || (kind === "character" ? "Character" : "Location"));
+    const label = `${kind === "character" ? "CHAR" : "LOC"}_${String(index + 1).padStart(2, "0")} · ${name}`;
+    const progress = queueProgressInfo({
+      job,
+      queueJob,
+      hasGrid: hasReference,
+      nowMs,
+      fallbackMessage: hasReference ? "референс загружен" : "ожидает постановки в очередь",
+    });
+    let status = progress.status || (item.referencePrompt ? "prompt" : "empty");
+    if (hasReference) status = "done";
+    const stage = status === "prompt"
+      ? "промпт готов"
+      : status === "empty"
+        ? "не в очереди"
+        : progress.stage;
+    items.push({
+      kind,
+      index,
+      label,
+      status,
+      stage,
+      progress,
+      queueJob,
+      job,
+      updated: progress.updated,
+      elapsed: progress.elapsed,
+      message: progress.message,
+    });
+  };
+  (Array.isArray(normalized.characters) ? normalized.characters : []).forEach((item, index) => pushItem("character", item, index));
+  (Array.isArray(normalized.locations) ? normalized.locations : []).forEach((item, index) => pushItem("location", item, index));
+
+  const requiredTotal = items.length;
+  const done = items.filter((item) => item.status === "done").length;
+  const rendering = items.filter((item) => item.status === "rendering").length;
+  const queued = items.filter((item) => item.status === "queued").length;
+  const failed = items.filter((item) => item.status === "error").length;
+  const waiting = items.filter((item) => item.status === "prompt" || item.status === "empty").length;
+  const active = rendering > 0 || queued > 0;
+  const current = items.find((item) => item.status === "rendering")
+    || items.find((item) => item.status === "queued")
+    || items.find((item) => item.status === "error")
+    || items.find((item) => item.status === "prompt")
+    || null;
+  const readyPercent = requiredTotal ? Math.round((done / requiredTotal) * 100) : 0;
+  const status = failed ? "error" : rendering ? "rendering" : queued ? "queued" : done === requiredTotal && requiredTotal ? "done" : waiting ? "warn" : "idle";
+
+  return {
+    items,
+    requiredTotal,
+    done,
+    rendering,
+    queued,
+    failed,
+    waiting,
+    active,
+    current,
+    readyPercent,
+    status,
   };
 }
 
@@ -2810,7 +2882,7 @@ function agentQueueInfo(agent = null, nowMs = Date.now()) {
   if (queue.error) {
     return {
       status: "warn",
-      title: "ComfyUI queue: ошибка",
+      title: "Очередь ComfyUI: ошибка",
       detail: `${queue.error}. Обновлено: ${updated}.`,
       meta,
     };
@@ -3010,6 +3082,12 @@ export default function TrailerStoryboardPage() {
   const localAgentHealth = useMemo(() => agentHealthInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const localAgentQueue = useMemo(() => agentQueueInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const localProductionReadiness = useMemo(() => productionReadinessInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
+  const refsProgress = useMemo(() => referenceProgressInfo({
+    bible: lockedProductionBible,
+    localRenderJobs,
+    localQueueJobs,
+    nowMs: queueClock,
+  }), [lockedProductionBible, localRenderJobs, localQueueJobs, queueClock]);
   const usesBaseCheckpoint = /(^|[\\/])sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim()) || /^sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim());
 
   function buildPartPromptForIndex(partIndex, includeFix = true) {
@@ -3705,7 +3783,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }, [currentGridUpload, safeFrameIndex, partScenes.length, cropInset]);
 
   useEffect(() => {
-    const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
+    const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "pending" || job?.status === "running");
     const activeCommands = pcCommandJobs.some((job) => job?.status === "queued" || job?.status === "running");
     if (!localAgentToken) return undefined;
     const timer = window.setInterval(() => {
@@ -3719,7 +3797,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }, [localQueueJobs, pcCommandJobs, localAgentToken, projectSessionId]);
 
   useEffect(() => {
-    const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "running");
+    const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "pending" || job?.status === "running");
     const activeCommands = pcCommandJobs.some((job) => job?.status === "queued" || job?.status === "running");
     const hasAgentStatus = Boolean(localAgentStatus?.last_seen_at || localAgentStatus?.updated_at);
     if (!active && !activeCommands && !hasAgentStatus) return undefined;
@@ -4513,9 +4591,9 @@ Generate this as a high-resolution production reference board for later IPAdapte
     const jobs = buildReferenceJobs(normalized, { includeStyle: options.includeStyle === true });
     if (!jobs.length) {
       if (!quiet) {
-        setStatus("Character/location refs уже готовы или сценарий не дал героев/локаций.");
-        setBibleNotice({ type: "success", message: "Character/location refs уже готовы или нечего ставить в очередь." });
-        setLocalRenderNotice({ type: "success", message: "Character/location refs уже готовы или нечего ставить в очередь." });
+        setStatus("Референсы персонажей/локаций уже готовы или сценарий не дал героев/локаций.");
+        setBibleNotice({ type: "success", message: "Референсы персонажей/локаций уже готовы или нечего ставить в очередь." });
+        setLocalRenderNotice({ type: "success", message: "Референсы персонажей/локаций уже готовы или нечего ставить в очередь." });
       }
       return false;
     }
@@ -4523,8 +4601,8 @@ Generate this as a high-resolution production reference board for later IPAdapte
     if (localAgentToken !== token) setLocalAgentToken(token);
     if (!quiet) {
       setLocalRenderAction("queue-refs");
-      setBibleNotice({ type: "working", message: `Ставлю character/location refs в очередь: ${jobs.length} заданий...` });
-      setLocalRenderNotice({ type: "working", message: `Ставлю character/location refs в очередь: ${jobs.length} заданий...` });
+      setBibleNotice({ type: "working", message: `Ставлю референсы персонажей/локаций в очередь: ${jobs.length} заданий...` });
+      setLocalRenderNotice({ type: "working", message: `Ставлю референсы персонажей/локаций в очередь: ${jobs.length} заданий...` });
     }
     try {
       const authToken = await getAuthToken();
@@ -4557,16 +4635,16 @@ Generate this as a high-resolution production reference board for later IPAdapte
       const skipped = Math.max(0, Number(data.skipped_duplicate_count || 0));
       const duplicateNote = skipped ? ` Уже есть в очереди/рендере: ${skipped} ref-заданий, дубли не созданы.` : "";
       if (!quiet) {
-        setStatus(`Character/location refs в очереди: ${inserted} новых.${duplicateNote}`);
-        setBibleNotice({ type: "success", message: `Character/location refs в очереди: ${inserted} новых.${duplicateNote}` });
-        setLocalRenderNotice({ type: "success", message: `Character/location refs в очереди: ${inserted} новых.${duplicateNote}` });
+        setStatus(`Референсы персонажей/локаций в очереди: ${inserted} новых.${duplicateNote}`);
+        setBibleNotice({ type: "success", message: `Референсы персонажей/локаций в очереди: ${inserted} новых.${duplicateNote}` });
+        setLocalRenderNotice({ type: "success", message: `Референсы персонажей/локаций в очереди: ${inserted} новых.${duplicateNote}` });
       }
       return true;
     } catch (e) {
       if (!quiet) {
-        setError(`Auto refs не поставлены в очередь: ${e.message}`);
-        setBibleNotice({ type: "error", message: `Auto refs не поставлены в очередь: ${e.message}` });
-        setLocalRenderNotice({ type: "error", message: `Auto refs не поставлены в очередь: ${e.message}` });
+        setError(`Авто-референсы не поставлены в очередь: ${e.message}`);
+        setBibleNotice({ type: "error", message: `Авто-референсы не поставлены в очередь: ${e.message}` });
+        setLocalRenderNotice({ type: "error", message: `Авто-референсы не поставлены в очередь: ${e.message}` });
       }
       return false;
     } finally {
@@ -4889,10 +4967,44 @@ Generate this as a high-resolution production reference board for later IPAdapte
         .grid-cell.active:after{content:"";position:absolute;inset:var(--trim);border:3px solid #ff334f;box-shadow:0 0 0 1px rgba(0,0,0,.65),0 0 18px rgba(227,52,79,.35);pointer-events:none}
         .grid-cell .badge{position:absolute;top:8px;left:8px;line-height:1;border-radius:999px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.18);padding:6px 8px;font-size:11px}
         .grid-cell.active .badge{background:#e3344f;color:#fff}
+        @keyframes refPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,196,112,.0)}50%{box-shadow:0 0 0 3px rgba(255,196,112,.16)}}
+        @keyframes refRenderGlow{0%,100%{box-shadow:0 0 0 0 rgba(227,52,79,.0)}50%{box-shadow:0 0 0 3px rgba(227,52,79,.22),0 0 24px rgba(227,52,79,.20)}}
+        @keyframes refShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
         .production-bible{border:1px solid rgba(158,232,201,.22);background:rgba(23,58,49,.13);border-radius:8px;padding:12px;display:grid;gap:12px}
         .production-bible h3{margin:0;font-size:13px;color:#b7ffe3}
+        .refs-progress{border:1px solid rgba(255,255,255,.12);background:rgba(9,11,16,.55);border-radius:8px;padding:11px;display:grid;gap:10px}
+        .refs-progress.rendering{border-color:rgba(227,52,79,.45);background:rgba(58,18,27,.20)}
+        .refs-progress.queued,.refs-progress.warn{border-color:rgba(255,196,112,.42);background:rgba(74,50,17,.18)}
+        .refs-progress.done{border-color:rgba(158,232,201,.45);background:rgba(23,58,49,.26)}
+        .refs-progress.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.32)}
+        .refs-progress-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+        .refs-progress-top div{display:grid;gap:3px}
+        .refs-progress-top b{font-size:13px;color:#f7f3ea}
+        .refs-progress-top span{font-size:12px;color:rgba(247,243,234,.66);line-height:1.35}
+        .refs-progress-top strong{font-size:20px;color:#b7ffe3;white-space:nowrap}
+        .refs-track{height:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+        .refs-track > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#e3344f,#ffdca6,#9ee8c9);transition:width .35s ease}
+        .refs-track.active:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);animation:refShimmer 1.4s linear infinite}
+        .refs-stats,.refs-health{display:flex;flex-wrap:wrap;gap:6px}
+        .refs-stats span,.refs-health span{border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 8px;font-size:11px;color:rgba(247,243,234,.76)}
+        .refs-stats .done{border-color:rgba(158,232,201,.36);color:#b7ffe3}
+        .refs-stats .rendering{border-color:rgba(227,52,79,.45);color:#ffb3bd}
+        .refs-stats .queued,.refs-stats .waiting{border-color:rgba(255,196,112,.38);color:#ffdca6}
+        .refs-stats .error{border-color:rgba(255,154,168,.45);color:#ffb3bd}
+        .refs-current{border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);border-radius:6px;padding:9px 10px;display:grid;gap:4px}
+        .refs-current b{font-size:12px;color:#f7f3ea}
+        .refs-current span{font-size:12px;color:rgba(247,243,234,.70);line-height:1.35}
+        .refs-current small{font-size:11px;color:rgba(247,243,234,.52)}
+        .refs-health .online{border-color:rgba(158,232,201,.38);color:#b7ffe3}
+        .refs-health .rendering{border-color:rgba(227,52,79,.45);color:#ffb3bd}
+        .refs-health .queued,.refs-health .warn{border-color:rgba(255,196,112,.38);color:#ffdca6}
+        .refs-health .offline,.refs-health .error{border-color:rgba(255,154,168,.45);color:#ffb3bd}
         .ref-grid{display:grid;grid-template-columns:1fr;gap:10px}
         .ref-card{border:1px solid rgba(255,255,255,.10);background:rgba(9,11,16,.45);border-radius:6px;padding:10px;display:grid;gap:8px}
+        .ref-card.queued{border-color:rgba(255,196,112,.38);animation:refPulse 1.8s ease-in-out infinite}
+        .ref-card.working{border-color:rgba(227,52,79,.52);animation:refRenderGlow 1.4s ease-in-out infinite}
+        .ref-card.done{border-color:rgba(158,232,201,.42);background:rgba(23,58,49,.18)}
+        .ref-card.error{border-color:rgba(255,154,168,.55);background:rgba(58,18,27,.22)}
         .ref-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
         .ref-card-head strong{font-size:12px;color:#f7f3ea}
         .ref-card-head span{font-size:11px;color:rgba(247,243,234,.52)}
@@ -5011,12 +5123,52 @@ Generate this as a high-resolution production reference board for later IPAdapte
                 <span className="pill">поля необязательны</span>
               </div>
               <div className={`bible-notice ${bibleNotice.type || "idle"}`}>{bibleNotice.message}</div>
+              {refsProgress.requiredTotal ? (
+                <div className={`refs-progress ${refsProgress.status}`}>
+                  <div className="refs-progress-top">
+                    <div>
+                      <b>Прогресс референсов</b>
+                      <span>
+                        {refsProgress.done === refsProgress.requiredTotal
+                          ? "Все референсы персонажей/локаций готовы. JSON можно генерировать."
+                          : refsProgress.rendering
+                            ? "ПК-агент рендерит референс через ComfyUI."
+                            : refsProgress.queued
+                              ? "Референсы стоят в очереди. Страница обновляет статус автоматически."
+                              : "Референсы ещё не готовы. Сначала поставь их в очередь."}
+                      </span>
+                    </div>
+                    <strong>{refsProgress.done}/{refsProgress.requiredTotal}</strong>
+                  </div>
+                  <div className={`refs-track ${refsProgress.active ? "active" : ""}`}>
+                    <span style={{ width: `${refsProgress.readyPercent}%` }} />
+                  </div>
+                  <div className="refs-stats">
+                    <span className="done">готово {refsProgress.done}</span>
+                    <span className="rendering">генерируется {refsProgress.rendering}</span>
+                    <span className="queued">в очереди {refsProgress.queued}</span>
+                    <span className="waiting">ожидает {refsProgress.waiting}</span>
+                    {refsProgress.failed ? <span className="error">ошибки {refsProgress.failed}</span> : null}
+                  </div>
+                  {refsProgress.current ? (
+                    <div className="refs-current">
+                      <b>Сейчас: {refsProgress.current.label}</b>
+                      <span>{refsProgress.current.stage} · {refsProgress.current.message}</span>
+                      <small>время: {refsProgress.current.elapsed} · обновлено: {refsProgress.current.updated}{refsProgress.current.progress.output ? ` · файл: ${refsProgress.current.progress.output}` : ""}</small>
+                    </div>
+                  ) : null}
+                  <div className="refs-health">
+                    <span className={localAgentHealth.status}>{localAgentHealth.title}</span>
+                    {localAgentQueue ? <span className={localAgentQueue.status}>{localAgentQueue.title}</span> : <span className="warn">Очередь ComfyUI: нет данных</span>}
+                  </div>
+                </div>
+              ) : null}
               <div className="hint">Production режим: “Собрать из сценария” запускает AI-анализ и вытягивает людей, животных, локации и ref-prompts. Локальный разбор используется только как fallback и будет подписан явно.</div>
 
               <h3>Персонажи</h3>
               <div className="ref-grid">
                 {lockedProductionBible.characters.map((character, i) => (
-                  <div className="ref-card" key={character.id || i}>
+                  <div className={`ref-card ${referenceStatusTone("character", i, character)}`} key={character.id || i}>
                     <div className="ref-card-head">
                       <strong>{character.id || `CHAR_${i + 1}`}</strong>
                       <span className={`ref-status ${referenceStatusTone("character", i, character)}`}>{referenceStatusLabel("character", i, character)}</span>
@@ -5047,7 +5199,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
               <h3>Локации</h3>
               <div className="ref-grid">
                 {lockedProductionBible.locations.map((location, i) => (
-                  <div className="ref-card" key={location.id || i}>
+                  <div className={`ref-card ${referenceStatusTone("location", i, location)}`} key={location.id || i}>
                     <div className="ref-card-head">
                       <strong>{location.id || `LOC_${i + 1}`}</strong>
                       <span className={`ref-status ${referenceStatusTone("location", i, location)}`}>{referenceStatusLabel("location", i, location)}</span>
@@ -5213,7 +5365,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
                   {referenceReadiness.requiredTotal ? (
                     <div className={`local-notice ${referenceReadiness.ready ? "success" : "warn"}`}>
                       {referenceReadiness.ready
-                        ? `Refs готовы: ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}. PART будет использовать character/location anchors.`
+                        ? `Референсы готовы: ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}. PART будет использовать якоря персонажей/локаций.`
                         : referenceWaitMessage(referenceReadiness)}
                     </div>
                   ) : null}
