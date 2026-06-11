@@ -3001,7 +3001,12 @@ export default function TrailerStoryboardPage() {
     () => normalizeProductionBible(productionBible, { stylePreset, styleProfile }),
     [productionBible, stylePreset, styleProfile]
   );
-  const referenceReadiness = useMemo(() => productionReferenceReadiness(lockedProductionBible), [lockedProductionBible]);
+  const bibleScanActive = bibleAction === "working";
+  const bibleForReadiness = useMemo(
+    () => (bibleScanActive ? createDefaultProductionBible() : lockedProductionBible),
+    [bibleScanActive, lockedProductionBible]
+  );
+  const referenceReadiness = useMemo(() => productionReferenceReadiness(bibleForReadiness), [bibleForReadiness]);
   const scenes = useMemo(() => (Array.isArray(storyboard?.scenes) ? storyboard.scenes : []), [storyboard]);
   const parts = useMemo(() => splitScenesIntoParts(scenes, partSize), [scenes, partSize]);
   const safePart = Math.max(0, Math.min(activePart, Math.max(0, parts.length - 1)));
@@ -3083,11 +3088,11 @@ export default function TrailerStoryboardPage() {
   const localAgentQueue = useMemo(() => agentQueueInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const localProductionReadiness = useMemo(() => productionReadinessInfo(localAgentStatus, queueClock), [localAgentStatus, queueClock]);
   const refsProgress = useMemo(() => referenceProgressInfo({
-    bible: lockedProductionBible,
+    bible: bibleForReadiness,
     localRenderJobs,
     localQueueJobs,
     nowMs: queueClock,
-  }), [lockedProductionBible, localRenderJobs, localQueueJobs, queueClock]);
+  }), [bibleForReadiness, localRenderJobs, localQueueJobs, queueClock]);
   const usesBaseCheckpoint = /(^|[\\/])sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim()) || /^sd_xl_base_1\.0\.safetensors$/i.test(String(localCheckpoint || "").trim());
 
   function buildPartPromptForIndex(partIndex, includeFix = true) {
@@ -5115,15 +5120,37 @@ Generate this as a high-resolution production reference board for later IPAdapte
                 </div>
               </div>
               <div className="pills">
-                <span className="pill active">{filledProductionCharacters(lockedProductionBible).length} персонаж.</span>
-                <span className="pill">{filledProductionLocations(lockedProductionBible).length} локац.</span>
-                <span className={`pill ${referenceReadiness.ready ? "active" : ""}`}>refs {referenceReadiness.readyTotal}/{referenceReadiness.requiredTotal}</span>
+                {bibleScanActive ? <span className="pill active">AI сканирует</span> : null}
+                <span className={`pill ${!bibleScanActive ? "active" : ""}`}>{bibleScanActive ? "персонажи: ждём AI" : `${filledProductionCharacters(lockedProductionBible).length} персонаж.`}</span>
+                <span className="pill">{bibleScanActive ? "локации: ждём AI" : `${filledProductionLocations(lockedProductionBible).length} локац.`}</span>
+                <span className={`pill ${!bibleScanActive && referenceReadiness.ready ? "active" : ""}`}>{bibleScanActive ? "refs: после AI" : `refs ${referenceReadiness.readyTotal}/${referenceReadiness.requiredTotal}`}</span>
                 <span className="pill">{lockedProductionBible.style?.referenceName ? "style ref" : "style text"}</span>
                 <span className="pill">до 5 героев</span>
                 <span className="pill">поля необязательны</span>
               </div>
               <div className={`bible-notice ${bibleNotice.type || "idle"}`}>{bibleNotice.message}</div>
-              {refsProgress.requiredTotal ? (
+              {bibleScanActive ? (
+                <div className="refs-progress queued">
+                  <div className="refs-progress-top">
+                    <div>
+                      <b>AI анализирует сценарий</b>
+                      <span>Сейчас система заново ищет персонажей, животных, локации, props и ref-prompts. Старые refs не используются.</span>
+                    </div>
+                    <strong>AI</strong>
+                  </div>
+                  <div className="refs-track active">
+                    <span style={{ width: "45%" }} />
+                  </div>
+                  <div className="refs-stats">
+                    <span className="queued">сканирование</span>
+                    <span className="waiting">refs появятся после AI</span>
+                  </div>
+                  <div className="refs-current">
+                    <b>Сейчас: production bible</b>
+                    <span>Дожидаемся результата AI. Количество refs пока неизвестно.</span>
+                  </div>
+                </div>
+              ) : refsProgress.requiredTotal ? (
                 <div className={`refs-progress ${refsProgress.status}`}>
                   <div className="refs-progress-top">
                     <div>
@@ -5165,6 +5192,12 @@ Generate this as a high-resolution production reference board for later IPAdapte
               ) : null}
               <div className="hint">Production режим: “Собрать из сценария” запускает AI-анализ и вытягивает людей, животных, локации и ref-prompts. Локальный разбор используется только как fallback и будет подписан явно.</div>
 
+              {bibleScanActive ? (
+                <div className="local-notice warn">
+                  Старая библиотека скрыта на время анализа. После завершения AI здесь появятся новые персонажи, локации и ref-prompts именно для текущего сценария.
+                </div>
+              ) : (
+                <>
               <h3>Персонажи</h3>
               <div className="ref-grid">
                 {lockedProductionBible.characters.map((character, i) => (
@@ -5241,6 +5274,8 @@ Generate this as a high-resolution production reference board for later IPAdapte
                   <label>Style negative<textarea className="compact-area" value={lockedProductionBible.style?.negative || ""} onChange={(e) => updateProductionStyle({ negative: e.target.value })} placeholder="что стилю запрещено добавлять" /></label>
                 </details>
               </div>
+                </>
+              )}
             </div>
 
             <div className="buttons">
