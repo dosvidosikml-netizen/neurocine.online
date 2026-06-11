@@ -254,13 +254,15 @@ async function startComfyUi(config) {
   if (config.provider !== "comfyui") throw new Error("Start ComfyUI command requires provider=comfyui.");
   if (!config.comfyuiDir || !config.comfyuiMain) throw new Error("Missing ComfyUI path. Pass --comfyui-dir if needed.");
   const port = workerPort(config.workerUrl, 8188);
+  const timeoutMs = Math.max(30000, Number(config.comfyuiStartTimeoutMs || 120000) || 120000);
+  const startedAt = Date.now();
   runDetached(config.python, [config.comfyuiMain, "--listen", "127.0.0.1", "--port", String(port)], { cwd: config.comfyuiDir });
-  for (let i = 0; i < 20; i += 1) {
-    await sleep(1500);
+  while (Date.now() - startedAt < timeoutMs) {
+    await sleep(2000);
     const status = await checkWorkerStatus(config);
     if (status.ok) return `ComfyUI started on port ${port}.`;
   }
-  throw new Error("ComfyUI start command was sent, but API did not become ready.");
+  throw new Error(`ComfyUI start command was sent, but API did not become ready within ${Math.round(timeoutMs / 1000)} seconds.`);
 }
 
 async function autoStartWorkerIfNeeded(config, state, reason = "worker offline") {
@@ -1461,6 +1463,7 @@ async function main() {
     heartbeatMs: Math.max(5000, Number(arg("heartbeat", "8000")) || 8000),
     autoStartWorker: String(arg("auto-start-worker", process.env.NEUROCINE_AUTO_START_WORKER || "true")).toLowerCase() !== "false",
     autoStartCooldownMs: Math.max(10000, Number(arg("auto-start-cooldown", "60000")) || 60000),
+    comfyuiStartTimeoutMs: Math.max(30000, Number(arg("comfyui-start-timeout", process.env.COMFYUI_START_TIMEOUT || "120000")) || 120000),
   };
   config.comfyuiMain = config.comfyuiMain || (config.comfyuiDir ? path.join(config.comfyuiDir, "main.py") : "");
 
