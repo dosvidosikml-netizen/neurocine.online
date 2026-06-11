@@ -2439,6 +2439,13 @@ function normalizeLocalImageData(value) {
   return `data:image/png;base64,${raw}`;
 }
 
+function dataUrlImageExtension(value = "") {
+  const mime = String(value || "").match(/^data:image\/([^;]+);base64,/i)?.[1]?.toLowerCase() || "png";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg";
+  if (mime.includes("webp")) return "webp";
+  return "png";
+}
+
 function stableSeedFromText(value = "") {
   const text = String(value || "neurocine-trailer");
   let hash = 2166136261;
@@ -3115,7 +3122,7 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   function applyReferenceJobImage(job = {}) {
     const ref = decodeReferenceJobIndex(job.part_index);
     if (!ref || !job.image_data) return false;
-    const referenceName = `${job.part_label || "AUTO REF"}.jpg`;
+    const referenceName = `${job.part_label || "AUTO REF"}.${dataUrlImageExtension(job.image_data)}`;
     setProductionBible((prev) => {
       const next = normalizeProductionBible(prev, { stylePreset, styleProfile });
       if (ref.kind === "character") {
@@ -3132,8 +3139,14 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
   }
 
   function buildReferenceLocalPayload(prompt, meta = {}) {
+    const isCharacterRef = meta.kind === "character";
+    const isLocationRef = meta.kind === "location";
+    const productionRefPrompt = cleanText(`${prompt}
+
+REFERENCE PRODUCTION QUALITY LOCK:
+Generate this as a high-resolution production reference board for later IPAdapter use, not a draft preview. Every panel must be sharp enough to reuse as an identity/location anchor. Preserve micro-detail, clear silhouettes, readable material texture, stable proportions and clean separation between reference panels. Avoid muddy haze, low-detail faces, smeared fur, soft full-frame blur, compression artifacts and tiny unreadable thumbnails.`);
     const payload = buildLocalRenderPayload({
-      prompt,
+      prompt: productionRefPrompt,
       provider: localRenderProvider,
       modelPreset: localModelPreset,
       checkpoint: localCheckpoint,
@@ -3149,28 +3162,43 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
     payload.reference_index = meta.index;
     payload.reference_id = meta.id || "";
     payload.production_bible = stripProductionBibleImages(meta.bible || lockedProductionBible);
-    payload.seed = stableSeedFromText(`${projectName || "trailer"}|${script}|auto-reference|${meta.kind}|${meta.index}|${prompt}`);
+    payload.seed = stableSeedFromText(`${projectName || "trailer"}|${script}|auto-reference|${meta.kind}|${meta.index}|${productionRefPrompt}`);
     payload.filename_prefix = `neurocine_${meta.kind || "ref"}_${meta.index || 0}`;
-    if (meta.kind === "character") {
-      payload.render_mode = "character_reference_sheet";
+    if (isCharacterRef || isLocationRef) {
+      payload.production_quality = "production_reference_hires";
+      payload.workflow_mode = "sdxl_hires";
       payload.reference_mode = "none";
-      payload.width = 1536;
-      payload.height = 864;
-      payload.base_width = 1368;
-      payload.base_height = 768;
-      payload.hires_steps = Math.max(14, Number(payload.hires_steps || 0));
-      payload.hires_denoise = 0.24;
+      payload.pixel_upscale = true;
+      payload.upscale_model = payload.upscale_model || "RealESRGAN_x4plus.pth";
+      payload.final_downscale_method = payload.final_downscale_method || "lanczos";
+      payload.required_models = {
+        ...(payload.required_models || {}),
+        checkpoint: payload.checkpoint,
+        upscale_model: payload.upscale_model,
+        production_quality: "production_reference_hires",
+      };
+      payload.width = 1792;
+      payload.height = 1008;
+      payload.base_width = 1536;
+      payload.base_height = 864;
+      payload.steps = Math.max(44, Number(payload.steps || 0));
+      payload.hires_steps = Math.max(22, Number(payload.hires_steps || 0));
+      payload.hires_sampler_name = payload.hires_sampler_name || "dpmpp_sde";
+      payload.hires_scheduler = payload.hires_scheduler || "karras";
+      payload.sampler_name = payload.sampler_name || "dpmpp_sde";
+      payload.scheduler = payload.scheduler || "karras";
+      payload.cfg_scale = Number(payload.cfg_scale || payload.cfg || 4.4);
+      payload.reference_output_format = "png";
+      payload.reference_lossless = true;
+    }
+    if (isCharacterRef) {
+      payload.render_mode = "character_reference_sheet";
+      payload.hires_denoise = Math.min(0.2, Number(payload.hires_denoise || 0.2));
       payload.negative_prompt = characterReferenceNegativePrompt();
     }
-    if (meta.kind === "location") {
+    if (isLocationRef) {
       payload.render_mode = "location_reference_board";
-      payload.reference_mode = "none";
-      payload.width = 1536;
-      payload.height = 864;
-      payload.base_width = 1368;
-      payload.base_height = 768;
-      payload.hires_steps = Math.max(14, Number(payload.hires_steps || 0));
-      payload.hires_denoise = 0.22;
+      payload.hires_denoise = Math.min(0.18, Number(payload.hires_denoise || 0.18));
       payload.negative_prompt = characterReferenceNegativePrompt();
     }
     return payload;
