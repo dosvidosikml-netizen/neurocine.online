@@ -263,6 +263,30 @@ async function startComfyUi(config) {
   throw new Error("ComfyUI start command was sent, but API did not become ready.");
 }
 
+async function autoStartWorkerIfNeeded(config, state, reason = "worker offline") {
+  if (!config.autoStartWorker || config.provider !== "comfyui") return false;
+  const now = Date.now();
+  const last = Number(state.lastAutoStartAt || 0);
+  if (state.autoStartBusy) return false;
+  if (last && now - last < config.autoStartCooldownMs) return false;
+
+  state.autoStartBusy = true;
+  state.lastAutoStartAt = now;
+  try {
+    console.log(`[NeuroCine Agent] ComfyUI offline (${reason}); auto-starting...`);
+    const message = await startComfyUi(config);
+    state.lastWorkerStatus = await checkWorkerStatus(config);
+    console.log(`[NeuroCine Agent] ${message}`);
+    return state.lastWorkerStatus.ok === true;
+  } catch (e) {
+    state.lastWorkerStatus = await checkWorkerStatus(config);
+    console.error(`[NeuroCine Agent] ComfyUI auto-start failed: ${e.message}`);
+    return false;
+  } finally {
+    state.autoStartBusy = false;
+  }
+}
+
 async function pathExists(filePath = "") {
   if (!filePath) return false;
   try {
@@ -1435,6 +1459,8 @@ async function main() {
     comfyuiMain: arg("comfyui-main", ""),
     intervalMs: Math.max(1000, Number(arg("interval", "3000")) || 3000),
     heartbeatMs: Math.max(5000, Number(arg("heartbeat", "8000")) || 8000),
+    autoStartWorker: String(arg("auto-start-worker", process.env.NEUROCINE_AUTO_START_WORKER || "true")).toLowerCase() !== "false",
+    autoStartCooldownMs: Math.max(10000, Number(arg("auto-start-cooldown", "60000")) || 60000),
   };
   config.comfyuiMain = config.comfyuiMain || (config.comfyuiDir ? path.join(config.comfyuiDir, "main.py") : "");
 
@@ -1447,13 +1473,18 @@ async function main() {
   console.log(`[NeuroCine Agent] provider=${config.provider} worker=${config.workerUrl}`);
   console.log(`[NeuroCine Agent] grid composer python=${config.python}`);
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui dir=${config.comfyuiDir || "not set"}`);
+  if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui auto-start=${config.autoStartWorker ? "on" : "off"}`);
   console.log("[NeuroCine Agent] ждёт задания...");
-  const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" } };
+  const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" }, autoStartBusy: false, lastAutoStartAt: 0 };
   startHeartbeatLoop(config, state);
 
   while (true) {
     try {
       await handlePcCommands(config, state);
+
+      if (!state.lastWorkerStatus.ok) {
+        await autoStartWorkerIfNeeded(config, state, state.lastWorkerStatus.error || "worker offline");
+      }
 
       if (!state.lastWorkerStatus.ok) {
         await sleep(config.intervalMs);
