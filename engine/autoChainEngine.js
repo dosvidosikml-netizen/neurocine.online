@@ -244,6 +244,60 @@ function formatLocationLock(storyboard = {}) {
   ].filter(Boolean).map(cleanText).join("; ");
 }
 
+function productionBibleArray(storyboard = {}, key) {
+  const bible = storyboard?.production_bible || storyboard?.ai_bible || {};
+  return Array.isArray(bible?.[key]) ? bible[key] : [];
+}
+
+function formatProductionBibleLibrary(storyboard = {}) {
+  const chars = productionBibleArray(storyboard, "characters");
+  const locs = productionBibleArray(storyboard, "locations");
+  const charLines = chars
+    .filter((x) => cleanText(x?.name || x?.role || x?.identity || x?.description))
+    .slice(0, 8)
+    .map((x, i) => {
+      const id = cleanText(x.id || `CHAR_${String(i + 1).padStart(2, "0")}`);
+      const name = toPromptEnglish(x.name || id, { fallback: id });
+      const role = toPromptEnglish(x.role || "scripted character", { fallback: "scripted character" });
+      const kind = toPromptEnglish(x.kind || "", { fallback: "" });
+      const identity = toPromptEnglish(x.identity || x.description || x.visual_identity || "", { fallback: "same locked identity from the production bible reference sheet" });
+      const wardrobe = toPromptEnglish(x.wardrobe || x.clothing || x.body_lock || "", { fallback: "" });
+      const forbidden = toPromptEnglish(x.forbidden || x.forbidden_changes || "no different actor, no species drift, no face drift, no wardrobe/body redesign", { fallback: "no redesign" });
+      return `${id} / ${name}${kind ? ` / ${kind}` : ""}: ${role}; ${identity}${wardrobe ? `; wardrobe/body: ${wardrobe}` : ""}; forbidden: ${forbidden}`;
+    })
+    .join("\n");
+  const locLines = locs
+    .filter((x) => cleanText(x?.name || x?.description || x?.materials))
+    .slice(0, 8)
+    .map((x, i) => {
+      const id = cleanText(x.id || `LOC_${String(i + 1).padStart(2, "0")}`);
+      const name = toPromptEnglish(x.name || id, { fallback: id });
+      const desc = toPromptEnglish(x.description || x.main || "", { fallback: "same locked scripted location" });
+      const materials = toPromptEnglish(x.materials || "", { fallback: "" });
+      const lighting = toPromptEnglish(x.lighting || "", { fallback: "" });
+      const forbidden = toPromptEnglish(x.forbidden || "", { fallback: "" });
+      return `${id} / ${name}: ${desc}${materials ? `; materials: ${materials}` : ""}${lighting ? `; lighting: ${lighting}` : ""}${forbidden ? `; forbidden: ${forbidden}` : ""}`;
+    })
+    .join("\n");
+  return [
+    charLines ? `PRODUCTION BIBLE CHARACTERS:\n${charLines}` : "",
+    locLines ? `PRODUCTION BIBLE LOCATIONS:\n${locLines}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+function formatSceneCastContract(scene = {}) {
+  const allowed = toPromptEnglish(scene.allowed_characters || "", { fallback: "" });
+  if (!allowed) {
+    return "CELL CAST CONTRACT: no visible people, animals, bodies, faces, hands, silhouettes, shadows or reflections unless the source line explicitly names them.";
+  }
+  return `CELL CAST CONTRACT: visible cast allowed in this cell: ${allowed}. Render ONLY these listed people/animals. Match their identity/body/wardrobe/species from CAST LOCK / PRODUCTION BIBLE. All other cast members, extras, silhouettes, shadows and reflections are forbidden in this cell.`;
+}
+
+function formatSceneLocationContract(scene = {}) {
+  const allowed = toPromptEnglish(scene.allowed_location || scene.location || "", { fallback: "" });
+  return `CELL LOCATION CONTRACT: ${allowed || "use only the scripted location slice for this source line"}. Do not move this cell to a new room, outdoor area, vehicle, era or architecture unless the source line explicitly says so.`;
+}
+
 export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHero", strictLevel = "hard" } = {}) {
   const sourceStyle = toPromptEnglish(styleProfile?.style_lock || storyboard?.global_style_lock || "", { fallback: "" });
   const world = toPromptEnglish(storyboard?.world_lock || storyboard?.project_type || "same cinematic universe", { fallback: "same cinematic universe" });
@@ -251,6 +305,7 @@ export function buildWorldLock({ storyboard, styleProfile, chainMode = "worldHer
   const trailerMode = isTrailerStoryboard(storyboard);
   const castLock = formatCastLock(storyboard);
   const locationLock = formatLocationLock(storyboard);
+  const productionBible = formatProductionBibleLibrary(storyboard);
   const styleBible = toPromptEnglish(storyboard?.style_bible || storyboard?.master_style || "", { fallback: "" });
   const heroLine = chars.length
     ? chars.map((c, i) => `${toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` })}: ${toPromptEnglish([c.description, c.age, c.clothing, c.hair, c.face_features, c.physical_condition].filter(Boolean).join("; "), { fallback: "same locked character identity" })}`).join("\n")
@@ -288,6 +343,13 @@ ${castLock || heroLine}
 
 LOCATION LOCK:
 ${locationLock}
+
+${productionBible ? `AI PRODUCTION BIBLE LIBRARY:
+${productionBible}
+
+BIBLE ROUTING RULE:
+The production bible is a reusable reference library, not a command to show every hero in every frame. Each frame may render only the characters/animals explicitly allowed by its CELL CAST CONTRACT. If a frame has no allowed cast, it must stay empty of people and animals.
+` : ""}
 
 STYLE BIBLE:
 ${styleBible || sourceStyle || "same locked cinematic style, same lens language, same color grade, same production design"}
@@ -369,6 +431,8 @@ VISUAL BEAT (STRICT): ${sceneTxt}
 ${exactText}
 ${allowed ? `ALLOWED IN FRAME: ${allowed}` : "ALLOWED IN FRAME: only what the script line and visual beat explicitly name."}
 ${forbidden ? `FORBIDDEN IN FRAME: ${forbidden}` : "FORBIDDEN IN FRAME: new people, new props, new rooms, new era, new costumes, new story events."}
+${formatSceneCastContract(s)}
+${formatSceneLocationContract(s)}
 VO MEANING: ${cleanText(s.vo_ru || "")}
 SHOT TYPE: ${getShotType(s, localIdx)}
 COMPOSITION RULE: visualize only the described action/subject/environment from SCRIPT LINE + VISUAL BEAT; keep cinematic composition but do not add new story events, props, locations, weather or characters.
@@ -555,6 +619,7 @@ export function buildFlowCompactPartPrompt({
   const trailerMode = isTrailerStoryboard(storyboard);
   const castLock = formatCastLock(storyboard);
   const locationLock = formatLocationLock(storyboard);
+  const productionBible = formatProductionBibleLibrary(storyboard);
   const styleBible = toPromptEnglish(storyboard?.style_bible || storyboard?.master_style || "", { fallback: "" });
   const chars = relevantCharacterLock.slice(0, 4).map((c, i) => {
     const name = toPromptEnglish(c.name || `Character ${i + 1}`, { fallback: `Character ${i + 1}` });
@@ -576,6 +641,8 @@ Visual beat: ${text}
 ${exactText}
 ${allowed ? `Allowed in this cell: ${allowed}` : "Allowed in this cell: only what this source line and visual beat explicitly name."}
 ${forbidden ? `Forbidden in this cell: ${forbidden}` : "Forbidden in this cell: no extra actors, no new props, no new location, no new era, no new costumes, no new story event."}
+${formatSceneCastContract(s)}
+${formatSceneLocationContract(s)}
 ${getContinuityLink(partScenes, localIdx)}
 SFX mood: ${sfx}`;
   }).join("\n\n");
@@ -618,6 +685,14 @@ ${castLock || "Use the same recurring characters from character_lock; do not red
 
 LOCATION LOCK:
 ${locationLock}
+
+${productionBible ? `AI PRODUCTION BIBLE LIBRARY:
+${productionBible}
+
+BIBLE ROUTING RULE:
+The production bible is a reusable reference library, not a subject list. Each cell must follow its own Allowed in this cell + CELL CAST CONTRACT. Empty allowed cast means no people, animals, bodies, faces, hands, silhouettes, shadows or reflections.
+
+` : ""}
 
 STYLE BIBLE:
 ${styleBible || styleLock || "same film style, same lens language, same lighting family, same production design"}

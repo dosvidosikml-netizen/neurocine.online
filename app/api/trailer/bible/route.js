@@ -44,9 +44,9 @@ function characterReferencePrompt(item = {}, styleLock = "") {
   const wardrobe = cleanText(item.wardrobe || (isAnimalItem(item) ? "no clothing unless scripted" : "script-supported wardrobe only"));
   const source = cleanText(item.sourceContext || "current script");
   if (isAnimalItem(item)) {
-    return cleanText(`Create one wide 16:9 photoreal animal character bible sheet for the same trailer, not a story frame. Show the same animal repeated across controlled reference panels: front view, 3/4 view, side view, back view, close-up head, eyes, body condition, movement pose and scripted emotional states. Character: ${name}. Role: ${role}. Source context: ${source}. Identity lock: ${identity}. Physical condition must stay unchanged across all panels. Style: ${styleLock || "photoreal cinematic documentary"}. No labels, no readable text, no UI, no watermark, no different animals, no fantasy redesign, no extra characters, no new location.`);
+    return cleanText(`Create one wide 16:9 photoreal production character bible sheet for the same trailer, not a story frame. Use one single animal only, repeated across controlled reference panels with the same species, age impression, body size, fur/skin pattern, muzzle shape, eye color, ear shape, limb/body condition and silhouette in every panel. Required visual sections arranged like a professional reference board, but without readable labels: top row turnarounds: front view, 3/4 view, side profile, back view; middle row emotion/state heads: panic, exhaustion, alert eye contact, recovery or fear only if scripted; lower row scenario poses from this script; bottom detail strip: fur/skin pattern, eyes, ears, paws/limbs, body condition, color/material swatches from the animal and environment. Character: ${name}. Role: ${role}. Source context: ${source}. Identity lock: ${identity}. Physical condition must stay unchanged across all panels. Style: ${styleLock || "photoreal cinematic documentary"}. No labels, no readable text, no UI, no watermark, no different animals, no fantasy redesign, no extra characters, no new location.`);
   }
-  return cleanText(`Create one wide 16:9 photoreal film character bible sheet for the same trailer, not a story frame. Show one single actor only repeated across controlled reference panels: front view, 3/4 view, side view, back view, close-up face, hands, wardrobe details, neutral pose, fear/tension/action expressions only if script-supported. Character: ${name}. Role: ${role}. Source context: ${source}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${styleLock || "photoreal cinematic documentary"}. No labels, no readable text, no UI, no watermark, no different people, no costume drift, no extra props beyond script.`);
+  return cleanText(`Create one wide 16:9 photoreal production character bible sheet for the same trailer, not a story frame. Use one single actor only, repeated across controlled reference panels with the same face, skull shape, hair, age impression, body type, skin texture, hands, wardrobe, shoes, silhouette and color palette in every panel. Required visual sections arranged like a professional reference board, but without readable labels: top row turnarounds: front view, 3/4 view, side profile, back view; middle row emotion heads from this script; lower row scenario poses from this script; bottom detail strip: face, eyes, hands, wardrobe fabric, shoes, silhouette, small wardrobe/color swatches from first appearance. Character: ${name}. Role: ${role}. Source context: ${source}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${styleLock || "photoreal cinematic documentary"}. No labels, no readable text, no UI, no watermark, no different people, no costume drift, no extra props beyond script.`);
 }
 
 function locationReferencePrompt(item = {}, styleLock = "") {
@@ -55,7 +55,7 @@ function locationReferencePrompt(item = {}, styleLock = "") {
   const materials = cleanText(item.materials || "only materials named or implied by the script");
   const lighting = cleanText(item.lighting || "practical lighting physically supported by the script");
   const source = cleanText(item.sourceContext || "current script");
-  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film, not a story frame. No actors and no animals unless the location itself requires scale and the script explicitly implies it. Location: ${name}. Source context: ${source}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${styleLock || "photoreal cinematic documentary"}. No readable labels, no captions, no UI, no watermark, no unrelated rooms, no cars, no extra props beyond script.`);
+  return cleanText(`Create one wide 16:9 photoreal production design bible board for the same film location, not a story frame. Use controlled panels without readable labels: establishing wide view, threshold/entry view, primary action lane, material close-ups, practical light state, key scripted props only if they belong to this location, and a small color/material swatch strip. No actors and no animals unless the location itself requires scale and the script explicitly implies it. Location: ${name}. Source context: ${source}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${styleLock || "photoreal cinematic documentary"}. No readable labels, no captions, no UI, no watermark, no unrelated rooms, no cars, no extra props beyond script.`);
 }
 
 function normalizeBible(parsed = {}, { styleLock = "", styleLabel = "" } = {}) {
@@ -156,7 +156,7 @@ function buildPrompt({ topic, script, styleLabel, styleLock, target, frameCount,
           wardrobe: "English wardrobe/body lock; for animals preserve fur/body/physical condition",
           negative: "English forbidden changes",
           sourceContext: "short exact evidence from current script",
-          referencePrompt: "English 16:9 character/animal bible sheet prompt, no labels",
+          referencePrompt: "English wide 16:9 production character/animal bible sheet prompt with turnarounds, emotions, scenario poses, detail strip and swatches; no readable labels",
         },
       ],
       locations: [
@@ -168,7 +168,7 @@ function buildPrompt({ topic, script, styleLabel, styleLock, target, frameCount,
           lighting: "English lighting lock",
           negative: "English forbidden changes",
           sourceContext: "short evidence from current script",
-          referencePrompt: "English 9:16 location reference prompt, no labels",
+          referencePrompt: "English wide 16:9 production design bible board prompt with establishing, threshold, action lane, material/light/prop panels and swatches; no readable labels",
         },
       ],
       style: {

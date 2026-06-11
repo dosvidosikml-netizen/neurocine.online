@@ -1151,10 +1151,18 @@ function styleLineForReference(normalized = {}) {
   ].filter(Boolean).join(". "));
 }
 
+function isAnimalProductionCharacter(item = {}) {
+  const key = normalizeTextKey(`${item.kind || ""} ${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.sourceContext || ""}`);
+  return /animal|dog|puppy|wolf|cub|moose|calf|deer|bear|horse|пес|пёс|собак|щен|волч|лос|лосенок|лосёнок|лосиха|олен|медвед|конь|лошад|животн/.test(key);
+}
+
 function characterReferenceEmotionSet(item = {}) {
   const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.sourceContext || ""}`);
   if (/волчон|wolf cub|cub/.test(key)) {
     return "eyes closed from cold, weak breathing, confused first eye opening, fragile recovery, alert farewell glance";
+  }
+  if (isAnimalProductionCharacter(item)) {
+    return "panic, exhaustion, trembling fear, alert eye contact, pain response only if scripted, recovery relief only if scripted";
   }
   if (/геннадий|gennady|антагонист/.test(key)) {
     return "neutral flat stare, polite domestic calm, cold suspicion, controlled irritation, pain reaction only if later scripted injury exists";
@@ -1178,6 +1186,9 @@ function characterReferencePoseSet(item = {}) {
   const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.wardrobe || ""} ${item.sourceContext || ""}`);
   if (/волчон|wolf cub|cub/.test(key)) {
     return "curled in snow, wrapped in towels on a metal clinic table, oxygen care pose, lifting head weakly, stepping into snow";
+  }
+  if (isAnimalProductionCharacter(item)) {
+    return "front standing pose, three-quarter pose, side profile, back profile, scripted action pose, vulnerable/resting pose, head close-up";
   }
   if (/лада|lada|ветеринар|veterinarian/.test(key)) {
     return "running with rescued animal against coat, leaning over clinic table, holding tiny chest gently, smiling through exhaustion, opening clinic door";
@@ -1204,6 +1215,9 @@ function characterReferenceDetailSet(item = {}) {
   const key = normalizeTextKey(`${item.name || ""} ${item.role || ""} ${item.identity || ""} ${item.wardrobe || ""} ${item.sourceContext || ""}`);
   if (/волчон|wolf cub|cub/.test(key)) {
     return "gray fur clumps, frost on whiskers, closed eyelids, tiny paws, damp nose, weak chest movement, recovered alert eyes";
+  }
+  if (isAnimalProductionCharacter(item)) {
+    return "fur pattern, muzzle shape, eyes, ears, paws or visible limb condition, body size, mud/water/grass/snow contact only if scripted, silhouette and color palette";
   }
   if (/лада|lada|ветеринар|veterinarian/.test(key)) {
     return "tired eyes, winter coat fabric, gloved hands, clinic sleeves, practical hair, gentle hand pressure, exhausted smile";
@@ -1249,10 +1263,10 @@ function buildCharacterReferencePrompt(item = {}, normalized = {}) {
   const emotions = promptEnglishSafe(characterReferenceEmotionSet(item), "neutral, fear, shock, suspicion, exhaustion");
   const poses = promptEnglishSafe(characterReferencePoseSet(item), "front stance, three-quarter stance, side stance, close-up, action pose only if scripted");
   const details = promptEnglishSafe(characterReferenceDetailSet(item), "face, eyes, hands, wardrobe fabric, shoes and silhouette");
-  if (/волчон|wolf cub|cub/.test(key)) {
-    return cleanText(`Create one wide 16:9 photoreal animal character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single gray wolf cub only, repeated across controlled reference panels with the same fur pattern, age, size, muzzle shape, eye color, ear shape, paws and vulnerable physical condition in every panel. Required visual sections without readable labels: 1) turnarounds: front, 3/4, side, back; 2) emotion/state heads: ${emotions}; 3) scenario poses: ${poses}; 4) detail close-ups: ${details}. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same wolf cub, but never multiple different animals. No human child, no dog, no adult wolf replacement, no fantasy creature, no collar, no readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
+  if (isAnimalProductionCharacter(item)) {
+    return cleanText(`Create one wide 16:9 photoreal production character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single animal only, repeated across controlled reference panels with the same species, age impression, body size, fur/skin pattern, muzzle shape, eye color, ear shape, limb/body condition and silhouette in every panel. Required visual sections arranged like a professional reference board, but without readable labels: top row turnarounds: front view, 3/4 view, side profile, back view; middle row emotion/state heads: ${emotions}; lower row scenario poses: ${poses}; bottom detail strip: ${details}; small color/material swatches from the animal and scripted environment. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same animal, but never multiple different animals. Do not change the species, age, body condition or injury/disability. No human child replacement, no fantasy creature, no collar/harness unless scripted, no readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
   }
-  return cleanText(`Create one wide 16:9 photoreal film character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single actor only, repeated across controlled reference panels with the same face, hair, age impression, body type, skin texture, hands, wardrobe and color palette in every panel. Required visual sections without readable labels: 1) turnarounds: front, 3/4, side, back; 2) emotion heads: ${emotions}; 3) scenario poses: ${poses}; 4) detail close-ups: ${details}. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same actor, but never multiple different people. Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger, cult figure or unrelated masked person unless this exact character role or script context explicitly says so. No readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
+  return cleanText(`Create one wide 16:9 photoreal production character bible sheet for the same trailer, not a story frame. The sheet is an identity anchor for ComfyUI/IPAdapter. Use one single actor only, repeated across controlled reference panels with the same face, skull shape, hair, age impression, body type, skin texture, hands, wardrobe, shoes, silhouette and color palette in every panel. Required visual sections arranged like a professional reference board, but without readable labels: top row turnarounds: front view, 3/4 view, side profile, back view; middle row emotion heads: ${emotions}; lower row scenario poses: ${poses}; bottom detail strip: ${details}; small wardrobe/color swatches from first appearance. Character slot: ${item.id || "CHAR"}. Role: ${role}. Script context: ${context}. Identity lock: ${identity}. Wardrobe lock: ${wardrobe}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Reference sheet may contain multiple views of the same actor, but never multiple different people. Do not turn this character into a doctor, nurse, hazmat worker, surgical-mask figure, hooded stranger, cult figure or unrelated masked person unless this exact character role or script context explicitly says so. No readable text, no captions, no labels, no UI, no watermark, no unrelated props, no new location.`);
 }
 
 function buildLocationReferencePrompt(item = {}, normalized = {}) {
@@ -1262,7 +1276,7 @@ function buildLocationReferencePrompt(item = {}, normalized = {}) {
   const lighting = promptEnglishSafe(item.lighting || "", "physically plausible practical light only");
   const name = promptEnglishSafe(item.name || item.id || "script location", "script location");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera photoreal cinematic realism, practical lighting, tactile surfaces");
-  return cleanText(`Create one clean 9:16 photoreal location reference image for the same film. No actors, no monster, no extra props beyond the script. Location slot: ${item.id || "LOC"}. Location type: ${name}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not add hospital, clinic, laboratory, medical corridor, doctors, random windows, cars or unrelated rooms unless the script context explicitly says so. No captions, no labels, no UI, no watermark, no collage, no text unless the script explicitly says a sign/text is visible.`);
+  return cleanText(`Create one wide 16:9 photoreal production design bible board for the same film location, not a story frame. Use controlled panels without readable labels: establishing wide view, threshold/entry view, primary action lane, material close-ups, practical light state, key scripted props only if they belong to this location, and a small color/material swatch strip. No actors, no animals, no monster, no extra props beyond the script. Location slot: ${item.id || "LOC"}. Location type: ${name}. Script context: ${context}. Geography/design: ${description}. Materials: ${materials}. Lighting: ${lighting}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not add hospital, clinic, laboratory, medical corridor, doctors, random windows, cars or unrelated rooms unless the script context explicitly says so. No captions, no labels, no UI, no watermark, no readable text unless the script explicitly says a sign/text is visible.`);
 }
 
 function buildStyleReferencePrompt(normalized = {}, script = "") {
@@ -1782,6 +1796,12 @@ ${style || "same camera-photographed live-action style, same lighting family, sa
 
 ${productionBibleLock}
 
+AI BIBLE ROUTING RULE:
+The production bible is a reference library only. It is not a subject list.
+Each cell may render only the cast explicitly allowed by that cell in the PART prompt.
+If a cell has no allowed characters, it must contain no people, no animals, no bodies, no faces, no hands, no silhouettes, no shadows and no reflections.
+Location references are production design anchors only; they must not move the cell to a different room/place unless the source line says so.
+
 FLOW/GROK RULES:
 - ${previousRule}
 - Do not invent a new style, new actors, new costumes, new rooms, new props, new time period or new supernatural rules.
@@ -2144,6 +2164,15 @@ PROJECT:
 - PART grid size after storyboard: ${partSize} frames per PART
 
 ${biblePrompt}
+
+AI BIBLE ROUTING CONTRACT:
+- Treat PRODUCTION BIBLE LOCK as the character/location library for this project.
+- For each scene, allowed_characters must contain ONLY the characters/animals that are visible or directly required by that exact script line.
+- Do not copy the whole cast into every scene. Empty allowed_characters means the frame must contain no people or animals.
+- When a character/animal from the bible appears, use its exact id/name/role/identity/wardrobe/body-condition from the bible.
+- Animals are characters too. Keep each animal identity, species, age, body condition and scale stable from first appearance to last.
+- Location references are production design anchors only; they cannot add people, props, weather, rooms or eras not in the current source line.
+- Scene image_prompt_en and video_prompt_en must include a compact character/location routing line: "visible allowed cast: ... / locked location: ... / forbidden cast: all others".
 
 GLOBAL RULES:
 - SOURCE OF TRUTH = script line.
@@ -3121,6 +3150,17 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       payload.base_height = 768;
       payload.hires_steps = Math.max(14, Number(payload.hires_steps || 0));
       payload.hires_denoise = 0.24;
+      payload.negative_prompt = characterReferenceNegativePrompt();
+    }
+    if (meta.kind === "location") {
+      payload.render_mode = "location_reference_board";
+      payload.reference_mode = "none";
+      payload.width = 1536;
+      payload.height = 864;
+      payload.base_width = 1368;
+      payload.base_height = 768;
+      payload.hires_steps = Math.max(14, Number(payload.hires_steps || 0));
+      payload.hires_denoise = 0.22;
       payload.negative_prompt = characterReferenceNegativePrompt();
     }
     return payload;
@@ -4151,8 +4191,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
       if (!res.body || !contentType.includes("text/event-stream")) {
         const payload = await res.json();
         if (!payload.storyboard) throw new Error(payload.error || "API не вернул раскадровку");
-        setStoryboard(payload.storyboard);
-        setStatus(`Готово: ${payload.storyboard.scenes?.length || 0} кадров. Сохранено локально.`);
+        const finalStoryboard = { ...payload.storyboard, production_bible: stripProductionBibleImages(requestBible) };
+        setStoryboard(finalStoryboard);
+        setStatus(`Готово: ${finalStoryboard.scenes?.length || 0} кадров. Сохранено локально.`);
         return;
       }
 
@@ -4169,8 +4210,9 @@ One clean unlabeled 9:16 live-action frame. No grid, no labels, no F01/F02/F03/F
           if (!block.trim()) continue;
           const { event, data } = parseSseBlock(block);
           if (event === "done" && data.storyboard) {
-            setStoryboard(data.storyboard);
-            setStatus(`Готово: ${data.storyboard.scenes?.length || 0} кадров. Сохранено локально.`);
+            const finalStoryboard = { ...data.storyboard, production_bible: stripProductionBibleImages(requestBible) };
+            setStoryboard(finalStoryboard);
+            setStatus(`Готово: ${finalStoryboard.scenes?.length || 0} кадров. Сохранено локально.`);
           } else if (event === "error" || event === "chunk_failed") {
             throw new Error(data.error || "Генерация трейлерной раскадровки не удалась");
           } else if (data.message) {
