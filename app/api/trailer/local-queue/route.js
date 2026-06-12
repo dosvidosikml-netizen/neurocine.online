@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TABLE = "trailer_local_jobs";
+const JOB_SELECT_META = "id,part_index,part_label,project_name,provider,status,payload,error,created_at,updated_at,started_at,completed_at,agent_token";
+const JOB_SELECT_WITH_IMAGE = "id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at,agent_token";
 const ACTIVE_JOB_STATUSES = ["queued", "running"];
 const PC_COMMAND_PROVIDER = "pc-command";
 const PC_COMMAND_PROMPT = "__pc_command__";
@@ -262,6 +264,16 @@ function uniqueRowsByPart(rows = []) {
   return unique;
 }
 
+function mergeRowsById(rows = []) {
+  const merged = new Map();
+  rows.forEach((row) => {
+    if (!row?.id) return;
+    const prev = merged.get(row.id) || {};
+    merged.set(row.id, { ...prev, ...row });
+  });
+  return Array.from(merged.values());
+}
+
 function activeMemoryDuplicates(agentToken, rows = []) {
   const wanted = new Set(rows.map(jobDedupeKey));
   return Array.from(memoryStore.values())
@@ -445,7 +457,7 @@ async function createPcCommand(req, body) {
     const { data, error } = await admin
       .from(TABLE)
       .insert(row)
-      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .select(JOB_SELECT_META)
       .maybeSingle();
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", command: publicJob(data || {}) });
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -513,7 +525,7 @@ async function completeJob(body) {
   if (admin) {
     const { data: existing, error: existingError } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .select(JOB_SELECT_META)
       .eq("id", id)
       .eq("agent_token", agentToken)
       .maybeSingle();
@@ -541,7 +553,7 @@ async function completeJob(body) {
       .update(updatePatch)
       .eq("id", id)
       .eq("agent_token", agentToken)
-      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
+      .select(JOB_SELECT_META)
       .maybeSingle();
     if (!error) return NextResponse.json({ ok: true, mode: "supabase", job: publicJob(data || {}) });
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -775,21 +787,43 @@ async function clearJobs(req, body) {
 async function statusJobs(body) {
   const agentToken = cleanToken(body.agent_token || body.agentToken);
   const ids = (Array.isArray(body.ids) ? body.ids : []).map((x) => String(x || "").trim()).filter(Boolean);
+  const projectSessionId = String(body.project_session_id || body.projectSessionId || "").trim().slice(0, 120);
   if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
-  if (!ids.length) return NextResponse.json({ ok: true, jobs: [], agent: await getAgentStatus(agentToken) });
+  if (!ids.length && !projectSessionId) return NextResponse.json({ ok: true, jobs: [], agent: await getAgentStatus(agentToken) });
 
   const admin = createAdminSupabase();
   if (admin) {
-    const { data, error } = await admin
-      .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at")
-      .eq("agent_token", agentToken)
-      .in("id", ids);
-    if (!error) return NextResponse.json({ ok: true, mode: "supabase", jobs: (data || []).map(publicJob), agent: await getAgentStatus(agentToken) });
-    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    const rows = [];
+    if (ids.length) {
+      const { data, error } = await admin
+        .from(TABLE)
+        .select(JOB_SELECT_WITH_IMAGE)
+        .eq("agent_token", agentToken)
+        .in("id", ids);
+      if (!error) rows.push(...(data || []));
+      else if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+    if (projectSessionId) {
+      const { data, error } = await admin
+        .from(TABLE)
+        .select(JOB_SELECT_WITH_IMAGE)
+        .eq("agent_token", agentToken)
+        .in("status", [...ACTIVE_JOB_STATUSES, "done", "failed"])
+        .order("updated_at", { ascending: false })
+        .limit(300);
+      if (!error) {
+        rows.push(...(data || []).filter((row) => projectSessionIdOf(row) === projectSessionId));
+      } else if (!isMissingTableError(error)) {
+        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ ok: true, mode: "supabase", jobs: mergeRowsById(rows).map(publicJob), agent: await getAgentStatus(agentToken) });
   }
 
-  return NextResponse.json({ ok: true, mode: "memory", jobs: listMemory({ agentToken, ids, limit: ids.length }).map(publicJob), agent: await getAgentStatus(agentToken) });
+  const rows = Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken)
+    .filter((row) => (ids.length ? ids.includes(row.id) : false) || (projectSessionId ? projectSessionIdOf(row) === projectSessionId : false));
+  return NextResponse.json({ ok: true, mode: "memory", jobs: mergeRowsById(rows).map(publicJob), agent: await getAgentStatus(agentToken) });
 }
 
 async function historyJobs(body) {

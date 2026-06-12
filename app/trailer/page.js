@@ -3490,6 +3490,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
         body: JSON.stringify({
           action: "status",
           agent_token: localAgentToken,
+          project_session_id: projectSessionId,
           ids: entries.map((job) => job.id),
         }),
       }, 30000);

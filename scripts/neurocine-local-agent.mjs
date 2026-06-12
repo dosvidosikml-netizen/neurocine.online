@@ -120,6 +120,18 @@ function dataUrlMime(value) {
   return String(value || "").match(/^data:([^;]+);base64,/i)?.[1] || "image/png";
 }
 
+function dataUrlMeta(value) {
+  const normalized = normalizeImage(value);
+  if (!normalized) return null;
+  const buffer = dataUrlToBuffer(normalized);
+  return {
+    bytes: buffer.length,
+    width: 0,
+    height: 0,
+    mime: dataUrlMime(normalized),
+  };
+}
+
 function safeFilePart(value = "reference") {
   return String(value || "reference")
     .replace(/[^a-z0-9_-]+/gi, "_")
@@ -1220,6 +1232,13 @@ async function pollPcCommands(config) {
 
 async function completeQueueJob(config, job, result) {
   const output = result.image && typeof result.image === "object" ? result.image : null;
+  const image = output?.image || result.image || "";
+  const outputMeta = output ? {
+    bytes: output.bytes || 0,
+    width: output.width || 0,
+    height: output.height || 0,
+    mime: output.mime || "image/png",
+  } : dataUrlMeta(image);
   return fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1228,13 +1247,8 @@ async function completeQueueJob(config, job, result) {
       agent_token: config.token,
       job_id: job.id,
       status: result.ok ? "done" : "failed",
-      image: output?.image || result.image || "",
-      output_meta: output ? {
-        bytes: output.bytes || 0,
-        width: output.width || 0,
-        height: output.height || 0,
-        mime: output.mime || "image/png",
-      } : null,
+      image,
+      output_meta: outputMeta,
       error: result.error || "",
       message: result.message || "",
     }),
@@ -1601,6 +1615,13 @@ async function main() {
         console.log(`[NeuroCine Agent] render ${job.part_label || job.id}`);
         try {
           const image = await renderJob(job, config);
+          const meta = dataUrlMeta(typeof image === "string" ? image : image?.image || "");
+          await updateQueueJobProgress(config, job, {
+            progress: 96,
+            stage: "upload_result",
+            message: meta?.bytes ? `загружаю результат на сайт (${Math.round(meta.bytes / 1024)} KB)` : "загружаю результат на сайт",
+          });
+          console.log(`[NeuroCine Agent] upload ${job.part_label || job.id}${meta?.bytes ? ` ${Math.round(meta.bytes / 1024)} KB` : ""}`);
           await completeQueueJob(config, job, { ok: true, image });
           console.log(`[NeuroCine Agent] done ${job.part_label || job.id}`);
         } catch (e) {
