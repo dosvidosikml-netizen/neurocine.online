@@ -660,12 +660,7 @@ async function getAgentStatus(agentToken) {
   return memoryHeartbeat(agentToken);
 }
 
-async function discoverAgents(req) {
-  const account = await getServerAccount(req);
-  if (!account.ok) {
-    return NextResponse.json({ ok: false, error: account.message || "Нужно войти через Google." }, { status: account.status || 401 });
-  }
-
+async function listOnlineAgents() {
   const admin = createAdminSupabase();
   if (admin) {
     const { data, error } = await admin
@@ -679,9 +674,9 @@ async function discoverAgents(req) {
         .map((row) => ({ token: cleanToken(row.agent_token), agent: publicAgent(row) }))
         .filter((item) => item.token && item.agent?.online)
         .slice(0, 5);
-      return NextResponse.json({ ok: true, mode: "supabase", agents });
+      return { mode: "supabase", agents };
     }
-    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!isMissingTableError(error)) throw error;
   }
 
   const agents = Array.from(memoryStore.values())
@@ -689,7 +684,24 @@ async function discoverAgents(req) {
     .map((row) => ({ token: cleanToken(row.agent_token), agent: publicAgent(row) }))
     .filter((item) => item.token && item.agent?.online)
     .slice(0, 5);
-  return NextResponse.json({ ok: true, mode: "memory", agents });
+  return { mode: "memory", agents };
+}
+
+async function discoverAgents() {
+  const { mode, agents } = await listOnlineAgents();
+  return NextResponse.json({ ok: true, mode, agents });
+}
+
+async function activeAgent() {
+  const { mode, agents } = await listOnlineAgents();
+  const match = agents.find((item) => item?.agent?.worker_ok === true) || agents.find((item) => item?.agent?.online === true) || null;
+  return NextResponse.json({
+    ok: true,
+    mode,
+    token: cleanToken(match?.token || ""),
+    agent: match?.agent || null,
+    agents_count: agents.length,
+  });
 }
 
 async function heartbeatAgent(body) {
@@ -974,7 +986,8 @@ export async function POST(req) {
     if (action === "heartbeat") return heartbeatAgent(body);
     if (action === "clear") return clearJobs(req, body);
     if (action === "agent_status") return NextResponse.json({ ok: true, agent: await getAgentStatus(cleanToken(body.agent_token || body.agentToken)) });
-    if (action === "discover_agents") return discoverAgents(req);
+    if (action === "discover_agents") return discoverAgents();
+    if (action === "active_agent") return activeAgent();
     if (action === "status") return statusJobs(body);
     if (action === "history") return historyJobs(body);
     return NextResponse.json({ ok: false, error: "Неизвестное действие очереди." }, { status: 400 });

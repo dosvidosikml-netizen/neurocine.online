@@ -3573,10 +3573,40 @@ Generate this as a high-resolution production reference board for later IPAdapte
     return data.agent || null;
   }
 
-  async function discoverOnlineLocalAgent() {
+  async function adoptActiveLocalAgentToken({ quiet = false } = {}) {
+    const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "active_agent" }),
+    }, 30000);
+    const token = String(data.token || "").trim();
+    const agent = data.agent || null;
+    const health = agentHealthInfo(agent, Date.now());
+    if (!token || health.status !== "online") return null;
+    savePersistentLocalAgentToken(token);
+    setLocalAgentToken(token);
+    setLocalAgentStatus(agent);
+    setQueueClock(Date.now());
+    if (!quiet) {
+      setLocalRenderNotice({ type: "success", message: `Подключён активный ПК-агент: ${token.slice(0, 8)}...${token.slice(-6)}.` });
+    }
+    return agent;
+  }
+
+  async function discoverOnlineLocalAgent(options = {}) {
+    const quiet = Boolean(options.quiet);
     const currentAgent = await refreshLocalAgentStatusNow().catch(() => null);
     const currentHealth = agentHealthInfo(currentAgent || localAgentStatus, Date.now());
     if (currentHealth.status === "online") return currentAgent;
+
+    const adoptedAgent = await adoptActiveLocalAgentToken({ quiet: true }).catch(() => null);
+    const adoptedHealth = agentHealthInfo(adoptedAgent, Date.now());
+    if (adoptedHealth.status === "online") {
+      if (!quiet) {
+        setLocalRenderNotice({ type: "success", message: "Нашёл активный ПК-агент и переключил сайт на его token." });
+      }
+      return adoptedAgent;
+    }
 
     const authToken = await getAuthToken();
     if (!authToken) return currentAgent;
@@ -3594,7 +3624,9 @@ Generate this as a high-resolution production reference board for later IPAdapte
     if (!token) return currentAgent;
     savePersistentLocalAgentToken(token);
     setLocalAgentToken(token);
-    setLocalRenderNotice({ type: "working", message: `Найден активный ПК-агент: ${token.slice(0, 8)}...${token.slice(-6)}. Подключаю телефон к нему...` });
+    if (!quiet) {
+      setLocalRenderNotice({ type: "working", message: `Найден активный ПК-агент: ${token.slice(0, 8)}...${token.slice(-6)}. Подключаю телефон к нему...` });
+    }
     return refreshLocalAgentStatusNow(token);
   }
 
@@ -3887,6 +3919,17 @@ Generate this as a high-resolution production reference board for later IPAdapte
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localQueueJobs, pcCommandJobs, localAgentToken, projectSessionId]);
+
+  useEffect(() => {
+    if (!draftReady || !localAgentToken) return undefined;
+    const health = agentHealthInfo(localAgentStatus, Date.now());
+    if (health.status === "online") return undefined;
+    const timer = window.setTimeout(() => {
+      discoverOnlineLocalAgent({ quiet: true }).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, localAgentToken]);
 
   useEffect(() => {
     const active = Object.values(localQueueJobs || {}).some((job) => job?.status === "queued" || job?.status === "pending" || job?.status === "running");
