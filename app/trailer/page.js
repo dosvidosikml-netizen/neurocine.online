@@ -4875,6 +4875,14 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }
 
   async function handleQueueReferencesClick() {
+    if (agentNeedsCommand) {
+      await copyLocalAgentCommand();
+      const message = "Refs не поставлены: ПК-агент не связан. Команда агента скопирована, запусти её на ПК и нажми refs снова.";
+      setBibleNotice({ type: "warn", message });
+      setLocalRenderNotice({ type: "warn", message });
+      setStatus("Сначала свяжи ПК-агент с этим токеном.");
+      return;
+    }
     try {
       await queueReferencesForLocalAgent();
     } catch (e) {
@@ -5188,7 +5196,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
                 <div className="buttons">
                   <button type="button" className={`${bibleAction === "working" ? "action-direct is-working" : bibleAction === "done" ? "action-check" : bibleAction === "empty" ? "danger" : ""}`} onClick={autoBuildProductionBible} disabled={busy || scriptBusy || bibleAction === "working" || (script.trim().length < 3 && projectName.trim().length < 3)}>{bibleBuildLabel}</button>
                   <button type="button" className="primary" onClick={autoBuildAndGenerate} disabled={busy || scriptBusy || bibleAction === "working" || script.trim().length < 10}>Авто всё</button>
-                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={handleQueueReferencesClick} disabled={busy || scriptBusy || bibleAction === "working" || localRenderAction === "queue-refs" || script.trim().length < 10}>В очередь refs</button>
+                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={handleQueueReferencesClick} disabled={busy || scriptBusy || bibleAction === "working" || localRenderAction === "queue-refs" || script.trim().length < 10}>{agentNeedsCommand ? "Сначала агент" : "В очередь refs"}</button>
                   <button type="button" className="danger" onClick={resetProductionBible} disabled={busy || scriptBusy}>Очистить библию</button>
                 </div>
               </div>
