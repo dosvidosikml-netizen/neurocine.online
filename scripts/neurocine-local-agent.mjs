@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -946,9 +946,38 @@ function findComfyImage(history, promptId) {
   return null;
 }
 
-async function renderComfy({ baseUrl, payload, checkpoint }) {
+async function findLatestOutputDataUrl(outputDir = "", prefix = "", afterMs = 0) {
+  if (!outputDir || !prefix) return "";
+  try {
+    const files = await readdir(outputDir, { withFileTypes: true });
+    const safePrefix = safeFilePart(prefix);
+    const matches = [];
+    for (const file of files) {
+      if (!file.isFile()) continue;
+      if (!file.name.startsWith(safePrefix)) continue;
+      if (!/\.(png|jpe?g|webp)$/i.test(file.name)) continue;
+      const fullPath = path.join(outputDir, file.name);
+      const fileStat = await stat(fullPath);
+      if (afterMs && fileStat.mtimeMs + 2000 < afterMs) continue;
+      matches.push({ fullPath, name: file.name, mtimeMs: fileStat.mtimeMs });
+    }
+    matches.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    const latest = matches[0];
+    if (!latest) return "";
+    const buffer = await readFile(latest.fullPath);
+    const mime = latest.name.toLowerCase().endsWith(".jpg") || latest.name.toLowerCase().endsWith(".jpeg")
+      ? "image/jpeg"
+      : latest.name.toLowerCase().endsWith(".webp") ? "image/webp" : "image/png";
+    return `data:${mime};base64,${buffer.toString("base64")}`;
+  } catch {
+    return "";
+  }
+}
+
+async function renderComfy({ baseUrl, payload, checkpoint, outputDir = "", onProgress = null }) {
   const preparedPayload = await prepareComfyPayload(baseUrl, payload);
   const workflow = preparedPayload.workflow || buildComfyWorkflow(preparedPayload, checkpoint);
+  if (onProgress) await onProgress({ progress: 10, stage: "submit_comfy", message: "отправляю workflow в ComfyUI" });
   const submitted = await fetchJson(`${baseUrl}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -958,14 +987,34 @@ async function renderComfy({ baseUrl, payload, checkpoint }) {
   if (!promptId) throw new Error("ComfyUI did not return prompt_id");
 
   const started = Date.now();
+  let lastProgressAt = 0;
   let image = null;
   while (Date.now() - started < 600000) {
     await sleep(1500);
-    const history = await fetchJson(`${baseUrl}/history/${promptId}`, { method: "GET" }, 20000);
-    image = findComfyImage(history, promptId);
+    if (onProgress && Date.now() - lastProgressAt > 8000) {
+      lastProgressAt = Date.now();
+      const elapsed = Date.now() - started;
+      await onProgress({
+        progress: Math.min(88, Math.max(12, Math.round(12 + (elapsed / 600000) * 76))),
+        stage: "waiting_comfy",
+        message: `ComfyUI выполняет prompt ${promptId.slice(0, 8)}`,
+      });
+    }
+    try {
+      const history = await fetchJson(`${baseUrl}/history/${promptId}`, { method: "GET" }, 20000);
+      image = findComfyImage(history, promptId);
+    } catch {
+      image = null;
+    }
     if (image) break;
+    const fallback = await findLatestOutputDataUrl(outputDir, preparedPayload.filename_prefix || payload.filename_prefix || "", started);
+    if (fallback) return fallback;
   }
-  if (!image) throw new Error("ComfyUI render timed out");
+  if (!image) {
+    const fallback = await findLatestOutputDataUrl(outputDir, preparedPayload.filename_prefix || payload.filename_prefix || "", started);
+    if (fallback) return fallback;
+    throw new Error("ComfyUI render timed out");
+  }
 
   const params = new URLSearchParams({
     filename: image.filename,
@@ -997,10 +1046,16 @@ async function renderNeurocineWorker({ baseUrl, payload, partIndex }) {
   return image;
 }
 
-async function renderPayloadWithProvider({ provider, workerUrl, payload, partIndex, checkpoint }) {
+async function renderPayloadWithProvider({ provider, workerUrl, payload, partIndex, checkpoint, comfyuiDir = "", onProgress = null }) {
   if (provider === "automatic1111") return renderAutomatic1111({ baseUrl: workerUrl, payload });
   if (provider === "neurocine-worker") return renderNeurocineWorker({ baseUrl: workerUrl, payload, partIndex });
-  return renderComfy({ baseUrl: workerUrl, payload, checkpoint });
+  return renderComfy({
+    baseUrl: workerUrl,
+    payload,
+    checkpoint,
+    outputDir: comfyuiDir ? path.join(comfyuiDir, "output") : "",
+    onProgress,
+  });
 }
 
 function renderModeLabel(payload = {}) {
@@ -1077,6 +1132,7 @@ async function renderFrameGrid(job, config, payload) {
       payload: framePayload,
       partIndex: job.part_index,
       checkpoint: config.checkpoint,
+      comfyuiDir: config.comfyuiDir,
     }));
     const doneProgress = Math.round(5 + ((i + 1) / frames.length) * 84);
     await updateQueueJobProgress(config, job, {
@@ -1141,6 +1197,8 @@ async function renderJob(job, config) {
     payload,
     partIndex: job.part_index,
     checkpoint: config.checkpoint,
+    comfyuiDir: config.comfyuiDir,
+    onProgress: (patch) => updateQueueJobProgress(config, job, patch),
   });
 }
 

@@ -9,6 +9,9 @@ const TABLE = "trailer_local_jobs";
 const ACTIVE_JOB_STATUSES = ["queued", "running"];
 const PC_COMMAND_PROVIDER = "pc-command";
 const PC_COMMAND_PROMPT = "__pc_command__";
+const AGENT_ONLINE_TTL_MS = 45000;
+const WORKER_QUEUE_TTL_MS = 30000;
+const RUNNING_JOB_STALE_MS = 180000;
 const PC_COMMANDS = {
   status: "Проверить ПК",
   production_check: "Проверить production",
@@ -24,6 +27,11 @@ globalThis.__neurocineTrailerLocalJobs = memoryStore;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function timeMs(value = "") {
+  const ms = Date.parse(String(value || ""));
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 function cleanToken(value) {
@@ -76,17 +84,40 @@ function publicJob(row = {}) {
 function publicAgent(row = {}) {
   const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
   const lastSeenAt = row.updated_at || row.created_at || "";
-  const workerOk = payload.worker_ok === true;
+  const lastSeenMs = timeMs(lastSeenAt);
+  const heartbeatAgeMs = lastSeenMs ? Math.max(0, Date.now() - lastSeenMs) : Infinity;
+  const online = Boolean(lastSeenMs && heartbeatAgeMs <= AGENT_ONLINE_TTL_MS);
+  const workerOk = online && payload.worker_ok === true;
+  const rawQueue = payload.worker_queue && typeof payload.worker_queue === "object" ? payload.worker_queue : null;
+  const queueUpdatedMs = timeMs(rawQueue?.updated_at || lastSeenAt);
+  const queueAgeMs = queueUpdatedMs ? Math.max(0, Date.now() - queueUpdatedMs) : Infinity;
+  const queueFresh = online && Boolean(rawQueue) && queueAgeMs <= WORKER_QUEUE_TTL_MS;
+  const workerQueue = queueFresh
+    ? rawQueue
+    : rawQueue
+      ? {
+          ...rawQueue,
+          active: false,
+          running_count: 0,
+          pending_count: 0,
+          status: online ? "stale" : "offline",
+          current: {},
+          stale: true,
+          stale_reason: online ? "worker queue heartbeat is stale" : "agent heartbeat is offline",
+        }
+      : null;
   return {
-    online: Boolean(lastSeenAt),
+    online,
     provider: payload.provider || row.provider || "comfyui",
     worker_url: payload.worker_url || "",
     worker_ok: workerOk,
-    worker_error: payload.worker_error || row.error || "",
-    worker_queue: payload.worker_queue && typeof payload.worker_queue === "object" ? payload.worker_queue : null,
-    production_readiness: payload.production_readiness || payload.worker_queue?.production_readiness || null,
+    worker_error: online ? (payload.worker_error || row.error || "") : "agent heartbeat is stale",
+    worker_queue: workerQueue,
+    production_readiness: payload.production_readiness || rawQueue?.production_readiness || null,
     last_seen_at: lastSeenAt,
     updated_at: row.updated_at || "",
+    heartbeat_age_ms: Number.isFinite(heartbeatAgeMs) ? heartbeatAgeMs : null,
+    worker_queue_age_ms: Number.isFinite(queueAgeMs) ? queueAgeMs : null,
   };
 }
 
@@ -326,6 +357,20 @@ async function pollJobs(body) {
 
   const admin = createAdminSupabase();
   if (admin) {
+    const staleBefore = new Date(Date.now() - RUNNING_JOB_STALE_MS).toISOString();
+    await admin
+      .from(TABLE)
+      .update({
+        status: "queued",
+        updated_at: nowIso(),
+        started_at: null,
+        error: "",
+      })
+      .eq("agent_token", agentToken)
+      .eq("status", "running")
+      .neq("provider", PC_COMMAND_PROVIDER)
+      .lt("updated_at", staleBefore);
+
     const { data, error } = await admin
       .from(TABLE)
       .select("id,part_index,part_label,project_name,provider,status,prompt,negative_prompt,payload,created_at,updated_at,started_at,completed_at")
@@ -343,6 +388,11 @@ async function pollJobs(body) {
     }
     if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
+
+  const staleBeforeMs = Date.now() - RUNNING_JOB_STALE_MS;
+  Array.from(memoryStore.values())
+    .filter((row) => row.agent_token === agentToken && row.status === "running" && row.provider !== PC_COMMAND_PROVIDER && timeMs(row.updated_at) && timeMs(row.updated_at) < staleBeforeMs)
+    .forEach((row) => updateMemory(row.id, agentToken, { status: "queued", started_at: null, error: "" }));
 
   const rows = Array.from(memoryStore.values())
     .filter((row) => row.agent_token === agentToken && row.status === "queued" && row.provider !== PC_COMMAND_PROVIDER)

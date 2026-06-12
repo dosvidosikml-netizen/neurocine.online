@@ -2833,7 +2833,7 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
   const lastSeen = agent?.last_seen_at || agent?.updated_at || "";
   const lastMs = timeMs(lastSeen);
   const ageMs = lastMs ? Math.max(0, nowMs - lastMs) : Infinity;
-  const online = Boolean(lastMs && ageMs < 180000);
+  const online = Boolean(agent?.online === true && lastMs && ageMs < 45000);
   const provider = agent?.provider === "automatic1111"
     ? "Forge/A1111"
     : agent?.provider === "neurocine-worker"
@@ -2845,7 +2845,7 @@ function agentHealthInfo(agent = null, nowMs = Date.now()) {
       status: "offline",
       title: "ПК агент: нет связи",
       detail: lastMs
-        ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Если на ПК идёт долгий рендер, связь обновится после шага агента; проверь процесс только если прошло больше 3 минут.`
+        ? `Последняя связь: ${relativeTimeLabel(lastSeen, nowMs)}. Если ПК выключен или агент остановлен, рендер не идёт.`
         : "Сайт ещё не видел Local Agent с этим token. Нажми “Скопировать команду агента” и запусти её на ПК для этого token.",
     };
   }
@@ -2869,7 +2869,10 @@ function agentQueueInfo(agent = null, nowMs = Date.now()) {
   const queue = agent?.worker_queue && typeof agent.worker_queue === "object" ? agent.worker_queue : null;
   if (!queue) return null;
   const current = queue.current && typeof queue.current === "object" ? queue.current : {};
-  const updated = relativeTimeLabel(queue.updated_at || agent?.last_seen_at || agent?.updated_at, nowMs);
+  const queueUpdatedAt = queue.updated_at || agent?.last_seen_at || agent?.updated_at;
+  const updated = relativeTimeLabel(queueUpdatedAt, nowMs);
+  const queueAgeMs = timeMs(queueUpdatedAt) ? Math.max(0, nowMs - timeMs(queueUpdatedAt)) : Infinity;
+  const queueFresh = agent?.online === true && queue.stale !== true && queueAgeMs < 30000;
   const running = Number(queue.running_count || 0) || 0;
   const pending = Number(queue.pending_count || 0) || 0;
   const meta = [
@@ -2884,6 +2887,15 @@ function agentQueueInfo(agent = null, nowMs = Date.now()) {
       status: "warn",
       title: "Очередь ComfyUI: ошибка",
       detail: `${queue.error}. Обновлено: ${updated}.`,
+      meta,
+    };
+  }
+
+  if (!queueFresh || queue.status === "stale" || queue.status === "offline") {
+    return {
+      status: "warn",
+      title: agent?.online === true ? "ComfyUI: статус устарел" : "ComfyUI: нет связи",
+      detail: `Последний статус очереди: ${updated}. Не считаю это текущим рендером без свежего heartbeat.`,
       meta,
     };
   }
