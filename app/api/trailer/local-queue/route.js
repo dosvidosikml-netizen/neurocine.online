@@ -319,7 +319,7 @@ async function createJobs(req, body) {
     const partIndexes = [...new Set(rows.map((row) => row.part_index))];
     const { data: existing, error: existingError } = await admin
       .from(TABLE)
-      .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at,agent_token")
+      .select(JOB_SELECT_META)
       .eq("agent_token", agentToken)
       .in("status", ACTIVE_JOB_STATUSES)
       .in("part_index", partIndexes);
@@ -337,7 +337,7 @@ async function createJobs(req, body) {
       const { data, error } = await admin
         .from(TABLE)
         .insert(rowsToInsert)
-        .select("id,part_index,part_label,project_name,provider,status,payload,error,image_data,created_at,updated_at,started_at,completed_at,agent_token");
+        .select(JOB_SELECT_META);
       if (!error) {
         const inserted = data || [];
         const allByKey = new Map([...existingByKey, ...inserted.map((row) => [jobDedupeKey(row), row])]);

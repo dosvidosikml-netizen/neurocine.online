@@ -2589,6 +2589,11 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 600000) {
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error || json.detail || `HTTP ${res.status}`);
     return json;
+  } catch (e) {
+    if (controller.signal.aborted || e?.name === "AbortError" || String(e?.message || "").toLowerCase().includes("aborted")) {
+      throw new Error(`таймаут ответа API: ${Math.round(timeoutMs / 1000)} сек. Повтори действие или обнови страницу.`);
+    }
+    throw e;
   } finally {
     window.clearTimeout(timer);
   }
@@ -4561,7 +4566,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
           provider: localRenderProvider,
           jobs,
         }),
-      }, 30000);
+      }, 120000);
       const nextJobs = {};
       for (const job of data.jobs || []) {
         nextJobs[job.part_index] = job;
@@ -4642,7 +4647,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
           provider: localRenderProvider,
           jobs,
         }),
-      }, 30000);
+      }, 120000);
       const nextJobs = {};
       for (const job of data.jobs || []) {
         nextJobs[job.part_index] = job;
@@ -4664,6 +4669,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
         setBibleNotice({ type: "error", message: `Авто-референсы не поставлены в очередь: ${e.message}` });
         setLocalRenderNotice({ type: "error", message: `Авто-референсы не поставлены в очередь: ${e.message}` });
       }
+      refreshLocalQueueJobs(true);
       return false;
     } finally {
       if (!quiet) setLocalRenderAction("");
