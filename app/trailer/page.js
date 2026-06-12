@@ -3501,6 +3501,12 @@ Generate this as a high-resolution production reference board for later IPAdapte
         }),
       }, 30000);
       if (data.agent !== undefined) setLocalAgentStatus(data.agent || null);
+      if (data.agent !== undefined && agentHealthInfo(data.agent || null, Date.now()).status !== "online") {
+        const adopted = await adoptActiveLocalAgentToken({ quiet: true }).catch(() => null);
+        if (adopted && !quiet) {
+          setLocalRenderNotice({ type: "success", message: "Найден активный ПК-агент. Статус обновлён." });
+        }
+      }
       const nextJobs = {};
       for (const job of data.jobs || []) {
         if (projectSessionId && job.project_session_id !== projectSessionId) continue;
@@ -3549,6 +3555,10 @@ Generate this as a high-resolution production reference board for later IPAdapte
       }),
     }, 30000);
     if (data.agent !== undefined) setLocalAgentStatus(data.agent || null);
+    if (data.agent !== undefined && agentHealthInfo(data.agent || null, Date.now()).status !== "online") {
+      const adopted = await adoptActiveLocalAgentToken({ quiet: true }).catch(() => null);
+      if (adopted) return adopted;
+    }
     if (Array.isArray(data.jobs)) {
       const nextJobs = {};
       for (const job of data.jobs) {
