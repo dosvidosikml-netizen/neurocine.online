@@ -1003,6 +1003,15 @@ async function renderPayloadWithProvider({ provider, workerUrl, payload, partInd
   return renderComfy({ baseUrl: workerUrl, payload, checkpoint });
 }
 
+function renderModeLabel(payload = {}) {
+  const mode = String(payload.render_mode || payload.workflow_mode || "").toLowerCase();
+  if (mode.includes("character_reference")) return "референс персонажа";
+  if (mode.includes("location_reference")) return "референс локации";
+  if (mode.includes("reference")) return "референс";
+  if (mode.includes("frames_grid")) return "PART по кадрам";
+  return "изображение";
+}
+
 async function renderFrameGrid(job, config, payload) {
   const frames = Array.isArray(payload.frames) ? payload.frames.filter((frame) => frame?.prompt) : [];
   if (!frames.length) throw new Error("Frame-by-frame grid mode needs payload.frames");
@@ -1101,14 +1110,30 @@ async function renderJob(job, config) {
     prompt: job.prompt,
     negative_prompt: job.negative_prompt || job.payload?.negative_prompt || DEFAULT_NEGATIVE,
   };
+  const modeLabel = renderModeLabel(payload);
+  await updateQueueJobProgress(config, job, {
+    progress: 2,
+    stage: "agent_claimed",
+    message: `агент забрал ${modeLabel}`,
+  });
+  await updateQueueJobProgress(config, job, {
+    progress: 4,
+    stage: "production_check",
+    message: "проверяю модели и workflow",
+  });
   await assertProductionReady(config, payload);
   if (payload.render_mode === "frames_grid" && Array.isArray(payload.frames) && payload.frames.length) {
+    await updateQueueJobProgress(config, job, {
+      progress: 6,
+      stage: "prepare_frames",
+      message: "готовлю кадры и ref-anchors",
+    });
     return renderFrameGrid(job, config, payload);
   }
   await updateQueueJobProgress(config, job, {
     progress: 10,
-    stage: "render_single",
-    message: "рендер изображения",
+    stage: payload.render_mode && String(payload.render_mode).includes("reference") ? "render_reference" : "render_single",
+    message: `${modeLabel}: отправлено в ${config.provider === "comfyui" ? "ComfyUI" : config.provider}`,
   });
   return renderPayloadWithProvider({
     provider: config.provider,
@@ -1333,13 +1358,26 @@ function summarizeComfyQueueEntry(entry = []) {
   const save = nodeByClass(workflow, "SaveImage")?.inputs || {};
   const positive = nodeByClass(workflow, "CLIPTextEncode")?.inputs?.text || "";
   const frameMatch = String(positive || "").match(/This is PART\s+(\d+),\s*frame\s+(\d+)\s+of\s+(\d+)/i);
-  const label = frameMatch ? `PART ${frameMatch[1]}, кадр ${frameMatch[2]}/${frameMatch[3]}` : "";
+  const filenamePrefix = String(save.filename_prefix || "").slice(0, 160);
+  const referenceMatch = filenamePrefix.match(/neurocine_(character|location|style)_(\d+)/i);
+  const referenceKind = referenceMatch?.[1] || "";
+  const referenceIndex = referenceMatch ? Number(referenceMatch[2] || 0) + 1 : 0;
+  const referenceTitle = referenceKind === "character"
+    ? `REF персонаж ${referenceIndex}`
+    : referenceKind === "location"
+      ? `REF локация ${referenceIndex}`
+      : referenceKind === "style"
+        ? `REF стиль ${referenceIndex}`
+        : "";
+  const label = frameMatch ? `PART ${frameMatch[1]}, кадр ${frameMatch[2]}/${frameMatch[3]}` : referenceTitle;
+  const visualBeat = extractPromptSection(positive, "VISUAL BEAT:")
+    || (referenceTitle ? String(positive || "").replace(/\s+/g, " ").trim().slice(0, 180) : "");
   return {
     prompt_id: promptId,
     part: frameMatch ? `PART ${frameMatch[1]}` : "",
     frame: frameMatch ? `${frameMatch[2]}/${frameMatch[3]}` : "",
     label,
-    filename_prefix: String(save.filename_prefix || "").slice(0, 160),
+    filename_prefix: filenamePrefix,
     checkpoint: String(checkpoint.ckpt_name || "").slice(0, 160),
     size: (hiresLatent.width && hiresLatent.height)
       ? `${hiresLatent.width}x${hiresLatent.height}`
@@ -1348,7 +1386,7 @@ function summarizeComfyQueueEntry(entry = []) {
     cfg: Number(sampler.cfg || 0) || 0,
     sampler: String(sampler.sampler_name || "").slice(0, 120),
     scheduler: String(sampler.scheduler || "").slice(0, 120),
-    visual_beat: extractPromptSection(positive, "VISUAL BEAT:"),
+    visual_beat: visualBeat,
   };
 }
 

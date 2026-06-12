@@ -5161,7 +5161,9 @@ Generate this as a high-resolution production reference board for later IPAdapte
                           : refsProgress.rendering
                             ? "ПК-агент рендерит референс через ComfyUI."
                             : refsProgress.queued
-                              ? "Референсы стоят в очереди. Страница обновляет статус автоматически."
+                              ? localAgentQueue?.status === "rendering"
+                                ? "Референсы стоят в очереди сайта; ComfyUI уже занят реальным рендером ниже."
+                                : "Референсы стоят в очереди. Страница обновляет статус автоматически."
                               : "Референсы ещё не готовы. Сначала поставь их в очередь."}
                       </span>
                     </div>
@@ -5182,6 +5184,13 @@ Generate this as a high-resolution production reference board for later IPAdapte
                       <b>Сейчас: {refsProgress.current.label}</b>
                       <span>{refsProgress.current.stage} · {refsProgress.current.message}</span>
                       <small>время: {refsProgress.current.elapsed} · обновлено: {refsProgress.current.updated}{refsProgress.current.progress.output ? ` · файл: ${refsProgress.current.progress.output}` : ""}</small>
+                    </div>
+                  ) : null}
+                  {localAgentQueue?.status === "rendering" ? (
+                    <div className="refs-current">
+                      <b>{localAgentQueue.title}</b>
+                      <span>{localAgentQueue.detail}</span>
+                      {localAgentQueue.meta?.length ? <small>{localAgentQueue.meta.join(" · ")}</small> : null}
                     </div>
                   ) : null}
                   <div className="refs-health">
