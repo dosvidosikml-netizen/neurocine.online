@@ -4268,34 +4268,17 @@ Generate this as a high-resolution production reference board for later IPAdapte
       if (!data.text) throw new Error(data.error || "API не вернул сценарий");
       const nextScript = data.text.trim();
       setScript(nextScript);
-      setBibleAction("working");
-      setBibleNotice({ type: "working", message: "Сценарий готов. AI собирает героев, животных, локации и ref-prompts..." });
-      let bibleResult;
-      try {
-        bibleResult = await buildProductionBibleFromAi(nextScript, createDefaultProductionBible());
-      } catch (bibleError) {
-        const nextVoice = scriptVoiceTimingInfo(nextScript, effectiveDuration);
-        setProductionBible(createDefaultProductionBible());
-        setBibleAction("error");
-        setBibleNotice({
-          type: "error",
-          message: `${bibleError.message}. Запасной режим отключён: старые/мусорные refs не созданы.`,
-        });
-        setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}. Слов: ${nextVoice.words}, оценка VO: ~${formatDuration(nextVoice.estimatedSeconds)}. Но AI bible не создана: войди заново и нажми “Собрать из сценария”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
-        return;
-      }
-      setProductionBible(bibleResult.bible);
-      setBibleAction("done");
+      setProductionBible(createDefaultProductionBible());
+      setBibleAction("");
       const nextVoice = scriptVoiceTimingInfo(nextScript, effectiveDuration);
       const voiceNote = data.word_count
         ? ` Слов: ${data.word_count}, оценка VO: ~${formatDuration(data.estimated_voice_seconds || nextVoice.estimatedSeconds)}.`
         : ` Слов: ${nextVoice.words}, оценка VO: ~${formatDuration(nextVoice.estimatedSeconds)}.`;
-      const bibleNote = ` AI bible: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.${bibleResult.modelUsed ? ` Модель bible: ${bibleResult.modelUsed}.` : ""}`;
       setBibleNotice({
-        type: "success",
-        message: `Сценарий готов. AI bible собрала: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
+        type: "idle",
+        message: "Сценарий готов. Теперь нажми “Собрать из сценария”, чтобы AI отдельно создал персонажей, локации и ref-prompts.",
       });
-      setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}.${voiceNote} ${bibleNote} Жми “Сгенерировать JSON”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
+      setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}.${voiceNote} Жми “Собрать из сценария”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
     } catch (e) {
       setError(e.message || "Генерация сценария не удалась");
       setStatus("");
