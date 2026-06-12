@@ -2985,6 +2985,7 @@ export default function TrailerStoryboardPage() {
   const [bibleNotice, setBibleNotice] = useState({ type: "idle", message: "Нажми “Собрать из сценария”: система заполнит героев, локации и ref-prompts автоматически." });
   const [busy, setBusy] = useState(false);
   const [scriptBusy, setScriptBusy] = useState(false);
+  const [scriptNotice, setScriptNotice] = useState({ type: "idle", message: "" });
   const [queueClock, setQueueClock] = useState(Date.now());
   const [error, setError] = useState("");
   const [draftReady, setDraftReady] = useState(false);
@@ -3713,6 +3714,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setScript(value);
     resetGeneratedLayer();
     setProductionBible(createDefaultProductionBible());
+    setScriptNotice({ type: "idle", message: value.trim() ? "Сценарий изменён вручную." : "" });
     setBibleAction("");
     setBibleNotice({ type: "idle", message: "Сценарий изменён. Старая библия/refs очищены. Собери новую библию/JSON." });
     setLocalRenderNotice({ type: "idle", message: "Сценарий изменён: старая очередь скрыта для этого проекта, refs нужно собрать заново." });
@@ -4002,6 +4004,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setError("");
     setLastSavedAt("");
     setShowMasterPrompt(false);
+    setScriptNotice({ type: "idle", message: "" });
     setBibleAction("");
     setBibleNotice({ type: "idle", message: "Проект очищен. Вставь сценарий и нажми “Собрать из сценария”." });
     setStatus("Всё очищено: сценарий, раскадровка, PART-сетки, кроп и локальное сохранение");
@@ -4243,6 +4246,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
 
     setScriptBusy(true);
     setError("");
+    setScriptNotice({ type: "working", message: "Генерирую сценарий..." });
     setStatus("Генерирую сценарий из темы...");
     resetGeneratedLayer();
 
@@ -4278,9 +4282,12 @@ Generate this as a high-resolution production reference board for later IPAdapte
         type: "idle",
         message: "Сценарий готов. Теперь нажми “Собрать из сценария”, чтобы AI отдельно создал персонажей, локации и ref-prompts.",
       });
+      setScriptNotice({ type: "success", message: `Сценарий готов: ${nextVoice.words} слов. Текст вставлен в поле сценария.` });
       setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}.${voiceNote} Жми “Собрать из сценария”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
     } catch (e) {
-      setError(e.message || "Генерация сценария не удалась");
+      const message = e.message || "Генерация сценария не удалась";
+      setError(message);
+      setScriptNotice({ type: "error", message: `Сценарий не создан: ${message}` });
       setStatus("");
       setBibleAction("");
     } finally {
@@ -5159,6 +5166,13 @@ Generate this as a high-resolution production reference board for later IPAdapte
               </button>
               <span className="hint">Сначала выбери длительность и секунд/кадр. Если есть только тема, жми эту кнопку. Потом — “Сгенерировать JSON”.</span>
             </div>
+            {scriptNotice.message ? <div className={`local-notice ${scriptNotice.type}`}>{scriptNotice.message}</div> : null}
+            {script.trim() ? (
+              <div className="local-notice success">
+                <b>Текущий сценарий загружен в поле выше.</b>
+                <span>{script.trim().slice(0, 260)}{script.trim().length > 260 ? "..." : ""}</span>
+              </div>
+            ) : null}
             <div className="row">
               <label>Формат<select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
               <label>Модель<select value={target} onChange={(e) => setTarget(e.target.value)}><option value="grok">Grok</option><option value="veo3">Veo 3</option></select></label>
