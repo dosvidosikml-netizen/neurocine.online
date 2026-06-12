@@ -662,16 +662,21 @@ async function getAgentStatus(agentToken) {
 
 async function listOnlineAgents() {
   const byToken = new Map();
+  const warnings = [];
   const addAgentRows = (rows = [], mode = "memory") => {
     for (const row of rows || []) {
-      const token = cleanToken(row.agent_token);
-      if (!token) continue;
-      const agent = publicAgent(row);
-      if (!agent?.online) continue;
-      const prev = byToken.get(token);
-      const prevMs = timeMs(prev?.agent?.updated_at || prev?.agent?.last_seen_at || "");
-      const nextMs = timeMs(agent.updated_at || agent.last_seen_at || "");
-      if (!prev || nextMs >= prevMs) byToken.set(token, { token, agent, mode });
+      try {
+        const token = cleanToken(row.agent_token);
+        if (!token) continue;
+        const agent = publicAgent(row);
+        if (!agent?.online) continue;
+        const prev = byToken.get(token);
+        const prevMs = timeMs(prev?.agent?.updated_at || prev?.agent?.last_seen_at || "");
+        const nextMs = timeMs(agent.updated_at || agent.last_seen_at || "");
+        if (!prev || nextMs >= prevMs) byToken.set(token, { token, agent, mode });
+      } catch (e) {
+        warnings.push(`heartbeat row skipped: ${e.message || "unknown error"}`);
+      }
     }
   };
 
@@ -688,7 +693,9 @@ async function listOnlineAgents() {
       mode = "supabase";
       addAgentRows(data || [], "supabase");
     }
-    if (!isMissingTableError(error)) throw error;
+    if (error && !isMissingTableError(error)) {
+      warnings.push(`supabase heartbeat list skipped: ${error.message || "unknown error"}`);
+    }
   }
 
   addAgentRows(Array.from(memoryStore.values()).filter((row) => row.status === "agent_heartbeat"), "memory");
@@ -696,20 +703,21 @@ async function listOnlineAgents() {
   const agents = Array.from(byToken.values())
     .sort((a, b) => timeMs(b.agent?.updated_at || b.agent?.last_seen_at || "") - timeMs(a.agent?.updated_at || a.agent?.last_seen_at || ""))
     .slice(0, 5);
-  return { mode, agents };
+  return { mode, agents, warnings };
 }
 
 async function discoverAgents() {
-  const { mode, agents } = await listOnlineAgents();
-  return NextResponse.json({ ok: true, mode, agents });
+  const { mode, agents, warnings } = await listOnlineAgents();
+  return NextResponse.json({ ok: true, mode, agents, warnings });
 }
 
 async function activeAgent() {
-  const { mode, agents } = await listOnlineAgents();
+  const { mode, agents, warnings } = await listOnlineAgents();
   const match = agents.find((item) => item?.agent?.worker_ok === true) || agents.find((item) => item?.agent?.online === true) || null;
   return NextResponse.json({
     ok: true,
     mode,
+    warnings,
     token: cleanToken(match?.token || ""),
     agent: match?.agent || null,
     agents_count: agents.length,
