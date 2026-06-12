@@ -55,9 +55,15 @@ function isTransientFetchError(error = {}) {
     || message.includes("timeout")
     || message.includes("http 429")
     || message.includes("http 500")
+    || message.includes("http 520")
+    || message.includes("http 521")
+    || message.includes("http 522")
+    || message.includes("http 523")
+    || message.includes("http 524")
     || message.includes("http 502")
     || message.includes("http 503")
-    || message.includes("http 504");
+    || message.includes("http 504")
+    || message.includes("cloudflare");
 }
 
 async function fetchJsonWithRetry(url, options = {}, timeoutMs = 600000, attempts = 4) {
@@ -159,7 +165,7 @@ async function uploadComfyInputImage(baseUrl, imageData, prefix = "neurocine_ref
   const data = await fetchJson(`${baseUrl}/upload/image`, {
     method: "POST",
     body: form,
-  }, 120000);
+  }, 600000, 8);
   const name = data.name || fileName;
   const subfolder = data.subfolder || "neurocine_refs";
   return subfolder ? `${subfolder}/${name}` : name;
@@ -1252,7 +1258,7 @@ async function completeQueueJob(config, job, result) {
       error: result.error || "",
       message: result.message || "",
     }),
-  }, 120000);
+  }, 600000, 8);
 }
 
 async function executePcCommand(job, config, state) {
@@ -1377,7 +1383,7 @@ async function updateQueueJobProgress(config, job, patch = {}) {
         stage: patch.stage || "",
         message: patch.message || "",
       }),
-    }, 15000);
+    }, 60000, 6);
   } catch (e) {
     console.error(`[NeuroCine Agent] progress update skipped: ${e.message}`);
     return null;
@@ -1524,7 +1530,7 @@ async function sendHeartbeat(config, workerStatus = null) {
       },
       agent_version: "neurocine-local-agent-v1",
     }),
-  }, 15000);
+  }, 60000, 6);
   return { heartbeat, worker };
 }
 

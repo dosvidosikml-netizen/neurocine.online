@@ -661,7 +661,22 @@ async function getAgentStatus(agentToken) {
 }
 
 async function listOnlineAgents() {
+  const byToken = new Map();
+  const addAgentRows = (rows = [], mode = "memory") => {
+    for (const row of rows || []) {
+      const token = cleanToken(row.agent_token);
+      if (!token) continue;
+      const agent = publicAgent(row);
+      if (!agent?.online) continue;
+      const prev = byToken.get(token);
+      const prevMs = timeMs(prev?.agent?.updated_at || prev?.agent?.last_seen_at || "");
+      const nextMs = timeMs(agent.updated_at || agent.last_seen_at || "");
+      if (!prev || nextMs >= prevMs) byToken.set(token, { token, agent, mode });
+    }
+  };
+
   const admin = createAdminSupabase();
+  let mode = "memory";
   if (admin) {
     const { data, error } = await admin
       .from(TABLE)
@@ -670,21 +685,18 @@ async function listOnlineAgents() {
       .order("updated_at", { ascending: false })
       .limit(20);
     if (!error) {
-      const agents = (data || [])
-        .map((row) => ({ token: cleanToken(row.agent_token), agent: publicAgent(row) }))
-        .filter((item) => item.token && item.agent?.online)
-        .slice(0, 5);
-      return { mode: "supabase", agents };
+      mode = "supabase";
+      addAgentRows(data || [], "supabase");
     }
     if (!isMissingTableError(error)) throw error;
   }
 
-  const agents = Array.from(memoryStore.values())
-    .filter((row) => row.status === "agent_heartbeat")
-    .map((row) => ({ token: cleanToken(row.agent_token), agent: publicAgent(row) }))
-    .filter((item) => item.token && item.agent?.online)
+  addAgentRows(Array.from(memoryStore.values()).filter((row) => row.status === "agent_heartbeat"), "memory");
+
+  const agents = Array.from(byToken.values())
+    .sort((a, b) => timeMs(b.agent?.updated_at || b.agent?.last_seen_at || "") - timeMs(a.agent?.updated_at || a.agent?.last_seen_at || ""))
     .slice(0, 5);
-  return { mode: "memory", agents };
+  return { mode, agents };
 }
 
 async function discoverAgents() {
