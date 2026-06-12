@@ -3523,12 +3523,53 @@ Generate this as a high-resolution production reference board for later IPAdapte
       setQueueClock(Date.now());
       if (!quiet) setStatus(`Очередь обновлена: ${Object.keys(nextJobs).length} заданий`);
       if (!quiet) setLocalRenderNotice({ type: "success", message: `Очередь обновлена: ${Object.keys(nextJobs).length} заданий.` });
+      return data;
     } catch (e) {
       if (!quiet) setError(`Не удалось обновить очередь: ${e.message}`);
       if (!quiet) setLocalRenderNotice({ type: "error", message: `Не удалось обновить очередь: ${e.message}` });
+      return null;
     } finally {
       if (!quiet) setLocalRenderAction("");
     }
+  }
+
+  async function refreshLocalAgentStatusNow(tokenOverride = "") {
+    const token = getPersistentLocalAgentToken(tokenOverride || localAgentToken);
+    if (!token) return null;
+    if (localAgentToken !== token) setLocalAgentToken(token);
+    const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "status",
+        agent_token: token,
+        project_session_id: projectSessionId,
+        ids: [],
+      }),
+    }, 30000);
+    if (data.agent !== undefined) setLocalAgentStatus(data.agent || null);
+    if (Array.isArray(data.jobs)) {
+      const nextJobs = {};
+      for (const job of data.jobs) {
+        if (projectSessionId && job.project_session_id !== projectSessionId) continue;
+        nextJobs[job.part_index] = job;
+        if (job.status === "done" && job.image_data && applyReferenceJobImage(job)) {
+          updateLocalRenderJob(job.part_index, { status: "done", message: "ref загружен в библиотеку" });
+        } else if (job.status === "done" && job.image_data) {
+          setGridUploads((prev) => ({ ...prev, [job.part_index]: job.image_data }));
+          updateLocalRenderJob(job.part_index, { status: "done", message: "агент вернул сетку" });
+        } else if (job.status === "failed") {
+          updateLocalRenderJob(job.part_index, { status: "error", message: job.error || "ошибка агента" });
+        } else if (job.status === "running") {
+          updateLocalRenderJob(job.part_index, { status: "rendering", message: job.progress_message || "агент рендерит..." });
+        } else if (job.status === "queued") {
+          updateLocalRenderJob(job.part_index, { status: "queued", message: "в очереди" });
+        }
+      }
+      setLocalQueueJobs(nextJobs);
+    }
+    setQueueClock(Date.now());
+    return data.agent || null;
   }
 
   async function loadLocalRenderHistory() {
@@ -4860,8 +4901,12 @@ Generate this as a high-resolution production reference board for later IPAdapte
   const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length || productionPipelineBlocked));
   async function handleLocalPrimaryAction() {
     if (agentNeedsCommand) {
-      await copyLocalAgentCommand();
-      return;
+      const freshAgent = await refreshLocalAgentStatusNow().catch(() => null);
+      const freshHealth = agentHealthInfo(freshAgent || localAgentStatus, Date.now());
+      if (freshHealth.status !== "online") {
+        await copyLocalAgentCommand();
+        return;
+      }
     }
     if (!partRefsReady) {
       try {
@@ -4875,9 +4920,11 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }
 
   async function handleQueueReferencesClick() {
-    if (agentNeedsCommand) {
+    const freshAgent = await refreshLocalAgentStatusNow().catch(() => null);
+    const freshHealth = agentHealthInfo(freshAgent || localAgentStatus, Date.now());
+    if (freshHealth.status !== "online") {
       await copyLocalAgentCommand();
-      const message = "Refs не поставлены: ПК-агент не связан. Команда агента скопирована, запусти её на ПК и нажми refs снова.";
+      const message = "Refs не поставлены: backend не видит свежий heartbeat ПК-агента. Команда агента скопирована, запусти её на ПК и нажми refs снова.";
       setBibleNotice({ type: "warn", message });
       setLocalRenderNotice({ type: "warn", message });
       setStatus("Сначала свяжи ПК-агент с этим токеном.");
