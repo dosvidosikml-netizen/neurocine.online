@@ -4009,9 +4009,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }
 
   async function buildProductionBibleFromAi(source, baseBible = productionBible, options = {}) {
-    const allowFallback = options.allowFallback !== false;
     const cleanSource = cleanText(source);
-    const fallbackBible = () => extractProductionBibleFromScript(cleanSource, baseBible, { stylePreset, styleProfile });
     try {
       const token = await getAuthToken();
       const data = await fetchJsonWithTimeout("/api/trailer/bible", {
@@ -4054,15 +4052,11 @@ Generate this as a high-resolution production reference board for later IPAdapte
         notes: data.analysis_notes || [],
       };
     } catch (e) {
-      if (!allowFallback) throw e;
-      const fallback = fallbackBible();
-      return {
-        bible: fallback,
-        mode: "fallback",
-        error: e.message || "AI-разбор недоступен",
-        charCount: filledProductionCharacters(fallback).length,
-        locCount: filledProductionLocations(fallback).length,
-      };
+      const rawMessage = e.message || "AI-разбор production bible недоступен";
+      const authHint = /сессия|session|auth|unauthorized|войд/i.test(rawMessage)
+        ? " Сессия истекла: войди заново и повтори AI-разбор."
+        : "";
+      throw new Error(`AI-разбор production bible не выполнен.${authHint} Причина: ${rawMessage}`);
     }
   }
 
@@ -4077,7 +4071,20 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setBibleAction("working");
     setBibleNotice({ type: "working", message: "AI сканирует сценарий: персонажи, животные, локации, props и ref-prompts..." });
     setStatus("AI сканирует сценарий для production bible...");
-    const result = await buildProductionBibleFromAi(source, productionBible);
+    let result;
+    try {
+      result = await buildProductionBibleFromAi(source, productionBible);
+    } catch (e) {
+      setProductionBible(createDefaultProductionBible());
+      setStoryboard(null);
+      setGridUploads({});
+      setCroppedFrame("");
+      setBibleAction("error");
+      const message = `${e.message}. Запасной режим отключён: мусорные refs не созданы.`;
+      setBibleNotice({ type: "error", message });
+      setStatus("AI bible не создана. Войди заново или повтори разбор.");
+      return;
+    }
     const next = result.bible;
     const charCount = result.charCount;
     const locCount = result.locCount;
@@ -4092,13 +4099,8 @@ Generate this as a high-resolution production reference board for later IPAdapte
       return;
     }
     setBibleAction("done");
-    if (result.mode === "fallback") {
-      setBibleNotice({ type: "warn", message: `AI-разбор не прошёл (${result.error}). Включён fallback: ${charCount} персонаж., ${locCount} локац. Это не production-качество.` });
-      setStatus(`Библия собрана fallback-режимом: ${charCount} персонаж., ${locCount} локац.`);
-    } else {
-      setBibleNotice({ type: "success", message: `AI собрал: ${charCount} персонаж./животн., ${locCount} локац. Можно жать “В очередь refs” или “Авто всё”.${result.modelUsed ? ` Модель: ${result.modelUsed}` : ""}` });
-      setStatus(`AI-библия проекта готова: ${charCount} персонаж./животн., ${locCount} локац. Ручные поля необязательны.`);
-    }
+    setBibleNotice({ type: "success", message: `AI собрал: ${charCount} персонаж./животн., ${locCount} локац. Можно жать “В очередь refs” или “Авто всё”.${result.modelUsed ? ` Модель: ${result.modelUsed}` : ""}` });
+    setStatus(`AI-библия проекта готова: ${charCount} персонаж./животн., ${locCount} локац. Ручные поля необязательны.`);
   }
 
   async function autoBuildAndGenerate() {
@@ -4112,7 +4114,20 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setBibleAction("working");
     setBibleNotice({ type: "working", message: "AI собирает production bible, затем refs/storyboard..." });
     setStatus("AI собирает production bible...");
-    const result = await buildProductionBibleFromAi(source, productionBible);
+    let result;
+    try {
+      result = await buildProductionBibleFromAi(source, productionBible);
+    } catch (e) {
+      setProductionBible(createDefaultProductionBible());
+      setStoryboard(null);
+      setGridUploads({});
+      setCroppedFrame("");
+      setBibleAction("error");
+      const message = `${e.message}. Авто всё остановлено: запасной режим отключён.`;
+      setBibleNotice({ type: "error", message });
+      setStatus("Авто всё остановлено: AI bible не создана.");
+      return;
+    }
     const next = result.bible;
     const charCount = result.charCount;
     const locCount = result.locCount;
@@ -4121,7 +4136,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setGridUploads({});
     setCroppedFrame("");
     setBibleAction("done");
-    setBibleNotice({ type: result.mode === "fallback" ? "warn" : "success", message: `${result.mode === "fallback" ? "Fallback" : "AI"} собрало: ${charCount} персонаж./животн., ${locCount} локац. Ставлю refs в очередь.` });
+    setBibleNotice({ type: "success", message: `AI собрало: ${charCount} персонаж./животн., ${locCount} локац. Ставлю refs в очередь.` });
     const queued = await queueReferencesForLocalAgent(next, { quiet: false, skipWithoutAuth: false });
     const readiness = productionReferenceReadiness(next);
     if (readiness.requiredTotal && !readiness.ready) {
@@ -4255,21 +4270,30 @@ Generate this as a high-resolution production reference board for later IPAdapte
       setScript(nextScript);
       setBibleAction("working");
       setBibleNotice({ type: "working", message: "Сценарий готов. AI собирает героев, животных, локации и ref-prompts..." });
-      const bibleResult = await buildProductionBibleFromAi(nextScript, createDefaultProductionBible());
+      let bibleResult;
+      try {
+        bibleResult = await buildProductionBibleFromAi(nextScript, createDefaultProductionBible());
+      } catch (bibleError) {
+        const nextVoice = scriptVoiceTimingInfo(nextScript, effectiveDuration);
+        setProductionBible(createDefaultProductionBible());
+        setBibleAction("error");
+        setBibleNotice({
+          type: "error",
+          message: `${bibleError.message}. Запасной режим отключён: старые/мусорные refs не созданы.`,
+        });
+        setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}. Слов: ${nextVoice.words}, оценка VO: ~${formatDuration(nextVoice.estimatedSeconds)}. Но AI bible не создана: войди заново и нажми “Собрать из сценария”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
+        return;
+      }
       setProductionBible(bibleResult.bible);
       setBibleAction("done");
       const nextVoice = scriptVoiceTimingInfo(nextScript, effectiveDuration);
       const voiceNote = data.word_count
         ? ` Слов: ${data.word_count}, оценка VO: ~${formatDuration(data.estimated_voice_seconds || nextVoice.estimatedSeconds)}.`
         : ` Слов: ${nextVoice.words}, оценка VO: ~${formatDuration(nextVoice.estimatedSeconds)}.`;
-      const bibleNote = bibleResult.mode === "fallback"
-        ? ` Bible fallback: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`
-        : ` AI bible: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.${bibleResult.modelUsed ? ` Модель bible: ${bibleResult.modelUsed}.` : ""}`;
+      const bibleNote = ` AI bible: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.${bibleResult.modelUsed ? ` Модель bible: ${bibleResult.modelUsed}.` : ""}`;
       setBibleNotice({
-        type: bibleResult.mode === "fallback" ? "warn" : "success",
-        message: bibleResult.mode === "fallback"
-          ? `Сценарий готов, но AI bible не прошла (${bibleResult.error}). Включён fallback: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`
-          : `Сценарий готов. AI bible собрала: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
+        type: "success",
+        message: `Сценарий готов. AI bible собрала: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
       });
       setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}.${voiceNote} ${bibleNote} Жми “Сгенерировать JSON”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
     } catch (e) {
@@ -4294,13 +4318,22 @@ Generate this as a high-resolution production reference board for later IPAdapte
       let requestBible = baseBible;
       if (!filledProductionCharacters(baseBible).length && !filledProductionLocations(baseBible).length) {
         setStatus("AI собирает production bible перед JSON...");
-        const bibleResult = await buildProductionBibleFromAi(script || projectName, baseBible);
+        let bibleResult;
+        try {
+          bibleResult = await buildProductionBibleFromAi(script || projectName, baseBible);
+        } catch (bibleError) {
+          const message = `${bibleError.message}. JSON не запущен: сначала нужен настоящий AI-разбор bible.`;
+          setBibleAction("error");
+          setBibleNotice({ type: "error", message });
+          setLocalRenderNotice({ type: "error", message });
+          throw new Error(message);
+        }
         requestBible = bibleResult.bible;
         setProductionBible(requestBible);
         setBibleAction("done");
         setBibleNotice({
-          type: bibleResult.mode === "fallback" ? "warn" : "success",
-          message: `${bibleResult.mode === "fallback" ? "Fallback" : "AI"} bible перед JSON: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
+          type: "success",
+          message: `AI bible перед JSON: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
         });
       } else if (requestBible !== lockedProductionBible) {
         setProductionBible(requestBible);
@@ -4599,13 +4632,25 @@ Generate this as a high-resolution production reference board for later IPAdapte
         setBibleAction("working");
         setBibleNotice({ type: "working", message: "Перед refs AI собирает production bible..." });
       }
-      const bibleResult = await buildProductionBibleFromAi(script || projectName, sourceBible);
+      let bibleResult;
+      try {
+        bibleResult = await buildProductionBibleFromAi(script || projectName, sourceBible);
+      } catch (bibleError) {
+        const message = `${bibleError.message}. Refs не поставлены: сначала нужен настоящий AI-разбор bible.`;
+        if (!quiet) {
+          setBibleAction("error");
+          setBibleNotice({ type: "error", message });
+          setLocalRenderNotice({ type: "error", message });
+          setStatus("Refs не поставлены: AI bible не создана.");
+        }
+        throw new Error(message);
+      }
       sourceBible = bibleResult.bible;
       if (!quiet) {
         setBibleAction("done");
         setBibleNotice({
-          type: bibleResult.mode === "fallback" ? "warn" : "success",
-          message: `${bibleResult.mode === "fallback" ? "Fallback" : "AI"} bible перед refs: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
+          type: "success",
+          message: `AI bible перед refs: ${bibleResult.charCount} персонаж./животн., ${bibleResult.locCount} локац.`,
         });
       }
     }
@@ -4829,10 +4874,22 @@ Generate this as a high-resolution production reference board for later IPAdapte
       return;
     }
     if (!partRefsReady) {
-      await queueReferencesForLocalAgent();
+      try {
+        await queueReferencesForLocalAgent();
+      } catch (e) {
+        setError(e.message || "Refs не поставлены в очередь");
+      }
       return;
     }
     await queueCurrentPartForLocalAgent();
+  }
+
+  async function handleQueueReferencesClick() {
+    try {
+      await queueReferencesForLocalAgent();
+    } catch (e) {
+      setError(e.message || "Refs не поставлены в очередь");
+    }
   }
   return (
     <main className="trailer-page">
@@ -5134,7 +5191,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
                 <div className="buttons">
                   <button type="button" className={`${bibleAction === "working" ? "action-direct is-working" : bibleAction === "done" ? "action-check" : bibleAction === "empty" ? "danger" : ""}`} onClick={autoBuildProductionBible} disabled={busy || scriptBusy || bibleAction === "working" || (script.trim().length < 3 && projectName.trim().length < 3)}>{bibleBuildLabel}</button>
                   <button type="button" className="primary" onClick={autoBuildAndGenerate} disabled={busy || scriptBusy || bibleAction === "working" || script.trim().length < 10}>Авто всё</button>
-                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={() => queueReferencesForLocalAgent()} disabled={busy || scriptBusy || bibleAction === "working" || localRenderAction === "queue-refs" || script.trim().length < 10}>В очередь refs</button>
+                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={handleQueueReferencesClick} disabled={busy || scriptBusy || bibleAction === "working" || localRenderAction === "queue-refs" || script.trim().length < 10}>В очередь refs</button>
                   <button type="button" className="danger" onClick={resetProductionBible} disabled={busy || scriptBusy}>Очистить библию</button>
                 </div>
               </div>
@@ -5218,7 +5275,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
                   </div>
                 </div>
               ) : null}
-              <div className="hint">Production режим: “Собрать из сценария” запускает AI-анализ и вытягивает людей, животных, локации и ref-prompts. Локальный разбор используется только как fallback и будет подписан явно.</div>
+              <div className="hint">Production режим: “Собрать из сценария” запускает AI-анализ и вытягивает людей, животных, локации и ref-prompts. Если AI-разбор не прошёл, refs и JSON не запускаются.</div>
 
               {bibleScanActive ? (
                 <div className="local-notice warn">
