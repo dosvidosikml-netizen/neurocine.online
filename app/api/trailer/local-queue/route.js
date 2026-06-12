@@ -660,6 +660,38 @@ async function getAgentStatus(agentToken) {
   return memoryHeartbeat(agentToken);
 }
 
+async function discoverAgents(req) {
+  const account = await getServerAccount(req);
+  if (!account.ok) {
+    return NextResponse.json({ ok: false, error: account.message || "Нужно войти через Google." }, { status: account.status || 401 });
+  }
+
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { data, error } = await admin
+      .from(TABLE)
+      .select("id,agent_token,project_name,part_index,part_label,provider,status,payload,error,created_at,updated_at")
+      .eq("status", "agent_heartbeat")
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    if (!error) {
+      const agents = (data || [])
+        .map((row) => ({ token: cleanToken(row.agent_token), agent: publicAgent(row) }))
+        .filter((item) => item.token && item.agent?.online)
+        .slice(0, 5);
+      return NextResponse.json({ ok: true, mode: "supabase", agents });
+    }
+    if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  const agents = Array.from(memoryStore.values())
+    .filter((row) => row.status === "agent_heartbeat")
+    .map((row) => ({ token: cleanToken(row.agent_token), agent: publicAgent(row) }))
+    .filter((item) => item.token && item.agent?.online)
+    .slice(0, 5);
+  return NextResponse.json({ ok: true, mode: "memory", agents });
+}
+
 async function heartbeatAgent(body) {
   const agentToken = cleanToken(body.agent_token || body.agentToken);
   if (!agentToken) return NextResponse.json({ ok: false, error: "Нужен токен локального агента." }, { status: 400 });
@@ -942,6 +974,7 @@ export async function POST(req) {
     if (action === "heartbeat") return heartbeatAgent(body);
     if (action === "clear") return clearJobs(req, body);
     if (action === "agent_status") return NextResponse.json({ ok: true, agent: await getAgentStatus(cleanToken(body.agent_token || body.agentToken)) });
+    if (action === "discover_agents") return discoverAgents(req);
     if (action === "status") return statusJobs(body);
     if (action === "history") return historyJobs(body);
     return NextResponse.json({ ok: false, error: "Неизвестное действие очереди." }, { status: 400 });

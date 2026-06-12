@@ -3534,7 +3534,8 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }
 
   async function refreshLocalAgentStatusNow(tokenOverride = "") {
-    const token = getPersistentLocalAgentToken(tokenOverride || localAgentToken);
+    const explicitToken = String(tokenOverride || "").trim();
+    const token = explicitToken ? savePersistentLocalAgentToken(explicitToken) : getPersistentLocalAgentToken(localAgentToken);
     if (!token) return null;
     if (localAgentToken !== token) setLocalAgentToken(token);
     const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
@@ -3570,6 +3571,31 @@ Generate this as a high-resolution production reference board for later IPAdapte
     }
     setQueueClock(Date.now());
     return data.agent || null;
+  }
+
+  async function discoverOnlineLocalAgent() {
+    const currentAgent = await refreshLocalAgentStatusNow().catch(() => null);
+    const currentHealth = agentHealthInfo(currentAgent || localAgentStatus, Date.now());
+    if (currentHealth.status === "online") return currentAgent;
+
+    const authToken = await getAuthToken();
+    if (!authToken) return currentAgent;
+    const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ action: "discover_agents" }),
+    }, 30000);
+    const agents = Array.isArray(data.agents) ? data.agents : [];
+    const match = agents.find((item) => item?.agent?.worker_ok === true) || agents.find((item) => item?.agent?.online === true);
+    const token = String(match?.token || "").trim();
+    if (!token) return currentAgent;
+    savePersistentLocalAgentToken(token);
+    setLocalAgentToken(token);
+    setLocalRenderNotice({ type: "working", message: `Найден активный ПК-агент: ${token.slice(0, 8)}...${token.slice(-6)}. Подключаю телефон к нему...` });
+    return refreshLocalAgentStatusNow(token);
   }
 
   async function loadLocalRenderHistory() {
@@ -4901,7 +4927,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
   const localPrimaryDisabled = localRenderBusy || (!agentNeedsCommand && (!storyboard || !partScenes.length || productionPipelineBlocked));
   async function handleLocalPrimaryAction() {
     if (agentNeedsCommand) {
-      const freshAgent = await refreshLocalAgentStatusNow().catch(() => null);
+      const freshAgent = await discoverOnlineLocalAgent().catch(() => null);
       const freshHealth = agentHealthInfo(freshAgent || localAgentStatus, Date.now());
       if (freshHealth.status !== "online") {
         await copyLocalAgentCommand();
@@ -4920,11 +4946,11 @@ Generate this as a high-resolution production reference board for later IPAdapte
   }
 
   async function handleQueueReferencesClick() {
-    const freshAgent = await refreshLocalAgentStatusNow().catch(() => null);
+    const freshAgent = await discoverOnlineLocalAgent().catch(() => null);
     const freshHealth = agentHealthInfo(freshAgent || localAgentStatus, Date.now());
     if (freshHealth.status !== "online") {
       await copyLocalAgentCommand();
-      const message = "Refs не поставлены: backend не видит свежий heartbeat ПК-агента. Команда агента скопирована, запусти её на ПК и нажми refs снова.";
+      const message = "Refs не поставлены: backend не нашёл активный ПК-агент. Команда агента скопирована, запусти её на ПК и нажми refs снова.";
       setBibleNotice({ type: "warn", message });
       setLocalRenderNotice({ type: "warn", message });
       setStatus("Сначала свяжи ПК-агент с этим токеном.");
