@@ -1005,15 +1005,16 @@ async function renderComfy({ baseUrl, payload, checkpoint, outputDir = "", onPro
   if (!promptId) throw new Error("ComfyUI did not return prompt_id");
 
   const started = Date.now();
+  const renderTimeoutMs = Math.max(600000, Number(preparedPayload.render_timeout_ms || payload.render_timeout_ms || 1800000) || 1800000);
   let lastProgressAt = 0;
   let image = null;
-  while (Date.now() - started < 600000) {
+  while (Date.now() - started < renderTimeoutMs) {
     await sleep(1500);
     if (onProgress && Date.now() - lastProgressAt > 8000) {
       lastProgressAt = Date.now();
       const elapsed = Date.now() - started;
       await onProgress({
-        progress: Math.min(88, Math.max(12, Math.round(12 + (elapsed / 600000) * 76))),
+        progress: Math.min(88, Math.max(12, Math.round(12 + (elapsed / renderTimeoutMs) * 76))),
         stage: "waiting_comfy",
         message: `ComfyUI выполняет prompt ${promptId.slice(0, 8)}`,
       });
@@ -1031,7 +1032,7 @@ async function renderComfy({ baseUrl, payload, checkpoint, outputDir = "", onPro
   if (!image) {
     const fallback = await findLatestOutputDataUrl(outputDir, preparedPayload.filename_prefix || payload.filename_prefix || "", started);
     if (fallback) return fallback;
-    throw new Error("ComfyUI render timed out");
+    throw new Error(`ComfyUI render timed out after ${Math.round(renderTimeoutMs / 60000)}m`);
   }
 
   const params = new URLSearchParams({
