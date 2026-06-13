@@ -4368,7 +4368,8 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setError("");
     setScriptNotice({ type: "working", message: "Генерирую сценарий..." });
     setStatus("Генерирую сценарий из темы...");
-    resetGeneratedLayer();
+    const nextSessionId = makeProjectSessionId();
+    resetGeneratedLayer(nextSessionId);
 
     try {
       const token = await getAuthToken();
@@ -4389,12 +4390,53 @@ Generate this as a high-resolution production reference board for later IPAdapte
         }),
       }, 90000);
 
-      if (!data.text) throw new Error(data.error || "API не вернул сценарий");
-      const nextScript = data.text.trim();
-      setScript(nextScript);
-      setProductionBible(createDefaultProductionBible());
-      setBibleAction("");
+      const nextScript = String(data.text || "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
       const nextVoice = scriptVoiceTimingInfo(nextScript, effectiveDuration);
+      if (!nextScript || nextVoice.words < 12) {
+        throw new Error(data.error || "API вернул пустой сценарий. Текст не вставлен.");
+      }
+      const emptyBible = createDefaultProductionBible();
+      setScript(nextScript);
+      setProductionBible(emptyBible);
+      setBibleAction("");
+      try {
+        const savedAt = new Date().toISOString();
+        window.localStorage.setItem(TRAILER_DRAFT_KEY, JSON.stringify({
+          projectName: topic,
+          script: nextScript,
+          duration: effectiveDuration,
+          frameSeconds,
+          autoTiming,
+          customFrameCount,
+          aspectRatio,
+          target,
+          stylePreset,
+          productionBible: emptyBible,
+          partSize,
+          cropInset,
+          storyboard: null,
+          activePart: 0,
+          selectedFrameIndex: 0,
+          gridUploads: {},
+          localWorkerUrl,
+          localRenderProvider,
+          localModelPreset,
+          localCheckpoint,
+          localLoras,
+          localWorkflowTemplate,
+          localImageWidth,
+          localImageHeight,
+          localSteps,
+          localCfg,
+          localAgentToken,
+          localQueueJobs: {},
+          projectSessionId: nextSessionId,
+          lastSavedAt: savedAt,
+        }));
+        setLastSavedAt(savedAt);
+      } catch {}
       const voiceNote = data.word_count
         ? ` Слов: ${data.word_count}, оценка VO: ~${formatDuration(data.estimated_voice_seconds || nextVoice.estimatedSeconds)}.`
         : ` Слов: ${nextVoice.words}, оценка VO: ~${formatDuration(nextVoice.estimatedSeconds)}.`;
