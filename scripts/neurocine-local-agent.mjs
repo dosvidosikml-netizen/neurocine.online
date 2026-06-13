@@ -262,7 +262,7 @@ async function stopComfyUiProcesses(config) {
   if (!config.comfyuiDir) throw new Error("Missing --comfyui-dir");
   const script = [
     `$root = ${quotePowerShell(config.comfyuiDir)}.ToLowerInvariant()`,
-    "$procs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($root) -and $_.CommandLine.ToLowerInvariant().Contains('main.py') }",
+    "$procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -ieq 'python.exe' -and $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($root) -and $_.CommandLine.ToLowerInvariant().Contains('main.py') }",
     "$procs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
     "Write-Output ($procs | Measure-Object).Count",
   ].join("; ");
@@ -270,9 +270,35 @@ async function stopComfyUiProcesses(config) {
   return String(result.stdout || "").trim() || "0";
 }
 
+async function countComfyUiProcesses(config) {
+  if (process.platform !== "win32" || !config.comfyuiDir) return 0;
+  const script = [
+    `$root = ${quotePowerShell(config.comfyuiDir)}.ToLowerInvariant()`,
+    "$procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -ieq 'python.exe' -and $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($root) -and $_.CommandLine.ToLowerInvariant().Contains('main.py') }",
+    "Write-Output (($procs | Measure-Object).Count)",
+  ].join("; ");
+  try {
+    const result = await runProcess("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]);
+    return Math.max(0, Number(String(result.stdout || "").trim()) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function cleanupDuplicateComfyUiProcesses(config) {
+  // Do not auto-kill ComfyUI from heartbeat/startup. Some ComfyUI builds briefly
+  // expose multiple python processes while initializing, and killing the wrong one
+  // can drop the API. Full restart still uses stopComfyUiProcesses().
+  return 0;
+}
+
 async function startComfyUi(config) {
   const current = await checkWorkerStatus(config);
-  if (current.ok) return "ComfyUI already responds.";
+  if (current.ok) {
+    const cleaned = await cleanupDuplicateComfyUiProcesses(config);
+    if (cleaned) console.log(`[NeuroCine Agent] removed duplicate ComfyUI process count=${cleaned}`);
+    return "ComfyUI already responds.";
+  }
   if (config.provider !== "comfyui") throw new Error("Start ComfyUI command requires provider=comfyui.");
   if (!config.comfyuiDir || !config.comfyuiMain) throw new Error("Missing ComfyUI path. Pass --comfyui-dir if needed.");
   const port = workerPort(config.workerUrl, 8188);
@@ -282,11 +308,20 @@ async function startComfyUi(config) {
   if (config.comfyuiExtraModelPathsConfig) args.push("--extra-model-paths-config", config.comfyuiExtraModelPathsConfig);
   if (config.comfyuiInputDir) args.push("--input-directory", config.comfyuiInputDir);
   if (config.comfyuiOutputDir) args.push("--output-directory", config.comfyuiOutputDir);
-  runDetached(config.python, args, { cwd: config.comfyuiDir });
+  const existingProcessCount = await countComfyUiProcesses(config);
+  if (existingProcessCount > 0) {
+    console.log(`[NeuroCine Agent] ComfyUI process already starting/running (${existingProcessCount}); waiting for API...`);
+  } else {
+    runDetached(config.python, args, { cwd: config.comfyuiDir });
+  }
   while (Date.now() - startedAt < timeoutMs) {
     await sleep(2000);
     const status = await checkWorkerStatus(config);
-    if (status.ok) return `ComfyUI started on port ${port}.`;
+    if (status.ok) {
+      const cleaned = await cleanupDuplicateComfyUiProcesses(config);
+      if (cleaned) console.log(`[NeuroCine Agent] removed duplicate ComfyUI process count=${cleaned}`);
+      return `ComfyUI started on port ${port}.`;
+    }
   }
   throw new Error(`ComfyUI start command was sent, but API did not become ready within ${Math.round(timeoutMs / 1000)} seconds.`);
 }
@@ -1924,6 +1959,14 @@ function startHeartbeatLoop(config, state) {
     heartbeatBusy = true;
     try {
       state.lastWorkerStatus = await checkWorkerStatus(config);
+      if (state.lastWorkerStatus.ok && config.provider === "comfyui") {
+        const now = Date.now();
+        if (!state.lastCleanupAt || now - state.lastCleanupAt > 60000) {
+          state.lastCleanupAt = now;
+          const cleaned = await cleanupDuplicateComfyUiProcesses(config);
+          if (cleaned) console.log(`[NeuroCine Agent] heartbeat removed duplicate ComfyUI process count=${cleaned}`);
+        }
+      }
       const hb = await sendHeartbeat(config, state.lastWorkerStatus);
       const agent = hb?.heartbeat?.agent || {};
       const workerOk = agent.worker_ok ? "worker online" : `worker offline${agent.worker_error ? `: ${agent.worker_error}` : ""}`;
@@ -1984,7 +2027,7 @@ async function main() {
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui output=${config.comfyuiOutputDir || "default"}`);
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui auto-start=${config.autoStartWorker ? "on" : "off"}`);
   console.log("[NeuroCine Agent] ждёт задания...");
-  const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" }, autoStartBusy: false, lastAutoStartAt: 0 };
+  const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" }, autoStartBusy: false, lastAutoStartAt: 0, lastCleanupAt: 0 };
   startHeartbeatLoop(config, state);
 
   while (true) {

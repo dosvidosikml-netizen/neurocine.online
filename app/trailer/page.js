@@ -4284,11 +4284,14 @@ Generate this as a high-resolution production reference board for later IPAdapte
     const cleanSource = cleanText(source);
     try {
       const token = await getAuthToken();
+      if (!token) {
+        throw new Error("Сессия истекла. Войдите заново.");
+      }
       const data = await fetchJsonWithTimeout("/api/trailer/bible", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           topic: projectName,
@@ -4332,6 +4335,26 @@ Generate this as a high-resolution production reference board for later IPAdapte
     }
   }
 
+  async function restartLoginForAiAction({ notice = "Для AI-операции нужно войти через Google заново." } = {}) {
+    setError("");
+    setStatus("Открываю вход через Google...");
+    setScriptNotice({ type: "working", message: notice });
+    setBibleNotice({ type: "working", message: notice });
+    setLocalRenderNotice({ type: "working", message: notice });
+    try {
+      await startTrailerGoogleLogin({ resetAuth: true });
+      return true;
+    } catch (loginError) {
+      const loginMessage = loginError.message || "Google login не открылся";
+      setError(loginMessage);
+      setScriptNotice({ type: "error", message: `Вход не открыт: ${loginMessage}` });
+      setBibleNotice({ type: "error", message: `Вход не открыт: ${loginMessage}` });
+      setLocalRenderNotice({ type: "error", message: `Вход не открыт: ${loginMessage}` });
+      setStatus("");
+      return false;
+    }
+  }
+
   async function autoBuildProductionBible() {
     const source = cleanText(script || projectName);
     if (source.length < 3) {
@@ -4352,6 +4375,10 @@ Generate this as a high-resolution production reference board for later IPAdapte
       setGridUploads({});
       setCroppedFrame("");
       setBibleAction("error");
+      if (isAuthExpiredMessage(e.message)) {
+        await restartLoginForAiAction({ notice: "Сессия истекла. Открываю вход через Google, потом повтори “Собрать из сценария”." });
+        return;
+      }
       const message = `${e.message}. Запасной режим отключён: мусорные refs не созданы.`;
       setBibleNotice({ type: "error", message });
       setStatus("AI bible не создана. Войди заново или повтори разбор.");
@@ -4395,6 +4422,10 @@ Generate this as a high-resolution production reference board for later IPAdapte
       setGridUploads({});
       setCroppedFrame("");
       setBibleAction("error");
+      if (isAuthExpiredMessage(e.message)) {
+        await restartLoginForAiAction({ notice: "Сессия истекла. Открываю вход через Google, потом повтори “Авто всё”." });
+        return;
+      }
       const message = `${e.message}. Авто всё остановлено: запасной режим отключён.`;
       setBibleNotice({ type: "error", message });
       setStatus("Авто всё остановлено: AI bible не создана.");
@@ -4958,6 +4989,16 @@ Generate this as a high-resolution production reference board for later IPAdapte
       try {
         bibleResult = await buildProductionBibleFromAi(script || projectName, sourceBible);
       } catch (bibleError) {
+        if (isAuthExpiredMessage(bibleError.message)) {
+          if (!quiet) {
+            setBibleAction("error");
+            setBibleNotice({ type: "error", message: "Refs не поставлены: сессия истекла. Открываю вход через Google." });
+            setLocalRenderNotice({ type: "error", message: "Refs не поставлены: сессия истекла. Открываю вход через Google." });
+            setStatus("Refs не поставлены: нужно войти заново.");
+          }
+          await restartLoginForAiAction({ notice: "Сессия истекла. Открываю вход через Google, потом повтори “В очередь refs”." });
+          return false;
+        }
         const message = `${bibleError.message}. Refs не поставлены: сначала нужен настоящий AI-разбор bible.`;
         if (!quiet) {
           setBibleAction("error");
@@ -5027,6 +5068,15 @@ Generate this as a high-resolution production reference board for later IPAdapte
       }
       return true;
     } catch (e) {
+      const refKeys = jobs.map((job) => job.part_index);
+      setLocalQueueJobs((prev) => {
+        const next = { ...(prev || {}) };
+        refKeys.forEach((key) => { delete next[key]; });
+        return next;
+      });
+      refKeys.forEach((key) => {
+        updateLocalRenderJob(key, { status: "", message: "не поставлено в очередь" });
+      });
       if (!quiet) {
         setError(`Авто-референсы не поставлены в очередь: ${e.message}`);
         setBibleNotice({ type: "error", message: `Авто-референсы не поставлены в очередь: ${e.message}` });

@@ -35,7 +35,7 @@ $npm = if ($npmCmd) { $npmCmd.Source } else { "npm" }
 $outLog = Join-Path $RepoRoot "neurocine-local-agent.session.out.log"
 $errLog = Join-Path $RepoRoot "neurocine-local-agent.session.err.log"
 
-$args = @(
+$agentArgs = @(
   "run", "local-agent", "--",
   "--site", $Site,
   "--token", $Token,
@@ -46,5 +46,13 @@ $args = @(
   "--python", $Python
 )
 
-Start-Process -FilePath $npm -ArgumentList $args -WorkingDirectory $RepoRoot -RedirectStandardOutput $outLog -RedirectStandardError $errLog -WindowStyle Hidden
+function Quote-Arg([string]$value) {
+  if ($null -eq $value) { return '""' }
+  $escaped = $value.Replace('"', '\"')
+  if ($escaped -match '\s') { return '"' + $escaped + '"' }
+  return $escaped
+}
+
+$argumentLine = ($agentArgs | ForEach-Object { Quote-Arg $_ }) -join ' '
+Start-Process -FilePath $npm -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -RedirectStandardOutput $outLog -RedirectStandardError $errLog -WindowStyle Hidden
 Write-Host "NeuroCine Local Agent started for $Site."
