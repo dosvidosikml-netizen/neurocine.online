@@ -2347,9 +2347,48 @@ async function getAuthToken() {
   }
 }
 
-async function startTrailerGoogleLogin() {
+function isAuthExpiredMessage(message = "") {
+  return /сессия|session|auth|unauthorized|jwt|token|войд/i.test(String(message || ""));
+}
+
+function clearTrailerAuthFallback() {
+  try {
+    window.localStorage.removeItem("nc-auth-loading");
+    const keys = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (!key) continue;
+      const low = key.toLowerCase();
+      if (
+        low.includes("supabase") ||
+        low.includes("sb-") ||
+        low.includes("auth-token") ||
+        low.includes("nc_account") ||
+        low.includes("neurocine:account")
+      ) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {}
+
+  try {
+    const keys = [];
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+      const key = window.sessionStorage.key(i);
+      if (!key) continue;
+      const low = key.toLowerCase();
+      if (low.includes("supabase") || low.includes("auth-token") || low.includes("neurocine")) keys.push(key);
+    }
+    keys.forEach((key) => window.sessionStorage.removeItem(key));
+  } catch {}
+}
+
+async function startTrailerGoogleLogin({ resetAuth = false } = {}) {
   if (!isSupabaseConfigured || !supabase?.auth?.signInWithOAuth) {
     throw new Error("Supabase ENV не настроены на Render.");
+  }
+  if (resetAuth) {
+    try { await supabase.auth.signOut({ scope: "local" }); } catch {}
+    clearTrailerAuthFallback();
   }
   try { window.localStorage.setItem("nc-auth-loading", "1"); } catch {}
   const redirectTo = buildAuthCallbackRedirect(getCurrentReturnTo("/trailer"));
@@ -4477,6 +4516,22 @@ Generate this as a high-resolution production reference board for later IPAdapte
       setStatus(`Сценарий готов под ${formatDuration(effectiveDuration)}.${voiceNote} Жми “Собрать из сценария”.${data.model_used ? ` Модель сценария: ${data.model_used}` : ""}`);
     } catch (e) {
       const message = e.message || "Генерация сценария не удалась";
+      if (isAuthExpiredMessage(message)) {
+        setError("Сессия истекла. Нужно войти через Google заново.");
+        setScriptNotice({ type: "working", message: "Сессия истекла. Очищаю старый вход и открываю Google заново..." });
+        setStatus("Открываю вход через Google...");
+        setBibleAction("");
+        try {
+          await startTrailerGoogleLogin({ resetAuth: true });
+          return;
+        } catch (loginError) {
+          const loginMessage = loginError.message || "Google login не открылся";
+          setError(loginMessage);
+          setScriptNotice({ type: "error", message: `Вход не открыт: ${loginMessage}` });
+          setStatus("");
+          return;
+        }
+      }
       setError(message);
       setScriptNotice({ type: "error", message: `Сценарий не создан: ${message}` });
       setStatus("");
