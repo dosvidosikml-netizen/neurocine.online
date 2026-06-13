@@ -1248,6 +1248,15 @@ function characterReferenceDetailSet(item = {}) {
 function characterReferenceNegativePrompt() {
   return [
     ...LOCAL_IMAGE_NEGATIVE.split(", "),
+    "scanlines",
+    "digital glitch",
+    "chromatic tearing",
+    "broken body",
+    "duplicate body in one panel",
+    "duplicate face in one panel",
+    "overexposed white studio background",
+    "floating color palette strip",
+    "reference sheet inside a reference panel",
     "different actors in the same reference sheet",
     "different animals in the same reference sheet",
     "different species in the same reference sheet",
@@ -1265,6 +1274,29 @@ function characterReferenceNegativePrompt() {
     "random costume",
     "random genre mask",
   ].join(", ");
+}
+
+function compactReferencePromptForPanel(prompt = "", kind = "character") {
+  let text = cleanText(prompt);
+  text = text
+    .replace(/Create one wide 16:9 photoreal production character bible sheet for the same trailer, not a story frame\./i, "Create one photoreal production reference panel for the same trailer identity, not a story frame.")
+    .replace(/Create one wide 16:9 photoreal production design bible board for the same film location, not a story frame\./i, "Create one photoreal production design reference panel for the same scripted location, not a story frame.")
+    .replace(/The sheet is an identity anchor for ComfyUI\/IPAdapter\./i, "This image is an identity anchor for ComfyUI/IPAdapter.")
+    .replace(/Use one single actor only, repeated across controlled reference panels with/i, "Use one single actor identity with")
+    .replace(/Use one single animal only, repeated across controlled reference panels with/i, "Use one single animal identity with")
+    .replace(/Required visual sections arranged like a professional reference board, but without readable labels:[\s\S]*?(?=(Character slot:|Location slot:))/i, "")
+    .replace(/Use controlled panels without readable labels:[\s\S]*?(?=(No actors|Location slot:))/i, "")
+    .replace(/Reference sheet may contain multiple views of the same actor, but never multiple different people\./i, "This panel must contain exactly one view of the same actor.")
+    .replace(/Reference sheet may contain multiple views of the same animal, but never multiple different animals\./i, "This panel must contain exactly one view of the same animal.")
+    .replace(/small wardrobe\/color swatches from first appearance\./i, "")
+    .replace(/small color\/material swatches from the animal and scripted environment\./i, "")
+    .replace(/and a small color\/material swatch strip\./i, ".");
+  if (kind === "location") {
+    text += " The panel must show one coherent camera angle of one location only, with no nested collage.";
+  } else {
+    text += " The panel must show one coherent camera angle of one actor or animal only, with no nested collage.";
+  }
+  return cleanText(text);
 }
 
 function buildCharacterReferencePrompt(item = {}, normalized = {}) {
@@ -1300,23 +1332,24 @@ function buildStyleReferencePrompt(normalized = {}, script = "") {
 }
 
 function buildReferenceSheetPanelPrompts(prompt = "", kind = "character") {
-  const base = cleanText(prompt);
+  const base = compactReferencePromptForPanel(prompt, kind);
   const singlePanelLock = [
     "PANEL OVERRIDE:",
     "Use the identity, wardrobe, location, material and style locks above, but render only ONE clean reference panel for this target.",
-    "Do not render a full board, contact sheet, gallery, nested grid, captions, text labels or UI inside this panel.",
+    "Do not render a full board, contact sheet, gallery, nested grid, duplicated turnarounds, captions, text labels or UI inside this panel.",
     "The final board will be assembled by code from separate panels.",
-    "Keep the subject large, centered, sharp and readable with strong micro-detail."
+    "Keep the subject large, centered, sharp and readable with strong micro-detail.",
+    "Use a neutral dark-gray or scripted practical background; avoid pure white overexposed studio."
   ].join(" ");
   const characterPanels = [
-    ["HERO", "full-body hero anchor, neutral front view, entire subject visible head to toe or whole animal body, clean silhouette, same first-appearance wardrobe/body condition"],
-    ["FRONT", "front turnaround view, neutral stance, same face or same animal muzzle and body proportions, plain scripted environment"],
-    ["THREE QUARTER", "three-quarter turnaround view, same identity, same hair/fur/wardrobe/body condition, no redesign"],
-    ["SIDE", "side profile turnaround view, same identity and proportions, readable silhouette and posture"],
-    ["EMOTIONS", "tight expression/state reference: neutral, fear, shock, exhaustion or scripted animal vulnerability, same eyes and face/muzzle"],
-    ["POSES", "script-supported action pose reference only, no new plot event, no unrelated prop"],
-    ["DETAILS", "sharp detail reference: eyes, hands or paws, clothing fabric or fur pattern, shoes/limbs, scars/injury/body condition only if scripted"],
-    ["PALETTE", "material and color swatches as physical objects from the same subject: wardrobe/fur/skin tones, dirt/snow/water/mud only if scripted"]
+    ["HERO", "one full-body hero anchor, neutral front view only, entire subject visible head to toe or whole animal body, clean silhouette, same first-appearance wardrobe/body condition"],
+    ["FRONT", "one front turnaround view only, neutral stance, same face or same animal muzzle and body proportions, plain scripted environment"],
+    ["THREE QUARTER", "one three-quarter view only, same identity, same hair/fur/wardrobe/body condition, no redesign"],
+    ["SIDE", "one side profile view only, same identity and proportions, readable silhouette and posture"],
+    ["EMOTIONS", "one tight close-up expression/state reference only: neutral, fear, shock, exhaustion or scripted animal vulnerability, same eyes and face/muzzle"],
+    ["POSES", "one script-supported action pose reference only, no new plot event, no unrelated prop"],
+    ["DETAILS", "one sharp macro detail reference only: eyes, hands or paws, clothing fabric or fur pattern, shoes/limbs, scars/injury/body condition only if scripted"],
+    ["PALETTE", "one clean physical material/color study only from the same subject: wardrobe/fur/skin tones, dirt/snow/water/mud only if scripted"]
   ];
   const locationPanels = [
     ["ESTABLISHING", "wide establishing reference of the location geography, empty of characters and animals"],

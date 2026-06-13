@@ -1119,6 +1119,7 @@ async function renderComfy({ baseUrl, payload, checkpoint, outputDir = "", onPro
   const renderTimeoutMs = Math.max(600000, Number(preparedPayload.render_timeout_ms || payload.render_timeout_ms || 1800000) || 1800000);
   let lastProgressAt = 0;
   let image = null;
+  let historyFailures = 0;
   while (Date.now() - started < renderTimeoutMs) {
     await sleep(1500);
     if (onProgress && Date.now() - lastProgressAt > 8000) {
@@ -1132,9 +1133,15 @@ async function renderComfy({ baseUrl, payload, checkpoint, outputDir = "", onPro
     }
     try {
       const history = await fetchJson(`${baseUrl}/history/${promptId}`, { method: "GET" }, 20000);
+      historyFailures = 0;
       image = findComfyImage(history, promptId);
-    } catch {
+    } catch (e) {
       image = null;
+      historyFailures += 1;
+      const message = String(e?.message || e || "");
+      if (historyFailures >= 4 && /fetch failed|refused|econnrefused|socket|network|connect/i.test(message)) {
+        throw new Error(`ComfyUI connection lost while rendering prompt ${promptId.slice(0, 8)}: ${message}`);
+      }
     }
     if (image) break;
     const fallback = await findLatestOutputDataUrl(outputDir, preparedPayload.filename_prefix || payload.filename_prefix || "", started);
@@ -1205,6 +1212,120 @@ function isReferenceSheetPayload(payload = {}) {
     && (mode.includes("character_reference") || mode.includes("location_reference"));
 }
 
+function referenceKindFromJob(job = {}, payload = {}) {
+  const mode = String(payload.render_mode || payload.workflow_mode || "").toLowerCase();
+  const label = String(job.part_label || payload.part_label || payload.reference_kind || "").toLowerCase();
+  const prefix = String(payload.filename_prefix || "").toLowerCase();
+  if (mode.includes("location") || label.includes("локац") || label.includes("location") || prefix.includes("location")) return "location";
+  if (mode.includes("character") || label.includes("персонаж") || label.includes("character") || prefix.includes("character")) return "character";
+  return "";
+}
+
+function legacyReferenceNeedsSheet(job = {}, payload = {}) {
+  const kind = referenceKindFromJob(job, payload);
+  if (!kind) return false;
+  const mode = String(payload.render_mode || payload.workflow_mode || "").toLowerCase();
+  const label = String(job.part_label || payload.part_label || "").toLowerCase();
+  return mode.includes("reference") || label.includes("ref") || label.includes("реф");
+}
+
+function buildLegacyReferenceSheetPanels(job = {}, payload = {}) {
+  const kind = referenceKindFromJob(job, payload);
+  if (!kind) return [];
+  const base = compactReferencePromptForPanel(payload.prompt || job.prompt || "", kind);
+  const negative = payload.negative_prompt || DEFAULT_NEGATIVE;
+  const hard = kind === "character"
+    ? "Keep the exact same character/animal identity, proportions, body condition, wardrobe/fur/markings and story role across all panels. This is a production reference panel, not a story frame."
+    : "Keep the exact same location geography, materials, light sources, props and spatial logic across all panels. This is a production location reference panel, not a story frame.";
+  const characterPanels = [
+    ["HERO", "full-body hero identity view, clean silhouette, readable face or animal head, exact costume/fur/body condition"],
+    ["FRONT", "front turnaround view, neutral pose, full body, sharp face/paws/hands/clothes/fur details"],
+    ["THREE QUARTER", "three-quarter turnaround view, same identity and proportions, no redesign"],
+    ["SIDE", "side profile turnaround view, same identity, readable body profile and outfit/fur"],
+    ["BACK", "back view, same wardrobe/fur markings, same scale and posture"],
+    ["EMOTIONS", "three close emotional expressions from the script only, same face/head identity"],
+    ["POSES", "script-supported action poses only, same body and costume/fur, no new story event"],
+    ["DETAILS", "close detail reference: eyes, hands/paws, fabric/fur texture, key scripted prop if present"],
+  ];
+  const locationPanels = [
+    ["ESTABLISHING", "wide establishing view of the whole location, clear geography and horizon/depth"],
+    ["ENTRY", "threshold or entry angle, same architecture/natural entrance, no extra place"],
+    ["ACTION LANE", "main path where scripted action happens, readable floor/ground and blocking space"],
+    ["LIGHT", "practical/natural light sources and shadow behavior, same time of day"],
+    ["MATERIALS", "close material reference: walls/ground/water/snow/wood/metal/props from script only"],
+    ["PROPS", "key scripted props only, clean object reference, no invented objects"],
+    ["GEOGRAPHY", "topological continuity view showing how areas connect, no new rooms/locations"],
+    ["PALETTE", "color/material mood panel with the same film grade and texture"],
+  ];
+  const source = kind === "character" ? characterPanels : locationPanels;
+  return source.map(([label, instruction]) => ({
+    label,
+    negative_prompt: negative,
+    prompt: cleanText(`${base}
+
+PRODUCTION REF PANEL ${label}:
+${instruction}.
+${hard}
+Render one single sharp panel only. No full sheet, no collage, no labels inside image, no captions, no UI, no watermark, no unrelated actors, no unrelated animals, no unrelated location.`),
+  }));
+}
+
+function compactReferencePromptForPanel(prompt = "", kind = "character") {
+  let text = cleanText(prompt);
+  text = text
+    .replace(/Create one wide 16:9 photoreal production character bible sheet for the same trailer, not a story frame\./i, "Create one photoreal production reference panel for the same trailer identity, not a story frame.")
+    .replace(/Create one wide 16:9 photoreal production design bible board for the same film location, not a story frame\./i, "Create one photoreal production design reference panel for the same scripted location, not a story frame.")
+    .replace(/The sheet is an identity anchor for ComfyUI\/IPAdapter\./i, "This image is an identity anchor for ComfyUI/IPAdapter.")
+    .replace(/Use one single actor only, repeated across controlled reference panels with/i, "Use one single actor identity with")
+    .replace(/Use one single animal only, repeated across controlled reference panels with/i, "Use one single animal identity with")
+    .replace(/Required visual sections arranged like a professional reference board, but without readable labels:[\s\S]*?(?=(Character slot:|Location slot:))/i, "")
+    .replace(/Use controlled panels without readable labels:[\s\S]*?(?=(No actors|Location slot:))/i, "")
+    .replace(/Reference sheet may contain multiple views of the same actor, but never multiple different people\./i, "This panel must contain exactly one view of the same actor.")
+    .replace(/Reference sheet may contain multiple views of the same animal, but never multiple different animals\./i, "This panel must contain exactly one view of the same animal.")
+    .replace(/small wardrobe\/color swatches from first appearance\./i, "")
+    .replace(/small color\/material swatches from the animal and scripted environment\./i, "")
+    .replace(/and a small color\/material swatch strip\./i, ".");
+  if (kind === "location") {
+    text += " The panel must show one coherent camera angle of one location only, with no nested collage.";
+  } else {
+    text += " The panel must show one coherent camera angle of one actor or animal only, with no nested collage.";
+  }
+  return cleanText(text);
+}
+
+function upgradeLegacyReferencePayload(job = {}, payload = {}) {
+  if (isReferenceSheetPayload(payload) || !legacyReferenceNeedsSheet(job, payload)) return payload;
+  const kind = referenceKindFromJob(job, payload);
+  const panels = buildLegacyReferenceSheetPanels(job, payload);
+  if (!panels.length) return payload;
+  const referenceTitle = cleanText(payload.reference_sheet_title || payload.reference_id || job.part_label || (kind === "location" ? "LOCATION REFERENCE" : "CHARACTER REFERENCE"));
+  return {
+    ...payload,
+    reference_sheet_compose: true,
+    reference_sheet_panels: panels,
+    reference_kind: kind,
+    render_mode: kind === "location" ? "location_reference" : "character_reference",
+    workflow_mode: "sdxl_hires",
+    production_quality: payload.production_quality || "production_reference_sheet_pipeline",
+    width: Math.max(1024, Number(payload.width || 1792)),
+    height: Math.max(576, Number(payload.height || 1008)),
+    reference_board_width: Math.max(1024, Number(payload.reference_board_width || payload.width || 1792)),
+    reference_board_height: Math.max(576, Number(payload.reference_board_height || payload.height || 1008)),
+    reference_panel_width: Math.max(768, Number(payload.reference_panel_width || (kind === "character" ? 832 : 1024))),
+    reference_panel_height: Math.max(768, Number(payload.reference_panel_height || (kind === "character" ? 1088 : 768))),
+    reference_sheet_title: referenceTitle,
+    reference_sheet_subtitle: payload.reference_sheet_subtitle || (kind === "location" ? "production location bible" : "production character bible"),
+    reference_panel_ipadapter: kind === "character",
+    pixel_upscale: payload.pixel_upscale !== false,
+    steps: Math.max(44, Number(payload.steps || 52)),
+    hires_steps: Math.max(16, Number(payload.hires_steps || 20)),
+    hires_denoise: Math.min(0.24, Math.max(0.16, Number(payload.hires_denoise || 0.2))),
+    output_format: "png",
+    grid_output_format: "png",
+    render_timeout_ms: Math.max(1800000, Number(payload.render_timeout_ms || 3600000)),
+  };
+}
+
 async function renderReferenceSheet(job, config, payload) {
   const panels = payload.reference_sheet_panels.filter((panel) => panel?.prompt).slice(0, 8);
   if (!panels.length) throw new Error("Reference sheet needs reference_sheet_panels");
@@ -1227,14 +1348,14 @@ async function renderReferenceSheet(job, config, payload) {
       message: `рендер ref-панели ${i + 1}/${panels.length}: ${panel.label || `panel ${i + 1}`}`,
     });
 
-    const panelPrompt = cleanText(`${panel.prompt}
+    const panelPrompt = cleanText(`${compactReferencePromptForPanel(panel.prompt, kind)}
 
 SINGLE PANEL HARD LOCK:
-Render exactly one sharp production reference panel. No full reference sheet, no contact sheet, no collage, no multiple unrelated subjects, no captions, no UI, no watermark. Keep the same identity/design from the lock text. The final board is assembled by code after this panel.`);
+Render exactly one sharp production reference panel. No full reference sheet, no contact sheet, no nested grid, no duplicated turnarounds, no multiple unrelated subjects, no captions, no UI, no watermark. Keep the same identity/design from the lock text. Use a neutral dark-gray or scripted practical background; avoid pure white overexposed studio. The final board is assembled by code after this panel.`);
     const panelPayload = {
       ...payload,
       prompt: panelPrompt,
-      negative_prompt: panel.negative_prompt || payload.negative_prompt,
+      negative_prompt: cleanText(`${panel.negative_prompt || payload.negative_prompt || DEFAULT_NEGATIVE}, scanlines, digital glitch, chromatic tearing, broken body, duplicate body in one panel, duplicate face in one panel, overexposed white studio background, floating color palette strip, reference sheet inside a reference panel`),
       render_mode: "reference_panel",
       reference_sheet_compose: false,
       reference_sheet_panels: undefined,
@@ -1403,11 +1524,12 @@ async function renderFrameGrid(job, config, payload) {
 }
 
 async function renderJob(job, config) {
-  const payload = {
+  let payload = {
     ...(job.payload || {}),
     prompt: job.prompt,
     negative_prompt: job.negative_prompt || job.payload?.negative_prompt || DEFAULT_NEGATIVE,
   };
+  payload = upgradeLegacyReferencePayload(job, payload);
   const modeLabel = renderModeLabel(payload);
   await updateQueueJobProgress(config, job, {
     progress: 2,
