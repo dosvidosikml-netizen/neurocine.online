@@ -278,7 +278,11 @@ async function startComfyUi(config) {
   const port = workerPort(config.workerUrl, 8188);
   const timeoutMs = Math.max(30000, Number(config.comfyuiStartTimeoutMs || 120000) || 120000);
   const startedAt = Date.now();
-  runDetached(config.python, [config.comfyuiMain, "--listen", "127.0.0.1", "--port", String(port)], { cwd: config.comfyuiDir });
+  const args = [config.comfyuiMain, "--listen", "127.0.0.1", "--port", String(port)];
+  if (config.comfyuiExtraModelPathsConfig) args.push("--extra-model-paths-config", config.comfyuiExtraModelPathsConfig);
+  if (config.comfyuiInputDir) args.push("--input-directory", config.comfyuiInputDir);
+  if (config.comfyuiOutputDir) args.push("--output-directory", config.comfyuiOutputDir);
+  runDetached(config.python, args, { cwd: config.comfyuiDir });
   while (Date.now() - startedAt < timeoutMs) {
     await sleep(2000);
     const status = await checkWorkerStatus(config);
@@ -351,22 +355,35 @@ async function findFileRecursive(rootDir = "", fileName = "", maxDepth = 3) {
 }
 
 async function modelRequirement(config, folder, fileName, label, required = true) {
-  const root = config.comfyuiDir ? path.join(config.comfyuiDir, "models", folder) : "";
-  const found = await findFileRecursive(root, fileName, 4);
+  const roots = comfyModelRoots(config, folder);
+  let found = "";
+  for (const root of roots) {
+    found = await findFileRecursive(root, fileName, 4);
+    if (found) break;
+  }
   return {
     key: folder,
     label,
     file: fileName,
-    folder: root,
+    folder: roots[0] || "",
     ok: Boolean(found),
     required,
     path: found,
   };
 }
 
+function comfyModelRoots(config, folder) {
+  const roots = [];
+  if (config.comfyuiModelDir) roots.push(path.join(config.comfyuiModelDir, folder));
+  if (config.comfyuiSharedModelDir) roots.push(path.join(config.comfyuiSharedModelDir, folder));
+  if (config.comfyuiDir) roots.push(path.join(config.comfyuiDir, "models", folder));
+  return [...new Set(roots.filter(Boolean))];
+}
+
 function comfyModelPath(config, folder, fileName) {
   if (!config.comfyuiDir) throw new Error("Missing --comfyui-dir. Cannot install ComfyUI production files.");
-  return path.join(config.comfyuiDir, "models", folder, fileName);
+  const root = config.comfyuiModelDir || path.join(config.comfyuiDir, "models");
+  return path.join(root, folder, fileName);
 }
 
 function productionInstallPayload(config) {
@@ -1183,14 +1200,23 @@ async function renderNeurocineWorker({ baseUrl, payload, partIndex }) {
   return image;
 }
 
-async function renderPayloadWithProvider({ provider, workerUrl, payload, partIndex, checkpoint, comfyuiDir = "", onProgress = null }) {
+async function renderPayloadWithProvider({
+  provider,
+  workerUrl,
+  payload,
+  partIndex,
+  checkpoint,
+  comfyuiDir = "",
+  comfyuiOutputDir = "",
+  onProgress = null,
+}) {
   if (provider === "automatic1111") return renderAutomatic1111({ baseUrl: workerUrl, payload });
   if (provider === "neurocine-worker") return renderNeurocineWorker({ baseUrl: workerUrl, payload, partIndex });
   return renderComfy({
     baseUrl: workerUrl,
     payload,
     checkpoint,
-    outputDir: comfyuiDir ? path.join(comfyuiDir, "output") : "",
+    outputDir: comfyuiOutputDir || (comfyuiDir ? path.join(comfyuiDir, "output") : ""),
     onProgress,
   });
 }
@@ -1400,6 +1426,7 @@ Render exactly one sharp production reference panel. No full reference sheet, no
       partIndex: job.part_index,
       checkpoint: config.checkpoint,
       comfyuiDir: config.comfyuiDir,
+      comfyuiOutputDir: config.comfyuiOutputDir,
     });
     const imageData = typeof image === "string" ? image : image?.image || "";
     if (!imageData) throw new Error(`Reference panel ${i + 1} did not return image`);
@@ -1496,6 +1523,7 @@ async function renderFrameGrid(job, config, payload) {
       partIndex: job.part_index,
       checkpoint: config.checkpoint,
       comfyuiDir: config.comfyuiDir,
+      comfyuiOutputDir: config.comfyuiOutputDir,
     }));
     const doneProgress = Math.round(5 + ((i + 1) / frames.length) * 84);
     await updateQueueJobProgress(config, job, {
@@ -1570,6 +1598,7 @@ async function renderJob(job, config) {
     partIndex: job.part_index,
     checkpoint: config.checkpoint,
     comfyuiDir: config.comfyuiDir,
+    comfyuiOutputDir: config.comfyuiOutputDir,
     onProgress: (patch) => updateQueueJobProgress(config, job, patch),
   });
 }
@@ -1929,6 +1958,11 @@ async function main() {
     python: arg("python", process.env.COMFYUI_PYTHON || process.env.PYTHON || DEFAULT_COMFY_PYTHON),
     comfyuiDir: arg("comfyui-dir", process.env.COMFYUI_DIR || DEFAULT_COMFY_DIR),
     comfyuiMain: arg("comfyui-main", ""),
+    comfyuiModelDir: arg("comfyui-model-dir", process.env.COMFYUI_MODEL_DIR || ""),
+    comfyuiSharedModelDir: arg("comfyui-shared-model-dir", process.env.COMFYUI_SHARED_MODEL_DIR || ""),
+    comfyuiInputDir: arg("comfyui-input-dir", process.env.COMFYUI_INPUT_DIR || ""),
+    comfyuiOutputDir: arg("comfyui-output-dir", process.env.COMFYUI_OUTPUT_DIR || ""),
+    comfyuiExtraModelPathsConfig: arg("comfyui-extra-model-paths-config", process.env.COMFYUI_EXTRA_MODEL_PATHS_CONFIG || ""),
     intervalMs: Math.max(1000, Number(arg("interval", "3000")) || 3000),
     heartbeatMs: Math.max(5000, Number(arg("heartbeat", "8000")) || 8000),
     autoStartWorker: String(arg("auto-start-worker", process.env.NEUROCINE_AUTO_START_WORKER || "true")).toLowerCase() !== "false",
@@ -1946,6 +1980,8 @@ async function main() {
   console.log(`[NeuroCine Agent] provider=${config.provider} worker=${config.workerUrl}`);
   console.log(`[NeuroCine Agent] grid composer python=${config.python}`);
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui dir=${config.comfyuiDir || "not set"}`);
+  if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui model dir=${config.comfyuiModelDir || "default"}`);
+  if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui output=${config.comfyuiOutputDir || "default"}`);
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui auto-start=${config.autoStartWorker ? "on" : "off"}`);
   console.log("[NeuroCine Agent] ждёт задания...");
   const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" }, autoStartBusy: false, lastAutoStartAt: 0 };
