@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
+import { buildAuthCallbackRedirect, getCurrentReturnTo } from "../../lib/authRedirect";
 import { STYLE_PRESETS, getStyleProfile } from "../../engine/directorEngine_v4";
 import { splitScenesIntoParts, buildFlowCompactPartPrompt } from "../../engine/autoChainEngine";
 import { exactTextLine, hasCyrillic, promptListEnglish, toPromptEnglish } from "../../engine/promptLanguage";
@@ -2346,6 +2347,28 @@ async function getAuthToken() {
   }
 }
 
+async function startTrailerGoogleLogin() {
+  if (!isSupabaseConfigured || !supabase?.auth?.signInWithOAuth) {
+    throw new Error("Supabase ENV не настроены на Render.");
+  }
+  try { window.localStorage.setItem("nc-auth-loading", "1"); } catch {}
+  const redirectTo = buildAuthCallbackRedirect(getCurrentReturnTo("/trailer"));
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo,
+      skipBrowserRedirect: true,
+      queryParams: {
+        access_type: "offline",
+        prompt: "select_account",
+      },
+    },
+  });
+  if (error) throw new Error(error.message || "Google login failed");
+  if (!data?.url) throw new Error("Google login URL missing");
+  window.location.href = data.url;
+}
+
 function parseSseBlock(block) {
   const event = block.match(/^event:\s*(\S+)/m)?.[1] || "message";
   const dataRaw = block.match(/^data:\s*(.+)$/m)?.[1] || "{}";
@@ -4373,11 +4396,17 @@ Generate this as a high-resolution production reference board for later IPAdapte
 
     try {
       const token = await getAuthToken();
+      if (!token) {
+        setScriptNotice({ type: "working", message: "Сессия истекла. Открываю вход через Google, после входа вернёт обратно в трейлер." });
+        setStatus("Нужен вход через Google для генерации сценария.");
+        await startTrailerGoogleLogin();
+        return;
+      }
       const data = await fetchJsonWithTimeout("/api/trailer/script", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           topic,
