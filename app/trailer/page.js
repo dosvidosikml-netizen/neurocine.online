@@ -1246,18 +1246,21 @@ function characterReferenceDetailSet(item = {}) {
 }
 
 function characterReferenceNegativePrompt() {
-  const allowedSheetConflicts = new Set([
-    "duplicate people",
-    "contact sheet",
-    "gallery cards",
-    "nested grid",
-  ]);
   return [
-    ...LOCAL_IMAGE_NEGATIVE.split(", ").filter((item) => !allowedSheetConflicts.has(cleanText(item))),
+    ...LOCAL_IMAGE_NEGATIVE.split(", "),
     "different actors in the same reference sheet",
+    "different animals in the same reference sheet",
+    "different species in the same reference sheet",
     "face drift between views",
     "wardrobe drift between views",
+    "species drift between views",
+    "body condition drift between views",
+    "single tiny subject lost in frame",
+    "one blurry cinematic frame instead of reference panel",
+    "random story scene instead of reference panel",
     "unreadable face",
+    "unreadable eyes",
+    "smeared fur",
     "tiny face only",
     "random costume",
     "random genre mask",
@@ -1294,6 +1297,46 @@ function buildStyleReferencePrompt(normalized = {}, script = "") {
   const context = scriptBeatPromptEnglish(sourceSentences(script).slice(0, 5).join(" / "), normalized, "same trailer world");
   const style = promptEnglishSafe(styleLineForReference(normalized), "real camera cinematic photorealism, practical lighting, realistic skin/fabric/surface texture");
   return cleanText(`Create one clean 9:16 photoreal style reference frame for this trailer. It must demonstrate only the film look: lens, lighting, color, grain, contrast, tactile realism and atmosphere. Script context: ${context}. Style: ${style}. ${SCRIPT_LITERAL_GATE} Do not introduce new characters, new monsters, new locations, new props, new era, captions, labels, UI, watermark or collage.`);
+}
+
+function buildReferenceSheetPanelPrompts(prompt = "", kind = "character") {
+  const base = cleanText(prompt);
+  const singlePanelLock = [
+    "PANEL OVERRIDE:",
+    "Use the identity, wardrobe, location, material and style locks above, but render only ONE clean reference panel for this target.",
+    "Do not render a full board, contact sheet, gallery, nested grid, captions, text labels or UI inside this panel.",
+    "The final board will be assembled by code from separate panels.",
+    "Keep the subject large, centered, sharp and readable with strong micro-detail."
+  ].join(" ");
+  const characterPanels = [
+    ["HERO", "full-body hero anchor, neutral front view, entire subject visible head to toe or whole animal body, clean silhouette, same first-appearance wardrobe/body condition"],
+    ["FRONT", "front turnaround view, neutral stance, same face or same animal muzzle and body proportions, plain scripted environment"],
+    ["THREE QUARTER", "three-quarter turnaround view, same identity, same hair/fur/wardrobe/body condition, no redesign"],
+    ["SIDE", "side profile turnaround view, same identity and proportions, readable silhouette and posture"],
+    ["EMOTIONS", "tight expression/state reference: neutral, fear, shock, exhaustion or scripted animal vulnerability, same eyes and face/muzzle"],
+    ["POSES", "script-supported action pose reference only, no new plot event, no unrelated prop"],
+    ["DETAILS", "sharp detail reference: eyes, hands or paws, clothing fabric or fur pattern, shoes/limbs, scars/injury/body condition only if scripted"],
+    ["PALETTE", "material and color swatches as physical objects from the same subject: wardrobe/fur/skin tones, dirt/snow/water/mud only if scripted"]
+  ];
+  const locationPanels = [
+    ["ESTABLISHING", "wide establishing reference of the location geography, empty of characters and animals"],
+    ["ENTRY", "threshold or entry angle, clear spatial connection, no extra room beyond the script"],
+    ["ACTION LANE", "primary action lane where scripted movement happens, readable floor/walls/objects"],
+    ["LIGHT", "practical lighting state reference, same time of day/weather/interior light as scripted"],
+    ["MATERIALS", "close material study: surfaces, floor, walls, water/mud/snow/metal/wood only if scripted"],
+    ["PROPS", "scripted props and hazard objects only, no extra signage, no vehicles, no people"],
+    ["GEOGRAPHY", "secondary angle preserving the same layout and scale, no redesign"],
+    ["PALETTE", "color/material swatches from the location, realistic texture, no typography"]
+  ];
+  const panels = kind === "location" ? locationPanels : characterPanels;
+  return panels.map(([label, target], index) => ({
+    label,
+    prompt: cleanText(`${base}
+
+${singlePanelLock}
+PANEL TARGET ${index + 1}/${panels.length} — ${label}: ${target}.
+RAW QUALITY: hyperreal production reference, sharp focus, tactile documentary detail, realistic lens texture, high local contrast, no muddy haze, no compression artifacts.`),
+  }));
 }
 
 function contextContains(source = "", patterns = []) {
@@ -3328,7 +3371,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
     payload.seed = stableSeedFromText(`${projectName || "trailer"}|${script}|auto-reference|${meta.kind}|${meta.index}|${productionRefPrompt}`);
     payload.filename_prefix = `neurocine_${meta.kind || "ref"}_${meta.index || 0}`;
     if (isCharacterRef || isLocationRef) {
-      payload.production_quality = "production_reference_hires";
+      payload.production_quality = "production_reference_sheet_pipeline";
       payload.workflow_mode = "sdxl_hires";
       payload.reference_mode = "none";
       payload.pixel_upscale = true;
@@ -3338,21 +3381,32 @@ Generate this as a high-resolution production reference board for later IPAdapte
         ...(payload.required_models || {}),
         checkpoint: payload.checkpoint,
         upscale_model: payload.upscale_model,
-        production_quality: "production_reference_hires",
+        production_quality: "production_reference_sheet_pipeline",
       };
       payload.width = 1792;
       payload.height = 1008;
       payload.base_width = 1536;
       payload.base_height = 864;
-      payload.steps = Math.max(44, Number(payload.steps || 0));
-      payload.hires_steps = Math.max(22, Number(payload.hires_steps || 0));
+      payload.reference_board_width = 1792;
+      payload.reference_board_height = 1008;
+      payload.reference_panel_width = isLocationRef ? 1024 : 832;
+      payload.reference_panel_height = isLocationRef ? 768 : 1088;
+      payload.reference_sheet_panels = buildReferenceSheetPanelPrompts(prompt, meta.kind);
+      payload.reference_sheet_title = isLocationRef ? `LOC ${meta.index + 1}` : `CHAR ${meta.index + 1}`;
+      payload.reference_sheet_subtitle = "production continuity bible";
+      payload.reference_sheet_compose = true;
+      payload.reference_panel_ipadapter = isCharacterRef;
+      payload.steps = Math.max(52, Number(payload.steps || 0));
+      payload.hires_steps = Math.max(24, Number(payload.hires_steps || 0));
       payload.hires_sampler_name = payload.hires_sampler_name || "dpmpp_sde";
       payload.hires_scheduler = payload.hires_scheduler || "karras";
       payload.sampler_name = payload.sampler_name || "dpmpp_sde";
       payload.scheduler = payload.scheduler || "karras";
-      payload.cfg_scale = Number(payload.cfg_scale || payload.cfg || 4.4);
+      payload.cfg_scale = Number(payload.cfg_scale || payload.cfg || 4.2);
       payload.reference_output_format = "png";
       payload.reference_lossless = true;
+      payload.grid_output_format = "png";
+      payload.render_timeout_ms = 3600000;
     }
     if (isCharacterRef) {
       payload.render_mode = "character_reference_sheet";

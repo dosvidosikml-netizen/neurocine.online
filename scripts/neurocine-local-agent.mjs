@@ -37,6 +37,10 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function cleanText(value = "") {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
 function cleanBaseUrl(value, fallback) {
   const raw = String(value || fallback).trim();
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
@@ -753,6 +757,113 @@ else:
   }
 }
 
+async function composeReferenceSheetWithPillow({ panels, width = 1792, height = 1008, title = "REFERENCE", subtitle = "production continuity bible", pythonBinary }) {
+  if (!Array.isArray(panels) || !panels.length) throw new Error("No reference panels to compose");
+  const tempRoot = await mkdir(path.join(tmpdir(), `neurocine-refsheet-${Date.now()}-${Math.random().toString(36).slice(2)}`), { recursive: true });
+  const manifestPath = path.join(tempRoot, "manifest.json");
+  const scriptPath = path.join(tempRoot, "compose_reference_sheet.py");
+  const outputPath = path.join(tempRoot, "reference_sheet.png");
+  try {
+    const files = [];
+    for (let i = 0; i < panels.length; i += 1) {
+      const file = path.join(tempRoot, `panel_${String(i + 1).padStart(2, "0")}.png`);
+      await writeFile(file, dataUrlToBuffer(panels[i].image));
+      files.push({ file, label: cleanText(panels[i].label || `PANEL ${i + 1}`) });
+    }
+    await writeFile(manifestPath, JSON.stringify({
+      files,
+      output: outputPath,
+      width: Math.max(1024, Math.round(Number(width) || 1792)),
+      height: Math.max(576, Math.round(Number(height) || 1008)),
+      title: cleanText(title || "REFERENCE"),
+      subtitle: cleanText(subtitle || "production continuity bible"),
+    }, null, 2), "utf8");
+    await writeFile(scriptPath, `
+import json
+import sys
+from PIL import Image, ImageDraw, ImageFont
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+W = int(data.get("width", 1792))
+H = int(data.get("height", 1008))
+title = str(data.get("title", "REFERENCE"))
+subtitle = str(data.get("subtitle", "production continuity bible"))
+files = data.get("files", [])
+
+def load_font(size, bold=False):
+    candidates = [
+        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeuib.ttf" if bold else "C:/Windows/Fonts/segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+font_title = load_font(34, True)
+font_sub = load_font(18, False)
+font_label = load_font(18, True)
+
+canvas = Image.new("RGB", (W, H), (9, 10, 14))
+draw = ImageDraw.Draw(canvas)
+
+draw.rectangle((0, 0, W, H), fill=(9, 10, 14))
+draw.rectangle((18, 14, W - 18, 68), outline=(55, 205, 160), width=2)
+draw.text((36, 25), title.upper(), font=font_title, fill=(245, 248, 250))
+draw.text((max(36, W - 470), 34), subtitle, font=font_sub, fill=(152, 238, 210))
+
+margin = 18
+gutter = 10
+top = 82
+cols = 4
+rows = 2
+cell_w = (W - margin * 2 - gutter * (cols - 1)) // cols
+cell_h = (H - top - margin - gutter * (rows - 1)) // rows
+
+def cover_crop(img, w, h):
+    img = img.convert("RGB")
+    scale = max(w / img.width, h / img.height)
+    resized = img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))), Image.Resampling.LANCZOS)
+    left = max(0, (resized.width - w) // 2)
+    top_crop = max(0, (resized.height - h) // 2)
+    return resized.crop((left, top_crop, left + w, top_crop + h))
+
+for idx, item in enumerate(files[:8]):
+    col = idx % cols
+    row = idx // cols
+    x = margin + col * (cell_w + gutter)
+    y = top + row * (cell_h + gutter)
+    img = Image.open(item["file"])
+    crop = cover_crop(img, cell_w, cell_h)
+    canvas.paste(crop, (x, y))
+    draw.rectangle((x, y, x + cell_w - 1, y + cell_h - 1), outline=(55, 205, 160), width=1)
+    draw.rectangle((x, y, x + cell_w, y + 34), fill=(0, 0, 0))
+    label = str(item.get("label") or f"PANEL {idx + 1}")[:34]
+    draw.text((x + 12, y + 8), label.upper(), font=font_label, fill=(255, 255, 255))
+
+canvas.save(data["output"], "PNG", compress_level=1, optimize=False)
+`, "utf8");
+    await runProcess(pythonBinary, [scriptPath, manifestPath]);
+    const buffer = await readFile(outputPath);
+    return {
+      image: `data:image/png;base64,${buffer.toString("base64")}`,
+      bytes: buffer.length,
+      width,
+      height,
+      mime: "image/png",
+    };
+  } catch (e) {
+    throw new Error(`Reference sheet compose failed: ${e.message}. Install/keep Pillow in ComfyUI venv or pass --python to the local agent.`);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 function buildComfyWorkflow(payload = {}, checkpoint) {
   const width = Number(payload.width || 936);
   const height = Number(payload.height || 1664);
@@ -1086,6 +1197,118 @@ function renderModeLabel(payload = {}) {
   return "изображение";
 }
 
+function isReferenceSheetPayload(payload = {}) {
+  const mode = String(payload.render_mode || "").toLowerCase();
+  return payload.reference_sheet_compose === true
+    && Array.isArray(payload.reference_sheet_panels)
+    && payload.reference_sheet_panels.length > 0
+    && (mode.includes("character_reference") || mode.includes("location_reference"));
+}
+
+async function renderReferenceSheet(job, config, payload) {
+  const panels = payload.reference_sheet_panels.filter((panel) => panel?.prompt).slice(0, 8);
+  if (!panels.length) throw new Error("Reference sheet needs reference_sheet_panels");
+  const kind = String(payload.reference_kind || "").toLowerCase();
+  const isCharacter = kind === "character" || String(payload.render_mode || "").includes("character");
+  const panelWidth = Math.max(512, Math.round(Number(payload.reference_panel_width || (isCharacter ? 832 : 1024)) / 8) * 8);
+  const panelHeight = Math.max(512, Math.round(Number(payload.reference_panel_height || (isCharacter ? 1088 : 768)) / 8) * 8);
+  const baseSeed = Number.isFinite(Number(payload.seed)) && Number(payload.seed) >= 0
+    ? Math.floor(Number(payload.seed))
+    : Math.floor(Math.random() * 999999999);
+  const rendered = [];
+  let heroImage = "";
+
+  for (let i = 0; i < panels.length; i += 1) {
+    const panel = panels[i];
+    const startProgress = Math.round(8 + (i / panels.length) * 78);
+    await updateQueueJobProgress(config, job, {
+      progress: startProgress,
+      stage: "render_reference_panel",
+      message: `рендер ref-панели ${i + 1}/${panels.length}: ${panel.label || `panel ${i + 1}`}`,
+    });
+
+    const panelPrompt = cleanText(`${panel.prompt}
+
+SINGLE PANEL HARD LOCK:
+Render exactly one sharp production reference panel. No full reference sheet, no contact sheet, no collage, no multiple unrelated subjects, no captions, no UI, no watermark. Keep the same identity/design from the lock text. The final board is assembled by code after this panel.`);
+    const panelPayload = {
+      ...payload,
+      prompt: panelPrompt,
+      negative_prompt: panel.negative_prompt || payload.negative_prompt,
+      render_mode: "reference_panel",
+      reference_sheet_compose: false,
+      reference_sheet_panels: undefined,
+      reference_board_width: undefined,
+      reference_board_height: undefined,
+      width: panelWidth,
+      height: panelHeight,
+      base_width: Math.max(512, Math.round(panelWidth * 0.78 / 8) * 8),
+      base_height: Math.max(512, Math.round(panelHeight * 0.78 / 8) * 8),
+      workflow_mode: "sdxl_hires",
+      pixel_upscale: true,
+      reference_mode: "none",
+      reference_anchor: undefined,
+      reference_anchors: undefined,
+      production_bible: undefined,
+      filename_prefix: `${payload.filename_prefix || "neurocine_ref"}_panel_${String(i + 1).padStart(2, "0")}`,
+      seed: baseSeed + i * 10007,
+      steps: Math.max(36, Math.min(56, Number(payload.steps || 52))),
+      hires_steps: Math.max(12, Math.min(24, Number(payload.hires_steps || 20))),
+      hires_denoise: Math.min(0.24, Math.max(0.16, Number(payload.hires_denoise || 0.2))),
+      render_timeout_ms: Math.max(900000, Number(payload.render_timeout_ms || 2400000)),
+    };
+
+    if (isCharacter && heroImage && payload.reference_panel_ipadapter !== false) {
+      panelPayload.reference_mode = "ipadapter";
+      panelPayload.reference_anchor = {
+        kind: "character",
+        id: payload.reference_id || "reference",
+        image_data: heroImage,
+        ipadapter_weight: 0.82,
+        ipadapter_start_at: 0,
+        ipadapter_end_at: 0.86,
+        ipadapter_weight_type: "linear",
+        ipadapter_embeds_scaling: "K+V",
+      };
+    }
+
+    const image = await renderPayloadWithProvider({
+      provider: config.provider,
+      workerUrl: config.workerUrl,
+      payload: panelPayload,
+      partIndex: job.part_index,
+      checkpoint: config.checkpoint,
+      comfyuiDir: config.comfyuiDir,
+    });
+    const imageData = typeof image === "string" ? image : image?.image || "";
+    if (!imageData) throw new Error(`Reference panel ${i + 1} did not return image`);
+    if (!heroImage) heroImage = imageData;
+    rendered.push({ image: imageData, label: panel.label || `PANEL ${i + 1}` });
+
+    const doneProgress = Math.round(8 + ((i + 1) / panels.length) * 78);
+    await updateQueueJobProgress(config, job, {
+      progress: doneProgress,
+      stage: "reference_panel_done",
+      message: `ref-панель ${i + 1}/${panels.length} готова`,
+    });
+  }
+
+  await updateQueueJobProgress(config, job, {
+    progress: 92,
+    stage: "compose_reference_sheet",
+    message: "собираю reference sheet PNG",
+  });
+
+  return composeReferenceSheetWithPillow({
+    panels: rendered,
+    width: Math.max(1024, Number(payload.reference_board_width || payload.width || 1792)),
+    height: Math.max(576, Number(payload.reference_board_height || payload.height || 1008)),
+    title: payload.reference_sheet_title || payload.reference_id || job.part_label || "REFERENCE",
+    subtitle: payload.reference_sheet_subtitle || "production continuity bible",
+    pythonBinary: config.python,
+  });
+}
+
 async function renderFrameGrid(job, config, payload) {
   const frames = Array.isArray(payload.frames) ? payload.frames.filter((frame) => frame?.prompt) : [];
   if (!frames.length) throw new Error("Frame-by-frame grid mode needs payload.frames");
@@ -1197,6 +1420,14 @@ async function renderJob(job, config) {
     message: "проверяю модели и workflow",
   });
   await assertProductionReady(config, payload);
+  if (isReferenceSheetPayload(payload)) {
+    await updateQueueJobProgress(config, job, {
+      progress: 6,
+      stage: "prepare_reference_sheet",
+      message: `готовлю ${payload.reference_sheet_panels.length} ref-панелей`,
+    });
+    return renderReferenceSheet(job, config, payload);
+  }
   if (payload.render_mode === "frames_grid" && Array.isArray(payload.frames) && payload.frames.length) {
     await updateQueueJobProgress(config, job, {
       progress: 6,
