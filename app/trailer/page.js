@@ -4903,16 +4903,15 @@ Generate this as a high-resolution production reference board for later IPAdapte
     setError("");
     setStatus(`Создаю очередь для локального агента: ${jobs.length} PART...`);
     indexes.forEach((partIndex) => {
-      updateLocalRenderJob(partIndex, { status: "queued", message: "ставлю в очередь..." });
+      updateLocalRenderJob(partIndex, { status: "prompt", message: "создаю очередь..." });
     });
     try {
       const authToken = await getAuthToken();
-      if (!authToken) throw new Error("Для облачной очереди нужно войти через Google.");
       const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({
           action: "create",
@@ -4997,15 +4996,11 @@ Generate this as a high-resolution production reference board for later IPAdapte
     }
     try {
       const authToken = await getAuthToken();
-      if (!authToken) {
-        if (skipWithoutAuth) return false;
-        throw new Error("Для облачной очереди refs нужно войти через Google.");
-      }
       const data = await fetchJsonWithTimeout("/api/trailer/local-queue", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({
           action: "create",
@@ -5535,7 +5530,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
                 <div className="buttons">
                   <button type="button" className={`${bibleAction === "working" ? "action-direct is-working" : bibleAction === "done" ? "action-check" : bibleAction === "empty" ? "danger" : ""}`} onClick={autoBuildProductionBible} disabled={busy || scriptBusy || bibleAction === "working" || (script.trim().length < 3 && projectName.trim().length < 3)}>{bibleBuildLabel}</button>
                   <button type="button" className="primary" onClick={autoBuildAndGenerate} disabled={busy || scriptBusy || bibleAction === "working" || script.trim().length < 10}>Авто всё</button>
-                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={handleQueueReferencesClick} disabled={busy || scriptBusy || bibleAction === "working" || localRenderAction === "queue-refs" || script.trim().length < 10}>{agentNeedsCommand ? "Сначала агент" : "В очередь refs"}</button>
+                  <button type="button" className={`action-queue${localRenderAction === "queue-refs" ? " is-working" : ""}`} onClick={handleQueueReferencesClick} disabled={busy || scriptBusy || bibleAction === "working" || localRenderAction === "queue-refs" || script.trim().length < 10}>В очередь refs</button>
                   <button type="button" className="danger" onClick={resetProductionBible} disabled={busy || scriptBusy}>Очистить библию</button>
                 </div>
               </div>
@@ -5596,7 +5591,7 @@ Generate this as a high-resolution production reference board for later IPAdapte
                     <span className="done">готово {refsProgress.done}</span>
                     <span className="rendering">генерируется {refsProgress.rendering}</span>
                     <span className="queued">в очереди {refsProgress.queued}</span>
-                    <span className="waiting">ожидает {refsProgress.waiting}</span>
+                    <span className="waiting">не поставлено {refsProgress.waiting}</span>
                     {refsProgress.failed ? <span className="error">ошибки {refsProgress.failed}</span> : null}
                   </div>
                   {refsProgress.current ? (

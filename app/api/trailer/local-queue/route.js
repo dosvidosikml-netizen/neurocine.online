@@ -282,9 +282,6 @@ function activeMemoryDuplicates(agentToken, rows = []) {
 
 async function createJobs(req, body) {
   const account = await getServerAccount(req);
-  if (!account.ok) {
-    return NextResponse.json({ ok: false, error: account.message || "Нужно войти через Google." }, { status: account.status || 401 });
-  }
 
   const agentToken = cleanToken(body.agent_token || body.agentToken);
   const projectSessionId = String(body.project_session_id || body.projectSessionId || "").trim().slice(0, 120);
@@ -293,7 +290,7 @@ async function createJobs(req, body) {
   if (!jobs.length) return NextResponse.json({ ok: false, error: "Нет заданий для очереди." }, { status: 400 });
 
   const rows = uniqueRowsByPart(jobs.map((job, index) => ({
-    user_id: account.user?.id || null,
+    user_id: account.ok ? (account.user?.id || null) : null,
     agent_token: agentToken,
     project_name: String(body.project_name || job.project_name || "NeuroCine Trailer").slice(0, 200),
     part_index: Number.isFinite(Number(job.part_index)) ? Number(job.part_index) : index,
@@ -331,7 +328,16 @@ async function createJobs(req, body) {
       const skipped = rows.length - rowsToInsert.length;
       if (!rowsToInsert.length) {
         const jobsOut = rows.map((row) => existingByKey.get(jobDedupeKey(row))).filter(Boolean).map(publicJob);
-        return NextResponse.json({ ok: true, mode: "supabase", jobs: jobsOut, inserted_count: 0, skipped_duplicate_count: skipped });
+        return NextResponse.json({
+          ok: true,
+          mode: "supabase",
+          jobs: jobsOut,
+          inserted_count: 0,
+          skipped_duplicate_count: skipped,
+          auth_required: false,
+          auth_mode: account.ok ? "user" : "agent_token",
+          auth_warning: account.ok ? "" : (account.message || "Очередь проверена по agent_token без активной Google-сессии."),
+        });
       }
 
       const { data, error } = await admin
@@ -342,7 +348,16 @@ async function createJobs(req, body) {
         const inserted = data || [];
         const allByKey = new Map([...existingByKey, ...inserted.map((row) => [jobDedupeKey(row), row])]);
         const jobsOut = rows.map((row) => allByKey.get(jobDedupeKey(row))).filter(Boolean).map(publicJob);
-        return NextResponse.json({ ok: true, mode: "supabase", jobs: jobsOut, inserted_count: inserted.length, skipped_duplicate_count: skipped });
+        return NextResponse.json({
+          ok: true,
+          mode: "supabase",
+          jobs: jobsOut,
+          inserted_count: inserted.length,
+          skipped_duplicate_count: skipped,
+          auth_required: false,
+          auth_mode: account.ok ? "user" : "agent_token",
+          auth_warning: account.ok ? "" : (account.message || "Очередь создана по agent_token без активной Google-сессии."),
+        });
       }
       if (!isMissingTableError(error)) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
@@ -359,6 +374,9 @@ async function createJobs(req, body) {
     jobs: rows.map((row) => allByKey.get(jobDedupeKey(row))).filter(Boolean).map(publicJob),
     inserted_count: saved.length,
     skipped_duplicate_count: rows.length - rowsToInsert.length,
+    auth_required: false,
+    auth_mode: account.ok ? "user" : "agent_token",
+    auth_warning: account.ok ? "" : (account.message || "Очередь создана по agent_token без активной Google-сессии."),
   });
 }
 
