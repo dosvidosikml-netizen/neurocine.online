@@ -19,7 +19,7 @@ from .services.project_service import (
     save_project_outputs,
     serialize_project,
 )
-from .workers.pipeline_worker import mark_stage_not_implemented, run_generate_script, run_generate_storyboard
+from .workers.pipeline_worker import mark_stage_not_implemented, run_generate_images, run_generate_script, run_generate_storyboard
 
 
 app = FastAPI(title=settings.app_name)
@@ -37,6 +37,7 @@ app.add_middleware(
 def on_startup() -> None:
     init_db()
     settings.projects_dir.mkdir(parents=True, exist_ok=True)
+    settings.workflows_dir.mkdir(parents=True, exist_ok=True)
 
 
 def project_payload(project: Project) -> dict:
@@ -78,6 +79,8 @@ async def health() -> dict:
         "app": settings.app_name,
         "ollama_url": settings.ollama_url,
         "ollama_model": settings.ollama_model,
+        "comfyui_url": settings.comfyui_url,
+        "comfyui_checkpoint": settings.comfyui_checkpoint,
         "projects_dir": str(settings.projects_dir),
     }
 
@@ -146,8 +149,29 @@ async def generate_storyboard(project_id: str, background_tasks: BackgroundTasks
 
 
 @app.post("/api/projects/{project_id}/generate-images")
-async def generate_images(project_id: str, db: Session = Depends(get_db)) -> dict:
-    return mark_stage_not_implemented(db, project_id, "generate_images")
+async def generate_images(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> dict:
+    project = get_project_or_404(db, project_id)
+    if not project.image_prompts_json.strip():
+        raise HTTPException(status_code=400, detail="Сначала нужен image_prompts.json. Запусти generate-storyboard.")
+    job = create_job(db, project.id, "generate_images", "Изображения поставлены в очередь ComfyUI")
+    background_tasks.add_task(run_generate_images, job.id)
+    return {"ok": True, "job": job_payload(job), "project": project_payload(project)}
+
+
+@app.get("/api/projects/{project_id}/images/{filename}")
+async def get_project_image(project_id: str, filename: str, db: Session = Depends(get_db)):
+    project = get_project_or_404(db, project_id)
+    safe_name = Path(filename).name
+    image_path = project_dir(project) / "images" / safe_name
+    if not image_path.exists() or not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+    media_type = "image/png"
+    suffix = image_path.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        media_type = "image/jpeg"
+    elif suffix == ".webp":
+        media_type = "image/webp"
+    return FileResponse(image_path, media_type=media_type)
 
 
 @app.post("/api/projects/{project_id}/generate-video")

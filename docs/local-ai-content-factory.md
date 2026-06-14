@@ -30,13 +30,14 @@ Core modules:
 - `backend/workers/pipeline_worker.py` runs long steps and writes progress.
 - `projects/{project_id}` stores every intermediate result.
 
-MVP stages:
+Implemented MVP stages:
 1. Create project.
 2. Generate script through Ollama.
 3. Generate `storyboard.json`, `reference_map.json`, `image_prompts.json`, `video_prompts.json`.
 4. Save all outputs to disk and SQLite.
 5. Stream events to the frontend.
 6. Show results on `/factory`.
+7. Generate still images through ComfyUI API and save them under `projects/{project_id}/images`.
 
 ## Risks
 
@@ -66,10 +67,31 @@ Open:
 http://localhost:3000/factory
 ```
 
+Optional image generation environment variables:
+
+```powershell
+$env:COMFYUI_URL="http://127.0.0.1:8188"
+$env:COMFYUI_CHECKPOINT="sd_xl_base_1.0.safetensors"
+$env:COMFYUI_WORKFLOW_PATH="C:\path\to\workflow_api.json"
+```
+
+If `COMFYUI_WORKFLOW_PATH` is empty, the backend uses a basic SDXL text-to-image workflow. A custom workflow may contain placeholders:
+
+```text
+__PROMPT__
+__NEGATIVE__
+__WIDTH__
+__HEIGHT__
+__STEPS__
+__CFG__
+__SEED__
+__CHECKPOINT__
+__FILENAME_PREFIX__
+```
+
 ## Next Stages
 
-- Add `comfyui_service` with workflow templates and saved image outputs.
-- Add reference-sheet generation before storyboard image generation.
+- Add reference-sheet generation before storyboard scene generation.
 - Add video workflow queue.
 - Add local TTS with saved WAV files.
 - Add Whisper/WhisperX subtitle pass.

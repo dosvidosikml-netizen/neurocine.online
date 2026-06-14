@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const BACKEND_KEY = "neurocine.factory.backendUrl.v1";
@@ -31,6 +33,12 @@ function formatTime(value) {
   } catch {
     return String(value);
   }
+}
+
+function imageUrl(backendUrl, item) {
+  if (!item?.url) return "";
+  if (/^https?:\/\//i.test(item.url)) return item.url;
+  return `${backendUrl.replace(/\/+$/, "")}${item.url}`;
 }
 
 async function apiFetch(backendUrl, path, options = {}) {
@@ -181,9 +189,17 @@ export default function LocalFactoryPage() {
     setError("");
     setNotice("");
     try {
-      const path = stage === "script" ? "generate-script" : "generate-storyboard";
+      const path = stage === "script"
+        ? "generate-script"
+        : stage === "images"
+          ? "generate-images"
+          : "generate-storyboard";
       await apiFetch(backendUrl, `/api/projects/${project.id}/${path}`, { method: "POST" });
-      setNotice(stage === "script" ? "Генерация сценария запущена." : "Генерация storyboard JSON запущена.");
+      setNotice(stage === "script"
+        ? "Генерация сценария запущена."
+        : stage === "images"
+          ? "Генерация изображений запущена через ComfyUI."
+          : "Генерация storyboard JSON запущена.");
       await refreshStatus(project.id);
     } catch (e) {
       setError(e.message);
@@ -216,6 +232,8 @@ export default function LocalFactoryPage() {
   const refsText = useMemo(() => safeJson(project?.reference_map_json), [project?.reference_map_json]);
   const imagePromptsText = useMemo(() => safeJson(project?.image_prompts_json), [project?.image_prompts_json]);
   const videoPromptsText = useMemo(() => safeJson(project?.video_prompts_json), [project?.video_prompts_json]);
+  const imagesText = useMemo(() => safeJson(project?.images_json), [project?.images_json]);
+  const images = Array.isArray(project?.images_json) ? project.images_json : [];
 
   return (
     <main className="factory-page">
@@ -308,6 +326,7 @@ export default function LocalFactoryPage() {
             <button className="primary" onClick={() => runStage("script")} disabled={busy}>Сгенерировать сценарий</button>
             <button onClick={saveEditedScript} disabled={busy || !project.script_text?.trim()}>Сохранить сценарий</button>
             <button className="primary" onClick={() => runStage("storyboard")} disabled={busy || !project.script_text?.trim()}>Сгенерировать storyboard JSON</button>
+            <button className="primary" onClick={() => runStage("images")} disabled={busy || !project.image_prompts_json?.length}>Сгенерировать изображения</button>
             <button onClick={() => refreshStatus(project.id)} disabled={busy}>Обновить статус</button>
           </div>
           {project.error ? <div className="notice error">{project.error}</div> : null}
@@ -332,7 +351,21 @@ export default function LocalFactoryPage() {
               Video prompts
               <textarea readOnly value={videoPromptsText} />
             </label>
+            <label>
+              Images
+              <textarea readOnly value={imagesText} />
+            </label>
           </div>
+          {images.length ? (
+            <div className="image-grid">
+              {images.map((item) => (
+                <a key={`${item.scene_id}-${item.file}`} href={imageUrl(backendUrl, item)} target="_blank" rel="noreferrer">
+                  <img src={imageUrl(backendUrl, item)} alt={item.scene_id || item.file || "generated frame"} />
+                  <span>{item.scene_id} · {item.width}×{item.height}</span>
+                </a>
+              ))}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -391,6 +424,10 @@ export default function LocalFactoryPage() {
         .progress span{display:block;height:100%;background:linear-gradient(90deg,#e3344f,#ffdca6,#9ee8c9)}
         .json-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
         .json-grid textarea{min-height:240px;font-family:Consolas,monospace;font-size:12px}
+        .image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+        .image-grid a{display:grid;gap:8px;border:1px solid rgba(255,255,255,.10);border-radius:6px;padding:8px;background:#0d1017;color:#f5f2ea;text-decoration:none}
+        .image-grid img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:4px;background:#05070b}
+        .image-grid span{font-size:12px;color:rgba(245,242,234,.65)}
         .notice{border-radius:6px;padding:12px 14px;border:1px solid rgba(255,255,255,.12);line-height:1.4}
         .notice.ok{background:rgba(20,74,54,.35);border-color:rgba(117,255,194,.35)}
         .notice.warn{background:rgba(74,50,17,.30);border-color:rgba(255,196,112,.38)}

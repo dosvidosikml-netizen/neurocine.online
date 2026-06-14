@@ -29,6 +29,7 @@ class Project(Base):
     reference_map_json = Column(Text, default="", nullable=False)
     image_prompts_json = Column(Text, default="", nullable=False)
     video_prompts_json = Column(Text, default="", nullable=False)
+    images_json = Column(Text, default="", nullable=False)
     final_video_path = Column(Text, default="", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

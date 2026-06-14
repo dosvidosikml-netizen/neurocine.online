@@ -61,6 +61,7 @@ class ProjectOut(BaseModel):
     reference_map_json: dict[str, Any] | None = None
     image_prompts_json: list[dict[str, Any]] | None = None
     video_prompts_json: list[dict[str, Any]] | None = None
+    images_json: list[dict[str, Any]] | None = None
     final_video_path: str = ""
     created_at: datetime
     updated_at: datetime

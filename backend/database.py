@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import settings
@@ -20,6 +20,21 @@ def init_db() -> None:
     from . import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    ensure_sqlite_columns()
+
+
+def ensure_sqlite_columns() -> None:
+    migrations = {
+        "projects": {
+            "images_json": "TEXT NOT NULL DEFAULT ''",
+        }
+    }
+    with engine.begin() as conn:
+        for table, columns in migrations.items():
+            existing = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def get_db() -> Generator:

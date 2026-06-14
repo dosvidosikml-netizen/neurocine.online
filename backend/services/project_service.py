@@ -69,6 +69,7 @@ def serialize_project(project: Project) -> dict[str, Any]:
         "reference_map_json": parse_json_field(project.reference_map_json, None),
         "image_prompts_json": parse_json_field(project.image_prompts_json, None),
         "video_prompts_json": parse_json_field(project.video_prompts_json, None),
+        "images_json": parse_json_field(project.images_json, None),
         "final_video_path": project.final_video_path,
         "created_at": project.created_at,
         "updated_at": project.updated_at,
@@ -169,6 +170,7 @@ def save_project_outputs(
     reference_map: dict[str, Any] | None = None,
     image_prompts: list[dict[str, Any]] | None = None,
     video_prompts: list[dict[str, Any]] | None = None,
+    images: list[dict[str, Any]] | None = None,
 ) -> Project:
     root = ensure_project_dirs(project)
     if script_text is not None:
@@ -186,6 +188,9 @@ def save_project_outputs(
     if video_prompts is not None:
         project.video_prompts_json = json.dumps(video_prompts, ensure_ascii=False)
         write_json(root / "video_prompts.json", video_prompts)
+    if images is not None:
+        project.images_json = json.dumps(images, ensure_ascii=False)
+        write_json(root / "images.json", images)
     write_json(root / "project.json", serialize_project(project))
     db.add(project)
     db.commit()
