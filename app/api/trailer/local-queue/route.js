@@ -12,7 +12,7 @@ const ACTIVE_JOB_STATUSES = ["queued", "running"];
 const PC_COMMAND_PROVIDER = "pc-command";
 const PC_COMMAND_PROMPT = "__pc_command__";
 const AGENT_ONLINE_TTL_MS = 45000;
-const WORKER_QUEUE_TTL_MS = 30000;
+const WORKER_QUEUE_TTL_MS = 120000;
 const RUNNING_JOB_STALE_MS = 180000;
 const PC_COMMANDS = {
   status: "Проверить ПК",

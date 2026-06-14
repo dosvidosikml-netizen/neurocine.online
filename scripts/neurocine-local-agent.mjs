@@ -70,6 +70,32 @@ function isTransientFetchError(error = {}) {
     || message.includes("cloudflare");
 }
 
+function compactJson(value, max = 2400) {
+  try {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    return String(text || "").replace(/\s+/g, " ").trim().slice(0, max);
+  } catch {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+  }
+}
+
+function readableError(value, fallback = "unknown error") {
+  if (!value) return fallback;
+  if (value instanceof Error) return value.message || fallback;
+  if (typeof value === "string") return value || fallback;
+  return compactJson(value) || fallback;
+}
+
+function httpJsonErrorMessage(status, json) {
+  const parts = [];
+  if (json?.error) parts.push(readableError(json.error));
+  if (json?.detail) parts.push(readableError(json.detail));
+  if (json?.message) parts.push(readableError(json.message));
+  if (json?.node_errors) parts.push(`node_errors: ${compactJson(json.node_errors)}`);
+  const body = parts.filter(Boolean).join(" | ") || compactJson(json);
+  return body ? `HTTP ${status}: ${body}` : `HTTP ${status}`;
+}
+
 async function fetchJsonWithRetry(url, options = {}, timeoutMs = 600000, attempts = 4) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -78,7 +104,7 @@ async function fetchJsonWithRetry(url, options = {}, timeoutMs = 600000, attempt
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || json.detail || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(httpJsonErrorMessage(res.status, json));
       return json;
     } catch (e) {
       lastError = e;
@@ -1164,8 +1190,11 @@ async function renderComfy({ baseUrl, payload, checkpoint, outputDir = "", onPro
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: workflow, client_id: randomUUID() }),
   }, 20000);
+  if (submitted?.error || submitted?.node_errors) {
+    throw new Error(`ComfyUI rejected workflow: ${compactJson(submitted)}`);
+  }
   const promptId = submitted.prompt_id;
-  if (!promptId) throw new Error("ComfyUI did not return prompt_id");
+  if (!promptId) throw new Error(`ComfyUI did not return prompt_id: ${compactJson(submitted)}`);
 
   const started = Date.now();
   const renderTimeoutMs = Math.max(600000, Number(preparedPayload.render_timeout_ms || payload.render_timeout_ms || 1800000) || 1800000);
@@ -1657,6 +1686,8 @@ async function pollPcCommands(config) {
 async function completeQueueJob(config, job, result) {
   const output = result.image && typeof result.image === "object" ? result.image : null;
   const image = output?.image || result.image || "";
+  const errorMessage = readableError(result.error, "");
+  const completionMessage = result.message || (!result.ok && errorMessage ? `Ошибка рендера: ${errorMessage}` : "");
   const outputMeta = output ? {
     bytes: output.bytes || 0,
     width: output.width || 0,
@@ -1673,8 +1704,8 @@ async function completeQueueJob(config, job, result) {
       status: result.ok ? "done" : "failed",
       image,
       output_meta: outputMeta,
-      error: result.error || "",
-      message: result.message || "",
+      error: errorMessage,
+      message: completionMessage,
     }),
   }, 600000, 8);
 }
@@ -1923,15 +1954,26 @@ async function getWorkerQueueStatus(config, workerOk = false) {
   }
 }
 
-async function sendHeartbeat(config, workerStatus = null) {
+async function sendHeartbeat(config, workerStatus = null, state = null) {
   const worker = workerStatus || await checkWorkerStatus(config);
   const workerQueue = await getWorkerQueueStatus(config, worker.ok);
-  const productionReadiness = await getProductionReadiness(config, worker.ok, {
-    production_quality: "slow_production",
-    reference_mode: "ipadapter",
-    pixel_upscale: true,
-    checkpoint: config.checkpoint,
-  });
+  const now = Date.now();
+  const cachedReadiness = state?.lastProductionReadiness || null;
+  const cachedAt = Number(state?.lastProductionReadinessAt || 0);
+  let productionReadiness = cachedReadiness;
+  if (!productionReadiness || now - cachedAt > 90000 || state?.lastProductionReadinessWorkerOk !== worker.ok) {
+    productionReadiness = await getProductionReadiness(config, worker.ok, {
+      production_quality: "slow_production",
+      reference_mode: "ipadapter",
+      pixel_upscale: true,
+      checkpoint: config.checkpoint,
+    });
+    if (state) {
+      state.lastProductionReadiness = productionReadiness;
+      state.lastProductionReadinessAt = now;
+      state.lastProductionReadinessWorkerOk = worker.ok;
+    }
+  }
   const heartbeat = await fetchJson(`${config.siteUrl}/api/trailer/local-queue`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1948,7 +1990,7 @@ async function sendHeartbeat(config, workerStatus = null) {
       },
       agent_version: "neurocine-local-agent-v1",
     }),
-  }, 60000, 6);
+  }, 15000, 2);
   return { heartbeat, worker };
 }
 
@@ -1967,7 +2009,7 @@ function startHeartbeatLoop(config, state) {
           if (cleaned) console.log(`[NeuroCine Agent] heartbeat removed duplicate ComfyUI process count=${cleaned}`);
         }
       }
-      const hb = await sendHeartbeat(config, state.lastWorkerStatus);
+      const hb = await sendHeartbeat(config, state.lastWorkerStatus, state);
       const agent = hb?.heartbeat?.agent || {};
       const workerOk = agent.worker_ok ? "worker online" : `worker offline${agent.worker_error ? `: ${agent.worker_error}` : ""}`;
       const queue = agent.worker_queue || {};
@@ -1978,7 +2020,7 @@ function startHeartbeatLoop(config, state) {
           : "";
       console.log(`[NeuroCine Agent] heartbeat: ${workerOk}${queueText}`);
     } catch (heartbeatError) {
-      console.error(`[NeuroCine Agent] heartbeat error: ${heartbeatError.message}`);
+      console.error(`[NeuroCine Agent] heartbeat error: ${readableError(heartbeatError)}`);
     } finally {
       heartbeatBusy = false;
     }
@@ -2027,7 +2069,15 @@ async function main() {
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui output=${config.comfyuiOutputDir || "default"}`);
   if (config.provider === "comfyui") console.log(`[NeuroCine Agent] comfyui auto-start=${config.autoStartWorker ? "on" : "off"}`);
   console.log("[NeuroCine Agent] ждёт задания...");
-  const state = { lastWorkerStatus: { ok: false, error: "worker status not checked yet" }, autoStartBusy: false, lastAutoStartAt: 0, lastCleanupAt: 0 };
+  const state = {
+    lastWorkerStatus: { ok: false, error: "worker status not checked yet" },
+    autoStartBusy: false,
+    lastAutoStartAt: 0,
+    lastCleanupAt: 0,
+    lastProductionReadiness: null,
+    lastProductionReadinessAt: 0,
+    lastProductionReadinessWorkerOk: null,
+  };
   startHeartbeatLoop(config, state);
 
   while (true) {
@@ -2064,12 +2114,13 @@ async function main() {
           await completeQueueJob(config, job, { ok: true, image });
           console.log(`[NeuroCine Agent] done ${job.part_label || job.id}`);
         } catch (e) {
-          await completeQueueJob(config, job, { ok: false, error: e.message || "render failed" });
-          console.error(`[NeuroCine Agent] failed ${job.part_label || job.id}: ${e.message}`);
+          const message = readableError(e, "render failed");
+          await completeQueueJob(config, job, { ok: false, error: message, message: `Ошибка рендера: ${message}` });
+          console.error(`[NeuroCine Agent] failed ${job.part_label || job.id}: ${message}`);
         }
       }
     } catch (e) {
-      console.error(`[NeuroCine Agent] queue error: ${e.message}`);
+      console.error(`[NeuroCine Agent] queue error: ${readableError(e)}`);
       await sleep(config.intervalMs * 2);
     }
   }
