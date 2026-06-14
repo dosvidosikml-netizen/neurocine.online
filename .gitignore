@@ -2,3 +2,13 @@ node_modules/
 .next/
 .env
 .env.local
+backend/data/
+projects/*
+!projects/.gitkeep
+models/*
+!models/.gitkeep
+workflows/*
+!workflows/.gitkeep
+*.log
+__pycache__/
+*.pyc
