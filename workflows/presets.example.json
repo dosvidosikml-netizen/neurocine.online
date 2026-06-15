@@ -1,0 +1,13 @@
+{
+  "presets": [
+    {
+      "id": "my_z_image_turbo",
+      "name": "My Z-Image Turbo production workflow",
+      "kind": "custom_api",
+      "description": "Custom exported API workflow for production reference sheets and frames.",
+      "production": true,
+      "workflow_path": "C:/Users/Admin/ComfyUI/workflows/z_image_turbo_api.json",
+      "model_hint": "Use the exact model filenames from the workflow."
+    }
+  ]
+}

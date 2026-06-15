@@ -150,7 +150,16 @@ async def run_generate_images(job_id: str) -> None:
         root = ensure_project_dirs(project)
         image_dir = root / "images"
         comfy = ComfyUIService()
-        await comfy.health()
+        workflow_status = await comfy.workflow_status(project.image_workflow)
+        if not workflow_status.get("ready"):
+            details = workflow_status.get("error") or "workflow is not ready"
+            missing_nodes = workflow_status.get("missing_nodes") or []
+            missing_models = workflow_status.get("missing_models") or []
+            if missing_nodes:
+                details += f"; missing nodes: {', '.join(missing_nodes)}"
+            if missing_models:
+                details += f"; missing models: {', '.join(missing_models)}"
+            raise RuntimeError(details)
 
         total = len(image_prompts)
         rendered: list[dict] = []
@@ -173,6 +182,7 @@ async def run_generate_images(job_id: str) -> None:
                 negative=negative,
                 aspect_ratio=project.aspect_ratio,
                 filename_prefix=prefix,
+                preset_id=project.image_workflow,
             )
             outputs = await comfy.wait_for_images(queued["prompt_id"])
             first = outputs[0]

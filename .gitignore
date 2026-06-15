@@ -9,6 +9,8 @@ models/*
 !models/.gitkeep
 workflows/*
 !workflows/.gitkeep
+!workflows/README.md
+!workflows/presets.example.json
 *.log
 __pycache__/
 *.pyc

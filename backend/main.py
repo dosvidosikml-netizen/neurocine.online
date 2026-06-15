@@ -2,7 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -19,6 +19,8 @@ from .services.project_service import (
     save_project_outputs,
     serialize_project,
 )
+from .services.comfyui_service import ComfyUIService
+from .services.workflow_registry import all_presets, get_preset, preset_payload
 from .workers.pipeline_worker import mark_stage_not_implemented, run_generate_images, run_generate_script, run_generate_storyboard
 
 
@@ -81,8 +83,16 @@ async def health() -> dict:
         "ollama_model": settings.ollama_model,
         "comfyui_url": settings.comfyui_url,
         "comfyui_checkpoint": settings.comfyui_checkpoint,
+        "image_workflow_preset": settings.image_workflow_preset,
+        "selected_workflow": preset_payload(get_preset(settings.image_workflow_preset)),
         "projects_dir": str(settings.projects_dir),
     }
+
+
+@app.get("/api/comfyui/status")
+async def comfyui_status(workflow_preset: str | None = Query(default=None)) -> dict:
+    status = await ComfyUIService().workflow_status(workflow_preset)
+    return {"ok": True, "comfyui": status}
 
 
 @app.post("/api/projects")
@@ -132,6 +142,20 @@ async def update_project_script(project_id: str, body: dict, db: Session = Depen
     return {"ok": True, "project": project_payload(project)}
 
 
+@app.post("/api/projects/{project_id}/settings")
+async def update_project_settings(project_id: str, body: dict, db: Session = Depends(get_db)) -> dict:
+    project = get_project_or_404(db, project_id)
+    image_workflow = str(body.get("image_workflow") or project.image_workflow).strip()
+    preset_ids = {preset.id for preset in all_presets()}
+    if image_workflow not in preset_ids:
+        raise HTTPException(status_code=400, detail=f"Unknown image workflow preset: {image_workflow}")
+    project.image_workflow = image_workflow
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return {"ok": True, "project": project_payload(project)}
+
+
 @app.post("/api/projects/{project_id}/generate-script")
 async def generate_script(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> dict:
     project = get_project_or_404(db, project_id)
@@ -153,6 +177,16 @@ async def generate_images(project_id: str, background_tasks: BackgroundTasks, db
     project = get_project_or_404(db, project_id)
     if not project.image_prompts_json.strip():
         raise HTTPException(status_code=400, detail="Сначала нужен image_prompts.json. Запусти generate-storyboard.")
+    workflow_status = await ComfyUIService().workflow_status(project.image_workflow)
+    if not workflow_status.get("ready"):
+        detail = workflow_status.get("error") or "ComfyUI workflow is not ready"
+        missing_nodes = workflow_status.get("missing_nodes") or []
+        missing_models = workflow_status.get("missing_models") or []
+        if missing_nodes:
+            detail += f"; missing nodes: {', '.join(missing_nodes)}"
+        if missing_models:
+            detail += f"; missing models: {', '.join(missing_models)}"
+        raise HTTPException(status_code=400, detail=detail)
     job = create_job(db, project.id, "generate_images", "Изображения поставлены в очередь ComfyUI")
     background_tasks.add_task(run_generate_images, job.id)
     return {"ok": True, "job": job_payload(job), "project": project_payload(project)}

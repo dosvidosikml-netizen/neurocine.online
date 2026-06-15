@@ -59,6 +59,7 @@ async function apiFetch(backendUrl, path, options = {}) {
 export default function LocalFactoryPage() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND);
   const [health, setHealth] = useState(null);
+  const [workflowStatus, setWorkflowStatus] = useState(null);
   const [projects, setProjects] = useState([]);
   const [project, setProject] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -72,6 +73,7 @@ export default function LocalFactoryPage() {
     aspect_ratio: "9:16",
     duration_sec: 60,
     style: "cinematic realism",
+    image_workflow: "custom_api",
   });
   const eventSourceRef = useRef(null);
 
@@ -93,6 +95,13 @@ export default function LocalFactoryPage() {
     setProjects(data.projects || []);
   }, [backendUrl]);
 
+  const refreshComfy = useCallback(async (workflowPreset = "custom_api") => {
+    const selected = workflowPreset || "custom_api";
+    const data = await apiFetch(backendUrl, `/api/comfyui/status?workflow_preset=${encodeURIComponent(selected)}`);
+    setWorkflowStatus(data.comfyui);
+    return data.comfyui;
+  }, [backendUrl]);
+
   const refreshStatus = useCallback(async (id = project?.id) => {
     if (!id) return;
     const data = await apiFetch(backendUrl, `/api/projects/${id}/status`);
@@ -107,12 +116,13 @@ export default function LocalFactoryPage() {
       const data = await apiFetch(backendUrl, "/api/health");
       setHealth(data);
       setNotice("Локальный backend отвечает.");
+      await refreshComfy(data.image_workflow_preset || form.image_workflow);
       await refreshProjects();
     } catch (e) {
       setHealth(null);
       setError(`Backend не отвечает: ${e.message}`);
     }
-  }, [backendUrl, refreshProjects]);
+  }, [backendUrl, form.image_workflow, refreshComfy, refreshProjects]);
 
   useEffect(() => {
     refreshHealth().catch(() => {});
@@ -194,6 +204,12 @@ export default function LocalFactoryPage() {
         : stage === "images"
           ? "generate-images"
           : "generate-storyboard";
+      if (stage === "images") {
+        const status = await refreshComfy(project.image_workflow);
+        if (!status?.ready) {
+          throw new Error(status?.error || "ComfyUI workflow не готов. Проверь файл workflow, ноды и модели.");
+        }
+      }
       await apiFetch(backendUrl, `/api/projects/${project.id}/${path}`, { method: "POST" });
       setNotice(stage === "script"
         ? "Генерация сценария запущена."
@@ -227,6 +243,25 @@ export default function LocalFactoryPage() {
     }
   }
 
+  async function saveProjectWorkflow(imageWorkflow) {
+    if (!project?.id) return;
+    setBusy("save-workflow");
+    setError("");
+    try {
+      const data = await apiFetch(backendUrl, `/api/projects/${project.id}/settings`, {
+        method: "POST",
+        body: JSON.stringify({ image_workflow: imageWorkflow }),
+      });
+      setProject(data.project);
+      await refreshComfy(imageWorkflow);
+      setNotice("Workflow проекта обновлён.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   const progress = Math.max(0, Math.min(100, Number(project?.progress || 0)));
   const storyboardText = useMemo(() => safeJson(project?.storyboard_json), [project?.storyboard_json]);
   const refsText = useMemo(() => safeJson(project?.reference_map_json), [project?.reference_map_json]);
@@ -234,6 +269,9 @@ export default function LocalFactoryPage() {
   const videoPromptsText = useMemo(() => safeJson(project?.video_prompts_json), [project?.video_prompts_json]);
   const imagesText = useMemo(() => safeJson(project?.images_json), [project?.images_json]);
   const images = Array.isArray(project?.images_json) ? project.images_json : [];
+  const workflowPresets = workflowStatus?.presets || [];
+  const selectedWorkflowStatus = workflowStatus?.selected_preset;
+  const workflowReady = Boolean(workflowStatus?.ready);
 
   return (
     <main className="factory-page">
@@ -257,10 +295,29 @@ export default function LocalFactoryPage() {
         </label>
         <div className="actions">
           <button onClick={refreshHealth} disabled={busy}>Проверить backend</button>
+          <button onClick={() => refreshComfy(project?.image_workflow || form.image_workflow)} disabled={!health?.ok || busy}>Проверить ComfyUI workflow</button>
           <button onClick={refreshProjects} disabled={!health?.ok || busy}>Обновить проекты</button>
         </div>
         {mixedContentWarning ? (
           <div className="notice warn">HTTPS-страница может блокировать запросы к http://127.0.0.1. Для MVP надёжнее открыть сайт локально через `npm run dev` и `http://localhost:3000/factory`.</div>
+        ) : null}
+        {workflowStatus ? (
+          <div className={`workflow-status ${workflowReady ? "ready" : "blocked"}`}>
+            <div>
+              <b>{workflowReady ? "ComfyUI workflow готов" : "ComfyUI workflow не готов"}</b>
+              <span>{selectedWorkflowStatus?.name || "workflow не выбран"}</span>
+            </div>
+            <div className="workflow-grid">
+              <span>Preset: {selectedWorkflowStatus?.id || "-"}</span>
+              <span>Файл: {selectedWorkflowStatus?.workflow_path || "inline"}</span>
+              <span>Ноды: {(workflowStatus.workflow_nodes || []).length}</span>
+              <span>Модели: {(workflowStatus.workflow_models || []).join(", ") || selectedWorkflowStatus?.model_hint || "не определены"}</span>
+            </div>
+            {workflowStatus.error ? <small>{workflowStatus.error}</small> : null}
+            {workflowStatus.missing_nodes?.length ? <small>Нет нод: {workflowStatus.missing_nodes.join(", ")}</small> : null}
+            {workflowStatus.missing_models?.length ? <small>Нет моделей: {workflowStatus.missing_models.join(", ")}</small> : null}
+            {workflowStatus.warnings?.map((item) => <small key={item}>{item}</small>)}
+          </div>
         ) : null}
       </section>
 
@@ -294,6 +351,22 @@ export default function LocalFactoryPage() {
             </select>
           </label>
         </div>
+        <label>
+          Workflow изображений
+          <select
+            value={form.image_workflow}
+            onChange={(e) => {
+              setForm({ ...form, image_workflow: e.target.value });
+              refreshComfy(e.target.value).catch(() => {});
+            }}
+          >
+            {workflowPresets.length ? workflowPresets.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.production ? "Production" : "Диагностика"} · {item.name}
+              </option>
+            )) : <option value="custom_api">Custom ComfyUI API workflow</option>}
+          </select>
+        </label>
         <button className="primary" onClick={createProject} disabled={!health?.ok || busy || form.topic.trim().length < 3}>
           {busy === "create" ? "Создаю..." : "Создать проект"}
         </button>
@@ -322,13 +395,30 @@ export default function LocalFactoryPage() {
             <span>{project.status} · {project.current_stage}</span>
           </div>
           <div className="progress"><span style={{ width: `${progress}%` }} /></div>
+          <label>
+            Workflow изображений этого проекта
+            <select
+              value={project.image_workflow || "custom_api"}
+              onChange={(e) => saveProjectWorkflow(e.target.value)}
+              disabled={busy === "save-workflow"}
+            >
+              {workflowPresets.length ? workflowPresets.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.production ? "Production" : "Диагностика"} · {item.name}
+                </option>
+              )) : <option value={project.image_workflow || "custom_api"}>{project.image_workflow || "custom_api"}</option>}
+            </select>
+          </label>
           <div className="actions">
             <button className="primary" onClick={() => runStage("script")} disabled={busy}>Сгенерировать сценарий</button>
             <button onClick={saveEditedScript} disabled={busy || !project.script_text?.trim()}>Сохранить сценарий</button>
             <button className="primary" onClick={() => runStage("storyboard")} disabled={busy || !project.script_text?.trim()}>Сгенерировать storyboard JSON</button>
-            <button className="primary" onClick={() => runStage("images")} disabled={busy || !project.image_prompts_json?.length}>Сгенерировать изображения</button>
+            <button className="primary" onClick={() => runStage("images")} disabled={busy || !project.image_prompts_json?.length || !workflowReady}>Сгенерировать изображения</button>
             <button onClick={() => refreshStatus(project.id)} disabled={busy}>Обновить статус</button>
           </div>
+          {!workflowReady ? (
+            <div className="notice warn">Изображения заблокированы до готового ComfyUI workflow. Нужен реальный API workflow JSON, доступный ComfyUI и установленные ноды/модели.</div>
+          ) : null}
           {project.error ? <div className="notice error">{project.error}</div> : null}
           <label>
             Сценарий
@@ -402,6 +492,12 @@ export default function LocalFactoryPage() {
         .health.ok{border-color:rgba(117,255,194,.45)}
         .health.bad{border-color:rgba(255,99,125,.45)}
         .health span,.muted{color:rgba(245,242,234,.62)}
+        .workflow-status{border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:14px;display:grid;gap:10px;background:#0d1017}
+        .workflow-status.ready{border-color:rgba(117,255,194,.40);background:rgba(20,74,54,.20)}
+        .workflow-status.blocked{border-color:rgba(255,196,112,.42);background:rgba(74,50,17,.20)}
+        .workflow-status div:first-child{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+        .workflow-status span,.workflow-status small{color:rgba(245,242,234,.68);line-height:1.35}
+        .workflow-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:12px}
         .panel{border:1px solid rgba(255,255,255,.10);background:#11141c;border-radius:8px;padding:18px;display:grid;gap:14px}
         h2{font-size:22px;margin:0}
         label{display:grid;gap:8px;color:rgba(245,242,234,.72);font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
@@ -442,7 +538,7 @@ export default function LocalFactoryPage() {
           .factory-page{padding:12px}
           .hero,.project-head{display:grid}
           .hero h1{font-size:28px}
-          .grid3,.json-grid{grid-template-columns:1fr}
+          .grid3,.json-grid,.workflow-grid{grid-template-columns:1fr}
           .health{min-width:0}
         }
       `}</style>

@@ -10,6 +10,7 @@ class ProjectCreate(BaseModel):
     aspect_ratio: str = Field(default="9:16")
     duration_sec: int = Field(default=60, ge=10, le=3600)
     style: str = Field(default="cinematic realism", max_length=160)
+    image_workflow: str = Field(default="custom_api", max_length=80)
 
 
 class ProjectUpdate(BaseModel):
@@ -52,6 +53,7 @@ class ProjectOut(BaseModel):
     aspect_ratio: str
     duration_sec: int
     style: str
+    image_workflow: str
     status: str
     current_stage: str
     progress: int

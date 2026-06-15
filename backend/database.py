@@ -27,6 +27,7 @@ def ensure_sqlite_columns() -> None:
     migrations = {
         "projects": {
             "images_json": "TEXT NOT NULL DEFAULT ''",
+            "image_workflow": "VARCHAR(80) NOT NULL DEFAULT 'custom_api'",
         }
     }
     with engine.begin() as conn:

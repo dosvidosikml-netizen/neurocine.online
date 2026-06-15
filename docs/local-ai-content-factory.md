@@ -37,7 +37,7 @@ Implemented MVP stages:
 4. Save all outputs to disk and SQLite.
 5. Stream events to the frontend.
 6. Show results on `/factory`.
-7. Generate still images through ComfyUI API and save them under `projects/{project_id}/images`.
+7. Generate still images through a selected ComfyUI API workflow and save them under `projects/{project_id}/images`.
 
 ## Risks
 
@@ -73,9 +73,20 @@ Optional image generation environment variables:
 $env:COMFYUI_URL="http://127.0.0.1:8188"
 $env:COMFYUI_CHECKPOINT="sd_xl_base_1.0.safetensors"
 $env:COMFYUI_WORKFLOW_PATH="C:\path\to\workflow_api.json"
+$env:FACTORY_IMAGE_WORKFLOW_PRESET="custom_api"
 ```
 
-If `COMFYUI_WORKFLOW_PATH` is empty, the backend uses a basic SDXL text-to-image workflow. A custom workflow may contain placeholders:
+Production image generation should use an exported ComfyUI API workflow. If the workflow is missing, the backend blocks rendering and reports exactly what is missing instead of silently falling back to a weak pipeline.
+
+Built-in workflow presets:
+
+- `custom_api`: uses `COMFYUI_WORKFLOW_PATH`.
+- `z_image_turbo`: uses `workflows/z_image_turbo_api.json`.
+- `flux_2_klein`: uses `workflows/flux_2_klein_api.json`.
+- `wan_image`: uses `workflows/wan_image_api.json`.
+- `basic_sdxl_diagnostic`: connection test only, not production quality.
+
+A custom workflow may contain placeholders:
 
 ```text
 __PROMPT__
@@ -88,6 +99,13 @@ __SEED__
 __CHECKPOINT__
 __FILENAME_PREFIX__
 ```
+
+The backend validates the selected workflow through `/api/comfyui/status` before rendering:
+
+- ComfyUI API is reachable.
+- Workflow file exists and has valid API JSON.
+- All workflow nodes are installed in ComfyUI.
+- Model filenames referenced by the workflow are visible in ComfyUI object info.
 
 ## Next Stages
 

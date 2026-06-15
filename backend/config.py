@@ -22,6 +22,8 @@ class Settings(BaseModel):
     comfyui_url: str = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
     comfyui_checkpoint: str = os.getenv("COMFYUI_CHECKPOINT", "sd_xl_base_1.0.safetensors")
     comfyui_workflow_path: Path | None = Path(os.getenv("COMFYUI_WORKFLOW_PATH")) if os.getenv("COMFYUI_WORKFLOW_PATH") else None
+    image_workflow_preset: str = os.getenv("FACTORY_IMAGE_WORKFLOW_PRESET", "custom_api")
+    workflow_presets_path: Path = Path(os.getenv("FACTORY_WORKFLOW_PRESETS_PATH", REPO_ROOT / "workflows" / "presets.json"))
     image_width_9x16: int = int(os.getenv("FACTORY_IMAGE_WIDTH_9X16", "1024"))
     image_height_9x16: int = int(os.getenv("FACTORY_IMAGE_HEIGHT_9X16", "1792"))
     image_width_16x9: int = int(os.getenv("FACTORY_IMAGE_WIDTH_16X9", "1792"))

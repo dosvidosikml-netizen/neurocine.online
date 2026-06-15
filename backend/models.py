@@ -20,6 +20,7 @@ class Project(Base):
     aspect_ratio = Column(String(16), default="9:16", nullable=False)
     duration_sec = Column(Integer, default=60, nullable=False)
     style = Column(String(160), default="cinematic realism", nullable=False)
+    image_workflow = Column(String(80), default="custom_api", nullable=False)
     status = Column(String(40), default="draft", nullable=False)
     current_stage = Column(String(80), default="created", nullable=False)
     progress = Column(Integer, default=0, nullable=False)
